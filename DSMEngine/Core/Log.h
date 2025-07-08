@@ -3,7 +3,6 @@
 #define __LOG_H__
 
 
-#include "Core.h"
 #include "spdlog/spdlog.h"
 
 namespace DSM {

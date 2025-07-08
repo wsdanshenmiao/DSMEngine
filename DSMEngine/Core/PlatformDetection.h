@@ -1,0 +1,8 @@
+#ifndef __PLATFORMDETECTION_H__
+#define __PLATFORMDETECTION_H__
+
+#define DSM_PLATFORM_WINDOWS
+
+
+
+#endif

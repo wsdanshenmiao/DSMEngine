@@ -7,9 +7,9 @@
 #include <format>
 
 
-#include "Application.h"
-#include "Log.h"
-#include "EntryPoint.h"
+#include "Core/Application.h"
+#include "Core/Log.h"
+#include "Core/EntryPoint.h"
 
 
 
