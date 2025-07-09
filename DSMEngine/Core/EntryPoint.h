@@ -15,16 +15,15 @@ int WinMain(
     _In_ LPSTR lpCmdLine,
     _In_ int nShowCmd)
 {
+    AllocConsole();
+    freopen("CONOUT$", "w", stdout);
+    
     DSM::Log::Init();
     DSM_CORE_WARN("Initialized Log");
-    DSM::WindowsWindowProps winProps;
-    winProps.m_Width = 800;
-    winProps.m_Height = 800;
-    winProps.m_hInstance = hInstance;
-    DSM::Window* window = DSM::Window::Create(winProps);
     auto app = DSM::CreateApplication();
     app->Run();
     delete app;
+    
     return 0;
 }
 

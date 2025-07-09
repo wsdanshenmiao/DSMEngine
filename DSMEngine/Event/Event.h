@@ -4,6 +4,8 @@
 
 #include "Core/Core.h"
 #include <string>
+#include <format>
+#include <concepts>
 
 namespace DSM{
     enum class EventType
@@ -44,11 +46,48 @@ namespace DSM{
 
         inline bool IsInCategoty(EventCategory category) { return GetCategoryFlags() & category; }
 
-    protected:
         bool m_Handled = false;
     };
-    
+
+    class EventDispatcher
+    {
+    public:
+        EventDispatcher(Event& event) : m_Event(event) {}
+
+        template <typename T, typename Func> 
+            requires std::is_base_of_v<Event, T> && 
+                std::is_invocable_r_v<bool, Func, T&>
+        bool Dispatch(const Func& func)
+        {
+            if(m_Event.GetEventType() == T::GetStaticType()){
+                m_Event.m_Handled |= func(static_cast<T&>(m_Event));
+                return true;
+            }
+            return false;
+        }
+
+    private:
+        Event& m_Event;
+    };
+
+
 } // namespace DSM
 
+inline std::ostream& operator<<(std::ostream& os, const DSM::Event& event)
+{
+    return os << event.ToString();
+}
+
+template<>
+struct std::formatter<DSM::Event>
+{
+    template<typename Context>
+    constexpr auto parse(Context& c) { return c.begin(); }
+    template<typename Context>
+    auto format(const DSM::Event& e, Context& c) const
+    {
+        return std::format_to(c.out(), "{}", e.ToString());
+    }
+};
 
 #endif

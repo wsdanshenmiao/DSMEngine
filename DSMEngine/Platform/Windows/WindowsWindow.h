@@ -5,11 +5,6 @@
 #include "Core/Window.h"
 
 namespace DSM {
-    struct WindowsWindowProps : public WindowProps
-    {
-        HINSTANCE m_hInstance;
-    };
-
 
     class WindowsWindow : public Window
     {
@@ -25,6 +20,9 @@ namespace DSM {
         inline void SetEventCallback(const EventCallbackFunc& func) override { m_Callback = func; };
         
         void* GetNativeWindow() const override;
+
+    private:
+        
 
     private:
         uint32_t m_Width, m_Height;
