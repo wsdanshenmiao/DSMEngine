@@ -4,6 +4,7 @@ target(targetName)
     set_targetdir(path.join(binDir, targetName))
 
     add_deps("spdlog")
+    add_deps("imgui")
     add_includedirs("./",{public = true})
     add_files("**.cpp")
     add_headerfiles("**.h")

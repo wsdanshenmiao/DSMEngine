@@ -16,7 +16,7 @@
     if (!(bool)(isFalse)) { \
         auto error = std::format("\nAssertion failed in {} @ {}\n", __FILE__, __LINE__); \
         error += std::format("\'{}\' is false\n", isFalse);   \
-        error += __VA_ARGS__;   \
+        __VA_OPT__(error += __VA_ARGS__;)   \
         error += "\n";  \
         DSM_ERROR(error);   \
         __debugbreak(); \
