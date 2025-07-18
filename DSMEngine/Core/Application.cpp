@@ -18,6 +18,8 @@ namespace DSM {
                 (*it)->OnEvent(event);
             }
         });
+
+        // m_ImguiLayer = std::make_unique<ImguiLayer>();
     }
 
     void Application::Run()

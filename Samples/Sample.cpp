@@ -1,6 +1,7 @@
 #include <DSMEngine.h>
 #include <Core/Layer.h>
 #include <print>
+#include "Graphics/ResourceBindings.h"
 
 class ExampleLayer : public DSM::Layer
 {
@@ -21,6 +22,10 @@ public:
 class Sample : public DSM::Application
 {
 public:
+    Sample()
+    {
+        m_LayerStack.PushLayer(new ExampleLayer());
+    }
 
 };
 

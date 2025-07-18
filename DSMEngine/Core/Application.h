@@ -6,15 +6,23 @@
 #include "Core.h"
 #include "Window.h"
 #include "LayerStack.h"
+#include "GUI/ImguiLayer.h"
+#include "Utils/Singleton.h"
+
 
 namespace DSM {
     class WindowResizeEvent;
     class WindowCloseEvent;
-    
+    class Application;
+
+
+    Application* CreateApplication();
+
     class Application
     {
     public:
         Application();
+        virtual ~Application() = default;
 
         void Run();
 
@@ -24,14 +32,27 @@ namespace DSM {
         void PushLayer(Layer* layer);
         void PushOverlay(Layer* layer);
 
-    private:
+        Window& GetWindow() { return *m_Window; }
+
+    public:
+        static void Create() { std::call_once(m_Initialized, []() { m_Instance.reset(CreateApplication()); }); }
+
+        static Application& Get() 
+        { 
+            DSM_ASSERT(m_Instance != nullptr, "Application should be explicit initialized"); 
+            return *m_Instance; 
+        }
+
+    protected:
+        inline static std::once_flag m_Initialized{};
+        inline static std::unique_ptr<Application> m_Instance{};
+
+    protected:
         std::unique_ptr<Window> m_Window{};
         LayerStack m_LayerStack{};
         bool m_Running = true;
+        std::unique_ptr<ImguiLayer> m_ImguiLayer;
     };
-
-
-    Application* CreateApplication();
 
 
 } // namespace DSM 

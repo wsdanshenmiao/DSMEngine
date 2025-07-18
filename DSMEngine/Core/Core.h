@@ -24,6 +24,8 @@
 
 
 namespace DSM::Utility {
+
+
     inline std::wstring UTF8ToWString(const std::string& str) 
     {
         if (str.empty()) return L"";
@@ -94,6 +96,15 @@ namespace DSM::Utility {
 
         return str;
     }
+
+    template <class T>
+    std::size_t HashCombine(std::size_t seed, const T& v)
+    {
+        std::hash<T> hasher;
+        return seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+
+
 } // namespace DSM::Utility 
 
 

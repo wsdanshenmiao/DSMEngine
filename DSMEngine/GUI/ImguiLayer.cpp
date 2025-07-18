@@ -23,7 +23,7 @@ namespace DSM {
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;	// 允许键盘控制
-
+        
 		ImGui::StyleColorsDark();
         
         Microsoft::WRL::ComPtr<ID3D12Device> device;
@@ -41,10 +41,9 @@ namespace DSM {
 
     void ImguiLayer::OnDetach()
     {
-    }
-    
-    void ImguiLayer::OnUpdate()
-    {
+        ImGui_ImplWin32_Shutdown();
+        ImGui_ImplDX12_Shutdown();
+        ImGui::DestroyContext();
     }
     
     void ImguiLayer::OnEvent(Event &event)

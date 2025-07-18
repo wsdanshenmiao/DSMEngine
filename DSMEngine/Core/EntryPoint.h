@@ -7,8 +7,6 @@
 #if defined(DSM_PLATFORM_WINDOWS)
 #include "Platform/Windows/WindowsWindow.h"
 
-extern DSM::Application* DSM::CreateApplication(); 
-
 int WinMain(
     _In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -20,9 +18,9 @@ int WinMain(
     
     DSM::Log::Init();
     DSM_CORE_WARN("Initialized Log");
-    auto app = DSM::CreateApplication();
-    app->Run();
-    delete app;
+    DSM::Application::Create();
+    auto& app = DSM::Application::Get();
+    app.Run();
     
     return 0;
 }

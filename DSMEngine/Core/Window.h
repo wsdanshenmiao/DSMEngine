@@ -11,8 +11,8 @@ namespace DSM{
     {
         virtual ~WindowProps() = default;
         std::string m_Title = "DSMEngine";
-        uint32_t m_Width = 1600;
-        uint32_t m_Height = 900;
+        uint32_t m_Width = 800;
+        uint32_t m_Height = 450;
     };
 
     class Window
