@@ -27,7 +27,7 @@ namespace DSM {
     {
         virtual const HeapDesc& GetDesc() const = 0;
     };
-    using HeapHandle = std::shared_ptr<IHeap>;
+    using HeapHandle = RefPtr<IHeap>;
     
 } // namespace DSM 
 

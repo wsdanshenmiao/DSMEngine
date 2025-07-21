@@ -49,7 +49,7 @@ namespace DSM {
         [[nodiscard]] virtual const ShaderDesc& GetDesc() const = 0;
         virtual void GetBytecode(const void** ppBytecode, size_t* pSize) const = 0;
     };
-    using ShaderHandle = std::shared_ptr<IShader>;
+    using ShaderHandle = RefPtr<IShader>;
 
 } // namespace DSM 
 

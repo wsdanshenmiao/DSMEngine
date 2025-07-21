@@ -38,6 +38,239 @@ namespace DSM {
         constexpr ObjectType D3D12_CommandAllocator                 = 0x0001000b;
     };
 
+    
+
+    // 引用指针 From Microsoft::WRL::RefPtr<T>
+    template <typename T>
+    class RefPtr
+    {
+    public:
+        typedef T InterfaceType;
+
+    protected:
+        InterfaceType *ptr_;
+        template<class U> friend class RefPtr;
+
+        void InternalAddRef() const noexcept
+        {
+            if (ptr_ != nullptr)
+            {
+                ptr_->AddRef();
+            }
+        }
+
+        unsigned long InternalRelease() noexcept
+        {
+            unsigned long ref = 0;
+            T* temp = ptr_;
+
+            if (temp != nullptr)
+            {
+                ptr_ = nullptr;
+                ref = temp->Release();
+            }
+
+            return ref;
+        }
+
+    public:
+        RefPtr() noexcept : ptr_(nullptr)
+        {
+        }
+
+        RefPtr(std::nullptr_t) noexcept : ptr_(nullptr)
+        {
+        }
+
+        template<class U>
+        RefPtr(U *other) noexcept : ptr_(other)
+        {
+            InternalAddRef();
+        }
+
+        RefPtr(const RefPtr& other) noexcept : ptr_(other.ptr_)
+        {
+            InternalAddRef();
+        }
+
+        // copy constructor that allows to instantiate class when U* is convertible to T*
+        template<class U>
+        RefPtr(const RefPtr<U> &other, typename std::enable_if_t<std::is_convertible_v<U*, T*>, void *> * = 0) noexcept :
+            ptr_(other.ptr_)
+        {
+            InternalAddRef();
+        }
+
+        RefPtr(RefPtr &&other) noexcept : ptr_(nullptr)
+        {
+            if (this != reinterpret_cast<RefPtr*>(&reinterpret_cast<unsigned char&>(other)))
+            {
+                Swap(other);
+            }
+        }
+
+        // Move constructor that allows instantiation of a class when U* is convertible to T*
+        template<class U>
+        RefPtr(RefPtr<U>&& other, typename std::enable_if_t<std::is_convertible_v<U*, T*>, void *> * = 0) noexcept :
+            ptr_(other.ptr_)
+        {
+            other.ptr_ = nullptr;
+        }
+        ~RefPtr() noexcept
+        {
+            InternalRelease();
+        }
+
+
+        RefPtr& operator=(std::nullptr_t) noexcept
+        {
+            InternalRelease();
+            return *this;
+        }
+
+        RefPtr& operator=(T *other) noexcept
+        {
+            if (ptr_ != other)
+            {
+                RefPtr(other).Swap(*this);
+            }
+            return *this;
+        }
+
+        template <typename U>
+        RefPtr& operator=(U *other) noexcept
+        {
+            RefPtr(other).Swap(*this);
+            return *this;
+        }
+
+        RefPtr& operator=(const RefPtr &other) noexcept
+        {
+            if (ptr_ != other.ptr_)
+            {
+                RefPtr(other).Swap(*this);
+            }
+            return *this;
+        }
+
+        template<class U>
+        RefPtr& operator=(const RefPtr<U>& other) noexcept
+        {
+            RefPtr(other).Swap(*this);
+            return *this;
+        }
+
+        RefPtr& operator=(RefPtr &&other) noexcept
+        {
+            RefPtr(static_cast<RefPtr&&>(other)).Swap(*this);
+            return *this;
+        }
+
+        template<class U>
+        RefPtr& operator=(RefPtr<U>&& other) noexcept
+        {
+            RefPtr(static_cast<RefPtr<U>&&>(other)).Swap(*this);
+            return *this;
+        }
+        
+        void Swap(RefPtr&& r) noexcept
+        {
+            T* tmp = ptr_;
+            ptr_ = r.ptr_;
+            r.ptr_ = tmp;
+        }
+
+        void Swap(RefPtr& r) noexcept
+        {
+            T* tmp = ptr_;
+            ptr_ = r.ptr_;
+            r.ptr_ = tmp;
+        }
+        
+        T* Get() const noexcept
+        {
+            return ptr_;
+        }
+
+        
+        InterfaceType* operator->() const noexcept
+        {
+            return ptr_;
+        }
+        
+        T** operator&()
+        {
+            return &ptr_;
+        }
+
+        T* const* GetAddressOf() const noexcept
+        {
+            return &ptr_;
+        }
+
+        T** GetAddressOf() noexcept
+        {
+            return &ptr_;
+        }
+
+        T** ReleaseAndGetAddressOf() noexcept
+        {
+            InternalRelease();
+            return &ptr_;
+        }
+
+        T* Detach() noexcept
+        {
+            T* ptr = ptr_;
+            ptr_ = nullptr;
+            return ptr;
+        }
+
+        void Attach(InterfaceType* other) noexcept
+        {
+            if (ptr_ != nullptr)
+            {
+                auto ref = ptr_->Release();
+                (void)ref;
+                // Attaching to the same object only works if duplicate references are being coalesced. Otherwise
+                // re-attaching will cause the pointer to be released and may cause a crash on a subsequent dereference.
+                __WRL_ASSERT__(ref != 0 || ptr_ != other);
+            }
+
+            ptr_ = other;
+        }
+
+        unsigned long Reset()
+        {
+            return InternalRelease();
+        }
+    };    // RefPtr
+    // 引用计数器
+    class RefCounter
+    {
+    public:
+        virtual ~RefCounter() = default;
+
+        virtual unsigned long AddRef() 
+        {
+            return ++m_RefCount;
+        }
+
+        virtual unsigned long Release()
+        {
+            unsigned long result = --m_RefCount;
+            if (result == 0) {
+                delete this;
+            }
+            return result;
+        }
+
+    private:
+        std::atomic<unsigned long> m_RefCount = 0;
+    };
+
+
+
     struct Object
     {
         union 
@@ -52,7 +285,7 @@ namespace DSM {
         template<typename T> operator T* () const { return static_cast<T*>(pointer); }
     };
 
-    class IResource
+    class IResource : public RefCounter
     {
     protected:
         IResource() = default;
@@ -67,6 +300,15 @@ namespace DSM {
         IResource& operator=(const IResource&) = delete;
         IResource& operator=(const IResource&&) = delete;
     };
+    using ResourceHandle = RefPtr<IResource>;
+
+    // 从GPU上获取事件信息
+    struct IEventQuery : public IResource { };
+    using EventQueryHandle = RefPtr<IEventQuery>;
+
+    // 从GPU上获取时间信息
+    struct ITimerQuery : public IResource { };
+    using TimerQueryHandle = RefPtr<ITimerQuery>;
 
     struct Color
     {
@@ -335,7 +577,7 @@ namespace DSM {
         [[nodiscard]] virtual uint32_t GetNumAttributes() const = 0;
         [[nodiscard]] virtual const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const = 0;
     };
-    using InputLayoutHandle = std::shared_ptr<IInputLayout>;
+    using InputLayoutHandle = RefPtr<IInputLayout>;
 
     enum class CpuAccessMode : uint8_t
     {
@@ -362,6 +604,130 @@ namespace DSM {
     };
 
 
+
+    
+
+    struct DrawArguments
+    {
+        uint32_t vertexCount = 0;
+        uint32_t instanceCount = 1;
+        uint32_t startIndexLocation = 0;
+        uint32_t startVertexLocation = 0;
+        uint32_t startInstanceLocation = 0;
+
+        constexpr DrawArguments& SetVertexCount(uint32_t value) { vertexCount = value; return *this; }
+        constexpr DrawArguments& SetInstanceCount(uint32_t value) { instanceCount = value; return *this; }
+        constexpr DrawArguments& SetStartIndexLocation(uint32_t value) { startIndexLocation = value; return *this; }
+        constexpr DrawArguments& SetStartVertexLocation(uint32_t value) { startVertexLocation = value; return *this; }
+        constexpr DrawArguments& SetStartInstanceLocation(uint32_t value) { startInstanceLocation = value; return *this; }
+    };
+
+    struct DrawIndirectArguments
+    {
+        uint32_t vertexCount = 0;
+        uint32_t instanceCount = 1;
+        uint32_t startVertexLocation = 0;
+        uint32_t startInstanceLocation = 0;
+
+        constexpr DrawIndirectArguments& SetVertexCount(uint32_t value) { vertexCount = value; return *this; }
+        constexpr DrawIndirectArguments& SetInstanceCount(uint32_t value) { instanceCount = value; return *this; }
+        constexpr DrawIndirectArguments& SetStartVertexLocation(uint32_t value) { startVertexLocation = value; return *this; }
+        constexpr DrawIndirectArguments& SetStartInstanceLocation(uint32_t value) { startInstanceLocation = value; return *this; }
+    };
+
+    struct DrawIndexedIndirectArguments
+    {
+        uint32_t indexCount = 0;
+        uint32_t instanceCount = 1;
+        uint32_t startIndexLocation = 0;
+        int32_t  baseVertexLocation = 0;
+        uint32_t startInstanceLocation = 0;
+
+        constexpr DrawIndexedIndirectArguments& SetIndexCount(uint32_t value) { indexCount = value; return *this; }
+        constexpr DrawIndexedIndirectArguments& SetInstanceCount(uint32_t value) { instanceCount = value; return *this; }
+        constexpr DrawIndexedIndirectArguments& SetStartIndexLocation(uint32_t value) { startIndexLocation = value; return *this; }
+        constexpr DrawIndexedIndirectArguments& SetBaseVertexLocation(int32_t value) { baseVertexLocation = value; return *this; }
+        constexpr DrawIndexedIndirectArguments& SetStartInstanceLocation(uint32_t value) { startInstanceLocation = value; return *this; }
+    };
+    
+    struct DispatchIndirectArguments
+    {
+        uint32_t groupsX = 1;
+        uint32_t groupsY = 1;
+        uint32_t groupsZ = 1;
+
+        constexpr DispatchIndirectArguments& SetGroupsX(uint32_t value) { groupsX = value; return *this; }
+        constexpr DispatchIndirectArguments& SetGroupsY(uint32_t value) { groupsY = value; return *this; }
+        constexpr DispatchIndirectArguments& SetGroupsZ(uint32_t value) { groupsZ = value; return *this; }
+        constexpr DispatchIndirectArguments& SetGroups2D(uint32_t x, uint32_t y) { groupsX = x; groupsY = y; return *this; }
+        constexpr DispatchIndirectArguments& SetGroups3D(uint32_t x, uint32_t y, uint32_t z) { groupsX = x; groupsY = y; groupsZ = z; return *this; }
+    };
+
+    
+
+
+    enum class Feature : uint8_t
+    {
+        ComputeQueue,
+        ConservativeRasterization,
+        ConstantBufferRanges,
+        CopyQueue,
+        DeferredCommandLists,
+        FastGeometryShader,
+        HeapDirectlyIndexed,
+        HlslExtensionUAV,
+        LinearSweptSpheres,
+        Meshlets,
+        RayQuery,
+        RayTracingAccelStruct,
+        RayTracingClusters,
+        RayTracingOpacityMicromap,
+        RayTracingPipeline,
+        SamplerFeedback,
+        ShaderExecutionReordering,
+        ShaderSpecializations,
+        SinglePassStereo,
+        Spheres,
+        VariableRateShading,
+        VirtualResources,
+        WaveLaneCountMinMax,
+        CooperativeVectorInferencing,
+        CooperativeVectorTraining
+    };
+
+    enum class MessageSeverity : uint8_t
+    {
+        Info,
+        Warning,
+        Error,
+        Fatal
+    };
+
+    enum class CommandQueue : uint8_t
+    {
+        Graphics = 0,
+        Compute,
+        Copy,
+
+        Count
+    };
+
+    // 有客户端实现消息回调
+    class IMessageCallback
+    {
+    protected:
+        IMessageCallback() = default;
+        virtual ~IMessageCallback() = default;
+
+    public:
+        // 通过该接口传递消息
+        virtual void Message(MessageSeverity severity, const char* messageText) = 0;
+
+        IMessageCallback(const IMessageCallback&) = delete;
+        IMessageCallback(const IMessageCallback&&) = delete;
+        IMessageCallback& operator=(const IMessageCallback&) = delete;
+        IMessageCallback& operator=(const IMessageCallback&&) = delete;
+    };
 
 } // namespace DSM 
 

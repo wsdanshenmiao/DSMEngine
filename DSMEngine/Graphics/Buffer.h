@@ -95,7 +95,7 @@ namespace DSM {
         [[nodiscard]] virtual const BufferDesc& GetDesc() const = 0;
         [[nodiscard]] virtual GpuVirtualAddress GetGpuVirtualAddress() const = 0;
     };
-    using BufferHandle = std::shared_ptr<IBuffer>;
+    using BufferHandle = RefPtr<IBuffer>;
 
 } // namespace DSM 
 

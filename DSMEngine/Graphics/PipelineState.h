@@ -305,7 +305,7 @@ namespace DSM {
         [[nodiscard]] virtual const GraphicsPipelineDesc& GetDesc() const = 0;
         [[nodiscard]] virtual const FramebufferInfo& GetFramebufferInfo() const = 0;
     };
-    using GraphicsPipelineHandle = std::shared_ptr<IGraphicsPipeline>;
+    using GraphicsPipelineHandle = RefPtr<IGraphicsPipeline>;
 
 
     struct ComputePipelineDesc
@@ -313,7 +313,7 @@ namespace DSM {
         ShaderHandle CS;
 
         BindingLayoutVector bindingLayouts;
-        
+
         ComputePipelineDesc& SetComputeShader(IShader* value) { CS.reset(value); return *this; }
         ComputePipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
     };
@@ -324,7 +324,7 @@ namespace DSM {
     public:
         [[nodiscard]] virtual const ComputePipelineDesc& GetDesc() const = 0;
     };
-    using ComputePipelineHandle = std::shared_ptr<IComputePipeline>;
+    using ComputePipelineHandle = RefPtr<IComputePipeline>;
 
 
     struct MeshletPipelineDesc
@@ -356,7 +356,7 @@ namespace DSM {
         [[nodiscard]] virtual const MeshletPipelineDesc& getDesc() const = 0;
         [[nodiscard]] virtual const FramebufferInfo& getFramebufferInfo() const = 0;
     };
-    using MeshletPipelineHandle = std::shared_ptr<IMeshletPipeline>;
+    using MeshletPipelineHandle = RefPtr<IMeshletPipeline>;
 
 
 
@@ -460,7 +460,6 @@ namespace DSM {
         MeshletState& setIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
         MeshletState& setDynamicStencilRefValue(uint8_t value) { dynamicStencilRefValue = value; return *this; }
     };
-    
 
 } // namespace DSM 
 

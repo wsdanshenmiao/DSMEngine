@@ -141,7 +141,7 @@ namespace DSM {
         [[nodiscard]] virtual const BindingLayoutDesc* GetDesc() const = 0;           // returns nullptr for bindless layouts
         [[nodiscard]] virtual const BindlessLayoutDesc* GetBindlessDesc() const = 0;  // returns nullptr for regular layouts
     };
-    using BindingLayoutHandle = std::shared_ptr<IBindingLayout>;
+    using BindingLayoutHandle = RefPtr<IBindingLayout>;
 
     using BindingLayoutVector = StaticVector<BindingLayoutHandle, c_MaxBindingLayouts>;
 
@@ -437,7 +437,7 @@ namespace DSM {
         [[nodiscard]] virtual const BindingSetDesc* GetDesc() const = 0;  // returns nullptr for descriptor tables
         [[nodiscard]] virtual IBindingLayout* GetLayout() const = 0;
     };
-    using BindingSetHandle = std::shared_ptr<IBindingSet>;
+    using BindingSetHandle = RefPtr<IBindingSet>;
     using BindingSetVector = StaticVector<BindingSetHandle, c_MaxBindingLayouts>;
 
     // Descriptor tables are bare, without extra mappings, state, or liveness tracking.
@@ -451,7 +451,7 @@ namespace DSM {
         [[nodiscard]] virtual uint32_t GetCapacity() const = 0;
         [[nodiscard]] virtual uint32_t GetFirstDescriptorIndexInHeap() const = 0;
     };
-    using DescriptorTableHandle = std::shared_ptr<IDescriptorTable>;
+    using DescriptorTableHandle = RefPtr<IDescriptorTable>;
 
 
 } // namespace DSM 

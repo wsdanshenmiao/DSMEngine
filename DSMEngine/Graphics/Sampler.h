@@ -58,7 +58,7 @@ namespace DSM {
     public:
         [[nodiscard]] virtual const SamplerDesc& GetDesc() const = 0;
     };
-    using SamplerHandle = std::shared_ptr<ISampler>;
+    using SamplerHandle = RefPtr<ISampler>;
 
     
 } // namespace DSM 

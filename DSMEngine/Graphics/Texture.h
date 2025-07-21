@@ -213,7 +213,7 @@ namespace DSM {
             TextureDimension dimension = TextureDimension::Unknown, 
             bool isReadOnlyDSV = false) = 0;
     };
-    using TextureHandle = std::shared_ptr<ITexture>;
+    using TextureHandle = RefPtr<ITexture>;
     
     
 

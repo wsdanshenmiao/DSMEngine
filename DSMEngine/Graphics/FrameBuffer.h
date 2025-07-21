@@ -90,7 +90,7 @@ namespace DSM {
         [[nodiscard]] virtual const FramebufferDesc& GetDesc() const = 0;
         [[nodiscard]] virtual const FramebufferInfo& GetFramebufferInfo() const = 0;
     };
-    using FrameBufferHandle = std::shared_ptr<IFramebuffer>;
+    using FrameBufferHandle = RefPtr<IFramebuffer>;
     
 } // namespace DSM 
 
