@@ -143,6 +143,7 @@ namespace DSM {
     };
     using BindingLayoutHandle = std::shared_ptr<IBindingLayout>;
 
+    using BindingLayoutVector = StaticVector<BindingLayoutHandle, c_MaxBindingLayouts>;
 
 
     
@@ -437,6 +438,7 @@ namespace DSM {
         [[nodiscard]] virtual IBindingLayout* GetLayout() const = 0;
     };
     using BindingSetHandle = std::shared_ptr<IBindingSet>;
+    using BindingSetVector = StaticVector<BindingSetHandle, c_MaxBindingLayouts>;
 
     // Descriptor tables are bare, without extra mappings, state, or liveness tracking.
     // Unlike binding sets, descriptor tables are mutable - moreover, modification is the only way to populate them.

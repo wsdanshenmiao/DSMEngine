@@ -15,6 +15,8 @@ namespace DSM {
 
     static constexpr uint32_t c_MaxRenderTargets = 8;
     static constexpr uint32_t c_MaxViewports = 16;
+    static constexpr uint32_t c_MaxVertexAttributes = 16;
+    static constexpr uint32_t c_MaxBindingLayouts = 8;
     static constexpr uint32_t c_MaxBindlessRegisterSpaces = 16;
 
 
@@ -57,11 +59,8 @@ namespace DSM {
         virtual ~IResource() = default;
 
     public:
-        virtual unsigned long AddRef() = 0;
-        virtual unsigned long Release() = 0;
-
         // 返回一个原始对象
-        virtual Object getNativeObject(ObjectType objectType) { (void)objectType; return nullptr; }
+        virtual Object GetNativeObject(ObjectType objectType) { (void)objectType; return nullptr; }
         
         IResource(const IResource&) = delete;
         IResource(const IResource&&) = delete;
@@ -336,6 +335,7 @@ namespace DSM {
         [[nodiscard]] virtual uint32_t GetNumAttributes() const = 0;
         [[nodiscard]] virtual const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const = 0;
     };
+    using InputLayoutHandle = std::shared_ptr<IInputLayout>;
 
     enum class CpuAccessMode : uint8_t
     {
@@ -345,253 +345,6 @@ namespace DSM {
     };
 
 
-
-
-
-
-    //////////////////////////////////////////////////////////////////////////
-    // Blend State
-    //////////////////////////////////////////////////////////////////////////
-
-    enum class BlendFactor : uint8_t
-    {
-        Zero,
-        One,
-        SrcColor,
-        InvSrcColor,
-        SrcAlpha,
-        InvSrcAlpha,
-        DstAlpha,
-        InvDstAlpha,
-        DstColor,
-        InvDstColor,
-        SrcAlphaSaturate,
-        ConstantColor,
-        InvConstantColor,
-        Src1Color,
-        InvSrc1Color,
-        Src1Alpha,
-        InvSrc1Alpha
-    };
-
-        
-    enum class BlendOp : uint8_t
-    {
-        Add,
-        Subtract,
-        ReverseSubtract,
-        Min,
-        Max
-    };
-
-    enum class ColorMask : uint8_t
-    {
-        // These values are equal to their counterparts in DX11, DX12, and Vulkan.
-        Red = 1,
-        Green = 2,
-        Blue = 4,
-        Alpha = 8,
-        All = 0xF
-    };
-    
-    struct BlendState
-    {
-        struct RenderTarget
-        {
-            bool        blendEnable = false;
-            BlendFactor srcBlend = BlendFactor::One;
-            BlendFactor destBlend = BlendFactor::Zero;
-            BlendOp     blendOp = BlendOp::Add;
-            BlendFactor srcBlendAlpha = BlendFactor::One;
-            BlendFactor destBlendAlpha = BlendFactor::Zero;
-            BlendOp     blendOpAlpha = BlendOp::Add;
-            ColorMask   colorWriteMask = ColorMask::All;
-
-            constexpr RenderTarget& SetBlendEnable(bool enable) { blendEnable = enable; return *this; }
-            constexpr RenderTarget& EnableBlend() { blendEnable = true; return *this; }
-            constexpr RenderTarget& DisableBlend() { blendEnable = false; return *this; }
-            constexpr RenderTarget& SetSrcBlend(BlendFactor value) { srcBlend = value; return *this; }
-            constexpr RenderTarget& SetDestBlend(BlendFactor value) { destBlend = value; return *this; }
-            constexpr RenderTarget& SetBlendOp(BlendOp value) { blendOp = value; return *this; }
-            constexpr RenderTarget& SetSrcBlendAlpha(BlendFactor value) { srcBlendAlpha = value; return *this; }
-            constexpr RenderTarget& SetDestBlendAlpha(BlendFactor value) { destBlendAlpha = value; return *this; }
-            constexpr RenderTarget& SetBlendOpAlpha(BlendOp value) { blendOpAlpha = value; return *this; }
-            constexpr RenderTarget& SetColorWriteMask(ColorMask value) { colorWriteMask = value; return *this; }
-
-            constexpr bool operator ==(const RenderTarget& other) const
-            {
-                return blendEnable == other.blendEnable
-                    && srcBlend == other.srcBlend
-                    && destBlend == other.destBlend
-                    && blendOp == other.blendOp
-                    && srcBlendAlpha == other.srcBlendAlpha
-                    && destBlendAlpha == other.destBlendAlpha
-                    && blendOpAlpha == other.blendOpAlpha
-                    && colorWriteMask == other.colorWriteMask;
-            }
-        };
-
-        std::array<RenderTarget, c_MaxRenderTargets> targets;
-        bool alphaToCoverageEnable = false;
-
-        constexpr BlendState& SetRenderTarget(uint32_t index, const RenderTarget& target) { targets[index] = target; return *this; }
-        constexpr BlendState& SetAlphaToCoverageEnable(bool enable) { alphaToCoverageEnable = enable; return *this; }
-        constexpr BlendState& EnableAlphaToCoverage() { alphaToCoverageEnable = true; return *this; }
-        constexpr BlendState& DisableAlphaToCoverage() { alphaToCoverageEnable = false; return *this; }
-
-        constexpr bool operator ==(const BlendState& other) const
-        {
-            if (alphaToCoverageEnable != other.alphaToCoverageEnable)
-                return false;
-
-            for (uint32_t i = 0; i < c_MaxRenderTargets; ++i)
-            {
-                if (targets[i] != other.targets[i])
-                    return false;
-            }
-
-            return true;
-        }
-    };
-
-
-
-
-    //////////////////////////////////////////////////////////////////////////
-    // Raster State
-    //////////////////////////////////////////////////////////////////////////
-
-    enum class RasterFillMode : uint8_t
-    {
-        Solid,
-        Wireframe,
-    };
-
-    enum class RasterCullMode : uint8_t
-    {
-        Back,
-        Front,
-        None
-    };
-
-    struct RasterState
-    {
-        RasterFillMode fillMode = RasterFillMode::Solid;
-        RasterCullMode cullMode = RasterCullMode::Back;
-        bool frontCounterClockwise = false;
-        bool depthClipEnable = false;
-        bool scissorEnable = false;
-        bool multisampleEnable = false;
-        bool antialiasedLineEnable = false;
-        int depthBias = 0;
-        float depthBiasClamp = 0.f;
-        float slopeScaledDepthBias = 0.f;
-        uint8_t forcedSampleCount = 0;
-        bool conservativeRasterEnable = false;
-        
-        constexpr RasterState& SetFillMode(RasterFillMode value) { fillMode = value; return *this; }
-        constexpr RasterState& SetFillSolid() { fillMode = RasterFillMode::Solid; return *this; }
-        constexpr RasterState& SetFillWireframe() { fillMode = RasterFillMode::Wireframe; return *this; }
-        constexpr RasterState& SetCullMode(RasterCullMode value) { cullMode = value; return *this; }
-        constexpr RasterState& SetCullBack() { cullMode = RasterCullMode::Back; return *this; }
-        constexpr RasterState& SetCullFront() { cullMode = RasterCullMode::Front; return *this; }
-        constexpr RasterState& SetCullNone() { cullMode = RasterCullMode::None; return *this; }
-        constexpr RasterState& SetFrontCounterClockwise(bool value) { frontCounterClockwise = value; return *this; }
-        constexpr RasterState& SetDepthClipEnable(bool value) { depthClipEnable = value; return *this; }
-        constexpr RasterState& EnableDepthClip() { depthClipEnable = true; return *this; }
-        constexpr RasterState& DisableDepthClip() { depthClipEnable = false; return *this; }
-        constexpr RasterState& SetScissorEnable(bool value) { scissorEnable = value; return *this; }
-        constexpr RasterState& EnableScissor() { scissorEnable = true; return *this; }
-        constexpr RasterState& DisableScissor() { scissorEnable = false; return *this; }
-        constexpr RasterState& SetMultisampleEnable(bool value) { multisampleEnable = value; return *this; }
-        constexpr RasterState& EnableMultisample() { multisampleEnable = true; return *this; }
-        constexpr RasterState& DisableMultisample() { multisampleEnable = false; return *this; }
-        constexpr RasterState& SetAntialiasedLineEnable(bool value) { antialiasedLineEnable = value; return *this; }
-        constexpr RasterState& EnableAntialiasedLine() { antialiasedLineEnable = true; return *this; }
-        constexpr RasterState& DisableAntialiasedLine() { antialiasedLineEnable = false; return *this; }
-        constexpr RasterState& SetDepthBias(int value) { depthBias = value; return *this; }
-        constexpr RasterState& SetDepthBiasClamp(float value) { depthBiasClamp = value; return *this; }
-        constexpr RasterState& SetSlopeScaleDepthBias(float value) { slopeScaledDepthBias = value; return *this; }
-        constexpr RasterState& SetForcedSampleCount(uint8_t value) { forcedSampleCount = value; return *this; }
-        constexpr RasterState& SetConservativeRasterEnable(bool value) { conservativeRasterEnable = value; return *this; }
-        constexpr RasterState& EnableConservativeRaster() { conservativeRasterEnable = true; return *this; }
-        constexpr RasterState& DisableConservativeRaster() { conservativeRasterEnable = false; return *this; }
-    };
-
-
-
-
-    //////////////////////////////////////////////////////////////////////////
-    // Depth Stencil State
-    //////////////////////////////////////////////////////////////////////////
-
-   enum class StencilOp : uint8_t
-   {
-       Keep = 1,
-       Zero = 2,
-       Replace = 3,
-       IncrementAndClamp = 4,
-       DecrementAndClamp = 5,
-       Invert = 6,
-       IncrementAndWrap = 7,
-       DecrementAndWrap = 8
-   };
-
-   enum class ComparisonFunc : uint8_t
-   {
-       Never = 1,
-       Less = 2,
-       Equal = 3,
-       LessOrEqual = 4,
-       Greater = 5,
-       NotEqual = 6,
-       GreaterOrEqual = 7,
-       Always = 8
-   };
-
-   struct DepthStencilState
-   {
-       struct StencilOpDesc
-       {
-           StencilOp failOp = StencilOp::Keep;
-           StencilOp depthFailOp = StencilOp::Keep;
-           StencilOp passOp = StencilOp::Keep;
-           ComparisonFunc stencilFunc = ComparisonFunc::Always;
-
-           constexpr StencilOpDesc& SetFailOp(StencilOp value) { failOp = value; return *this; }
-           constexpr StencilOpDesc& SetDepthFailOp(StencilOp value) { depthFailOp = value; return *this; }
-           constexpr StencilOpDesc& SetPassOp(StencilOp value) { passOp = value; return *this; }
-           constexpr StencilOpDesc& SetStencilFunc(ComparisonFunc value) { stencilFunc = value; return *this; }
-       };
-
-       bool            depthTestEnable = true;
-       bool            depthWriteEnable = true;
-       ComparisonFunc  depthFunc = ComparisonFunc::Less;
-       bool            stencilEnable = false;
-       uint8_t         stencilReadMask = 0xff;
-       uint8_t         stencilWriteMask = 0xff;
-       uint8_t         stencilRefValue = 0;
-       bool            dynamicStencilRef = false;
-       StencilOpDesc   frontFaceStencil;
-       StencilOpDesc   backFaceStencil;
-
-       constexpr DepthStencilState& SetDepthTestEnable(bool value) { depthTestEnable = value; return *this; }
-       constexpr DepthStencilState& EnableDepthTest() { depthTestEnable = true; return *this; }
-       constexpr DepthStencilState& DisableDepthTest() { depthTestEnable = false; return *this; }
-       constexpr DepthStencilState& SetDepthWriteEnable(bool value) { depthWriteEnable = value; return *this; }
-       constexpr DepthStencilState& EnableDepthWrite() { depthWriteEnable = true; return *this; }
-       constexpr DepthStencilState& DisableDepthWrite() { depthWriteEnable = false; return *this; }
-       constexpr DepthStencilState& SetDepthFunc(ComparisonFunc value) { depthFunc = value; return *this; }
-       constexpr DepthStencilState& SetStencilEnable(bool value) { stencilEnable = value; return *this; }
-       constexpr DepthStencilState& EnableStencil() { stencilEnable = true; return *this; }
-       constexpr DepthStencilState& DisableStencil() { stencilEnable = false; return *this; }
-       constexpr DepthStencilState& SetStencilReadMask(uint8_t value) { stencilReadMask = value; return *this; }
-       constexpr DepthStencilState& SetStencilWriteMask(uint8_t value) { stencilWriteMask = value; return *this; }
-       constexpr DepthStencilState& SetStencilRefValue(uint8_t value) { stencilRefValue = value; return *this; }
-       constexpr DepthStencilState& SetFrontFaceStencil(const StencilOpDesc& value) { frontFaceStencil = value; return *this; }
-       constexpr DepthStencilState& SetBackFaceStencil(const StencilOpDesc& value) { backFaceStencil = value; return *this; }
-       constexpr DepthStencilState& SetDynamicStencilRef(bool value) { dynamicStencilRef = value; return *this; }
-   };
 
 
     //////////////////////////////////////////////////////////////////////////
@@ -608,8 +361,6 @@ namespace DSM {
         ViewportState& AddViewportAndScissorRect(const Viewport& v) { return AddViewport(v).AddScissorRect(Rect(v)); }
     };
 
-
-    
 
 
 } // namespace DSM 
