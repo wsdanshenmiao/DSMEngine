@@ -94,4 +94,22 @@ namespace DSM {
     
 } // namespace DSM 
 
+
+
+template<>
+struct std::hash<DSM::FramebufferInfo>
+{
+    std::size_t operator()(const DSM::FramebufferInfo& s)
+    {
+        std::size_t hash = 0;
+        for(const auto& format : s.colorFormats){
+            hash = DSM::Utility::HashCombine(hash, format);
+        }
+        hash = DSM::Utility::HashCombine(hash, s.depthFormat);
+        hash = DSM::Utility::HashCombine(hash, s.sampleCount);
+        hash = DSM::Utility::HashCombine(hash, s.sampleQuality);
+        return hash;
+    }
+};
+
 #endif

@@ -98,7 +98,7 @@ namespace DSM::Utility {
     }
 
     template <class T>
-    std::size_t HashCombine(std::size_t seed, const T& v)
+    [[nodiscard]] std::size_t HashCombine(std::size_t seed, const T& v)
     {
         std::hash<T> hasher;
         return seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);

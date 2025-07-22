@@ -730,6 +730,18 @@ namespace DSM {
     };
 
 
+
 } // namespace DSM 
+
+
+template <typename T>
+struct std::hash<DSM::RefPtr<T>>
+{
+    std::size_t operator()(const DSM::RefPtr<T>& s) const
+    {
+        std::hash<T*> hash{};
+        return hash(s.Get());
+    }
+};
 
 #endif

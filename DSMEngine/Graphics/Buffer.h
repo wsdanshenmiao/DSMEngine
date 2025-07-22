@@ -99,4 +99,18 @@ namespace DSM {
 
 } // namespace DSM 
 
+
+template <>
+struct std::hash<DSM::BufferRange>
+{
+    std::size_t operator()(const DSM::BufferRange& s) const noexcept
+    {
+        std::size_t hash = 0;
+        hash = DSM::Utility::HashCombine(hash, s.byteOffset);
+        hash = DSM::Utility::HashCombine(hash, s.byteSize);
+        return hash; 
+    }
+};
+
+
 #endif

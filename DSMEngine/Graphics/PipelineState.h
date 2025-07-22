@@ -463,4 +463,37 @@ namespace DSM {
 
 } // namespace DSM 
 
+
+template<> 
+struct std::hash<DSM::BlendState::RenderTarget>
+{
+    std::size_t operator()(DSM::BlendState::RenderTarget const& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        size_t hash = 0;
+        hash = HashCombine(hash, s.blendEnable);
+        hash = HashCombine(hash, s.srcBlend);
+        hash = HashCombine(hash, s.destBlend);
+        hash = HashCombine(hash, s.blendOp);
+        hash = HashCombine(hash, s.srcBlendAlpha);
+        hash = HashCombine(hash, s.destBlendAlpha);
+        hash = HashCombine(hash, s.blendOpAlpha);
+        hash = HashCombine(hash, s.colorWriteMask);
+        return hash;
+    }
+};
+
+template<> 
+struct std::hash<DSM::BlendState>
+{
+    std::size_t operator()(DSM::BlendState const& s) const noexcept
+    {
+        size_t hash = 0;
+        hash = DSM::Utility::HashCombine(hash, s.alphaToCoverageEnable);
+        for (const auto& target : s.targets)
+            hash = DSM::Utility::HashCombine(hash, target);
+        return hash;
+    }
+};
+
 #endif

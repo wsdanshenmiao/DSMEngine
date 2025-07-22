@@ -456,4 +456,36 @@ namespace DSM {
 
 } // namespace DSM 
 
+
+template<>
+struct std::hash<DSM::BindingSetItem>
+{
+    std::size_t operator()(const DSM::BindingSetItem& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        std::size_t hash = 0;
+        hash = HashCombine(hash, s.resourceHandle);
+        hash = HashCombine(hash, s.slot);
+        hash = HashCombine(hash, s.type);
+        hash = HashCombine(hash, s.dimension);
+        hash = HashCombine(hash, s.format);
+        hash = HashCombine(hash, s.rawData[0]);
+        hash = HashCombine(hash, s.rawData[1]);
+        return hash;
+    }
+};
+
+template <>
+struct std::hash<DSM::BindingSetDesc>
+{
+    std::size_t operator()(const DSM::BindingSetDesc& s)
+    {
+        std::size_t hash = 0;
+        for(const auto& item : s.bindings){
+            hash = DSM::Utility::HashCombine(hash, item);
+        }
+        return hash;
+    }
+};
+
 #endif
