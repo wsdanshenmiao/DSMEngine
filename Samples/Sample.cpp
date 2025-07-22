@@ -1,7 +1,7 @@
 #include <DSMEngine.h>
 #include <Core/Layer.h>
 #include <print>
-#include "Graphics/ResourceBindings.h"
+#include "Graphics/Device.h"
 
 class ExampleLayer : public DSM::Layer
 {

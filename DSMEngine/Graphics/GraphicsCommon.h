@@ -78,12 +78,12 @@ namespace DSM {
         {
         }
 
-        RefPtr(std::nullptr_t) noexcept : ptr_(nullptr)
+        explicit RefPtr(std::nullptr_t) noexcept : ptr_(nullptr)
         {
         }
 
         template<class U>
-        RefPtr(U *other) noexcept : ptr_(other)
+        explicit RefPtr(U *other) noexcept : ptr_(other)
         {
             InternalAddRef();
         }
@@ -728,6 +728,7 @@ namespace DSM {
         IMessageCallback& operator=(const IMessageCallback&) = delete;
         IMessageCallback& operator=(const IMessageCallback&&) = delete;
     };
+
 
 } // namespace DSM 
 

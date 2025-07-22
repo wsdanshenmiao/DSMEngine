@@ -2,8 +2,11 @@
 #ifndef __COMMANDLIST_H__
 #define __COMMANDLIST_H__
 
+#include "PipelineState.h"
+#include "Buffer.h"
 
 namespace DSM{
+    struct IDevice;
     
     struct CommandListParameters
     {
@@ -25,9 +28,8 @@ namespace DSM{
         CommandListParameters& SetQueueType(CommandQueue value) { queueType = value; return *this; }
     };
 
-    class ICommandList : public IResource
+    struct ICommandList : public IResource
     {
-    public:
         virtual void Open() = 0;
         virtual void Close() = 0;
 
@@ -39,8 +41,6 @@ namespace DSM{
             float depth, bool clearStencil, uint8_t stencil) = 0;
 
         virtual void CopyTexture(ITexture* dest, const TextureSlice& destSlice, ITexture* src, const TextureSlice& srcSlice) = 0;
-        virtual void CopyTexture(IStagingTexture* dest, const TextureSlice& destSlice, ITexture* src, const TextureSlice& srcSlice) = 0;
-        virtual void CopyTexture(ITexture* dest, const TextureSlice& destSlice, IStagingTexture* src, const TextureSlice& srcSlice) = 0;
         virtual void WriteTexture(ITexture* dest, uint32_t arraySlice, uint32_t mipLevel, 
             const void* data, size_t rowPitch, size_t depthPitch = 0) = 0;
         // 将多重采样资源复制到非多重采样资源
@@ -55,12 +55,14 @@ namespace DSM{
         //设置根常数
         virtual void SetPushConstants(const void* data, size_t byteSize) = 0;
         
+        // 图形管线的调用
         virtual void SetGraphicsState(const GraphicsState& state) = 0;
         virtual void Draw(const DrawArguments& args) = 0;
         virtual void DrawIndexed(const DrawArguments& args) = 0;
         virtual void DrawIndirect(uint32_t offsetBytes, uint32_t drawCount = 1) = 0;
         virtual void DrawIndexedIndirect(uint32_t offsetBytes, uint32_t drawCount = 1) = 0;
         
+        // 计算管线
         virtual void SetComputeState(const ComputeState& state) = 0;
         virtual void Dispatch(uint32_t groupsX, uint32_t groupsY = 1, uint32_t groupsZ = 1) = 0;
         virtual void DispatchIndirect(uint32_t offsetBytes) = 0;
@@ -75,43 +77,40 @@ namespace DSM{
         virtual void BeginEvent(const char* name) = 0;
         virtual void EndEvent() = 0;
 
-        virtual void setEnableAutomaticBarriers(bool enable) = 0;
+        virtual void SetEnableAutomaticBarriers(bool enable) = 0;
 
-        virtual void setResourceStatesForBindingSet(IBindingSet* bindingSet) = 0;
-        
-        void setResourceStatesForFramebuffer(IFramebuffer* framebuffer);
+        virtual void SetEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) = 0;
 
-        virtual void setEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) = 0;
+        virtual void SetEnableUavBarriersForBuffer(IBuffer* buffer, bool enableBarriers) = 0;
 
-        virtual void setEnableUavBarriersForBuffer(IBuffer* buffer, bool enableBarriers) = 0;
+        virtual void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) = 0;
+        virtual void SetBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
+        virtual void SetResourceStatesForBindingSet(IBindingSet* bindingSet) = 0;
+        void SetResourceStatesForFramebuffer(IFramebuffer* framebuffer)
+        {
+            const FramebufferDesc& desc = framebuffer->GetDesc();
+            for(const auto& attachment : desc.colorAttachments){
+                SetTextureState(attachment.texture, attachment.subresources, ResourceStates::RenderTarget);
+            }
 
-        virtual void beginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources,
-            ResourceStates stateBits) = 0;
+            auto& depth = desc.depthAttachment;
+            if(depth.Valid()){
+                SetTextureState(depth.texture, depth.subresources, 
+                    depth.isReadOnly ? ResourceStates::DepthRead : ResourceStates::DepthWrite);
+            }
+        }
 
-        virtual void beginTrackingBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
+        virtual void CommitBarriers() = 0;
 
-        virtual void setTextureState(ITexture* texture, TextureSubresourceSet subresources,
-            ResourceStates stateBits) = 0;
+        virtual ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t arraySlice, uint32_t mipLevel) = 0;
 
-        virtual void setBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
-
-        virtual void setAccelStructState(rt::IAccelStruct* as, ResourceStates stateBits) = 0;
-
-        virtual void setPermanentTextureState(ITexture* texture, ResourceStates stateBits) = 0;
-
-        virtual void setPermanentBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
-
-        virtual void commitBarriers() = 0;
-
-        virtual ResourceStates getTextureSubresourceState(ITexture* texture, ArraySlice arraySlice,
-            MipLevel mipLevel) = 0;
-
-        virtual ResourceStates getBufferState(IBuffer* buffer) = 0;
+        virtual ResourceStates GetBufferState(IBuffer* buffer) = 0;
 
         virtual IDevice* GetDevice() = 0;
 
         virtual const CommandListParameters& GetDesc() = 0;
     };
+    using CommandListHandle = RefPtr<ICommandList>;
 }
 
 #endif

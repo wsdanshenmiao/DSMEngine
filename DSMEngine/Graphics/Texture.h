@@ -3,9 +3,65 @@
 #define __TEXTURE_H__
 
 #include <numeric>
-#include "GraphicsCommon.h"
+#include "Heap.h"
 
 namespace DSM {
+
+    struct MemoryRequirements
+    {
+        uint64_t size = 0;
+        uint64_t alignment = 0;
+    };
+
+    struct PackedMipDesc
+    {
+        uint32_t numStandardMips = 0;
+        uint32_t numPackedMips = 0;
+        uint32_t numTilesForPackedMips = 0;
+        uint32_t startTileIndexInOverallResource = 0;
+    };
+    
+    struct TileShape
+    {
+        uint32_t widthInTexels = 0;
+        uint32_t heightInTexels = 0;
+        uint32_t depthInTexels = 0;
+    };
+
+    struct SubresourceTiling
+    {
+        uint32_t widthInTiles = 0;
+        uint32_t heightInTiles = 0;
+        uint32_t depthInTiles = 0;
+        uint32_t startTileIndexInOverallResource = 0;
+    };
+
+    struct TiledTextureCoordinate
+    {
+        uint16_t mipLevel = 0;
+        uint16_t arrayLevel = 0;
+        uint32_t x = 0;
+        uint32_t y = 0;
+        uint32_t z = 0;
+    };
+
+    struct TiledTextureRegion
+    {
+        uint32_t tilesNum = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t depth = 0;
+    };
+    
+    struct TextureTilesMapping
+    {
+        TiledTextureCoordinate* tiledTextureCoordinates = nullptr;
+        TiledTextureRegion* tiledTextureRegions = nullptr;
+        uint64_t* byteOffsets = nullptr;
+        uint32_t numTextureRegions = 0;
+        IHeap* heap = nullptr;
+    };
+
     enum class TextureDimension : uint8_t
     {
         Unknown,

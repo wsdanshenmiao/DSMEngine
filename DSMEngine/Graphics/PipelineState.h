@@ -286,15 +286,15 @@ namespace DSM {
         
         GraphicsPipelineDesc& SetPrimType(PrimitiveType value) { primType = value; return *this; }
         GraphicsPipelineDesc& SetPatchControlPoints(uint32_t value) { patchControlPoints = value; return *this; }
-        GraphicsPipelineDesc& SetInputLayout(IInputLayout* value) { inputLayout.reset(value); return *this; }
-        GraphicsPipelineDesc& SetVertexShader(IShader* value) { VS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetHullShader(IShader* value) { HS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetTessellationControlShader(IShader* value) { HS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetDomainShader(IShader* value) { DS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetTessellationEvaluationShader(IShader* value) { DS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetGeometryShader(IShader* value) { GS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetPixelShader(IShader* value) { PS.reset(value); return *this; }
-        GraphicsPipelineDesc& SetFragmentShader(IShader* value) { PS.reset(value); return *this; }
+        GraphicsPipelineDesc& SetInputLayout(IInputLayout* value) { inputLayout = value; return *this; }
+        GraphicsPipelineDesc& SetVertexShader(IShader* value) { VS = value; return *this; }
+        GraphicsPipelineDesc& SetHullShader(IShader* value) { HS = value; return *this; }
+        GraphicsPipelineDesc& SetTessellationControlShader(IShader* value) { HS = value; return *this; }
+        GraphicsPipelineDesc& SetDomainShader(IShader* value) { DS = value; return *this; }
+        GraphicsPipelineDesc& SetTessellationEvaluationShader(IShader* value) { DS = value; return *this; }
+        GraphicsPipelineDesc& SetGeometryShader(IShader* value) { GS = value; return *this; }
+        GraphicsPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
+        GraphicsPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         GraphicsPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
         GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
     };
@@ -314,7 +314,7 @@ namespace DSM {
 
         BindingLayoutVector bindingLayouts;
 
-        ComputePipelineDesc& SetComputeShader(IShader* value) { CS.reset(value); return *this; }
+        ComputePipelineDesc& SetComputeShader(IShader* value) { CS = value; return *this; }
         ComputePipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
     };
 
@@ -340,11 +340,11 @@ namespace DSM {
         BindingLayoutVector bindingLayouts;
         
         MeshletPipelineDesc& SetPrimType(PrimitiveType value) { primType = value; return *this; }
-        MeshletPipelineDesc& SetTaskShader(IShader* value) { AS.reset(value); return *this; }
-        MeshletPipelineDesc& SetAmplificationShader(IShader* value) { AS.reset(value); return *this; }
-        MeshletPipelineDesc& SetMeshShader(IShader* value) { MS.reset(value); return *this; }
-        MeshletPipelineDesc& SetPixelShader(IShader* value) { PS.reset(value); return *this; }
-        MeshletPipelineDesc& SetFragmentShader(IShader* value) { PS.reset(value); return *this; }
+        MeshletPipelineDesc& SetTaskShader(IShader* value) { AS = value; return *this; }
+        MeshletPipelineDesc& SetAmplificationShader(IShader* value) { AS = value; return *this; }
+        MeshletPipelineDesc& SetMeshShader(IShader* value) { MS = value; return *this; }
+        MeshletPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
+        MeshletPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         MeshletPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
         MeshletPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
     };
@@ -353,8 +353,8 @@ namespace DSM {
     class IMeshletPipeline : public IResource
     {
     public:
-        [[nodiscard]] virtual const MeshletPipelineDesc& getDesc() const = 0;
-        [[nodiscard]] virtual const FramebufferInfo& getFramebufferInfo() const = 0;
+        [[nodiscard]] virtual const MeshletPipelineDesc& GetDesc() const = 0;
+        [[nodiscard]] virtual const FramebufferInfo& GetFramebufferInfo() const = 0;
     };
     using MeshletPipelineHandle = RefPtr<IMeshletPipeline>;
 
@@ -452,13 +452,13 @@ namespace DSM {
 
         IBuffer* indirectParams = nullptr;
 
-        MeshletState& setPipeline(IMeshletPipeline* value) { pipeline = value; return *this; }
-        MeshletState& setFramebuffer(IFramebuffer* value) { framebuffer = value; return *this; }
-        MeshletState& setViewport(const ViewportState& value) { viewport = value; return *this; }
-        MeshletState& setBlendColor(const Color& value) { blendConstantColor = value; return *this; }
-        MeshletState& addBindingSet(IBindingSet* value) { bindings.PushBack(BindingSetHandle{value}); return *this; }
-        MeshletState& setIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
-        MeshletState& setDynamicStencilRefValue(uint8_t value) { dynamicStencilRefValue = value; return *this; }
+        MeshletState& SetPipeline(IMeshletPipeline* value) { pipeline = value; return *this; }
+        MeshletState& SetFramebuffer(IFramebuffer* value) { framebuffer = value; return *this; }
+        MeshletState& SetViewport(const ViewportState& value) { viewport = value; return *this; }
+        MeshletState& SetBlendColor(const Color& value) { blendConstantColor = value; return *this; }
+        MeshletState& AddBindingSet(IBindingSet* value) { bindings.PushBack(BindingSetHandle{value}); return *this; }
+        MeshletState& SetIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
+        MeshletState& SetDynamicStencilRefValue(uint8_t value) { dynamicStencilRefValue = value; return *this; }
     };
 
 } // namespace DSM 

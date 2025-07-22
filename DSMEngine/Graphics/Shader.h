@@ -51,6 +51,14 @@ namespace DSM {
     };
     using ShaderHandle = RefPtr<IShader>;
 
+    class IShaderLibrary : public IResource
+    {
+    public:
+        virtual void GetBytecode(const void** ppBytecode, size_t* pSize) const = 0;
+        virtual ShaderHandle GetShader(const char* entryName, ShaderType shaderType) = 0;
+    };
+    using ShaderLibraryHandle = RefPtr<IShaderLibrary>;
+
 } // namespace DSM 
 
 #endif
