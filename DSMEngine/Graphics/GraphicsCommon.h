@@ -121,7 +121,6 @@ namespace DSM {
             InternalRelease();
         }
 
-
         RefPtr& operator=(std::nullptr_t) noexcept
         {
             InternalRelease();
@@ -192,6 +191,10 @@ namespace DSM {
             return ptr_;
         }
 
+        operator T*() const
+        {
+            return ptr_;
+        }
         
         InterfaceType* operator->() const noexcept
         {
@@ -245,6 +248,8 @@ namespace DSM {
             return InternalRelease();
         }
     };    // RefPtr
+
+
     // 引用计数器
     class RefCounter
     {

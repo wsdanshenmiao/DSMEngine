@@ -241,13 +241,7 @@ namespace DSM {
             }
         }
 
-        bool operator==(const TextureSubresourceSet& other) const noexcept
-        {
-            return baseMipLevel == other.baseMipLevel &&
-                numMipLevels == other.numMipLevels &&
-                baseArraySlice == other.baseArraySlice &&
-                numArraySlices == other.numArraySlices;
-        }
+        bool operator==(const TextureSubresourceSet& other) const noexcept = default;
 
         constexpr TextureSubresourceSet& SetBaseMipLevel(uint32_t value) { baseMipLevel = value; return *this; }
         constexpr TextureSubresourceSet& SetNumMipLevels(uint32_t value) { numMipLevels = value; return *this; }
@@ -258,6 +252,17 @@ namespace DSM {
     };
     static const TextureSubresourceSet AllSubresources = TextureSubresourceSet{0, uint32_t(-1), 0, uint32_t(-1)};
 
+    struct TextureBindingKey : public TextureSubresourceSet
+    {
+        Format format;
+        bool isReadOnlyDSV;
+
+        TextureBindingKey() = default;
+        TextureBindingKey(const TextureSubresourceSet& base, Format format, bool isReadOnlyDSV)
+            :TextureSubresourceSet(base), format(format), isReadOnlyDSV(isReadOnlyDSV) {}
+
+        bool operator==(const TextureBindingKey& other) const = default;
+    };
 
     struct ITexture : public IResource
     {
@@ -290,6 +295,16 @@ namespace DSM {
         }
     };
 
+
+    template<> struct std::hash<DSM::TextureBindingKey>
+    {
+        std::size_t operator()(const DSM::TextureBindingKey& s) const noexcept
+        {    
+            return std::hash<DSM::Format>{}(s.format) ^
+                std::hash<bool>{}(s.isReadOnlyDSV) ^
+                std::hash<DSM::TextureSubresourceSet>()(s);
+        }
+    };
 
 
 
