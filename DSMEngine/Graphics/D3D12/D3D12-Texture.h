@@ -2,18 +2,14 @@
 #ifndef __D3D12_TEXTURE_H__
 #define __D3D12_TEXTURE_H__
 
-#include "D3D12Common.h"
 #include "D3D12-Device.h"
 
 namespace DSM::D3D12{
     class Texture : public ITexture
     {
     public:
-        Texture(const Context& context, DeviceResources& resources, 
-            TextureDesc desc, D3D12_RESOURCE_DESC resourceDesc)
-            :m_Context(context), m_Resources(resources), 
-            m_Desc(std::move(desc)), resourceDesc(std::move(resourceDesc)) {}
-        ~Texture();
+        Texture(const Context& context, DeviceResources& resources, TextureDesc desc);
+        ~Texture() override;
 
         const TextureDesc& GetDesc() const override { return m_Desc; }
         Object GetNativeObject(ObjectType type) override;
@@ -28,12 +24,16 @@ namespace DSM::D3D12{
         void CreateSRV(size_t descriptor, Format format, TextureDimension dimension, TextureSubresourceSet subresources) const;
         void CreateUAV(size_t descriptor, Format format, TextureDimension dimension, TextureSubresourceSet subresources) const;
         void CreateRTV(size_t descriptor, Format format, TextureSubresourceSet subresources) const;
-        void CreateUAV(size_t descriptor, TextureSubresourceSet subresources, bool isReadOnly = false) const;
+        void CreateDSV(size_t descriptor, TextureSubresourceSet subresources, bool isReadOnly = false) const;
 
+        // 获取某个 Mipmap 的描述符
         uint32_t GetClearMipLevelUAV(uint32_t mipLevel);
 
+    private:
+        static D3D12_RESOURCE_DESC ConvertTextureDesc(const TextureDesc& desc);
+        static D3D12_CLEAR_VALUE ConvertClearValue(const TextureDesc& desc);
+
     public:
-        const D3D12_RESOURCE_DESC resourceDesc;
         RefPtr<ID3D12Resource> resource;
         HANDLE sharedHandle;
         HeapHandle heap;

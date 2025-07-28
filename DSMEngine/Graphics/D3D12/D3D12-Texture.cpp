@@ -2,8 +2,75 @@
 
 
 namespace DSM::D3D12 {
+    Texture::Texture(const Context &context, DeviceResources &resources, TextureDesc desc)
+        :m_Context(context), m_Resources(resources), m_Desc(std::move(desc))
+    {
+        // TODO:随后移动到Device::CreateTexture
+        D3D12_RESOURCE_DESC resourceDesc = ConvertTextureDesc(m_Desc);
+
+        D3D12_HEAP_PROPERTIES heapProp{};
+        D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
+        
+        bool isShared = false;
+        if(HasFlags(m_Desc.sharedResourceFlags, SharedResourceFlags::Shared)){
+            heapFlags |= D3D12_HEAP_FLAG_SHARED;
+            isShared = true;
+        }
+        if(HasFlags(m_Desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
+            heapFlags |= D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER;
+        }
+        if(m_Desc.isTiled){
+            resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
+        }
+
+        D3D12_CLEAR_VALUE clearValue = ConvertClearValue(m_Desc);
+
+        // 虚拟显存，后续使用 BingTextureMemory 绑定物理显存
+        if(m_Desc.isVirtual) return;
+
+        // 创建资源
+        HRESULT hr = S_OK;
+        if(m_Desc.isTiled){
+            hr = m_Context.m_Device->CreateReservedResource(
+                &resourceDesc, ConvertResourceStates(m_Desc.initialState),
+                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
+        }
+        else{
+            heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
+            hr = m_Context.m_Device->CreateCommittedResource(
+                &heapProp, heapFlags, 
+                &resourceDesc, ConvertResourceStates(m_Desc.initialState),
+                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
+        }
+
+        if(FAILED(hr)){
+            std::string msg = std::format("Failed to create texture {}, error msg: {}", 
+                DebugNameToString(m_Desc.debugName), GetErrorMessage(hr));
+            m_Context.Error(msg);
+            return;
+        }
+
+        // 创建共享句柄
+        if(isShared){
+            hr = m_Context.m_Device->CreateSharedHandle(
+                resource.Get(), nullptr, GENERIC_ALL, nullptr, &sharedHandle);
+            return;
+        }
+
+        if(!m_Desc.debugName.empty()){
+            auto name = Utility::UTF8ToWString(m_Desc.debugName);
+            resource->SetName(name.c_str());
+        }
+
+        if(m_Desc.isUAV){
+            m_ClearMipLevelUAVs.resize(m_Desc.mipLevels, c_InvalidDescriptorIndex);
+        }
+    }
+
     Texture::~Texture()
     {
+        // 析构时归还所有描述符
         for(const auto& [bindingKey, index] : m_RenderTargetViews){
             m_Resources.renderTargetViewHeap.ReleaseDescriptor(index);
         }
@@ -38,6 +105,82 @@ namespace DSM::D3D12 {
         TextureDimension dimension, 
         bool isReadOnlyDSV)
     {
+        uint64_t descriptor{};
+        TextureBindingKey key = TextureBindingKey(subresources, format);
+        uint32_t descriptorIndex;
+        switch (objType)
+        {
+        case ObjectTypes::D3D12_ShaderResourceViewGpuDescripror:{
+            auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
+
+            if (auto found = m_CustomSRVs.find(key); found == m_CustomSRVs.end()) {
+                descriptorIndex = descriptorHeap.AllocateDescriptor();
+                m_CustomSRVs[key] = descriptorIndex;
+
+                const D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = descriptorHeap.GetCpuHandle(descriptorIndex);
+                CreateSRV(cpuHandle.ptr, format, dimension, subresources);
+                descriptorHeap.CopyToShaderVisibleHeap(descriptorIndex);
+            }
+            else {
+                descriptorIndex = found->second;
+            }
+
+            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+        }
+        case ObjectTypes::D3D12_UnorderedAccessViewGpuDescripror:{
+            auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
+
+            if (auto found = m_CustomUAVs.find(key); found == m_CustomUAVs.end()) {
+                descriptorIndex = descriptorHeap.AllocateDescriptor();
+                m_CustomUAVs[key] = descriptorIndex;
+
+                const D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = descriptorHeap.GetCpuHandle(descriptorIndex);
+                CreateUAV(cpuHandle.ptr, format, dimension, subresources);
+                descriptorHeap.CopyToShaderVisibleHeap(descriptorIndex);
+            }
+            else {
+                descriptorIndex = found->second;
+            }
+
+            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+        }
+        case ObjectTypes::D3D12_RenderTargetViewDescriptor:{
+            auto& descriptorHeap = m_Resources.renderTargetViewHeap;
+
+            if (auto found = m_RenderTargetViews.find(key); found == m_RenderTargetViews.end()) {
+                descriptorIndex = descriptorHeap.AllocateDescriptor();
+                m_RenderTargetViews[key] = descriptorIndex;
+
+                const D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = descriptorHeap.GetCpuHandle(descriptorIndex);
+                CreateRTV(cpuHandle.ptr, format, subresources);
+            }
+            else {
+                descriptorIndex = found->second;
+            }
+
+            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+        }
+        case ObjectTypes::D3D12_DepthStencilViewDescriptor:{
+            auto& descriptorHeap = m_Resources.depthStencilViewHeap;
+
+            if (auto found = m_CustomSRVs.find(key); found == m_CustomSRVs.end()) {
+                descriptorIndex = descriptorHeap.AllocateDescriptor();
+                m_CustomSRVs[key] = descriptorIndex;
+
+                const D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = descriptorHeap.GetCpuHandle(descriptorIndex);
+                CreateSRV(cpuHandle.ptr, format, dimension, subresources);
+            }
+            else {
+                descriptorIndex = found->second;
+            }
+
+            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+        }
+        default:
+            return Object{nullptr};
+        }
+
+        return Object{descriptor};
     }
     
     void Texture::CreateSRV(size_t descriptor, Format format, TextureDimension dimension, TextureSubresourceSet subresources) const
@@ -250,7 +393,7 @@ namespace DSM::D3D12 {
         m_Context.m_Device->CreateRenderTargetView(resource.Get(), &rtvDesc, {descriptor});
     }
 
-    void Texture::CreateUAV(size_t descriptor, TextureSubresourceSet subresources, bool isReadOnly) const
+    void Texture::CreateDSV(size_t descriptor, TextureSubresourceSet subresources, bool isReadOnly) const
     {    
         subresources = subresources.Resolve(m_Desc, true);
 
@@ -309,6 +452,94 @@ namespace DSM::D3D12 {
         }
 
         m_Context.m_Device->CreateDepthStencilView(resource.Get(), &dsvDesc, {descriptor});
+    }
+
+    uint32_t Texture::GetClearMipLevelUAV(uint32_t mipLevel)
+    {
+        if(!m_Desc.isUAV){
+            m_Context.Error("Texture is no UAV.");
+        }
+
+        uint32_t descriptorIndex = m_ClearMipLevelUAVs[mipLevel];
+        if(descriptorIndex == c_InvalidDescriptorIndex){
+            descriptorIndex = m_Resources.shaderResourceViewHeap.AllocateDescriptor();
+            auto handle = m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
+            TextureSubresourceSet subresources{mipLevel, 1, 0, TextureSubresourceSet::AllArraySlices};
+            CreateUAV(handle.ptr, Format::UNKNOWN, TextureDimension::Unknown, subresources);
+            m_Resources.shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndex);
+            m_ClearMipLevelUAVs[mipLevel] = descriptorIndex;
+        }
+
+        return descriptorIndex;
+    }
+
+    D3D12_RESOURCE_DESC Texture::ConvertTextureDesc(const TextureDesc &desc)
+    {
+        const auto& formatMapping = GetDxgiFormatMapping(desc.format);
+        const FormatInfo& formatInfo = GetFormatInfo(desc.format);
+
+        D3D12_RESOURCE_DESC resourceDesc{};
+        resourceDesc.Width = desc.width;
+        resourceDesc.Height = desc.height;
+        resourceDesc.DepthOrArraySize = 1;
+        resourceDesc.MipLevels = desc.mipLevels;
+        resourceDesc.Format = desc.isTypeless ? formatMapping.resourceFormat : formatMapping.rtvFormat;
+        resourceDesc.SampleDesc = {.Count = desc.sampleCount, .Quality = desc.sampleQuality};
+
+        if(desc.isRenderTarget){
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        }
+        if(!desc.isShaderResource){
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+        }
+        if(desc.isUAV){
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        }
+
+        switch (desc.dimension)
+        {
+        case TextureDimension::Texture1D:
+        case TextureDimension::Texture1DArray:
+            resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+            resourceDesc.DepthOrArraySize = desc.arraySize;
+        case TextureDimension::Texture2D:
+        case TextureDimension::Texture2DArray:
+        case TextureDimension::TextureCube:
+        case TextureDimension::TextureCubeArray:
+        case TextureDimension::Texture2DMS:
+        case TextureDimension::Texture2DMSArray:
+            resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+            resourceDesc.DepthOrArraySize = desc.arraySize;
+        case TextureDimension::Texture3D:
+            resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+            resourceDesc.DepthOrArraySize = desc.depth;
+        case TextureDimension::Unknown:
+        default:
+            assert("Invalid texture dimension.");
+            break;
+        }
+
+        return resourceDesc;
+    }
+
+    D3D12_CLEAR_VALUE Texture::ConvertClearValue(const TextureDesc &desc)
+    {
+        const auto& formatMapping = GetDxgiFormatMapping(desc.format);
+        const FormatInfo& formatInfo = GetFormatInfo(desc.format);
+        D3D12_CLEAR_VALUE clearValue = {};
+        clearValue.Format = formatMapping.rtvFormat;
+        if (formatInfo.hasDepth || formatInfo.hasStencil) {
+            clearValue.DepthStencil.Depth = desc.clearValue.r;
+            clearValue.DepthStencil.Stencil = UINT8(desc.clearValue.g);
+        }
+        else {
+            clearValue.Color[0] = desc.clearValue.r;
+            clearValue.Color[1] = desc.clearValue.g;
+            clearValue.Color[2] = desc.clearValue.b;
+            clearValue.Color[3] = desc.clearValue.a;
+        }
+
+        return clearValue;
     }
 
 } // namespace DSM::D3D12

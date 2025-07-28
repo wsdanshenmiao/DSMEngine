@@ -10,10 +10,13 @@ namespace DSM::D3D12{
     class DescriptorHeap : public IDescriptorHeap
     {
     public:
+        enum DescriptorType{ SRV, Sampler, RTV, DSV, Num };
+
+    public:
         explicit DescriptorHeap(const Context& context);
 
         void AllocateResource(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool shaderVisible);
-        void CopyToShaderVisibleHeap(uint32_t index, uint32_t count);
+        void CopyToShaderVisibleHeap(uint32_t index, uint32_t count = 1u);
 
         uint32_t AllocateDescriptors(uint32_t count) override;
         uint32_t AllocateDescriptor() override;

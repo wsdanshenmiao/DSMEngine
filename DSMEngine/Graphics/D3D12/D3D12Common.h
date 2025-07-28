@@ -3,8 +3,12 @@
 #define __D3D12COMMON_H__
 
 #include "Graphics/D3D12.h"
+#include <comdef.h>
 
 namespace DSM{    
+    constexpr uint32_t c_InvalidRootParameterIndex = ~0u;
+    constexpr uint32_t c_InvalidDescriptorIndex = ~0u;
+
     // 根据输入的格式输出不同视图的格式
     struct DxgiFormatMapping
     {
@@ -99,6 +103,14 @@ namespace DSM{
         return mapping;
     }
 
+    std::string GetErrorMessage(HRESULT hr)
+    {
+        _com_error err{hr};
+        std::wstring msg = err.ErrorMessage();
+        return Utility::WStringToUTF8(msg);
+    }
+
+
     namespace D3D12{     
         class Buffer;
         class DescriptorHeap;
@@ -131,6 +143,35 @@ namespace DSM{
                 m_MessageCallback->Message(MessageSeverity::Info, message.c_str());
             }
         };
+
+        D3D12_RESOURCE_STATES ConvertResourceStates(const ResourceStates& state)
+        {
+            if (state == ResourceStates::Common)
+                return D3D12_RESOURCE_STATE_COMMON;
+
+            D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
+
+            if (HasFlags(state, ResourceStates::ConstantBuffer)) result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+            if (HasFlags(state, ResourceStates::VertexBuffer)) result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+            if (HasFlags(state, ResourceStates::IndexBuffer)) result |= D3D12_RESOURCE_STATE_INDEX_BUFFER;
+            if (HasFlags(state, ResourceStates::IndirectArgument)) result |= D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
+            if (HasFlags(state, ResourceStates::ShaderResource)) result |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+            if (HasFlags(state, ResourceStates::UnorderedAccess)) result |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            if (HasFlags(state, ResourceStates::RenderTarget)) result |= D3D12_RESOURCE_STATE_RENDER_TARGET;
+            if (HasFlags(state, ResourceStates::DepthWrite)) result |= D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            if (HasFlags(state, ResourceStates::DepthRead)) result |= D3D12_RESOURCE_STATE_DEPTH_READ;
+            if (HasFlags(state, ResourceStates::StreamOut)) result |= D3D12_RESOURCE_STATE_STREAM_OUT;
+            if (HasFlags(state, ResourceStates::CopyDest)) result |= D3D12_RESOURCE_STATE_COPY_DEST;
+            if (HasFlags(state, ResourceStates::CopySource)) result |= D3D12_RESOURCE_STATE_COPY_SOURCE;
+            if (HasFlags(state, ResourceStates::ResolveDest)) result |= D3D12_RESOURCE_STATE_RESOLVE_DEST;
+            if (HasFlags(state, ResourceStates::ResolveSource)) result |= D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+            if (HasFlags(state, ResourceStates::Present)) result |= D3D12_RESOURCE_STATE_PRESENT;
+            if (HasFlags(state, ResourceStates::AccelerationStructrue)) result |= D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
+            if (HasFlags(state, ResourceStates::ShadingRateSurface)) result |= D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE;
+
+            return result;
+        }
+
    
     }
 }

@@ -734,7 +734,10 @@ namespace DSM {
         IMessageCallback& operator=(const IMessageCallback&&) = delete;
     };
 
-
+    const char* DebugNameToString(const std::string& debugName)
+    {
+        return debugName.empty() ? "<UNNAMED>" : debugName.c_str();
+    }
 
 } // namespace DSM 
 

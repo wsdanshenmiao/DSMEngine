@@ -258,7 +258,7 @@ namespace DSM {
         bool isReadOnlyDSV;
 
         TextureBindingKey() = default;
-        TextureBindingKey(const TextureSubresourceSet& base, Format format, bool isReadOnlyDSV)
+        TextureBindingKey(const TextureSubresourceSet& base, Format format, bool isReadOnlyDSV = false)
             :TextureSubresourceSet(base), format(format), isReadOnlyDSV(isReadOnlyDSV) {}
 
         bool operator==(const TextureBindingKey& other) const = default;

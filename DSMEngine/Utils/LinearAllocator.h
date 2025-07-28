@@ -96,11 +96,10 @@ namespace DSM {
                 }
             }
             else{   // 缩小容量，需要检测缩小的部分是否已回收
-                assert(!Full(), "Allocator is full.");
+                assert(!Full());
                 auto& back = m_FreeList.back();
                 uint64_t endPos = back.m_Start + back.m_Size;
-                assert(endPos == m_Capacity && back.m_Start < size,
-                    "Resource should be released before resize.");
+                assert(endPos == m_Capacity && back.m_Start < size);
                 back.m_Size = size - back.m_Start;
             }
             

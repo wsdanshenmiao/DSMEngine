@@ -52,7 +52,10 @@ namespace DSM {
     inline constexpr bool HasAllFlags(T value, T flags) { return (value & flags) == flags; }
 
     template <typename T> requires std::is_enum_v<T>
-    inline constexpr bool HasFlags(T value, T flags) { return (value & flags) != 0; }
+    inline constexpr bool HasFlags(T value, T flags) 
+    { 
+        return static_cast<std::underlying_type_t<T>>(value & flags) != 0; 
+    }
 
 #define ENABLE_ENUM_BIT_OPERATOR(EnumType)  \
     template<> struct EnumBitOperators<EnumType>    \
