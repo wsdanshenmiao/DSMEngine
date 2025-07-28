@@ -149,7 +149,7 @@ namespace DSM{
             if (state == ResourceStates::Common)
                 return D3D12_RESOURCE_STATE_COMMON;
 
-            D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
+            D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON; // also 0
 
             if (HasFlags(state, ResourceStates::ConstantBuffer)) result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
             if (HasFlags(state, ResourceStates::VertexBuffer)) result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;

@@ -13,5 +13,17 @@ namespace DSM::D3D12{
             m_ClearUAV = c_InvalidDescriptorIndex;
         }
     }
+    
+    Object Buffer::GetNativeObject(ObjectType type)
+    {
+        switch (type)
+        {
+        case ObjectTypes::D3D12_Resource:
+            return Object{resource};
+        case ObjectTypes::SharedHandle:
+            return Object{sharedHandle};
+        default:
+            return Object{nullptr};
+        }
+    }
 }
-

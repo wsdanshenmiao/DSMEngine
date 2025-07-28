@@ -12,6 +12,16 @@ namespace DSM::D3D12{
             : m_Context(context), m_Resources(resources), m_Desc(std::move(desc)){}
         ~Buffer() override;
 
+        const BufferDesc& GetDesc() const override { return m_Desc; }
+        GpuVirtualAddress GetGpuVirtualAddress() const override { return m_GpuVA; }
+
+        Object GetNativeObject(ObjectType type) override;
+
+        void CreateCBV(size_t descriptor, BufferRange range) const;
+        void CreateSRV(size_t descriptor, Format format, BufferRange range, ResourceType type) const;
+        void CreateUAV(size_t descriptor, Format format, BufferRange range, ResourceType type) const;
+        
+
     public:
         RefPtr<ID3D12Resource> resource{};
         HeapHandle heap{};
@@ -24,6 +34,7 @@ namespace DSM::D3D12{
         const BufferDesc m_Desc;
         const Context& m_Context;
         DeviceResources& m_Resources;
+        D3D12_GPU_VIRTUAL_ADDRESS m_GpuVA{};
 
         uint32_t m_ClearUAV = c_InvalidDescriptorIndex;
     };

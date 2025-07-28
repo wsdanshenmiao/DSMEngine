@@ -1,7 +1,7 @@
 #include <DSMEngine.h>
 #include <Core/Layer.h>
 #include <print>
-#include "Graphics/D3D12.h"
+#include "Graphics/D3D12/D3D12-Texture.h"
 
 class ExampleLayer : public DSM::Layer
 {

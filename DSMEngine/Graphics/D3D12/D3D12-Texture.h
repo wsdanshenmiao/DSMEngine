@@ -2,9 +2,12 @@
 #ifndef __D3D12_TEXTURE_H__
 #define __D3D12_TEXTURE_H__
 
-#include "D3D12-Device.h"
+#include "D3D12Common.h"
 
 namespace DSM::D3D12{
+    struct Context;
+    struct DeviceResources;
+
     class Texture : public ITexture
     {
     public:
@@ -29,7 +32,6 @@ namespace DSM::D3D12{
         // 获取某个 Mipmap 的描述符
         uint32_t GetClearMipLevelUAV(uint32_t mipLevel);
 
-    private:
         static D3D12_RESOURCE_DESC ConvertTextureDesc(const TextureDesc& desc);
         static D3D12_CLEAR_VALUE ConvertClearValue(const TextureDesc& desc);
 

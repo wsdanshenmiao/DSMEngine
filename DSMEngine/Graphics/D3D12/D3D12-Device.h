@@ -29,8 +29,11 @@ namespace DSM::D3D12 {
     class Device final : public IDevice
     {
     public:
+        TextureHandle CreateTexture(const TextureDesc& desc) override;
 
     private:
+        Context m_Context;
+        DeviceResources m_Resources;
     };
 } // namespace DSM 
 
