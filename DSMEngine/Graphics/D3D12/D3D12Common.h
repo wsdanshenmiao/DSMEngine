@@ -4,6 +4,7 @@
 
 #include "Graphics/D3D12.h"
 #include <comdef.h>
+#include <unordered_map>
 
 namespace DSM{    
     constexpr uint32_t c_InvalidRootParameterIndex = ~0u;
@@ -117,33 +118,6 @@ namespace DSM{
         class RootSignature;
 
 
-        struct Context
-        {
-            RefPtr<ID3D12Device> m_Device;
-            RefPtr<ID3D12Device2> m_Device2;
-            RefPtr<ID3D12Device5> m_Device5;
-            RefPtr<ID3D12Device8> m_Device8;
-
-            RefPtr<ID3D12CommandSignature> m_DrawIndirectSignature;
-            RefPtr<ID3D12CommandSignature> m_DrawIndexedIndirectSignature;
-            RefPtr<ID3D12CommandSignature> m_DispatchIndirectSignature;
-            RefPtr<ID3D12QueryHeap> m_TimerQueryHeap;
-            RefPtr<Buffer> m_TimerQueryResolveBuffer;
-
-            bool m_LogBufferLifetime = false;
-            IMessageCallback* m_MessageCallback = nullptr;
-            
-            void Error(const std::string& message) const
-            {
-                m_MessageCallback->Message(MessageSeverity::Error, message.c_str());
-            }
-
-            void Info(const std::string& message) const
-            {
-                m_MessageCallback->Message(MessageSeverity::Info, message.c_str());
-            }
-        };
-
         D3D12_RESOURCE_STATES ConvertResourceStates(const ResourceStates& state)
         {
             if (state == ResourceStates::Common)
@@ -173,6 +147,51 @@ namespace DSM{
         }
 
    
+        struct Context
+        {
+            RefPtr<ID3D12Device> m_Device;
+            RefPtr<ID3D12Device2> m_Device2;
+            RefPtr<ID3D12Device5> m_Device5;
+            RefPtr<ID3D12Device8> m_Device8;
+
+            RefPtr<ID3D12CommandSignature> m_DrawIndirectSignature;
+            RefPtr<ID3D12CommandSignature> m_DrawIndexedIndirectSignature;
+            RefPtr<ID3D12CommandSignature> m_DispatchIndirectSignature;
+            RefPtr<ID3D12QueryHeap> m_TimerQueryHeap;
+            RefPtr<Buffer> m_TimerQueryResolveBuffer;
+
+            bool m_LogBufferLifetime = false;
+            IMessageCallback* m_MessageCallback = nullptr;
+            
+            void Error(const std::string& message) const
+            {
+                m_MessageCallback->Message(MessageSeverity::Error, message.c_str());
+            }
+
+            void Info(const std::string& message) const
+            {
+                m_MessageCallback->Message(MessageSeverity::Info, message.c_str());
+            }
+        };
+
+        class InputLayout : public IInputLayout
+        {
+        public:
+            uint32_t GetNumAttributes() const override { return attributes.size(); }
+            const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const override
+            {
+                return index < uint32_t(attributes.size()) ? &attributes[index] : nullptr;
+            }
+
+            std::vector<VertexAttributeDesc> attributes;
+            std::vector<D3D12_INPUT_ELEMENT_DESC> inputElements;
+
+            // 一个属性绑定一个槽
+            std::unordered_map<uint32_t, uint32_t> elementStride;
+        };
+
+
+
     }
 }
 

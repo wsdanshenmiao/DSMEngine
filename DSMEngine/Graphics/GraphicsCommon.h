@@ -7,17 +7,18 @@
 #include <memory>
 #include <array>
 #include "Utils/EnumUtil.h"
-#include "Core/Core.h"
 #include "Utils/Container.h"
+#include "Utils/Utils.h"
 
 namespace DSM {
     using GpuVirtualAddress = uint64_t;
 
-    static constexpr uint32_t c_MaxRenderTargets = 8;
-    static constexpr uint32_t c_MaxViewports = 16;
-    static constexpr uint32_t c_MaxVertexAttributes = 16;
-    static constexpr uint32_t c_MaxBindingLayouts = 8;
-    static constexpr uint32_t c_MaxBindlessRegisterSpaces = 16;
+    static constexpr uint32_t c_MaxRenderTargets = 8u;
+    static constexpr uint32_t c_MaxViewports = 16u;
+    static constexpr uint32_t c_MaxVertexAttributes = 16u;
+    static constexpr uint32_t c_MaxBindingLayouts = 8u;
+    static constexpr uint32_t c_MaxBindlessRegisterSpaces = 16u;
+    static constexpr uint32_t c_ConstantBufferOffsetSizeAlignment = 256u;
 
 
     using ObjectType = uint32_t;
@@ -576,9 +577,8 @@ namespace DSM {
         VertexAttributeDesc& SetName(const std::string& value) { name = value; return *this; }    
     };
 
-    class IInputLayout : public IResource
+    struct IInputLayout : public IResource
     {
-    public:
         [[nodiscard]] virtual uint32_t GetNumAttributes() const = 0;
         [[nodiscard]] virtual const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const = 0;
     };

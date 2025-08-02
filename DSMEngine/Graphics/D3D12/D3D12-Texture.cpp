@@ -2,8 +2,9 @@
 #include "D3D12-Device.h"
 
 namespace DSM::D3D12 {
-    Texture::Texture(const Context &context, DeviceResources &resources, TextureDesc desc)
-        :m_Context(context), m_Resources(resources), m_Desc(std::move(desc))
+    Texture::Texture(const Context &context, DeviceResources &resources, 
+        TextureDesc desc, D3D12_RESOURCE_DESC rd)
+        :m_Context(context), m_Resources(resources), m_Desc(std::move(desc)), resourceDesc(rd)
     {
         if(desc.isUAV){
             m_ClearMipLevelUAVs.resize(desc.mipLevels, c_InvalidDescriptorIndex);

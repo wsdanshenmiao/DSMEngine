@@ -11,7 +11,7 @@ namespace DSM::D3D12{
     class Texture : public ITexture
     {
     public:
-        Texture(const Context& context, DeviceResources& resources, TextureDesc desc);
+        Texture(const Context& context, DeviceResources& resources, TextureDesc desc, D3D12_RESOURCE_DESC rd);
         ~Texture() override;
 
         const TextureDesc& GetDesc() const override { return m_Desc; }
@@ -40,6 +40,7 @@ namespace DSM::D3D12{
         HANDLE sharedHandle;
         HeapHandle heap;
         ResourceStates permanentState = ResourceStates::Unknown;
+        const D3D12_RESOURCE_DESC resourceDesc;
 
     private:
         using TextureBindingHashMap = std::unordered_map<TextureBindingKey, uint32_t>;

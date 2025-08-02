@@ -8,6 +8,8 @@ namespace DSM::D3D12 {
     class Heap : public IHeap
     {
     public:
+        Heap(HeapDesc heapDesc, ID3D12Heap* heap) :m_Desc(std::move(heapDesc)), m_Heap(heap){}
+
         ID3D12Heap* GetHeap() const
         {
             return m_Heap.Get();

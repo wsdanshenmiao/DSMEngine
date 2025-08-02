@@ -1,5 +1,6 @@
 #include "WindowsWindow.h"
 #include "Core/Core.h"
+#include "Utils/Utils.h"
 #include "Event/ApplicationEvent.h"
 
 namespace DSM { 

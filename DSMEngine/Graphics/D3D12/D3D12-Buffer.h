@@ -17,13 +17,20 @@ namespace DSM::D3D12{
 
         Object GetNativeObject(ObjectType type) override;
 
+        // 创建资源视图
         void CreateCBV(size_t descriptor, BufferRange range) const;
         void CreateSRV(size_t descriptor, Format format, BufferRange range, ResourceType type) const;
         void CreateUAV(size_t descriptor, Format format, BufferRange range, ResourceType type) const;
+
+        uint32_t GetClearUAV();
+
+        static void CreateNullSRV(size_t descriptor, Format format, const Context& context);
+        static void CreateNullUAV(size_t descriptor, Format format, const Context& context);
         
 
     public:
         RefPtr<ID3D12Resource> resource{};
+        D3D12_RESOURCE_DESC resourceDesc{};
         HeapHandle heap{};
         HANDLE sharedHandle{};
 

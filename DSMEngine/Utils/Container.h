@@ -3,6 +3,7 @@
 #define __CONRAINER_H__
 
 #include <array>
+#include <cassert>
 
 namespace DSM {
     template <typename T, std::size_t N>
