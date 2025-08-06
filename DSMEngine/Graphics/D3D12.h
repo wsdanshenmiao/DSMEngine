@@ -37,9 +37,14 @@ namespace DSM::D3D12{
         virtual uint32_t AllocateDescriptor() = 0;
         virtual void ReleaseDescriptors(uint32_t baseIndex, uint32_t count) = 0;
         virtual void ReleaseDescriptor(uint32_t index) = 0;
+
         virtual D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle(uint32_t index) = 0;
         virtual D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandleShaderVisible(uint32_t index) = 0;
         virtual D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(uint32_t index) = 0;
+        virtual uint32_t GetOffsetOfCpuHandle(size_t descriptorIndex) const = 0;
+        virtual uint32_t GetOffsetOfGpuHandle(size_t descriptorIndex) const = 0;
+        virtual uint32_t GetOffsetOfCpuHandleShaderVisible(size_t descriptorIndex) const = 0;
+
         [[nodiscard]] virtual ID3D12DescriptorHeap* GetHeap() const = 0;
         [[nodiscard]] virtual ID3D12DescriptorHeap* GetShaderVisibleHeap() const = 0;
 

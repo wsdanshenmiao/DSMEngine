@@ -2,10 +2,12 @@
 #ifndef __D3D12D_DESCRIPTORHEAP_H__
 #define __D3D12D_DESCRIPTORHEAP_H__
 
-#include "D3D12Common.h"
+#include "Graphics/D3D12.h"
 #include "Utils/LinearAllocator.h"
 
 namespace DSM::D3D12{
+    struct Context;
+
     // 静态长度的描述符堆
     class DescriptorHeap : public IDescriptorHeap
     {
@@ -22,9 +24,14 @@ namespace DSM::D3D12{
         uint32_t AllocateDescriptor() override;
         void ReleaseDescriptors(uint32_t baseIndex, uint32_t count) override;
         void ReleaseDescriptor(uint32_t index) override;
+        
         D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle(uint32_t index) override;
         D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandleShaderVisible(uint32_t index) override;
         D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(uint32_t index) override;
+        uint32_t GetOffsetOfCpuHandle(size_t descriptor) const override;
+        uint32_t GetOffsetOfGpuHandle(size_t descriptor) const override;
+        uint32_t GetOffsetOfCpuHandleShaderVisible(size_t descriptor) const override;
+
         [[nodiscard]] ID3D12DescriptorHeap* GetHeap() const override;
         [[nodiscard]] ID3D12DescriptorHeap* GetShaderVisibleHeap() const override;
 

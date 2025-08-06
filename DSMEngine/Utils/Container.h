@@ -117,11 +117,12 @@ namespace DSM {
             m_CurrSize = new_size;
         }
 
-        reference EmplaceBack() noexcept
+        template <typename... Args>
+        reference EmplaceBack(Args&&... args) noexcept
         {
             assert(m_CurrSize < N);
             ++m_CurrSize;
-            Back() = T{};
+            Back() = T{std::forward<Args>(args)...};
             return Back();
         }
 

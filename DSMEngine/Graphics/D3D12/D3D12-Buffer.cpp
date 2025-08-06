@@ -1,4 +1,5 @@
 #include "D3D12-Buffer.h"
+#include "D3D12-Device.h"
 #include <format>
 
 namespace DSM::D3D12{

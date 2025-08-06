@@ -38,6 +38,12 @@ namespace DSM {
 		using E = std::underlying_type_t<T>;
 		return static_cast<T>(~static_cast<E>(l));
 	}
+
+    template <typename T> requires EnumBitOperators<T>::enable
+    inline constexpr bool operator!(T l)
+    {
+        return static_cast<bool>(!static_cast<std::underlying_type_t<T>>(l));
+    }
         
     template <typename T> requires EnumBitOperators<T>::enable
     inline T& operator|=(T& l, T r) { return l = l | r; }

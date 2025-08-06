@@ -6,6 +6,7 @@
 #include <string>
 #include <memory>
 #include <array>
+#include <format>
 #include "Utils/EnumUtil.h"
 #include "Utils/Container.h"
 #include "Utils/Utils.h"
@@ -19,6 +20,7 @@ namespace DSM {
     static constexpr uint32_t c_MaxBindingLayouts = 8u;
     static constexpr uint32_t c_MaxBindlessRegisterSpaces = 16u;
     static constexpr uint32_t c_ConstantBufferOffsetSizeAlignment = 256u;
+    static constexpr uint32_t c_MaxVolatileConstantBuffersPerLayout = 6u;
 
 
     using ObjectType = uint32_t;
@@ -737,6 +739,21 @@ namespace DSM {
     const char* DebugNameToString(const std::string& debugName)
     {
         return debugName.empty() ? "<UNNAMED>" : debugName.c_str();
+    }
+
+    bool VerifyPermanentResourceState(ResourceStates permanentState, ResourceStates requiredState, 
+        bool isTexture, const std::string& debugName, IMessageCallback* callback)
+    {
+        assert(callback != nullptr);
+        // 当前状态必须是永久状态的子集
+        if ((requiredState & permanentState) != requiredState)
+        {
+            std::string msg = std::format("Permanent {} {} doesn't have the right state bits. Required: 0x{:x}, present: 0x{:x}.",
+                (isTexture ? "texture " : "buffer "), DebugNameToString(debugName), uint32_t(requiredState), uint32_t(permanentState));
+            callback->Message(MessageSeverity::Error, msg.c_str());
+            return false;
+        }
+        return true;
     }
 
 } // namespace DSM 

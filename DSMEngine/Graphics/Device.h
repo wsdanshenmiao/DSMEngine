@@ -45,7 +45,7 @@ namespace DSM{
         virtual void ResetEventQuery(IEventQuery* query) = 0;
 
         // 时间查询
-        virtual TimerQueryHandle createTimerQuery() = 0;
+        virtual TimerQueryHandle CreateTimerQuery() = 0;
         virtual bool PollTimerQuery(ITimerQuery* query) = 0;
         virtual float GetTimerQueryTime(ITimerQuery* query) = 0;
         virtual void ResetTimerQuery(ITimerQuery* query) = 0;

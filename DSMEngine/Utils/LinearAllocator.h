@@ -51,6 +51,7 @@ namespace DSM {
         bool Deallocate(uint64_t start, uint64_t size)
         {
             if(start + size > m_Capacity || size > m_Capacity) return false;
+            if(size == 0) return true;
 
             AllocationRange newRange{start, size};
             // 获取当前区间的下一个空闲区间

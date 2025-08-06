@@ -3,9 +3,11 @@
 #define __D3D12_DEVICE_H__
 
 #include "DescriptorHeap.h"
+#include "D3D12Common.h"
 #include <unordered_map>
 
 namespace DSM::D3D12 {
+    class RootSignature;
     
     class DeviceResources
     {
@@ -81,13 +83,13 @@ namespace DSM::D3D12 {
         void UpdateTextureTileMappings(ITexture* texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueue executionQueue = CommandQueue::Graphics) override;
 
         BufferHandle CreateBuffer(const BufferDesc& d) override;
-        void* MapBuffer(IBuffer* buffer, CpuAccessMode cpuAccess) override;
-        void UnmapBuffer(IBuffer* buffer) override;
-        MemoryRequirements GetBufferMemoryRequirements(IBuffer* buffer) override;
+        void* MapBuffer(IBuffer* _buffer, CpuAccessMode cpuAccess) override;
+        void UnmapBuffer(IBuffer* _buffer) override;
+        MemoryRequirements GetBufferMemoryRequirements(IBuffer* _buffer) override;
         // 将保留资源绑定到具体的堆中
-        bool BindBufferMemory(IBuffer* buffer, IHeap* heap, uint64_t offset) override;
+        bool BindBufferMemory(IBuffer* _buffer, IHeap* _heap, uint64_t offset) override;
 
-        BufferHandle CreateHandleForNativeBuffer(ObjectType objectType, Object buffer, const BufferDesc& desc) override;
+        BufferHandle CreateHandleForNativeBuffer(ObjectType objectType, Object _buffer, const BufferDesc& desc) override;
 
         ShaderHandle CreateShader(const ShaderDesc& d, const void* binary, size_t binarySize) override;
         ShaderLibraryHandle CreateShaderLibrary(const void* binary, size_t binarySize) override;
@@ -104,7 +106,7 @@ namespace DSM::D3D12 {
         void ResetEventQuery(IEventQuery* query) override;
 
         // 时间查询
-        TimerQueryHandle createTimerQuery() override;
+        TimerQueryHandle CreateTimerQuery() override;
         bool PollTimerQuery(ITimerQuery* query) override;
         float GetTimerQueryTime(ITimerQuery* query) override;
         void ResetTimerQuery(ITimerQuery* query) override;
@@ -146,6 +148,8 @@ namespace DSM::D3D12 {
     private:
         Context m_Context;
         DeviceResources m_Resources;
+
+        HANDLE m_FenceEvent;
 
         D3D12_FEATURE_DATA_D3D12_OPTIONS m_Options{};
     };

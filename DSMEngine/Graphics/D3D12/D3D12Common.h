@@ -146,6 +146,38 @@ namespace DSM{
             return result;
         }
 
+        void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
+        {
+            // 进行等待
+            if(fence->GetCompletedValue() < fenceValue){
+                ResetEvent(event);
+                fence->SetEventOnCompletion(fenceValue, event);
+                WaitForSingleObject(event, INFINITE);
+            }
+        }
+
+            
+        D3D12_SHADER_VISIBILITY ConvertShaderStage(ShaderType s)
+        {
+            switch (s) {
+            case ShaderType::Vertex:
+                return D3D12_SHADER_VISIBILITY_VERTEX;
+            case ShaderType::Hull:
+                return D3D12_SHADER_VISIBILITY_HULL;
+            case ShaderType::Domain:
+                return D3D12_SHADER_VISIBILITY_DOMAIN;
+            case ShaderType::Geometry:
+                return D3D12_SHADER_VISIBILITY_GEOMETRY;
+            case ShaderType::Pixel:
+                return D3D12_SHADER_VISIBILITY_PIXEL;
+            case ShaderType::Amplification:
+                return D3D12_SHADER_VISIBILITY_AMPLIFICATION;
+            case ShaderType::Mesh:
+                return D3D12_SHADER_VISIBILITY_MESH;
+            default:
+                return D3D12_SHADER_VISIBILITY_ALL;
+            }
+        }
    
         struct Context
         {

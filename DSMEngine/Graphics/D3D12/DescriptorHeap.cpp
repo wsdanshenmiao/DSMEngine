@@ -1,5 +1,6 @@
 #include "DescriptorHeap.h"
 #include "Math/MathCommon.h"
+#include "D3D12Common.h"
 
 namespace DSM::D3D12{
     DescriptorHeap::DescriptorHeap(const Context &context)
@@ -71,7 +72,7 @@ namespace DSM::D3D12{
     {
         std::lock_guard lock{m_Mutex};
 
-        m_Allocator.Deallocate(baseIndex, count);
+        assert(m_Allocator.Deallocate(baseIndex, count));
     }
 
     void DescriptorHeap::ReleaseDescriptor(uint32_t index)
@@ -81,17 +82,41 @@ namespace DSM::D3D12{
 
     D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetCpuHandle(uint32_t index)
     {
+        assert(index < m_Allocator.Capacity());
         return D3D12_CPU_DESCRIPTOR_HANDLE{m_StartCpuHandle.ptr + index * m_Stride};
     }
 
     D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetCpuHandleShaderVisible(uint32_t index)
     {
+        assert(index < m_Allocator.Capacity());
         return D3D12_CPU_DESCRIPTOR_HANDLE{m_StartCpuHandleShaderVisible.ptr + index * m_Stride};
     }
 
     D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeap::GetGpuHandle(uint32_t index)
     {
+        assert(index < m_Allocator.Capacity());
         return D3D12_GPU_DESCRIPTOR_HANDLE{m_StartGpuHandleShaderVisible.ptr + index * m_Stride};
+    }
+
+    uint32_t DescriptorHeap::GetOffsetOfCpuHandle(size_t descriptor) const
+    {
+        auto end = m_StartCpuHandle.ptr + m_Allocator.Capacity() * m_Stride;
+        assert(m_StartCpuHandle.ptr <= descriptor && descriptor < end);
+        return static_cast<uint32_t>(descriptor - m_StartCpuHandle.ptr) / m_Stride;
+    }
+
+    uint32_t DescriptorHeap::GetOffsetOfGpuHandle(size_t descriptor) const
+    {
+        auto end = m_StartGpuHandleShaderVisible.ptr + m_Allocator.Capacity() * m_Stride;
+        assert(m_StartGpuHandleShaderVisible.ptr <= descriptor && descriptor < end);
+        return static_cast<uint32_t>(descriptor - m_StartGpuHandleShaderVisible.ptr) / m_Stride;
+    }
+
+    uint32_t DescriptorHeap::GetOffsetOfCpuHandleShaderVisible(size_t descriptor) const
+    {
+        auto end = m_StartCpuHandleShaderVisible.ptr + m_Allocator.Capacity() * m_Stride;
+        assert(m_StartCpuHandleShaderVisible.ptr <= descriptor && descriptor < end);
+        return static_cast<uint32_t>(descriptor - m_StartCpuHandleShaderVisible.ptr) / m_Stride;
     }
 
     ID3D12DescriptorHeap *DescriptorHeap::GetHeap() const

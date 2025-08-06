@@ -6,7 +6,7 @@
 
 namespace DSM::D3D12{
     struct Context;
-    struct DeviceResources;
+    class DeviceResources;
 
     class Texture : public ITexture
     {
@@ -39,8 +39,9 @@ namespace DSM::D3D12{
         RefPtr<ID3D12Resource> resource;
         HANDLE sharedHandle;
         HeapHandle heap;
-        ResourceStates permanentState = ResourceStates::Unknown;
         const D3D12_RESOURCE_DESC resourceDesc;
+
+        ResourceStates permanentState = ResourceStates::Unknown;
 
     private:
         using TextureBindingHashMap = std::unordered_map<TextureBindingKey, uint32_t>;

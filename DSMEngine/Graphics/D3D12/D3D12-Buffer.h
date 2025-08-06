@@ -2,9 +2,13 @@
 #ifndef __D3D12_BUFFER_H__
 #define __D3D12_BUFFER_H__
 
-#include "D3D12-Device.h"
+#include "Graphics/Buffer.h"
+#include "Graphics/D3D12/D3D12Common.h"
 
 namespace DSM::D3D12{
+    struct Context;
+    class DeviceResources;
+
     class Buffer : public IBuffer
     {
     public:
@@ -36,6 +40,8 @@ namespace DSM::D3D12{
 
         RefPtr<ID3D12Fence> lastUseFence{};
         uint64_t lastUseFenceValue{};
+        
+        ResourceStates permanentState = ResourceStates::Unknown;
 
     private:
         const BufferDesc m_Desc;
