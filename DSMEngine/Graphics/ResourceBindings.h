@@ -449,7 +449,7 @@ namespace DSM {
     {
     public:
         [[nodiscard]] virtual uint32_t GetCapacity() const = 0;
-        [[nodiscard]] virtual uint32_t GetFirstDescriptorIndexInHeap() const = 0;
+        [[nodiscard]] virtual uint32_t GetFirstDescriptorIndex() const = 0;
     };
     using DescriptorTableHandle = RefPtr<IDescriptorTable>;
 

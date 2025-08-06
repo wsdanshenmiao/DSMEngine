@@ -114,7 +114,7 @@ namespace DSM::D3D12 {
         const BindingSetDesc* GetDesc() const override { return nullptr; }
         IBindingLayout* GetLayout() const override { return nullptr; }
         uint32_t GetCapacity() const override { return capacity; }
-        uint32_t GetFirstDescriptorIndexInHeap() const override { return firstDescriptor; }
+        uint32_t GetFirstDescriptorIndex() const override { return firstDescriptor; }
 
     public:
         uint32_t capacity = 0;

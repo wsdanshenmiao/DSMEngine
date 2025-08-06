@@ -527,8 +527,100 @@ namespace DSM::D3D12{
         return DescriptorTableHandle(new DescriptorTable{m_Resources});
     }
 
+    void Device::ResizeDescriptorTable(IDescriptorTable * _descriptorTable, uint32_t newSize, bool keepContents)
+    {
+        DescriptorTable* descriptorTable = Utility::CheckedCast<DescriptorTable*>(_descriptorTable);
+        if(descriptorTable == nullptr || newSize == descriptorTable->GetCapacity()) return;
 
+        auto preCapacity = descriptorTable->GetCapacity();
+        auto preBaseIndex = descriptorTable->GetFirstDescriptorIndex();
+        // 需要缩小
+        if(newSize < preCapacity){
+            m_Resources.shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex, preCapacity - newSize);
+            descriptorTable->capacity = newSize;
+            return;
+        }
 
+        // 需要扩大
+        descriptorTable->firstDescriptor = m_Resources.shaderResourceViewHeap.AllocateDescriptors(newSize);
+        descriptorTable->capacity = newSize;
+        if(preCapacity > 0){
+            if(keepContents){   // 拷贝旧资源
+                m_Context.m_Device->CopyDescriptorsSimple(
+                    preCapacity, 
+                    m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorTable->firstDescriptor),
+                    m_Resources.shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
+                    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                m_Context.m_Device->CopyDescriptorsSimple(
+                    preCapacity, 
+                    m_Resources.shaderResourceViewHeap.GetCpuHandleShaderVisible(descriptorTable->firstDescriptor),
+                    m_Resources.shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
+                    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            }
+            // 释放旧资源
+            m_Resources.shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex, preCapacity);
+        }
+    }
+
+    bool Device::WriteDescriptorTable(IDescriptorTable *_descriptorTable, const BindingSetItem &item)
+    {
+        auto descriptorTable = Utility::CheckedCast<DescriptorTable*>(_descriptorTable);
+        if (descriptorTable == nullptr || item.resourceHandle == nullptr ||
+            item.slot > descriptorTable->GetCapacity()) return false;
+
+        uint32_t descriptorIndex = descriptorTable->GetFirstDescriptorIndex() + item.slot;
+        auto cpuHandle = m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
+
+        switch (item.type) {
+        case ResourceType::None:{
+            Buffer::CreateNullSRV(cpuHandle.ptr, item.format, m_Context);
+            break;
+        }
+        case ResourceType::Texture_SRV:{
+            Texture* tex = Utility::CheckedCast<Texture*>(item.resourceHandle);
+            tex->CreateSRV(cpuHandle.ptr, item.format, item.dimension, item.subresources);
+            break;
+        }
+        case ResourceType::Texture_UAV:{
+            Texture* tex = Utility::CheckedCast<Texture*>(item.resourceHandle);
+            tex->CreateUAV(cpuHandle.ptr, item.format, item.dimension, item.subresources);
+            break;
+        }
+        case ResourceType::TypedBuffer_SRV:
+        case ResourceType::RawBuffer_SRV:
+        case ResourceType::StructuredBuffer_SRV:{
+            Buffer* buffer = Utility::CheckedCast<Buffer*>(item.resourceHandle);
+            buffer->CreateSRV(cpuHandle.ptr, item.format, item.range, item.type);
+            break;
+        }
+        case ResourceType::TypedBuffer_UAV:
+        case ResourceType::RawBuffer_UAV:
+        case ResourceType::StructuredBuffer_UAV:{
+            Buffer* buffer = Utility::CheckedCast<Buffer*>(item.resourceHandle);
+            buffer->CreateUAV(cpuHandle.ptr, item.format, item.range, item.type);
+            break;
+        }
+        case ResourceType::ConstantBuffer:{
+            Buffer* buffer = Utility::CheckedCast<Buffer*>(item.resourceHandle);
+            buffer->CreateCBV(cpuHandle.ptr, item.range);
+            break;
+        }
+        case ResourceType::RayTracingAccelStruct:{
+            // TODO: 随后支持光追时实现对应逻辑
+            break;
+        }
+        case ResourceType::VolatileConstantBuffer:{
+            m_Context.Error("Attempted to bind a volatile constant buffer to a bindless set.");
+            return false;
+        }
+        default:
+            assert(!"Invalid resource type on write descriptor table.");
+            return false;
+        }
+
+        m_Resources.shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndex);
+        return true;
+    }
 
     IMessageCallback *Device::GetMessageCallback()
     {

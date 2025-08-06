@@ -127,8 +127,8 @@ namespace DSM::D3D12 {
         BindingSetHandle CreateBindingSet(const BindingSetDesc& desc, IBindingLayout* layout) override;
         DescriptorTableHandle CreateDescriptorTable(IBindingLayout* layout) override;
 
-        void ResizeDescriptorTable(IDescriptorTable* descriptorTable, uint32_t newSize, bool keepContents = true) override;
-        bool WriteDescriptorTable(IDescriptorTable* descriptorTable, const BindingSetItem& item) override;
+        void ResizeDescriptorTable(IDescriptorTable* _descriptorTable, uint32_t newSize, bool keepContents = true) override;
+        bool WriteDescriptorTable(IDescriptorTable* _descriptorTable, const BindingSetItem& item) override;
 
         //CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) override;
         //uint64_t ExecuteCommandLists(ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueue executionQueue = CommandQueue::Graphics) override;
