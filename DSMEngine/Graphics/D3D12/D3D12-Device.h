@@ -130,20 +130,43 @@ namespace DSM::D3D12 {
         void ResizeDescriptorTable(IDescriptorTable* _descriptorTable, uint32_t newSize, bool keepContents = true) override;
         bool WriteDescriptorTable(IDescriptorTable* _descriptorTable, const BindingSetItem& item) override;
 
-        //CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) override;
-        //uint64_t ExecuteCommandLists(ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueue executionQueue = CommandQueue::Graphics) override;
+        DSM::CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) override;
+        uint64_t ExecuteCommandLists(DSM::ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueue executionQueue = CommandQueue::Graphics) override;
         void QueueWaitForCommandList(CommandQueue waitQueue, CommandQueue executionQueue, uint64_t instance) override;
         // 等待成功返回true，遇到设备移除等问题返回false
         bool WaitForIdle() override;
+        Object GetNativeQueue(ObjectType objectType, CommandQueue queue) override;
 
         // 检测特性支持
         bool QueryFeatureSupport(Feature feature, void* pInfo = nullptr, size_t infoSize = 0) override;
 
         FormatSupport QueryFormatSupport(Format format) override;
 
-        Object GetNativeQueue(ObjectType objectType, CommandQueue queue) override;
-
         IMessageCallback* GetMessageCallback() override;
+
+        RootSignatureHandle BuildRootSignature(
+            const BindingLayoutVector& pipelineLayouts, 
+            bool allowInputLayout, bool isLocal, 
+            const D3D12_ROOT_PARAMETER1* pCustomParameters = nullptr, 
+            uint32_t numCustomParameters = 0) override;
+
+        GraphicsPipelineHandle CreateHandleForNativeGraphicsPipeline(
+            IRootSignature* rootSignature, 
+            ID3D12PipelineState* pipelineState, 
+            const GraphicsPipelineDesc& desc, 
+            const FramebufferInfo& framebufferInfo) override;
+        
+        MeshletPipelineHandle CreateHandleForNativeMeshletPipeline(
+            IRootSignature* rootSignature, 
+            ID3D12PipelineState* pipelineState, 
+            const MeshletPipelineDesc& desc, 
+            const FramebufferInfo& framebufferInfo) override;
+
+        IDescriptorHeap* GetDescriptorHeap(DescriptorHeapType heapType) override;
+
+    private:
+        using BindingLayoutVector = StaticVector<BindingLayoutHandle, c_MaxBindingLayouts>;
+        RefPtr<RootSignature> GetRootSignature(const BindingLayoutVector& pipelineLayouts, bool allowInputLayout);
 
     private:
         Context m_Context;
@@ -152,6 +175,8 @@ namespace DSM::D3D12 {
         HANDLE m_FenceEvent;
 
         D3D12_FEATURE_DATA_D3D12_OPTIONS m_Options{};
+
+        bool m_HeapDirectlyIndexedEnabled = false;
     };
 } // namespace DSM 
 

@@ -49,44 +49,6 @@ namespace DSM::D3D12 {
             m_Context.m_Device->CreateSampler(&desc, {descriptor});
         }
 
-        static D3D12_TEXTURE_ADDRESS_MODE ConvertAddressMode(SamplerAddressMode mode)
-        {
-            switch (mode)
-            {
-            case SamplerAddressMode::Clamp:
-                return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-            case SamplerAddressMode::Wrap:
-                return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-            case SamplerAddressMode::Border:
-                return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-            case SamplerAddressMode::Mirror:
-                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
-            case SamplerAddressMode::MirrorOnce:
-                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
-            default:
-                assert(!"Invalid address mode.");
-                return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-            }
-        }
-
-        static D3D12_FILTER_REDUCTION_TYPE ConvertReductionType(SamplerReductionType reductionType)
-        {
-            switch (reductionType)
-            {
-            case SamplerReductionType::Standard:
-                return D3D12_FILTER_REDUCTION_TYPE_STANDARD;
-            case SamplerReductionType::Comparison:
-                return D3D12_FILTER_REDUCTION_TYPE_COMPARISON;
-            case SamplerReductionType::Minimum:
-                return D3D12_FILTER_REDUCTION_TYPE_MINIMUM;
-            case SamplerReductionType::Maximum:
-                return D3D12_FILTER_REDUCTION_TYPE_MAXIMUM;
-            default:
-                assert(!"Invalid sampler reduction type.");
-                return D3D12_FILTER_REDUCTION_TYPE_STANDARD;
-            }
-        }
-
     private:
         const Context& m_Context;
         const SamplerDesc m_Desc{};

@@ -19,6 +19,8 @@ namespace DSM::D3D12 {
         using VolatileCBDescriptorVector = StaticVector<std::pair<uint32_t, D3D12_ROOT_DESCRIPTOR1>, c_MaxVolatileConstantBuffersPerLayout>;
         VolatileCBDescriptorVector rootParametersVolatileCB;
 
+        uint32_t pushConstantByteSize = 0;
+
         uint32_t descriptorTableSizeSamplers = 0;;
         uint32_t descriptorTableSizeSRVs = 0;
         std::vector<D3D12_DESCRIPTOR_RANGE1> descriptorRangeSamplers;
@@ -56,13 +58,17 @@ namespace DSM::D3D12 {
         RootSignature(DeviceResources& deviceResources)
             : m_Resources(deviceResources) {}
         ~RootSignature() override;
-
+        
         Object GetNativeObject(ObjectType type) override;
 
     public:
         size_t hash = 0;
         RefPtr<ID3D12RootSignature> rootSignature{};
+        StaticVector<std::pair<uint32_t, BindingLayoutHandle>, c_MaxBindingLayouts> pipelineLayouts;
 
+        uint32_t pushConstantByteSize = 0;
+        uint32_t rootConstantsIndex;
+        
     private:
         DeviceResources& m_Resources;
     };

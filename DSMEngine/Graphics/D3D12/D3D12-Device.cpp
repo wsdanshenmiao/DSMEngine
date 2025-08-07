@@ -6,6 +6,7 @@
 #include "D3d12-FrameBuffer.h"
 #include "D3D12-ResourceBindings.h"
 #include "D3D12-Shader.h"
+#include "D3D12-PipelineState.h"
 #include <format>
 
 namespace DSM::D3D12{
@@ -502,7 +503,94 @@ namespace DSM::D3D12{
         return FramebufferHandle{framebuffer};
     }
 
-    
+
+    //////////////////////////////////////////////////////////////////////////
+    // Pipeline State
+    //////////////////////////////////////////////////////////////////////////
+    GraphicsPipelineHandle Device::CreateGraphicsPipeline(const GraphicsPipelineDesc &desc, IFramebuffer *fb)
+    {
+        RefPtr<RootSignature> rootSig = GetRootSignature(desc.bindingLayouts, desc.inputLayout != nullptr);
+
+        // 创建 PSO
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
+        psoDesc.pRootSignature = rootSig->rootSignature.Get();
+        
+        // 设置 Shader
+        auto setShader = [](ShaderHandle shader, auto& psoShader){
+            if(shader != nullptr){
+                void* shaderBytecode = nullptr;
+                size_t shaderBytecodeSize = 0;
+                shader->GetBytecode(&shaderBytecode, &shaderBytecodeSize);
+                psoShader = { shaderBytecode, shaderBytecodeSize };
+            }
+        };
+        setShader(desc.VS, psoDesc.VS);
+        setShader(desc.HS, psoDesc.HS);
+        setShader(desc.DS, psoDesc.DS);
+        setShader(desc.GS, psoDesc.GS);
+        setShader(desc.PS, psoDesc.PS);
+
+        // 设置状态
+        const auto& fbInfo = fb->GetFramebufferInfo();
+        psoDesc.BlendState = ConvertBlendState(desc.renderState.blendState);
+        psoDesc.DepthStencilState = ConvertDepthStencilState(desc.renderState.depthStencilState);
+        if ((psoDesc.DepthStencilState.DepthEnable || psoDesc.DepthStencilState.StencilEnable) && 
+            fbInfo.depthFormat == Format::UNKNOWN)
+        {
+            psoDesc.DepthStencilState.DepthEnable = FALSE;
+            psoDesc.DepthStencilState.StencilEnable = FALSE;
+            GetMessageCallback()->Message(MessageSeverity::Warning, "DepthEnable or stencilEnable is true, but no depth target is bound");
+        }
+        psoDesc.RasterizerState = ConvertRasterizerState(desc.renderState.rasterState);
+
+
+        switch (desc.primType) {
+        case PrimitiveType::PointList:
+            psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+            break;
+        case PrimitiveType::LineList:
+            psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+            break;
+        case PrimitiveType::TriangleList:
+        case PrimitiveType::TriangleStrip:
+        case PrimitiveType::TriangleFan:
+        case PrimitiveType::TriangleListWithAdjacency:
+        case PrimitiveType::TriangleStripWithAdjacency:
+            psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+            break;
+        case PrimitiveType::PatchList:
+            psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+            break;
+        default:
+            m_Context.Error("PrimitiveType unsupported by this device.");
+            return nullptr;
+        }
+
+        psoDesc.DSVFormat = GetDxgiFormatMapping(fbInfo.depthFormat).rtvFormat;
+        psoDesc.SampleDesc.Count = fbInfo.sampleCount;
+        psoDesc.SampleDesc.Quality = fbInfo.sampleQuality;
+        psoDesc.SampleMask = ~0u;
+        psoDesc.NumRenderTargets = static_cast<UINT>(fbInfo.colorFormats.Size());
+        for(uint32_t i = 0; i < psoDesc.NumRenderTargets; ++i){
+            psoDesc.RTVFormats[i] = GetDxgiFormatMapping(fbInfo.colorFormats[i]).rtvFormat;
+        }
+
+        InputLayout* inputLayout = Utility::CheckedCast<InputLayout*>(desc.inputLayout);
+        psoDesc.InputLayout.NumElements = inputLayout->inputElements.size();
+        psoDesc.InputLayout.pInputElementDescs = inputLayout->inputElements.data();
+
+        RefPtr<ID3D12PipelineState> pipelineState{};
+        auto hr = m_Context.m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
+        if(FAILED(hr)){
+            m_Context.Error("Failed to create a graphics pipeline state object.");
+            return nullptr;
+        }
+
+
+        return CreateHandleForNativeGraphicsPipeline(rootSig.Get(), pipelineState.Get(), desc, fbInfo);
+    }
+
+
     //////////////////////////////////////////////////////////////////////////
     // Resource binding
     //////////////////////////////////////////////////////////////////////////    
@@ -625,5 +713,144 @@ namespace DSM::D3D12{
     IMessageCallback *Device::GetMessageCallback()
     {
         return m_Context.m_MessageCallback;
+    }
+
+    GraphicsPipelineHandle Device::CreateHandleForNativeGraphicsPipeline(IRootSignature *rootSignature, ID3D12PipelineState *pipelineState, const GraphicsPipelineDesc &desc, const FramebufferInfo &framebufferInfo)
+    {
+        if(rootSignature == nullptr || pipelineState == nullptr)
+            return GraphicsPipelineHandle(nullptr);
+
+        GraphicsPipeline* pso = new GraphicsPipeline(desc, framebufferInfo);
+        pso->rootSignature = Utility::CheckedCast<RootSignature*>(rootSignature);
+        pso->pipelineState = pipelineState;
+
+        return GraphicsPipelineHandle{pso};
+    }
+
+    RefPtr<RootSignature> Device::GetRootSignature(const BindingLayoutVector &pipelineLayouts, bool allowInputLayout)
+    {
+        size_t hash = 0;
+        for (const auto &bindingLayout : pipelineLayouts) {
+            hash = Utility::HashCombine(hash, bindingLayout);
+        }
+        hash = Utility::HashCombine(hash, allowInputLayout);
+
+        RefPtr<RootSignature> rootSig = nullptr;
+        if(auto it = m_Resources.rootsigCache.find(hash); it != m_Resources.rootsigCache.end()) {
+            rootSig = it->second;
+        }
+        else{
+            rootSig = Utility::CheckedCast<RootSignature*>(BuildRootSignature(pipelineLayouts, allowInputLayout, false));
+            rootSig->hash = hash;
+            m_Resources.rootsigCache[hash] = rootSig.Get();
+        }
+
+        return rootSig;
+    }
+
+    RootSignatureHandle Device::BuildRootSignature(
+        const StaticVector<BindingLayoutHandle, c_MaxBindingLayouts> &pipelineLayouts, 
+        bool allowInputLayout, bool isLocal, 
+        const D3D12_ROOT_PARAMETER1 *pCustomParameters, 
+        uint32_t numCustomParameters)
+    {
+        assert(pCustomParameters != nullptr && numCustomParameters != 0 || 
+            pCustomParameters == nullptr && numCustomParameters == 0);
+
+        RootSignature* rootSig = new RootSignature(m_Resources);
+        
+        std::vector<D3D12_ROOT_PARAMETER1> rootParameters(numCustomParameters);
+        for(uint32_t i = 0; i < numCustomParameters; ++i){
+            rootParameters[i] = pCustomParameters[i];
+        }
+
+        bool useSamplersHeap = false;
+        bool useSRVsHeap = false;
+
+        for(const auto& layout : pipelineLayouts){
+            uint32_t rootParameterOffset = rootParameters.size();
+            // 普通根参数
+            if(layout->GetDesc() != nullptr){
+                BindingLayout* bindingLayout = Utility::CheckedCast<BindingLayout*>(layout);
+
+                rootSig->pipelineLayouts.EmplaceBack(rootParameterOffset, bindingLayout);
+                rootParameters.append_range(bindingLayout->rootParameters);
+
+                if(bindingLayout->pushConstantByteSize > 0){
+                    rootSig->pushConstantByteSize = bindingLayout->pushConstantByteSize;
+                    rootSig->rootConstantsIndex = rootParameterOffset + bindingLayout->rootConstantsIndex;
+                }
+            }
+            else if(layout->GetBindlessDesc() != nullptr){  // Bindless 资源
+                BindlessLayout* bindlessLayout = Utility::CheckedCast<BindlessLayout*>(layout);
+
+                auto layoutType = bindlessLayout->GetBindlessDesc()->layoutType;
+                if(layoutType == BindlessLayoutDesc::LayoutType::Immutable){
+                    rootSig->pipelineLayouts.EmplaceBack(rootParameterOffset, bindlessLayout);
+                    rootParameters.push_back(bindlessLayout->rootParameter);
+                }
+                else{
+                    rootSig->pipelineLayouts.EmplaceBack(c_InvalidRootParameterIndex, bindlessLayout);
+                    useSamplersHeap = layoutType == BindlessLayoutDesc::LayoutType::MutableSampler;
+                    useSRVsHeap = !useSamplersHeap;
+                }
+            }
+            else{
+                m_Context.Error("Invalid binding layout in root signature.");
+                delete rootSig;
+                return RootSignatureHandle{nullptr};
+            }
+        }
+
+        // 根签名描述
+        D3D12_ROOT_SIGNATURE_DESC1 rsDesc1{};
+        if(!rootParameters.empty()){    
+            rsDesc1.NumParameters = static_cast<UINT>(rootParameters.size());
+            rsDesc1.pParameters = rootParameters.data();
+        }
+        if(allowInputLayout){
+            rsDesc1.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+        }
+        if(isLocal){
+            rsDesc1.Flags |= D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+        }
+        if(m_HeapDirectlyIndexedEnabled){
+            if(useSamplersHeap){
+                rsDesc1.Flags |= D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+            }
+            if(useSRVsHeap){
+                rsDesc1.Flags |= D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
+            }
+        }
+
+        D3D12_VERSIONED_ROOT_SIGNATURE_DESC rsDesc{};
+        rsDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+        rsDesc.Desc_1_1 = rsDesc1;
+
+        RefPtr<ID3DBlob> signature{};
+        RefPtr<ID3DBlob> error{};
+        auto hr = D3D12SerializeVersionedRootSignature(&rsDesc, signature.GetAddressOf(), error.GetAddressOf());
+        if(FAILED(hr)){
+            std::string msg = std::format("Failed to serialize root signature,Error msg: {}.", GetErrorMessage(hr));
+            if(error != nullptr && error->GetBufferSize() > 0){
+                msg += std::string(static_cast<const char*>(error->GetBufferPointer())) + ".";
+            }
+            m_Context.Error(msg);
+            delete rootSig;
+            return RootSignatureHandle{nullptr};
+        }
+
+        hr = m_Context.m_Device->CreateRootSignature(
+            0, signature->GetBufferPointer(), signature->GetBufferSize(),
+            IID_PPV_ARGS(rootSig->rootSignature.GetAddressOf()));
+        
+        if(FAILED(hr)){
+            std::string msg = std::format("Failed to create root signature, Error msg: {}", GetErrorMessage(hr));
+            m_Context.Error(msg);
+            delete rootSig;
+            return RootSignatureHandle{nullptr};
+        }
+        
+        return RootSignatureHandle(rootSig);
     }
 }

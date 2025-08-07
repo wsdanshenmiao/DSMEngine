@@ -81,12 +81,12 @@ namespace DSM {
         {
         }
 
-        explicit RefPtr(std::nullptr_t) noexcept : ptr_(nullptr)
+        RefPtr(std::nullptr_t) noexcept : ptr_(nullptr)
         {
         }
 
         template<class U>
-        explicit RefPtr(U *other) noexcept : ptr_(other)
+        RefPtr(U *other) noexcept : ptr_(other)
         {
             InternalAddRef();
         }

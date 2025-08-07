@@ -118,6 +118,10 @@ namespace DSM{
         class RootSignature;
 
 
+        
+        //////////////////////////////////////////////////////////////////////////
+        // Convert Custom Structs/Enums to D3D12 Structs/Enums
+        //////////////////////////////////////////////////////////////////////////
         D3D12_RESOURCE_STATES ConvertResourceStates(const ResourceStates& state)
         {
             if (state == ResourceStates::Common)
@@ -145,17 +149,6 @@ namespace DSM{
 
             return result;
         }
-
-        void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
-        {
-            // 进行等待
-            if(fence->GetCompletedValue() < fenceValue){
-                ResetEvent(event);
-                fence->SetEventOnCompletion(fenceValue, event);
-                WaitForSingleObject(event, INFINITE);
-            }
-        }
-
             
         D3D12_SHADER_VISIBILITY ConvertShaderStage(ShaderType s)
         {
@@ -178,7 +171,286 @@ namespace DSM{
                 return D3D12_SHADER_VISIBILITY_ALL;
             }
         }
-   
+
+        D3D12_BLEND ConvertBlendValue(BlendFactor value)
+        {
+            switch (value) {
+            case BlendFactor::Zero:
+                return D3D12_BLEND_ZERO;
+            case BlendFactor::One:
+                return D3D12_BLEND_ONE;
+            case BlendFactor::SrcColor:
+                return D3D12_BLEND_SRC_COLOR;
+            case BlendFactor::InvSrcColor:
+                return D3D12_BLEND_INV_SRC_COLOR;
+            case BlendFactor::SrcAlpha:
+                return D3D12_BLEND_SRC_ALPHA;
+            case BlendFactor::InvSrcAlpha:
+                return D3D12_BLEND_INV_SRC_ALPHA;
+            case BlendFactor::DstAlpha:
+                return D3D12_BLEND_DEST_ALPHA;
+            case BlendFactor::InvDstAlpha:
+                return D3D12_BLEND_INV_DEST_ALPHA;
+            case BlendFactor::DstColor:
+                return D3D12_BLEND_DEST_COLOR;
+            case BlendFactor::InvDstColor:
+                return D3D12_BLEND_INV_DEST_COLOR;
+            case BlendFactor::SrcAlphaSaturate:
+                return D3D12_BLEND_SRC_ALPHA_SAT;
+            case BlendFactor::ConstantColor:
+                return D3D12_BLEND_BLEND_FACTOR;
+            case BlendFactor::InvConstantColor:
+                return D3D12_BLEND_INV_BLEND_FACTOR;
+            case BlendFactor::Src1Color:
+                return D3D12_BLEND_SRC1_COLOR;
+            case BlendFactor::InvSrc1Color:
+                return D3D12_BLEND_INV_SRC1_COLOR;
+            case BlendFactor::Src1Alpha:
+                return D3D12_BLEND_SRC1_ALPHA;
+            case BlendFactor::InvSrc1Alpha:
+                return D3D12_BLEND_INV_SRC1_ALPHA;
+            default:
+                assert(!"Invalid blend factor.");
+                return D3D12_BLEND_ZERO;
+            }
+        }
+
+        D3D12_BLEND_OP ConvertBlendOp(BlendOp value)
+        {
+            switch (value) {
+            case BlendOp::Add:
+                return D3D12_BLEND_OP_ADD;
+            case BlendOp::Subtract:
+                return D3D12_BLEND_OP_SUBTRACT;
+            case BlendOp::ReverseSubtract:
+                return D3D12_BLEND_OP_REV_SUBTRACT;
+            case BlendOp::Min:
+                return D3D12_BLEND_OP_MIN;
+            case BlendOp::Max:
+                return D3D12_BLEND_OP_MAX;
+            default:
+                assert(!"Invalid blend op.");
+                return D3D12_BLEND_OP_ADD;
+            }
+        }
+
+        D3D12_STENCIL_OP ConvertStencilOp(StencilOp value)
+        {
+            switch (value) {
+            case StencilOp::Keep:
+                return D3D12_STENCIL_OP_KEEP;
+            case StencilOp::Zero:
+                return D3D12_STENCIL_OP_ZERO;
+            case StencilOp::Replace:
+                return D3D12_STENCIL_OP_REPLACE;
+            case StencilOp::IncrementAndClamp:
+                return D3D12_STENCIL_OP_INCR_SAT;
+            case StencilOp::DecrementAndClamp:
+                return D3D12_STENCIL_OP_DECR_SAT;
+            case StencilOp::Invert:
+                return D3D12_STENCIL_OP_INVERT;
+            case StencilOp::IncrementAndWrap:
+                return D3D12_STENCIL_OP_INCR;
+            case StencilOp::DecrementAndWrap:
+                return D3D12_STENCIL_OP_DECR;
+            default:
+                assert(!"Invalid stencil op.");
+                return D3D12_STENCIL_OP_KEEP;
+            }
+        }
+
+        D3D12_COMPARISON_FUNC ConvertComparisonFunc(ComparisonFunc value)
+        {
+            switch (value) {
+            case ComparisonFunc::Never:
+                return D3D12_COMPARISON_FUNC_NEVER;
+            case ComparisonFunc::Less:
+                return D3D12_COMPARISON_FUNC_LESS;
+            case ComparisonFunc::Equal:
+                return D3D12_COMPARISON_FUNC_EQUAL;
+            case ComparisonFunc::LessOrEqual:
+                return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+            case ComparisonFunc::Greater:
+                return D3D12_COMPARISON_FUNC_GREATER;
+            case ComparisonFunc::NotEqual:
+                return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+            case ComparisonFunc::GreaterOrEqual:
+                return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+            case ComparisonFunc::Always:
+                return D3D12_COMPARISON_FUNC_ALWAYS;
+            default:
+                assert(!"Invalid comparison func.");
+                return D3D12_COMPARISON_FUNC_NEVER;
+            }
+        }
+
+        D3D12_DEPTH_STENCIL_DESC ConvertDepthStencilState(const DepthStencilState& inState)
+        {
+            D3D12_DEPTH_STENCIL_DESC outState{};
+            outState.DepthEnable = inState.depthTestEnable ? TRUE : FALSE;
+            outState.DepthWriteMask = inState.depthWriteEnable ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+            outState.DepthFunc = ConvertComparisonFunc(inState.depthFunc);
+            outState.StencilEnable = inState.stencilEnable ? TRUE : FALSE;
+            outState.StencilReadMask = (UINT8)inState.stencilReadMask;
+            outState.StencilWriteMask = (UINT8)inState.stencilWriteMask;
+            outState.FrontFace.StencilFailOp = ConvertStencilOp(inState.frontFaceStencil.failOp);
+            outState.FrontFace.StencilDepthFailOp = ConvertStencilOp(inState.frontFaceStencil.depthFailOp);
+            outState.FrontFace.StencilPassOp = ConvertStencilOp(inState.frontFaceStencil.passOp);
+            outState.FrontFace.StencilFunc = ConvertComparisonFunc(inState.frontFaceStencil.stencilFunc);
+            outState.BackFace.StencilFailOp = ConvertStencilOp(inState.backFaceStencil.failOp);
+            outState.BackFace.StencilDepthFailOp = ConvertStencilOp(inState.backFaceStencil.depthFailOp);
+            outState.BackFace.StencilPassOp = ConvertStencilOp(inState.backFaceStencil.passOp);
+            outState.BackFace.StencilFunc = ConvertComparisonFunc(inState.backFaceStencil.stencilFunc);
+            return outState;
+        }
+
+        D3D_PRIMITIVE_TOPOLOGY ConvertPrimitiveType(PrimitiveType pt, uint32_t controlPoints)
+        {
+            switch (pt)
+            {
+            case PrimitiveType::PointList:
+                return D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+            case PrimitiveType::LineList:
+                return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+            case PrimitiveType::LineStrip:
+                return D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+            case PrimitiveType::TriangleList:
+                return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+            case PrimitiveType::TriangleStrip:
+                return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+            case PrimitiveType::TriangleFan:
+                assert(!"TriangleFan is not supported.");
+                return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+            case PrimitiveType::TriangleListWithAdjacency:
+                return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST_ADJ;
+            case PrimitiveType::TriangleStripWithAdjacency:
+                return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP_ADJ;
+            case PrimitiveType::PatchList:
+                if (controlPoints == 0 || controlPoints > 32) {
+                    assert(!"Invalid number of control points for PatchList.");
+                    return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+                }
+                return D3D_PRIMITIVE_TOPOLOGY(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (controlPoints - 1));
+            default:
+                return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+            }
+        }
+
+
+        D3D12_TEXTURE_ADDRESS_MODE ConvertAddressMode(SamplerAddressMode mode)
+        {
+            switch (mode) {
+            case SamplerAddressMode::Clamp:
+                return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            case SamplerAddressMode::Wrap:
+                return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            case SamplerAddressMode::Border:
+                return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+            case SamplerAddressMode::Mirror:
+                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+            case SamplerAddressMode::MirrorOnce:
+                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
+            default:
+                assert(!"Invalid address mode.");
+                return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            }
+        }
+
+        D3D12_FILTER_REDUCTION_TYPE ConvertReductionType(SamplerReductionType reductionType)
+        {
+            switch (reductionType) {
+            case SamplerReductionType::Standard:
+                return D3D12_FILTER_REDUCTION_TYPE_STANDARD;
+            case SamplerReductionType::Comparison:
+                return D3D12_FILTER_REDUCTION_TYPE_COMPARISON;
+            case SamplerReductionType::Minimum:
+                return D3D12_FILTER_REDUCTION_TYPE_MINIMUM;
+            case SamplerReductionType::Maximum:
+                return D3D12_FILTER_REDUCTION_TYPE_MAXIMUM;
+            default:
+                assert(!"Invalid sampler reduction type.");
+                return D3D12_FILTER_REDUCTION_TYPE_STANDARD;
+            }
+        }
+
+
+        D3D12_BLEND_DESC ConvertBlendState(const BlendState& inState)
+        {
+            D3D12_BLEND_DESC outState{};
+            outState.AlphaToCoverageEnable = inState.alphaToCoverageEnable;
+            outState.IndependentBlendEnable = true;
+
+            for (uint32_t i = 0; i < c_MaxRenderTargets; i++) {
+                const BlendState::RenderTarget& src = inState.targets[i];
+                D3D12_RENDER_TARGET_BLEND_DESC& dst = outState.RenderTarget[i];
+
+                dst.BlendEnable = src.blendEnable ? TRUE : FALSE;
+                dst.SrcBlend = ConvertBlendValue(src.srcBlend);
+                dst.DestBlend = ConvertBlendValue(src.destBlend);
+                dst.BlendOp = ConvertBlendOp(src.blendOp);
+                dst.SrcBlendAlpha = ConvertBlendValue(src.srcBlendAlpha);
+                dst.DestBlendAlpha = ConvertBlendValue(src.destBlendAlpha);
+                dst.BlendOpAlpha = ConvertBlendOp(src.blendOpAlpha);
+                dst.RenderTargetWriteMask = (D3D12_COLOR_WRITE_ENABLE)src.colorWriteMask;
+            }
+            return outState;
+        }
+
+        D3D12_RASTERIZER_DESC ConvertRasterizerState(const RasterState& inState)
+        {
+            D3D12_RASTERIZER_DESC outState{};
+            switch (inState.fillMode) {
+            case RasterFillMode::Solid:
+                outState.FillMode = D3D12_FILL_MODE_SOLID;
+                break;
+            case RasterFillMode::Wireframe:
+                outState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+                break;
+            default:
+                assert(!"Invalid fill mode.");
+                break;
+            }
+
+            switch (inState.cullMode) {
+            case RasterCullMode::Back:
+                outState.CullMode = D3D12_CULL_MODE_BACK;
+                break;
+            case RasterCullMode::Front:
+                outState.CullMode = D3D12_CULL_MODE_FRONT;
+                break;
+            case RasterCullMode::None:
+                outState.CullMode = D3D12_CULL_MODE_NONE;
+                break;
+            default:
+                assert(!"Invalid cull mode.");
+                break;
+            }
+
+            outState.FrontCounterClockwise = inState.frontCounterClockwise ? TRUE : FALSE;
+            outState.DepthBias = inState.depthBias;
+            outState.DepthBiasClamp = inState.depthBiasClamp;
+            outState.SlopeScaledDepthBias = inState.slopeScaledDepthBias;
+            outState.DepthClipEnable = inState.depthClipEnable ? TRUE : FALSE;
+            outState.MultisampleEnable = inState.multisampleEnable ? TRUE : FALSE;
+            outState.AntialiasedLineEnable = inState.antialiasedLineEnable ? TRUE : FALSE;
+            outState.ConservativeRaster = inState.conservativeRasterEnable ? D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+            outState.ForcedSampleCount = inState.forcedSampleCount;
+            
+            return outState;
+        }
+
+
+        void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
+        {
+            // 进行等待
+            if(fence->GetCompletedValue() < fenceValue){
+                ResetEvent(event);
+                fence->SetEventOnCompletion(fenceValue, event);
+                WaitForSingleObject(event, INFINITE);
+            }
+        }
+
+
         struct Context
         {
             RefPtr<ID3D12Device> m_Device;

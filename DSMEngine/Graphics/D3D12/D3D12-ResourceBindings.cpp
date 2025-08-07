@@ -61,6 +61,8 @@ namespace DSM::D3D12 {
                 rootParametersVolatileCB.EmplaceBack(-1, rootDescriptor);
             }
             else if(binding.type == ResourceType::PushConstants){
+                pushConstantByteSize = binding.size;
+
                 rootConstants.ShaderRegister = binding.slot;
                 rootConstants.RegisterSpace = m_Desc.registerSpace;
                 rootConstants.Num32BitValues = binding.size / 4; // 每个32位值占用4个字节
