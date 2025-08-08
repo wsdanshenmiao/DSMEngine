@@ -8,6 +8,7 @@
 
 namespace DSM::D3D12 {
     class RootSignature;
+    struct CommandListInstance;
     
     class DeviceResources
     {
@@ -26,6 +27,27 @@ namespace DSM::D3D12 {
 
         // 根签名的缓存
         std::unordered_map<size_t, RootSignature*> rootsigCache;
+
+    private:
+        const Context& m_Context;
+    };
+
+    class CommandQueue
+    {
+    public:
+        explicit CommandQueue(const Context& context, CommandQueueType queueType);
+
+        uint64_t UpdateLastCompletedInstance();
+
+    public:
+        RefPtr<ID3D12CommandQueue> queue;
+        RefPtr<ID3D12Fence> fence;
+        
+        uint64_t lastSubmittedFenceValue = 0;
+        uint64_t lastCompletedFenceValue = 0;
+        std::atomic<uint64_t> recordingInstance = 1;    // 命令提交次数
+        // 提交命令列表后返回的实例，命令完成后才可释放
+        std::vector<std::shared_ptr<CommandListInstance>> usedCommandLists{};
 
     private:
         const Context& m_Context;
@@ -69,6 +91,9 @@ namespace DSM::D3D12 {
     class Device final : public IDevice
     {
     public:
+
+        Object GetNativeObject(ObjectType type) override;
+
         HeapHandle CreateHeap(const HeapDesc& d) override;
 
         TextureHandle CreateTexture(const TextureDesc& desc) override;
@@ -80,7 +105,7 @@ namespace DSM::D3D12 {
         TextureHandle CreateHandleForNativeTexture(ObjectType objectType, Object texture, const TextureDesc& desc) override;
 
         void GetTextureTiling(ITexture* texture, uint32_t* numTiles, PackedMipDesc* desc, TileShape* tileShape, uint32_t* subresourceTilingsNum, SubresourceTiling* subresourceTilings) override;
-        void UpdateTextureTileMappings(ITexture* texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueue executionQueue = CommandQueue::Graphics) override;
+        void UpdateTextureTileMappings(ITexture* texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueueType executionQueue = CommandQueueType::Graphics) override;
 
         BufferHandle CreateBuffer(const BufferDesc& d) override;
         void* MapBuffer(IBuffer* _buffer, CpuAccessMode cpuAccess) override;
@@ -100,7 +125,7 @@ namespace DSM::D3D12 {
         
         // 事件查询
         EventQueryHandle CreateEventQuery() override;
-        void SetEventQuery(IEventQuery* query, CommandQueue queue) override;
+        void SetEventQuery(IEventQuery* query, CommandQueueType queue) override;
         bool PollEventQuery(IEventQuery* query) override;
         void WaitEventQuery(IEventQuery* query) override;
         void ResetEventQuery(IEventQuery* query) override;
@@ -131,11 +156,11 @@ namespace DSM::D3D12 {
         bool WriteDescriptorTable(IDescriptorTable* _descriptorTable, const BindingSetItem& item) override;
 
         DSM::CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) override;
-        uint64_t ExecuteCommandLists(DSM::ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueue executionQueue = CommandQueue::Graphics) override;
-        void QueueWaitForCommandList(CommandQueue waitQueue, CommandQueue executionQueue, uint64_t instance) override;
+        uint64_t ExecuteCommandLists(DSM::ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueueType executionQueue = CommandQueueType::Graphics) override;
+        void QueueWaitForCommandList(CommandQueueType waitQueue, CommandQueueType executionQueue, uint64_t instance) override;
         // 等待成功返回true，遇到设备移除等问题返回false
         bool WaitForIdle() override;
-        Object GetNativeQueue(ObjectType objectType, CommandQueue queue) override;
+        Object GetNativeQueue(ObjectType objectType, CommandQueueType queue) override;
 
         // 检测特性支持
         bool QueryFeatureSupport(Feature feature, void* pInfo = nullptr, size_t infoSize = 0) override;
@@ -164,6 +189,11 @@ namespace DSM::D3D12 {
 
         IDescriptorHeap* GetDescriptorHeap(DescriptorHeapType heapType) override;
 
+
+
+        CommandQueue* GetQueue(CommandQueueType type) { return m_CommandQueues[size_t(type)].get(); }
+
+
     private:
         using BindingLayoutVector = StaticVector<BindingLayoutHandle, c_MaxBindingLayouts>;
         RefPtr<RootSignature> GetRootSignature(const BindingLayoutVector& pipelineLayouts, bool allowInputLayout);
@@ -171,6 +201,8 @@ namespace DSM::D3D12 {
     private:
         Context m_Context;
         DeviceResources m_Resources;
+
+        std::array<std::unique_ptr<CommandQueue>, (size_t)CommandQueueType::Count> m_CommandQueues;
 
         HANDLE m_FenceEvent;
 

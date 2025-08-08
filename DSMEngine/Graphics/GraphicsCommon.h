@@ -710,7 +710,7 @@ namespace DSM {
         Fatal
     };
 
-    enum class CommandQueue : uint8_t
+    enum class CommandQueueType : uint8_t
     {
         Graphics = 0,
         Compute,

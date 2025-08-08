@@ -19,7 +19,7 @@ namespace DSM{
         virtual TextureHandle CreateHandleForNativeTexture(ObjectType objectType, Object texture, const TextureDesc& desc) = 0;
 
         virtual void GetTextureTiling(ITexture* texture, uint32_t* numTiles, PackedMipDesc* desc, TileShape* tileShape, uint32_t* subresourceTilingsNum, SubresourceTiling* subresourceTilings) = 0;
-        virtual void UpdateTextureTileMappings(ITexture* texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueue executionQueue = CommandQueue::Graphics) = 0;
+        virtual void UpdateTextureTileMappings(ITexture* texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueueType executionQueue = CommandQueueType::Graphics) = 0;
 
         virtual BufferHandle CreateBuffer(const BufferDesc& d) = 0;
         virtual void* MapBuffer(IBuffer* buffer, CpuAccessMode cpuAccess) = 0;
@@ -39,7 +39,7 @@ namespace DSM{
         
         // 事件查询
         virtual EventQueryHandle CreateEventQuery() = 0;
-        virtual void SetEventQuery(IEventQuery* query, CommandQueue queue) = 0;
+        virtual void SetEventQuery(IEventQuery* query, CommandQueueType queue) = 0;
         virtual bool PollEventQuery(IEventQuery* query) = 0;
         virtual void WaitEventQuery(IEventQuery* query) = 0;
         virtual void ResetEventQuery(IEventQuery* query) = 0;
@@ -70,8 +70,8 @@ namespace DSM{
         virtual bool WriteDescriptorTable(IDescriptorTable* descriptorTable, const BindingSetItem& item) = 0;
 
         virtual CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) = 0;
-        virtual uint64_t ExecuteCommandLists(ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueue executionQueue = CommandQueue::Graphics) = 0;
-        virtual void QueueWaitForCommandList(CommandQueue waitQueue, CommandQueue executionQueue, uint64_t instance) = 0;
+        virtual uint64_t ExecuteCommandLists(ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueueType executionQueue = CommandQueueType::Graphics) = 0;
+        virtual void QueueWaitForCommandList(CommandQueueType waitQueue, CommandQueueType executionQueue, uint64_t instance) = 0;
         // 等待成功返回true，遇到设备移除等问题返回false
         virtual bool WaitForIdle() = 0;
 
@@ -80,11 +80,11 @@ namespace DSM{
 
         virtual FormatSupport QueryFormatSupport(Format format) = 0;
 
-        virtual Object GetNativeQueue(ObjectType objectType, CommandQueue queue) = 0;
+        virtual Object GetNativeQueue(ObjectType objectType, CommandQueueType queue) = 0;
 
         virtual IMessageCallback* GetMessageCallback() = 0;
 
-        uint64_t ExecuteCommandList(ICommandList* commandList, CommandQueue executionQueue = CommandQueue::Graphics)
+        uint64_t ExecuteCommandList(ICommandList* commandList, CommandQueueType executionQueue = CommandQueueType::Graphics)
         {
             return ExecuteCommandLists(&commandList, 1, executionQueue);
         }

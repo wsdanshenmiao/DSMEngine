@@ -10,7 +10,18 @@
 #include <format>
 
 namespace DSM::D3D12{
-    
+    Object Device::GetNativeObject(ObjectType type)
+    {
+        switch (type) {
+        case ObjectTypes::D3D12_Device:
+            return Object(m_Context.m_Device);
+        case ObjectTypes::D3D12_CommandQueue:
+            return Object(GetQueue(CommandQueueType::Graphics)->queue.Get());
+        default:
+            return nullptr;
+        }
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // Heap
     //////////////////////////////////////////////////////////////////////////
@@ -184,9 +195,38 @@ namespace DSM::D3D12{
 
         return TextureHandle{tex};
     }
- 
-    
-    
+
+    void Device::GetTextureTiling(ITexture *texture, uint32_t *numTiles, PackedMipDesc *desc, TileShape *_tileShape, uint32_t *_subresourceTilingsNum, SubresourceTiling *_subresourceTilings)
+    {
+        ID3D12Resource* resource = texture->GetNativeObject(ObjectTypes::D3D12_Resource);
+        D3D12_PACKED_MIP_INFO packedMipInfo{};
+        D3D12_TILE_SHAPE tileShape{};
+        D3D12_SUBRESOURCE_TILING subresourceTilings[16];
+
+        m_Context.m_Device->GetResourceTiling(
+            resource, numTiles, desc == nullptr ? nullptr : &packedMipInfo, 
+            _tileShape == nullptr ? nullptr : &tileShape, 
+            _subresourceTilingsNum, 0, subresourceTilings);
+        
+        if(desc != nullptr){
+            desc->numPackedMips = packedMipInfo.NumPackedMips;
+            desc->numStandardMips = packedMipInfo.NumStandardMips;
+            desc->numTilesForPackedMips = packedMipInfo.NumTilesForPackedMips;
+            desc->startTileIndexInOverallResource = packedMipInfo.StartTileIndexInOverallResource;
+        }
+        if(_tileShape != nullptr){
+            _tileShape->widthInTexels = tileShape.WidthInTexels;
+            _tileShape->heightInTexels = tileShape.HeightInTexels;
+            _tileShape->depthInTexels = tileShape.DepthInTexels;
+        }
+        for(uint32_t i = 0; i < *numTiles; ++i){
+            _subresourceTilings[i].widthInTiles = subresourceTilings[i].WidthInTiles;
+            _subresourceTilings[i].heightInTiles = subresourceTilings[i].HeightInTiles;
+            _subresourceTilings[i].depthInTiles = subresourceTilings[i].DepthInTiles;
+            _subresourceTilings[i].startTileIndexInOverallResource = subresourceTilings[i].StartTileIndexInOverallResource;
+        }
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // Buffer
     //////////////////////////////////////////////////////////////////////////
@@ -879,6 +919,22 @@ namespace DSM::D3D12{
         return MeshletPipelineHandle{pso};
     }
 
+    IDescriptorHeap *Device::GetDescriptorHeap(DescriptorHeapType heapType)
+    {
+        switch (heapType) {
+        case DescriptorHeapType::ShaderResourceView:
+            return &m_Resources.shaderResourceViewHeap;
+        case DescriptorHeapType::RenderTargetView:
+            return &m_Resources.renderTargetViewHeap;
+        case DescriptorHeapType::DepthStencilView:
+            return &m_Resources.depthStencilViewHeap;
+        case DescriptorHeapType::Sampler:
+            return &m_Resources.samplerHeap;
+        default:
+            return nullptr;
+        }
+    }
+
     RefPtr<RootSignature> Device::GetRootSignature(const BindingLayoutVector &pipelineLayouts, bool allowInputLayout)
     {
         size_t hash = 0;
@@ -1004,5 +1060,35 @@ namespace DSM::D3D12{
         }
         
         return RootSignatureHandle(rootSig);
+    }
+
+    CommandQueue::CommandQueue(const Context &context, CommandQueueType queueType)
+        :m_Context(context) 
+    {
+        D3D12_COMMAND_QUEUE_DESC queueDesc{};
+        switch (queueType) {
+        case CommandQueueType::Graphics:
+            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT; break;
+        case CommandQueueType::Compute:
+            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE; break;
+        case CommandQueueType::Copy:
+            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY; break;
+        default:
+            assert(!"Invalid command queue type.");
+            return;
+        }
+        auto hr = m_Context.m_Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(queue.GetAddressOf()));
+
+        hr = m_Context.m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence.GetAddressOf()));
+        assert(SUCCEEDED(hr));
+    }
+    
+    uint64_t CommandQueue::UpdateLastCompletedInstance()
+    {
+        if(lastCompletedFenceValue < lastSubmittedFenceValue){
+            lastCompletedFenceValue = fence->GetCompletedValue();
+        }
+        
+        return lastCompletedFenceValue;
     }
 }

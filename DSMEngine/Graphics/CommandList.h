@@ -20,12 +20,12 @@ namespace DSM{
         size_t scratchMaxMemory = 1024 * 1024 * 1024;
 
         // 命令队列的类型
-        CommandQueue queueType = CommandQueue::Graphics;
+        CommandQueueType queueType = CommandQueueType::Graphics;
 
         CommandListParameters& SetUploadChunkSize(size_t value) { uploadChunkSize = value; return *this; }
         CommandListParameters& SetScratchChunkSize(size_t value) { scratchChunkSize = value; return *this; }
         CommandListParameters& SetScratchMaxMemory(size_t value) { scratchMaxMemory = value; return *this; }
-        CommandListParameters& SetQueueType(CommandQueue value) { queueType = value; return *this; }
+        CommandListParameters& SetQueueType(CommandQueueType value) { queueType = value; return *this; }
     };
 
     struct ICommandList : public IResource
