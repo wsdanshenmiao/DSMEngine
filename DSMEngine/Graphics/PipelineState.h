@@ -72,6 +72,14 @@ namespace DSM {
             constexpr RenderTarget& SetBlendOpAlpha(BlendOp value) { blendOpAlpha = value; return *this; }
             constexpr RenderTarget& SetColorWriteMask(ColorMask value) { colorWriteMask = value; return *this; }
 
+            bool UsesConstantColor() const
+            {
+                return srcBlend == BlendFactor::ConstantColor || srcBlend == BlendFactor::InvConstantColor ||
+                    destBlend == BlendFactor::ConstantColor || destBlend == BlendFactor::InvConstantColor ||
+                    srcBlendAlpha == BlendFactor::ConstantColor || srcBlendAlpha == BlendFactor::InvConstantColor ||
+                    destBlendAlpha == BlendFactor::ConstantColor || destBlendAlpha == BlendFactor::InvConstantColor;
+            }
+
             constexpr bool operator ==(const RenderTarget& other) const
             {
                 return blendEnable == other.blendEnable
@@ -92,6 +100,14 @@ namespace DSM {
         constexpr BlendState& SetAlphaToCoverageEnable(bool enable) { alphaToCoverageEnable = enable; return *this; }
         constexpr BlendState& EnableAlphaToCoverage() { alphaToCoverageEnable = true; return *this; }
         constexpr BlendState& DisableAlphaToCoverage() { alphaToCoverageEnable = false; return *this; }
+
+        bool UsesConstantColor(uint32_t numRT) const
+        {
+            for(uint32_t i = 0; i < numRT; ++i){
+                if(targets[i].UsesConstantColor()) return true;
+            }
+            return false;
+        }
 
         constexpr bool operator ==(const BlendState& other) const
         {

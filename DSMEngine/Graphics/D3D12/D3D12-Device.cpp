@@ -518,7 +518,7 @@ namespace DSM::D3D12{
         // 设置 Shader
         auto setShader = [](ShaderHandle shader, auto& psoShader){
             if(shader != nullptr){
-                void* shaderBytecode = nullptr;
+                const void* shaderBytecode = nullptr;
                 size_t shaderBytecodeSize = 0;
                 shader->GetBytecode(&shaderBytecode, &shaderBytecodeSize);
                 psoShader = { shaderBytecode, shaderBytecodeSize };
@@ -575,7 +575,7 @@ namespace DSM::D3D12{
             psoDesc.RTVFormats[i] = GetDxgiFormatMapping(fbInfo.colorFormats[i]).rtvFormat;
         }
 
-        InputLayout* inputLayout = Utility::CheckedCast<InputLayout*>(desc.inputLayout);
+        InputLayout* inputLayout = Utility::CheckedCast<InputLayout*>(desc.inputLayout.Get());
         psoDesc.InputLayout.NumElements = inputLayout->inputElements.size();
         psoDesc.InputLayout.pInputElementDescs = inputLayout->inputElements.data();
 
@@ -590,6 +590,136 @@ namespace DSM::D3D12{
         return CreateHandleForNativeGraphicsPipeline(rootSig.Get(), pipelineState.Get(), desc, fbInfo);
     }
 
+    ComputePipelineHandle Device::CreateComputePipeline(const ComputePipelineDesc &desc)
+    {
+        RefPtr<RootSignature> rootSig = GetRootSignature(desc.bindingLayouts, false);
+
+        D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{};
+        psoDesc.pRootSignature = rootSig->rootSignature.Get();
+        
+        if(desc.CS == nullptr) return nullptr;
+        const void* shaderBytecode = nullptr;
+        size_t shaderBytecodeSize = 0;
+        desc.CS->GetBytecode(&shaderBytecode, &shaderBytecodeSize);
+        psoDesc.CS = { shaderBytecode, shaderBytecodeSize };
+
+        RefPtr<ID3D12PipelineState> pipelineState{};
+        const auto hr = m_Context.m_Device->CreateComputePipelineState(
+            &psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
+
+        if(FAILED(hr)){
+            m_Context.Error("Failed to create a compute pipeline state object.");
+            return nullptr;
+        }
+
+        auto pso = new ComputePipeline{desc};
+        pso->pipelineState = pipelineState;
+        pso->rootSignature = rootSig;
+
+        return ComputePipelineHandle{pso};
+    }
+
+    MeshletPipelineHandle Device::CreateMeshletPipeline(const MeshletPipelineDesc &desc, IFramebuffer *fb)
+    {
+        assert(fb != nullptr);
+
+        RefPtr<RootSignature> rootSig = GetRootSignature(desc.bindingLayouts, false);
+
+        const auto& fbInfo = fb->GetFramebufferInfo();
+
+        struct PSO_Stream{
+            using SubobjectType = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
+            SubobjectType RootSignature_Type;        ID3D12RootSignature* RootSignature;
+            SubobjectType PrimitiveTopology_Type;    D3D12_PRIMITIVE_TOPOLOGY_TYPE PrimitiveTopologyType;
+            SubobjectType AmplificationShader_Type;  D3D12_SHADER_BYTECODE AmplificationShader;
+            SubobjectType MeshShader_Type;           D3D12_SHADER_BYTECODE MeshShader;
+            SubobjectType PixelShader_Type;          D3D12_SHADER_BYTECODE PixelShader;
+            SubobjectType RasterizerState_Type;      D3D12_RASTERIZER_DESC RasterizerState;
+            SubobjectType DepthStencilState_Type;    D3D12_DEPTH_STENCIL_DESC DepthStencilState;
+            SubobjectType BlendState_Type;           D3D12_BLEND_DESC BlendState;
+            SubobjectType SampleDesc_Type;           DXGI_SAMPLE_DESC SampleDesc;
+            SubobjectType SampleMask_Type;           UINT SampleMask;
+            SubobjectType RenderTargets_Type;        D3D12_RT_FORMAT_ARRAY RenderTargets;
+            SubobjectType DSVFormat_Type;            DXGI_FORMAT DSVFormat;
+        } psoStream;
+
+        psoStream.RootSignature_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
+        psoStream.PrimitiveTopology_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY;
+        psoStream.AmplificationShader_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_AS;
+        psoStream.MeshShader_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_MS;
+        psoStream.PixelShader_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS;
+        psoStream.RasterizerState_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER;
+        psoStream.DepthStencilState_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL;
+        psoStream.BlendState_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND;
+        psoStream.SampleDesc_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC;
+        psoStream.SampleMask_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_MASK;
+        psoStream.RenderTargets_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS;
+        psoStream.DSVFormat_Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT;
+
+        psoStream.RootSignature = rootSig->rootSignature.Get();
+        switch (desc.primType) {
+        case PrimitiveType::PointList:
+            psoStream.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+            break;
+        case PrimitiveType::LineList:
+            psoStream.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+            break;
+        case PrimitiveType::TriangleList:
+        case PrimitiveType::TriangleStrip:
+            psoStream.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+            break;
+        case PrimitiveType::PatchList:
+            m_Context.Error("Unsupported primitive topology for meshlets");
+            return nullptr;
+        default:
+            assert(!"Invalid primitive type.");
+            return nullptr;
+        } 
+        
+        auto setShader = [](ShaderHandle shader, auto& psoShader){
+            if(shader != nullptr){
+                const void* byteCode{};
+                size_t byteSize{};
+                shader->GetBytecode(&byteCode, &byteSize);
+                psoShader = { byteCode, byteSize };
+            }
+        };
+        setShader(desc.AS, psoStream.AmplificationShader);
+        setShader(desc.MS, psoStream.MeshShader);
+        setShader(desc.PS, psoStream.PixelShader);
+        
+        psoStream.RasterizerState = ConvertRasterizerState(desc.renderState.rasterState);
+        psoStream.BlendState = ConvertBlendState(desc.renderState.blendState);
+        
+        const auto& dsState = desc.renderState.depthStencilState;
+        psoStream.DepthStencilState = ConvertDepthStencilState(dsState);
+        if((dsState.depthTestEnable || dsState.stencilEnable) && fbInfo.depthFormat == Format::UNKNOWN){
+            psoStream.DepthStencilState.DepthEnable = false;
+            psoStream.DepthStencilState.StencilEnable = false;
+        }
+
+        psoStream.SampleDesc = { fbInfo.sampleCount, fbInfo.sampleQuality };
+        psoStream.SampleMask = ~0u;
+
+        for(int i = 0; i < fbInfo.colorFormats.Size(); ++i){
+            psoStream.RenderTargets.RTFormats[i] = GetDxgiFormatMapping(fbInfo.colorFormats[i]).rtvFormat;
+        }
+        psoStream.RenderTargets.NumRenderTargets = fbInfo.colorFormats.Size();
+        psoStream.DSVFormat = GetDxgiFormatMapping(fbInfo.depthFormat).rtvFormat;
+
+        D3D12_PIPELINE_STATE_STREAM_DESC psoDesc{};
+        psoDesc.pPipelineStateSubobjectStream = &psoStream;
+        psoDesc.SizeInBytes = sizeof(psoStream);
+
+        RefPtr<ID3D12PipelineState> pipelineState;
+        auto hr = m_Context.m_Device2->CreatePipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
+        if(FAILED(hr)){
+            m_Context.Error("Failed to create a meshlet pipeline state object");
+            return nullptr;
+        }
+
+        return CreateHandleForNativeMeshletPipeline(rootSig.Get(), pipelineState.Get(), desc, fbInfo);
+    }
 
     //////////////////////////////////////////////////////////////////////////
     // Resource binding
@@ -715,7 +845,11 @@ namespace DSM::D3D12{
         return m_Context.m_MessageCallback;
     }
 
-    GraphicsPipelineHandle Device::CreateHandleForNativeGraphicsPipeline(IRootSignature *rootSignature, ID3D12PipelineState *pipelineState, const GraphicsPipelineDesc &desc, const FramebufferInfo &framebufferInfo)
+    GraphicsPipelineHandle Device::CreateHandleForNativeGraphicsPipeline(
+        IRootSignature *rootSignature, 
+        ID3D12PipelineState *pipelineState, 
+        const GraphicsPipelineDesc &desc, 
+        const FramebufferInfo &framebufferInfo)
     {
         if(rootSignature == nullptr || pipelineState == nullptr)
             return GraphicsPipelineHandle(nullptr);
@@ -723,8 +857,26 @@ namespace DSM::D3D12{
         GraphicsPipeline* pso = new GraphicsPipeline(desc, framebufferInfo);
         pso->rootSignature = Utility::CheckedCast<RootSignature*>(rootSignature);
         pso->pipelineState = pipelineState;
+        pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.Size());
 
         return GraphicsPipelineHandle{pso};
+    }
+
+    MeshletPipelineHandle Device::CreateHandleForNativeMeshletPipeline(
+        IRootSignature *rootSignature, 
+        ID3D12PipelineState *pipelineState, 
+        const MeshletPipelineDesc &desc, 
+        const FramebufferInfo &framebufferInfo)
+    {
+        if(rootSignature == nullptr || pipelineState == nullptr)
+            return nullptr;
+
+        MeshletPipeline* pso = new MeshletPipeline(desc, framebufferInfo);
+        pso->rootSignature = Utility::CheckedCast<RootSignature*>(rootSignature);
+        pso->pipelineState = pipelineState;
+        pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.Size());
+
+        return MeshletPipelineHandle{pso};
     }
 
     RefPtr<RootSignature> Device::GetRootSignature(const BindingLayoutVector &pipelineLayouts, bool allowInputLayout)
@@ -740,7 +892,7 @@ namespace DSM::D3D12{
             rootSig = it->second;
         }
         else{
-            rootSig = Utility::CheckedCast<RootSignature*>(BuildRootSignature(pipelineLayouts, allowInputLayout, false));
+            rootSig = Utility::CheckedCast<RootSignature*>(BuildRootSignature(pipelineLayouts, allowInputLayout, false).Get());
             rootSig->hash = hash;
             m_Resources.rootsigCache[hash] = rootSig.Get();
         }
@@ -771,7 +923,7 @@ namespace DSM::D3D12{
             uint32_t rootParameterOffset = rootParameters.size();
             // 普通根参数
             if(layout->GetDesc() != nullptr){
-                BindingLayout* bindingLayout = Utility::CheckedCast<BindingLayout*>(layout);
+                BindingLayout* bindingLayout = Utility::CheckedCast<BindingLayout*>(layout.Get());
 
                 rootSig->pipelineLayouts.EmplaceBack(rootParameterOffset, bindingLayout);
                 rootParameters.append_range(bindingLayout->rootParameters);
@@ -782,7 +934,7 @@ namespace DSM::D3D12{
                 }
             }
             else if(layout->GetBindlessDesc() != nullptr){  // Bindless 资源
-                BindlessLayout* bindlessLayout = Utility::CheckedCast<BindlessLayout*>(layout);
+                BindlessLayout* bindlessLayout = Utility::CheckedCast<BindlessLayout*>(layout.Get());
 
                 auto layoutType = bindlessLayout->GetBindlessDesc()->layoutType;
                 if(layoutType == BindlessLayoutDesc::LayoutType::Immutable){

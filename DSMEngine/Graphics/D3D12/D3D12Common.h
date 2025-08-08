@@ -494,7 +494,13 @@ namespace DSM{
             std::unordered_map<uint32_t, uint32_t> elementStride;
         };
 
-
+        struct DX12_ViewportState
+        {
+            UINT numViewports = 0;
+            D3D12_VIEWPORT viewports[16] = {};
+            UINT numScissorRects = 0;
+            D3D12_RECT scissorRects[16] = {};
+        };
 
     }
 }
