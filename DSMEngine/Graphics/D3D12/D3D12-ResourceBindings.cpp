@@ -361,14 +361,6 @@ namespace DSM::D3D12 {
                             Buffer* buffer = Utility::CheckedCast<Buffer*>(binding.resourceHandle);
                             buffer->CreateSRV(handle.ptr, binding.format, binding.range, binding.type);
                             resource = buffer;
-
-                            if(!buffer->permanentState){
-                                needTransitionsBindingsIndices.push_back(static_cast<uint16_t>(j));
-                            }
-                            else{
-                                VerifyPermanentResourceState(buffer->permanentState, ResourceStates::ShaderResource, 
-                                    false, buffer->GetDesc().debugName, context.m_MessageCallback);
-                            }
                         }
                         else{
                             Buffer::CreateNullSRV(handle.ptr, binding.format, context);
@@ -380,14 +372,6 @@ namespace DSM::D3D12 {
                             Buffer* buffer = Utility::CheckedCast<Buffer*>(binding.resourceHandle);
                             buffer->CreateUAV(handle.ptr, binding.format, binding.range, binding.type);
                             resource = buffer;
-
-                            if(!buffer->permanentState){
-                                needTransitionsBindingsIndices.push_back(static_cast<uint16_t>(j));
-                            }
-                            else{
-                                VerifyPermanentResourceState(buffer->permanentState, ResourceStates::UnorderedAccess, 
-                                    false, buffer->GetDesc().debugName, context.m_MessageCallback);
-                            }
                         }
                         else{
                             Buffer::CreateNullUAV(handle.ptr, binding.format, context);
@@ -401,14 +385,6 @@ namespace DSM::D3D12 {
                         assert(texture != nullptr);
                         texture->CreateSRV(handle.ptr, binding.format, binding.dimension, binding.subresources);
                         resource = texture;
-
-                        if(!texture->permanentState){
-                            needTransitionsBindingsIndices.push_back(static_cast<uint16_t>(j));
-                        }
-                        else{
-                            VerifyPermanentResourceState(texture->permanentState, ResourceStates::ShaderResource, 
-                                false, texture->GetDesc().debugName, context.m_MessageCallback);
-                        }
                         found = true;
                     }
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, ResourceType::Texture_UAV)) {
@@ -416,14 +392,6 @@ namespace DSM::D3D12 {
                         assert(texture != nullptr);
                         texture->CreateUAV(handle.ptr, binding.format, binding.dimension, binding.subresources);
                         resource = texture;
-
-                        if(!texture->permanentState){
-                            needTransitionsBindingsIndices.push_back(static_cast<uint16_t>(j));
-                        }
-                        else{
-                            VerifyPermanentResourceState(texture->permanentState, ResourceStates::UnorderedAccess, 
-                                false, texture->GetDesc().debugName, context.m_MessageCallback);
-                        }
                         found = true;
                         hasUAVs = true;
                     }
@@ -438,14 +406,6 @@ namespace DSM::D3D12 {
                                 DebugNameToString(buffer->GetDesc().debugName), binding.slot);
                             context.Error(msg);
                             break;
-                        }
-
-                        if(!buffer->permanentState){
-                            needTransitionsBindingsIndices.push_back(static_cast<uint16_t>(j));
-                        }
-                        else{
-                            VerifyPermanentResourceState(buffer->permanentState, ResourceStates::ConstantBuffer, 
-                                false, buffer->GetDesc().debugName, context.m_MessageCallback);
                         }
                         found = true;
                     }

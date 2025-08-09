@@ -86,21 +86,24 @@ namespace DSM::D3D12 {
         void BeginEvent(const char* name) override;
         void EndEvent() override;
 
+        
+        // Resource State
         void SetEnableAutomaticBarriers(bool enable) override;
-
         void SetEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) override;
-
         void SetEnableUavBarriersForBuffer(IBuffer* buffer, bool enableBarriers) override;
+
+        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
+        void BeginTrackingBufferState(IBuffer* buffer, ResourceStates stateBits) override;
 
         void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
         void SetBufferState(IBuffer* buffer, ResourceStates stateBits) override;
         void SetResourceStatesForBindingSet(IBindingSet* bindingSet) override;
 
+        ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t arraySlice, uint32_t mipLevel) override;
+        ResourceStates GetBufferState(IBuffer* buffer) override;
+
         void CommitBarriers() override;
 
-        ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t arraySlice, uint32_t mipLevel) override;
-
-        ResourceStates GetBufferState(IBuffer* buffer) override;
 
         IDevice* GetDevice() override;
 

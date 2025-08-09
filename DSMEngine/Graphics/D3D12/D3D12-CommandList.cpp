@@ -1,5 +1,5 @@
 #include "D3D12-CommandList.h"
-
+#include "D3D12-Texture.h"
 
 namespace DSM::D3D12{
 
@@ -40,6 +40,30 @@ namespace DSM::D3D12{
         m_CurrCmdList->cmdList->ClearState(nullptr);
         ClearStateCache();
         CommitDescriptorHeaps();
+    }
+
+    void CommandList::ClearTextureFloat(ITexture *t, TextureSubresourceSet subresources, const Color &clearColor)
+    {
+        Texture* texture = Utility::CheckedCast<Texture*>(t);
+        
+#ifdef _DEBUG
+        const FormatInfo& formatInfo = GetFormatInfo(t->GetDesc().format);
+        assert(!formatInfo.hasDepth && !formatInfo.hasStencil);
+        assert(t->GetDesc().isUAV || t->GetDesc().isRenderTarget);
+#endif
+
+        const TextureDesc& desc = texture->GetDesc();
+
+        subresources = subresources.Resolve(desc, false);
+        m_Instance->referenceResources.push_back(t);
+
+        if(desc.isRenderTarget){
+            
+        }
+        else {
+
+        }
+
     }
 
     void CommandList::Cleanup()

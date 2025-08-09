@@ -41,8 +41,6 @@ namespace DSM::D3D12{
         HeapHandle heap;
         const D3D12_RESOURCE_DESC resourceDesc;
 
-        ResourceStates permanentState = ResourceStates::Unknown;
-
     private:
         using TextureBindingHashMap = std::unordered_map<TextureBindingKey, uint32_t>;
 

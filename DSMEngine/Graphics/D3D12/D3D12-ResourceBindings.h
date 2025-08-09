@@ -94,7 +94,6 @@ namespace DSM::D3D12 {
         VolatileCBVector rootParametersVolatileCB{};
         RefPtr<BindingLayout> bindingLayout;
         std::vector<ResourceHandle> resources;
-        std::vector<uint16_t> needTransitionsBindingsIndices;
 
         // 是否有描述符
         bool hasSamplers = false;

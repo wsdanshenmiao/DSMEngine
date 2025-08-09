@@ -78,10 +78,12 @@ namespace DSM{
         virtual void EndEvent() = 0;
 
         virtual void SetEnableAutomaticBarriers(bool enable) = 0;
-
         virtual void SetEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) = 0;
-
         virtual void SetEnableUavBarriersForBuffer(IBuffer* buffer, bool enableBarriers) = 0;
+
+        // 在读写一个资源之前需要调用此接口来自动追踪资源的状态
+        virtual void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) = 0;
+        virtual void BeginTrackingBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
 
         virtual void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) = 0;
         virtual void SetBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
@@ -100,11 +102,10 @@ namespace DSM{
             }
         }
 
-        virtual void CommitBarriers() = 0;
-
         virtual ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t arraySlice, uint32_t mipLevel) = 0;
-
         virtual ResourceStates GetBufferState(IBuffer* buffer) = 0;
+
+        virtual void CommitBarriers() = 0;
 
         virtual IDevice* GetDevice() = 0;
 
