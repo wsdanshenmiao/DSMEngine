@@ -33,8 +33,10 @@ namespace DSM {
             : m_CurrSize(0)
         {
             for(auto i : il)
-                PushBack(i);
+                push_back(i);
         }
+
+        bool operator==(const StaticVector&) const = default;
 
         using Base::at;
 
@@ -48,13 +50,13 @@ namespace DSM {
             return Base::operator[](pos);
         }
 
-        reference Front() noexcept                  { auto tmp = begin(); return *tmp; }
-        const_reference Front() const noexcept      { auto tmp = begin(); return *tmp; }
-        reference Back() noexcept                   { auto tmp =  end() - 1; return *tmp; }
-        const_reference Back() const noexcept       { auto tmp = cend() - 1; return *tmp; }
+        reference front() noexcept                  { auto tmp = begin(); return *tmp; }
+        const_reference front() const noexcept      { auto tmp = begin(); return *tmp; }
+        reference back() noexcept                   { auto tmp =  end() - 1; return *tmp; }
+        const_reference back() const noexcept       { auto tmp = cend() - 1; return *tmp; }
 
-        value_type* Data() noexcept                          { return Base::data(); }
-        const value_type* Data() const noexcept              { return Base::data(); }
+        value_type* data() noexcept                          { return Base::data(); }
+        const value_type* data() const noexcept              { return Base::data(); }
         
         using Base::begin;
         using Base::cbegin;
@@ -63,67 +65,65 @@ namespace DSM {
         const_iterator end() const noexcept         { return cend(); }
         const_iterator cend() const noexcept        { return cbegin() + m_CurrSize; }
 
-        bool Empty() const noexcept                 { return m_CurrSize == 0; }
-        size_t Size() const noexcept                { return m_CurrSize; }
-        constexpr size_t Capacity() const noexcept  { return N; }
+        bool empty() const noexcept                 { return m_CurrSize == 0; }
+        size_t size() const noexcept                { return m_CurrSize; }
+        constexpr size_t capacity() const noexcept  { return N; }
 
-        void Fill(const T& value) noexcept
+        void fill(const T& value) noexcept
         {
             Base::fill(value);
             m_CurrSize = N;
         }
 
-        void Swap(StaticVector& other) noexcept
+        void swap(StaticVector& other) noexcept
         {
             Base::swap(*this);
             std::swap(m_CurrSize, other.m_CurrSize);
         }
 
-        void PushBack(const T& value) noexcept
+        void push_back(const T& value) noexcept
         {
             assert(m_CurrSize < N);
-            *(Data() + m_CurrSize) = value;
+            *(data() + m_CurrSize) = value;
             m_CurrSize++;
         }
 
-        void PushBack(T&& value) noexcept
+        void push_back(T&& value) noexcept
         {
             assert(m_CurrSize < N);
-            *(Data() + m_CurrSize) = std::move(value);
+            *(data() + m_CurrSize) = std::move(value);
             m_CurrSize++;
         }
 
-        void PopBack() noexcept
+        void pop_back() noexcept
         {
             assert(m_CurrSize > 0);
             m_CurrSize--;
         }
 
-        void Resize(size_type new_size) noexcept
+        void resize(size_type new_size) noexcept
         {
             assert(new_size <= N);
 
-            if (m_CurrSize > new_size)
-            {
+            if (m_CurrSize > new_size) {
                 for (size_type i = new_size; i < m_CurrSize; i++)
-                    *(Data() + i) = T{};
+                    *(data() + i) = T{};
             }
-            else
-            {
+            else {
                 for (size_type i = m_CurrSize; i < new_size; i++)
-                    *(Data() + i) = T{};
+                    *(data() + i) = T{};
             }
 
             m_CurrSize = new_size;
         }
 
         template <typename... Args>
-        reference EmplaceBack(Args&&... args) noexcept
+        reference emplace_back(Args&&... args) noexcept
         {
             assert(m_CurrSize < N);
             ++m_CurrSize;
-            Back() = T{std::forward<Args>(args)...};
-            return Back();
+            back() = T{std::forward<Args>(args)...};
+            return back();
         }
 
     private:

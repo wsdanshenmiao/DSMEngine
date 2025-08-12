@@ -312,7 +312,7 @@ namespace DSM {
         GraphicsPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
         GraphicsPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         GraphicsPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
-        GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
+        GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
     };
 
     class IGraphicsPipeline : public IResource
@@ -331,7 +331,7 @@ namespace DSM {
         BindingLayoutVector bindingLayouts;
 
         ComputePipelineDesc& SetComputeShader(IShader* value) { CS = value; return *this; }
-        ComputePipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
+        ComputePipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
     };
 
     // 计算管线
@@ -362,7 +362,7 @@ namespace DSM {
         MeshletPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
         MeshletPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         MeshletPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
-        MeshletPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.PushBack(BindingLayoutHandle{layout}); return *this; }
+        MeshletPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
     };
 
     // 网格着色器
@@ -437,8 +437,8 @@ namespace DSM {
         GraphicsState& SetViewport(const ViewportState& value) { viewport = value; return *this; }
         GraphicsState& SetBlendColor(const Color& value) { blendConstantColor = value; return *this; }
         GraphicsState& SetDynamicStencilRefValue(uint8_t value) { dynamicStencilRefValue = value; return *this; }
-        GraphicsState& AddBindingSet(IBindingSet* value) { bindings.PushBack(BindingSetHandle{value}); return *this; }
-        GraphicsState& AddVertexBuffer(const VertexBufferBinding& value) { vertexBuffers.PushBack(value); return *this; }
+        GraphicsState& AddBindingSet(IBindingSet* value) { bindings.push_back(BindingSetHandle{value}); return *this; }
+        GraphicsState& AddVertexBuffer(const VertexBufferBinding& value) { vertexBuffers.push_back(value); return *this; }
         GraphicsState& SetIndexBuffer(const IndexBufferBinding& value) { indexBuffer = value; return *this; }
         GraphicsState& SetIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
     };
@@ -452,7 +452,7 @@ namespace DSM {
         IBuffer* indirectParams = nullptr;
 
         ComputeState& SetPipeline(IComputePipeline* value) { pipeline = value; return *this; }
-        ComputeState& AddBindingSet(IBindingSet* value) { bindings.PushBack(BindingSetHandle{value}); return *this; }
+        ComputeState& AddBindingSet(IBindingSet* value) { bindings.push_back(BindingSetHandle{value}); return *this; }
         ComputeState& SetIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
     };
 
@@ -472,7 +472,7 @@ namespace DSM {
         MeshletState& SetFramebuffer(IFramebuffer* value) { framebuffer = value; return *this; }
         MeshletState& SetViewport(const ViewportState& value) { viewport = value; return *this; }
         MeshletState& SetBlendColor(const Color& value) { blendConstantColor = value; return *this; }
-        MeshletState& AddBindingSet(IBindingSet* value) { bindings.PushBack(BindingSetHandle{value}); return *this; }
+        MeshletState& AddBindingSet(IBindingSet* value) { bindings.push_back(BindingSetHandle{value}); return *this; }
         MeshletState& SetIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
         MeshletState& SetDynamicStencilRefValue(uint8_t value) { dynamicStencilRefValue = value; return *this; }
     };

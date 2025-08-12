@@ -16,15 +16,11 @@ namespace DSM{
         // 用于创建加速结构的最小大小
         size_t scratchChunkSize = 64 * 1024;
 
-        // 用于创建加速结构的最大大小
-        size_t scratchMaxMemory = 1024 * 1024 * 1024;
-
         // 命令队列的类型
         CommandQueueType queueType = CommandQueueType::Graphics;
 
         CommandListParameters& SetUploadChunkSize(size_t value) { uploadChunkSize = value; return *this; }
         CommandListParameters& SetScratchChunkSize(size_t value) { scratchChunkSize = value; return *this; }
-        CommandListParameters& SetScratchMaxMemory(size_t value) { scratchMaxMemory = value; return *this; }
         CommandListParameters& SetQueueType(CommandQueueType value) { queueType = value; return *this; }
     };
 
@@ -40,17 +36,17 @@ namespace DSM{
         virtual void ClearDepthStencilTexture(ITexture* t, TextureSubresourceSet subresources, bool clearDepth,
             float depth, bool clearStencil, uint8_t stencil) = 0;
 
-        virtual void CopyTexture(ITexture* dest, const TextureSlice& destSlice, ITexture* src, const TextureSlice& srcSlice) = 0;
-        virtual void WriteTexture(ITexture* dest, uint32_t arraySlice, uint32_t mipLevel, 
+        virtual void CopyTexture(ITexture* _dest, TextureSlice destSlice, ITexture* _src, TextureSlice srcSlice) = 0;
+        virtual void WriteTexture(ITexture* _dest, uint32_t arraySlice, uint32_t mipLevel, 
             const void* data, size_t rowPitch, size_t depthPitch = 0) = 0;
         // 将多重采样资源复制到非多重采样资源
-        virtual void ResolveTexture(ITexture* dest, const TextureSubresourceSet& dstSubresources, 
-            ITexture* src, const TextureSubresourceSet& srcSubresources) = 0;
+        virtual void ResolveTexture(ITexture* _dest, TextureSubresourceSet dstSubresources, 
+            ITexture* _src, TextureSubresourceSet srcSubresources) = 0;
 
         virtual void WriteBuffer(IBuffer* b, const void* data, size_t dataSize, uint64_t destOffsetBytes = 0) = 0;
         virtual void ClearBufferUInt(IBuffer* b, uint32_t clearValue) = 0;
-        virtual void CopyBuffer(IBuffer* dest, uint64_t destOffsetBytes, 
-            IBuffer* src, uint64_t srcOffsetBytes, uint64_t dataSizeBytes) = 0;
+        virtual void CopyBuffer(IBuffer* _dest, uint64_t destOffsetBytes, 
+            IBuffer* _src, uint64_t srcOffsetBytes, uint64_t dataSizeBytes) = 0;
 
         //设置根常数
         virtual void SetPushConstants(const void* data, size_t byteSize) = 0;

@@ -9,14 +9,14 @@
 namespace DSM::D3D12 {
     class RootSignature;
     struct CommandListInstance;
+    class Device;
     
     class DeviceResources
     {
     public:
-        explicit DeviceResources(const Context& context, const DeviceDesc& desc)
-            :m_Context(context), renderTargetViewHeap(context), depthStencilViewHeap(context),
-            shaderResourceViewHeap(context), samplerHeap(context) ,
-            timerQueries(desc.maxTimerQueries, true) {}
+        explicit DeviceResources(const Context& context, const DeviceDesc& desc);
+        
+        uint8_t GetFormatPlaneCount(DXGI_FORMAT format);
 
     public:
         DescriptorHeap renderTargetViewHeap;
@@ -30,27 +30,48 @@ namespace DSM::D3D12 {
 
     private:
         const Context& m_Context;
+        // 不同类型的平面切片数
+        std::unordered_map<DXGI_FORMAT, uint8_t> m_DxgiFormatPlaneCounts;
     };
 
     class CommandQueue
     {
     public:
-        explicit CommandQueue(const Context& context, CommandQueueType queueType);
+        explicit CommandQueue(Device& device, CommandQueueType queueType);
 
-        uint64_t UpdateLastCompletedInstance();
+        // 增加栅栏值
+        uint64_t IncrementFence();
+        bool IsFenceComplete(uint64_t fenceValue);
+        // GPU 进行等待
+        void StallForFence(uint64_t fenceValue);
+        void StallForProducer(CommandQueue& producer);
+        // CPU 进行等待
+        void WaitForFence(uint64_t fenceValue);
+        void WaitForIdle() { WaitForFence(IncrementFence()); }
 
-    public:
-        RefPtr<ID3D12CommandQueue> queue;
-        RefPtr<ID3D12Fence> fence;
+        ID3D12CommandQueue* GetCommandQueue() const {return m_CommandQueue.Get();}
+        ID3D12Fence* GetFence() const { return m_Fence.Get(); }
+        uint64_t GetNextFenceValue() {return m_NextFenceValue;}
+
+        uint64_t ExecuteCommandList(ID3D12CommandList* list);
+
+    protected:
+        Device& m_Device;
+        const CommandQueueType m_QueueType;
+        RefPtr<ID3D12CommandQueue> m_CommandQueue{};
+
+        // 用于 CPU 与 GPU 同步的栅栏
+        RefPtr<ID3D12Fence> m_Fence{};
+        std::uint64_t m_NextFenceValue;
+        std::uint64_t m_LastCompletedFenceValue;
+        std::mutex m_FenceMutex{};
+
+        HANDLE m_FenceEventHandle{};
+        std::mutex m_EventMutex{};
         
-        uint64_t lastSubmittedFenceValue = 0;
-        uint64_t lastCompletedFenceValue = 0;
-        std::atomic<uint64_t> recordingInstance = 1;    // 命令提交次数
+        std::atomic<uint64_t> m_RecordingInstance = 1;    // 命令提交次数
         // 提交命令列表后返回的实例，命令完成后才可释放
-        std::vector<std::shared_ptr<CommandListInstance>> usedCommandLists{};
-
-    private:
-        const Context& m_Context;
+        std::vector<std::shared_ptr<CommandListInstance>> m_UsedCommandLists{};
     };
 
 
@@ -192,6 +213,7 @@ namespace DSM::D3D12 {
 
 
         CommandQueue* GetQueue(CommandQueueType type) { return m_CommandQueues[size_t(type)].get(); }
+        const Context& GetContext() const noexcept { return m_Context; }
 
 
     private:

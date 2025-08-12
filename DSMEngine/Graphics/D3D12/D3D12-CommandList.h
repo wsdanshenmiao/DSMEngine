@@ -2,21 +2,49 @@
 #ifndef __D3D12_COMMANDLIST_H__
 #define __D3D12_COMMANDLIST_H__
 
+#include <set>
 #include "Graphics/D3D12.h"
+#include "Graphics/StateTracking.h"
+#include "DynamicResourceAllocator.h"
 
 namespace DSM::D3D12 {
     struct Context;
-    class DeviceResource;
+    struct DynamicResourceLocation;
+    class DeviceResources;
     class CommandQueue;
+    class Device;
+    class Buffer;
+    class RootSignature;
 
-    struct InternalCommandList
+    class InternalCommandList
     {
+    public:
+        static InternalCommandList* RequireCommandList(Device& device, const CommandListParameters& desc);
+        static bool ReleaseCommandList(InternalCommandList* cmdList);
+        static void Cleanup();
+
+    private:
+        InternalCommandList(Device& device, const CommandListParameters& desc);
+        InternalCommandList(const InternalCommandList&) = delete;
+
+    public:
+        const CommandQueueType type;
         RefPtr<ID3D12CommandAllocator> allocator{};
         RefPtr<ID3D12GraphicsCommandList> cmdList{};
         RefPtr<ID3D12GraphicsCommandList4> cmdList4{};
         RefPtr<ID3D12GraphicsCommandList6> cmdList6{};
 
         uint64_t lastSubmittedInstance{};
+
+        std::unique_ptr<DynamicResourceAllocator> uploadBufferAllocator{};
+        std::unique_ptr<DynamicResourceAllocator> gpuBufferAllocator{};
+
+    private:
+        using FencevalueAndListPairQueue = std::queue<std::pair<uint64_t, InternalCommandList*>>;
+        // 命令列表的缓存
+        static std::set<std::unique_ptr<InternalCommandList>> sm_CmdListPool;
+        static std::array<FencevalueAndListPairQueue, (size_t)CommandQueueType::Count> sm_RetiredCmdLists;
+        static std::array<std::queue<InternalCommandList*>, (size_t)CommandQueueType::Count> sm_AvailableCmdLists;
     };
 
     struct CommandListInstance
@@ -28,15 +56,17 @@ namespace DSM::D3D12 {
         RefPtr<ID3D12CommandList> cmdList{};
 
         // 引用资源，命令完成后才可释放
-        std::vector<ResourceHandle> referenceResources;
-        std::vector<RefPtr<IUnknown>> referenceNativeResources;
-        std::vector<BufferHandle> referenceBuffer;
-        std::vector<TimerQueryHandle> referenceTimerQuery;
+        std::vector<ResourceHandle> refResources;
+        std::vector<RefPtr<IUnknown>> refNativeResources;
+        std::vector<BufferHandle> refBuffer;
+        std::vector<TimerQueryHandle> refTimerQuery;
     };
 
     class CommandList : public ICommandList
     {
     public:
+        CommandList(Device& device, DeviceResources& resources, CommandListParameters desc);
+
         Object GetNativeObject(ObjectType type) override;
 
         void Open() override;
@@ -49,17 +79,17 @@ namespace DSM::D3D12 {
         void ClearDepthStencilTexture(ITexture* t, TextureSubresourceSet subresources, bool clearDepth,
             float depth, bool clearStencil, uint8_t stencil) override;
 
-        void CopyTexture(ITexture* dest, const TextureSlice& destSlice, ITexture* src, const TextureSlice& srcSlice) override;
-        void WriteTexture(ITexture* dest, uint32_t arraySlice, uint32_t mipLevel, 
+        void CopyTexture(ITexture* _dest, TextureSlice destSlice, ITexture* _src, TextureSlice srcSlice) override;
+        void WriteTexture(ITexture* _dest, uint32_t arraySlice, uint32_t mipLevel, 
             const void* data, size_t rowPitch, size_t depthPitch = 0) override;
         // 将多重采样资源复制到非多重采样资源
-        void ResolveTexture(ITexture* dest, const TextureSubresourceSet& dstSubresources, 
-            ITexture* src, const TextureSubresourceSet& srcSubresources) override;
+        void ResolveTexture(ITexture* _dest, TextureSubresourceSet dstSubresources, 
+            ITexture* _src, TextureSubresourceSet srcSubresources) override;
 
+        void CopyBuffer(IBuffer* _dest, uint64_t destOffsetBytes, 
+            IBuffer* _src, uint64_t srcOffsetBytes, uint64_t dataSizeBytes) override;
         void WriteBuffer(IBuffer* b, const void* data, size_t dataSize, uint64_t destOffsetBytes = 0) override;
         void ClearBufferUInt(IBuffer* b, uint32_t clearValue) override;
-        void CopyBuffer(IBuffer* dest, uint64_t destOffsetBytes, 
-            IBuffer* src, uint64_t srcOffsetBytes, uint64_t dataSizeBytes) override;
 
         //设置根常数
         void SetPushConstants(const void* data, size_t byteSize) override;
@@ -90,67 +120,84 @@ namespace DSM::D3D12 {
         // Resource State
         void SetEnableAutomaticBarriers(bool enable) override;
         void SetEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) override;
-        void SetEnableUavBarriersForBuffer(IBuffer* buffer, bool enableBarriers) override;
+        void SetEnableUavBarriersForBuffer(IBuffer* b, bool enableBarriers) override;
 
         void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
-        void BeginTrackingBufferState(IBuffer* buffer, ResourceStates stateBits) override;
+        void BeginTrackingBufferState(IBuffer* b, ResourceStates stateBits) override;
 
         void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
-        void SetBufferState(IBuffer* buffer, ResourceStates stateBits) override;
+        void SetBufferState(IBuffer* b, ResourceStates stateBits) override;
         void SetResourceStatesForBindingSet(IBindingSet* bindingSet) override;
 
         ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t arraySlice, uint32_t mipLevel) override;
-        ResourceStates GetBufferState(IBuffer* buffer) override;
+        ResourceStates GetBufferState(IBuffer* b) override;
 
         void CommitBarriers() override;
 
 
         IDevice* GetDevice() override;
 
-        const CommandListParameters& GetDesc() override;
+        const CommandListParameters& GetDesc() override { return m_Desc; }
 
                 
-        bool AllocateUploadBuffer(size_t size, void** pCpuAddress, D3D12_GPU_VIRTUAL_ADDRESS* pGpuAddress) override;
+        DynamicResourceLocation AllocateUploadBuffer(size_t size) override;
         bool CommitDescriptorHeaps() override;
-        D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* buffer) override;
+        D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* b) override;
 
         void UpdateGraphicsVolatileBuffers() override;
         void UpdateComputeVolatileBuffers() override;
 
 
-        static void Cleanup();
+        void SetResourceBindings(
+            const BindingSetVector& bindings, 
+            uint32_t bindingUpdateMask,
+            IBuffer* indirectParams, 
+            bool updateIndirectParams,
+            const RootSignature* rootSignature,
+            bool isGraphics);
 
     private:
         void ClearStateCache();
 
 
-        static InternalCommandList* RequireCommandList(const Context& context, CommandQueueType type); 
-        static void ReleaseCommandList(InternalCommandList* cmdList);
-
     private:
-        static std::vector<std::unique_ptr<InternalCommandList>> sm_CommandListPool;
-        
-        const Context& m_Context;
-        DeviceResource& m_Resources;
-        const CommandListParameters m_Desc;
-      
+        struct VolatileBufferBinding
+        {
+            IBuffer* buffer = nullptr;
+            uint32_t rootParaIndex;
+            D3D12_GPU_VIRTUAL_ADDRESS address{};
+        };
+            
+        Device& m_Device;
+        DeviceResources& m_Resources;
+
+        // Command list
         CommandQueue* m_Queue;
+        const CommandListParameters m_Desc;
         std::shared_ptr<CommandListInstance> m_Instance{};
         InternalCommandList* m_CurrCmdList = nullptr;
 
         // Cache for internal state
-
         GraphicsState m_CurrGraphicsState{};
         ComputeState m_CurrComputeState{};
         MeshletState m_CurrMeshletState{};
         bool m_CurrGraphicsStateValid = false;
         bool m_CurrComputeStateValid = false;
         bool m_CurrMeshletStateValid = false;
-
-        std::vector<D3D12_RESOURCE_BARRIER> m_Barriers;
+        
+        ResourceStateTracker m_StateTracker;
 
         ID3D12DescriptorHeap* m_CurrSRVHeap = nullptr;
         ID3D12DescriptorHeap* m_CurrSamplerHeap = nullptr;
+
+        // 存放常量缓冲区的临时 Buffer
+        StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> m_GraphicsVolatileBuffers;
+        StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> m_ComputeVolatileBuffers;
+
+        std::unordered_map<IBuffer*, D3D12_GPU_VIRTUAL_ADDRESS> m_VolatileBufferAddresses{};
+
+        bool m_HasVolatileBufferWrites = false;
+        bool m_EnableAutomaticBarriers = true;
     };
 
 } // namespace DSM::D3D12 

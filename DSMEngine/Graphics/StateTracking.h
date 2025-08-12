@@ -44,6 +44,8 @@ namespace DSM {
     class ResourceStateTracker
     {
     public:
+        ResourceStateTracker(IMessageCallback* callback) : m_Callback(callback) {}
+
         ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t mipLevel, uint32_t arraySlice);
         ResourceStates GetBufferState(IBuffer* buffer);
 

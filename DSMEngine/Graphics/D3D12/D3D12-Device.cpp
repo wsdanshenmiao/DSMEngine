@@ -9,14 +9,143 @@
 #include "D3D12-PipelineState.h"
 #include <format>
 
+// 通过栅栏值的偏移来直接获取队列的类型
+#define QUEUE_TYPE_MOVEBITS 56
+
 namespace DSM::D3D12{
+
+    //////////////////////////////////////////////////////////////////////////
+    // DeviceResources
+    //////////////////////////////////////////////////////////////////////////
+    DeviceResources::DeviceResources(const Context &context, const DeviceDesc &desc)
+        :m_Context(context), renderTargetViewHeap(context), depthStencilViewHeap(context),
+        shaderResourceViewHeap(context), samplerHeap(context) ,
+        timerQueries(desc.maxTimerQueries, true) {}
+    
+    uint8_t DeviceResources::GetFormatPlaneCount(DXGI_FORMAT format)
+    {
+        uint8_t planeCount = 0;
+        if(auto it = m_DxgiFormatPlaneCounts.find(format); it != m_DxgiFormatPlaneCounts.end()){
+            planeCount = it->second == 255 ? 0 : it->second;
+        }
+        else{
+            D3D12_FEATURE_DATA_FORMAT_INFO info = {.Format = format, .PlaneCount = 1};
+            if(FAILED(m_Context.m_Device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_INFO, &info, sizeof(info)))){
+                planeCount = 255;
+            }
+            else{
+                planeCount = info.PlaneCount;
+            }
+        }
+        return planeCount;
+    }
+
+
+    
+    //////////////////////////////////////////////////////////////////////////
+    // CommandQueue
+    //////////////////////////////////////////////////////////////////////////
+    CommandQueue::CommandQueue(Device &device, CommandQueueType queueType)
+        :m_Device(device),
+        m_QueueType(queueType),
+        m_LastCompletedFenceValue((uint64_t)queueType << QUEUE_TYPE_MOVEBITS),
+        m_NextFenceValue(m_LastCompletedFenceValue | 1)
+    {
+        D3D12_COMMAND_QUEUE_DESC queueDesc{};
+        switch (queueType) {
+        case CommandQueueType::Graphics:
+            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT; break;
+        case CommandQueueType::Compute:
+            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE; break;
+        case CommandQueueType::Copy:
+            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY; break;
+        default:
+            assert(!"Invalid command queue type.");
+            return;
+        }
+        ID3D12Device* d3ddevice = m_Device.GetContext().m_Device;
+        auto hr = d3ddevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_CommandQueue.GetAddressOf()));
+
+        hr = d3ddevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_Fence.GetAddressOf()));
+        assert(SUCCEEDED(hr));
+        m_Fence->SetName(L"CommandQueue::m_Fence");
+        m_Fence->Signal(m_LastCompletedFenceValue);
+
+        m_FenceEventHandle = CreateEvent(nullptr, false, false, nullptr);
+        assert(m_FenceEventHandle != nullptr);
+    }
+
+    uint64_t CommandQueue::IncrementFence()
+    {
+        std::lock_guard<std::mutex> guard{m_FenceMutex};
+
+        m_CommandQueue->Signal(m_Fence.Get(), m_NextFenceValue);
+        return m_NextFenceValue++;
+    }
+
+    bool CommandQueue::IsFenceComplete(uint64_t fenceValue)
+    {
+        std::lock_guard<std::mutex> guard{m_FenceMutex};
+
+        // 更新栅栏值
+        if (m_LastCompletedFenceValue < fenceValue) {
+            m_LastCompletedFenceValue = std::max(m_LastCompletedFenceValue, m_Fence->GetCompletedValue());
+        }
+
+        return fenceValue <= m_LastCompletedFenceValue;
+    }
+
+    void CommandQueue::StallForFence(uint64_t fenceValue)
+    {
+        CommandQueue* producer = m_Device.GetQueue((CommandQueueType)(fenceValue >> QUEUE_TYPE_MOVEBITS));
+        m_CommandQueue->Wait(producer->m_Fence.Get(), fenceValue);
+    }
+
+    void CommandQueue::StallForProducer(CommandQueue &producer)
+    {
+        uint64_t nextFenceValue = producer.GetNextFenceValue();
+        assert(nextFenceValue > 0);
+        m_CommandQueue->Wait(producer.m_Fence.Get(), nextFenceValue - 1);
+    }
+
+    void CommandQueue::WaitForFence(uint64_t fenceValue)
+    {
+        // 已经执行过了则无需等待
+        if (IsFenceComplete(fenceValue)) return;
+
+        // 等待 GPU 执行到栅栏点
+        std::lock_guard<std::mutex> guard{m_EventMutex};
+        m_Fence->SetEventOnCompletion(fenceValue, m_FenceEventHandle);
+        WaitForSingleObject(m_FenceEventHandle, INFINITE);
+        m_LastCompletedFenceValue = fenceValue;
+    }
+
+    uint64_t CommandQueue::ExecuteCommandList(ID3D12CommandList *list)
+    {
+        assert(list != nullptr);
+    
+        std::lock_guard<std::mutex> guard{m_EventMutex};
+
+        m_CommandQueue->ExecuteCommandLists(1, &list);
+        m_CommandQueue->Signal(m_Fence.Get(), m_NextFenceValue);
+        
+        return m_NextFenceValue++;
+    }
+
+
+
+
+    //////////////////////////////////////////////////////////////////////////
+    // Device
+    //////////////////////////////////////////////////////////////////////////
+
     Object Device::GetNativeObject(ObjectType type)
     {
         switch (type) {
         case ObjectTypes::D3D12_Device:
             return Object(m_Context.m_Device);
         case ObjectTypes::D3D12_CommandQueue:
-            return Object(GetQueue(CommandQueueType::Graphics)->queue.Get());
+            return Object(GetQueue(CommandQueueType::Graphics)->GetCommandQueue());
         default:
             return nullptr;
         }
@@ -502,7 +631,7 @@ namespace DSM::D3D12{
         Framebuffer* framebuffer = new Framebuffer{m_Resources, desc};
         const FramebufferAttachment& ds = desc.depthAttachment;
 
-        if(!desc.colorAttachments.Empty()){
+        if(!desc.colorAttachments.empty()){
             const TextureDesc& texDesc = desc.colorAttachments[0].texture->GetDesc();
             framebuffer->rtWidth = texDesc.width;
             framebuffer->rtHeight = texDesc.height;
@@ -517,21 +646,21 @@ namespace DSM::D3D12{
             const TextureDesc& texDesc = rt.texture->GetDesc();
             assert(framebuffer->rtWidth == texDesc.width);
             assert(framebuffer->rtHeight == texDesc.height);
-            framebuffer->textures.PushBack(TextureHandle{rt.texture});
+            framebuffer->textures.push_back(TextureHandle{rt.texture});
 
             Object rtv = rt.texture->GetNativeView(
                 ObjectTypes::D3D12_RenderTargetViewDescriptor, 
                 rt.format, rt.subresources, texDesc.dimension, rt.isReadOnly);
             
             uint32_t index = m_Resources.renderTargetViewHeap.GetOffsetOfCpuHandle(rtv.integer);
-            framebuffer->RTVs.PushBack(index);
+            framebuffer->RTVs.push_back(index);
         }
 
         if(ds.Valid()){
             const TextureDesc& texDesc = ds.texture->GetDesc();
             assert(framebuffer->rtWidth == texDesc.width);
             assert(framebuffer->rtHeight == texDesc.height);
-            framebuffer->textures.PushBack(TextureHandle{ds.texture});
+            framebuffer->textures.push_back(TextureHandle{ds.texture});
 
             Object dsv = ds.texture->GetNativeView(
                 ObjectTypes::D3D12_DepthStencilViewDescriptor, 
@@ -610,7 +739,7 @@ namespace DSM::D3D12{
         psoDesc.SampleDesc.Count = fbInfo.sampleCount;
         psoDesc.SampleDesc.Quality = fbInfo.sampleQuality;
         psoDesc.SampleMask = ~0u;
-        psoDesc.NumRenderTargets = static_cast<UINT>(fbInfo.colorFormats.Size());
+        psoDesc.NumRenderTargets = static_cast<UINT>(fbInfo.colorFormats.size());
         for(uint32_t i = 0; i < psoDesc.NumRenderTargets; ++i){
             psoDesc.RTVFormats[i] = GetDxgiFormatMapping(fbInfo.colorFormats[i]).rtvFormat;
         }
@@ -741,10 +870,10 @@ namespace DSM::D3D12{
         psoStream.SampleDesc = { fbInfo.sampleCount, fbInfo.sampleQuality };
         psoStream.SampleMask = ~0u;
 
-        for(int i = 0; i < fbInfo.colorFormats.Size(); ++i){
+        for(int i = 0; i < fbInfo.colorFormats.size(); ++i){
             psoStream.RenderTargets.RTFormats[i] = GetDxgiFormatMapping(fbInfo.colorFormats[i]).rtvFormat;
         }
-        psoStream.RenderTargets.NumRenderTargets = fbInfo.colorFormats.Size();
+        psoStream.RenderTargets.NumRenderTargets = fbInfo.colorFormats.size();
         psoStream.DSVFormat = GetDxgiFormatMapping(fbInfo.depthFormat).rtvFormat;
 
         D3D12_PIPELINE_STATE_STREAM_DESC psoDesc{};
@@ -897,7 +1026,7 @@ namespace DSM::D3D12{
         GraphicsPipeline* pso = new GraphicsPipeline(desc, framebufferInfo);
         pso->rootSignature = Utility::CheckedCast<RootSignature*>(rootSignature);
         pso->pipelineState = pipelineState;
-        pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.Size());
+        pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.size());
 
         return GraphicsPipelineHandle{pso};
     }
@@ -914,7 +1043,7 @@ namespace DSM::D3D12{
         MeshletPipeline* pso = new MeshletPipeline(desc, framebufferInfo);
         pso->rootSignature = Utility::CheckedCast<RootSignature*>(rootSignature);
         pso->pipelineState = pipelineState;
-        pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.Size());
+        pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.size());
 
         return MeshletPipelineHandle{pso};
     }
@@ -981,7 +1110,7 @@ namespace DSM::D3D12{
             if(layout->GetDesc() != nullptr){
                 BindingLayout* bindingLayout = Utility::CheckedCast<BindingLayout*>(layout.Get());
 
-                rootSig->pipelineLayouts.EmplaceBack(rootParameterOffset, bindingLayout);
+                rootSig->pipelineLayouts.emplace_back(rootParameterOffset, bindingLayout);
                 rootParameters.append_range(bindingLayout->rootParameters);
 
                 if(bindingLayout->pushConstantByteSize > 0){
@@ -994,11 +1123,11 @@ namespace DSM::D3D12{
 
                 auto layoutType = bindlessLayout->GetBindlessDesc()->layoutType;
                 if(layoutType == BindlessLayoutDesc::LayoutType::Immutable){
-                    rootSig->pipelineLayouts.EmplaceBack(rootParameterOffset, bindlessLayout);
+                    rootSig->pipelineLayouts.emplace_back(rootParameterOffset, bindlessLayout);
                     rootParameters.push_back(bindlessLayout->rootParameter);
                 }
                 else{
-                    rootSig->pipelineLayouts.EmplaceBack(c_InvalidRootParameterIndex, bindlessLayout);
+                    rootSig->pipelineLayouts.emplace_back(c_InvalidRootParameterIndex, bindlessLayout);
                     useSamplersHeap = layoutType == BindlessLayoutDesc::LayoutType::MutableSampler;
                     useSRVsHeap = !useSamplersHeap;
                 }
@@ -1062,33 +1191,5 @@ namespace DSM::D3D12{
         return RootSignatureHandle(rootSig);
     }
 
-    CommandQueue::CommandQueue(const Context &context, CommandQueueType queueType)
-        :m_Context(context) 
-    {
-        D3D12_COMMAND_QUEUE_DESC queueDesc{};
-        switch (queueType) {
-        case CommandQueueType::Graphics:
-            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT; break;
-        case CommandQueueType::Compute:
-            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE; break;
-        case CommandQueueType::Copy:
-            queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY; break;
-        default:
-            assert(!"Invalid command queue type.");
-            return;
-        }
-        auto hr = m_Context.m_Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(queue.GetAddressOf()));
 
-        hr = m_Context.m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence.GetAddressOf()));
-        assert(SUCCEEDED(hr));
-    }
-    
-    uint64_t CommandQueue::UpdateLastCompletedInstance()
-    {
-        if(lastCompletedFenceValue < lastSubmittedFenceValue){
-            lastCompletedFenceValue = fence->GetCompletedValue();
-        }
-        
-        return lastCompletedFenceValue;
-    }
 }

@@ -132,7 +132,7 @@ namespace DSM {
         BindlessLayoutDesc& SetVisibility(ShaderType value) { visibility = value; return *this; }
         BindlessLayoutDesc& SetFirstSlot(uint32_t value) { firstSlot = value; return *this; }
         BindlessLayoutDesc& SetMaxCapacity(uint32_t value) { maxCapacity = value; return *this; }
-        BindlessLayoutDesc& AddRegisterSpace(const BindingLayoutItem& value) { registerSpaces.PushBack(value); return *this; }
+        BindlessLayoutDesc& AddRegisterSpace(const BindingLayoutItem& value) { registerSpaces.push_back(value); return *this; }
         BindlessLayoutDesc& SetLayoutType(LayoutType value) { layoutType = value; return *this; }
     };
 

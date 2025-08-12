@@ -2,13 +2,18 @@
 #ifndef __UTILIS_H__
 #define __UTILIS_H__
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
+
 #include <Windows.h>
 #include <string>
 #include <vector>
 #include <mutex>
+
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 
 namespace DSM::Utility {
 
@@ -91,10 +96,11 @@ namespace DSM::Utility {
         return seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
 
-    template<typename T> 
+    template<typename T> requires std::is_unsigned_v<T>
     inline T Align(T size, T alignment)
     {
-        return (size + alignment - 1) & ~(alignment - 1);
+        if(alignment <= 1) return size;
+        else return (size + alignment - 1) & ~(alignment - 1);
     }
 
     // 用于将父类指针转换为子类指针
@@ -110,6 +116,36 @@ namespace DSM::Utility {
 #else
         return static_cast<T>(u);
 #endif
+    }
+
+    
+    template<typename T, typename U> 
+    [[nodiscard]] bool ArraysAreDifferent(const T& a, const U& b)
+    {
+        if (a.size() != b.size()) return true;
+
+        for (size_t i = 0; i < size_t(a.size()); i++) {
+            if (a[i] != b[i])
+                return true;
+        }
+        return false;
+    }
+
+    template<typename T, typename U> 
+    [[nodiscard]] uint32_t ArrayDifferenceMask(const T& a, const U& b)
+    {
+        assert(a.size() <= 32);
+        assert(b.size() <= 32);
+
+        if (a.size() != b.size())
+            return ~0u;
+
+        uint32_t mask = 0;
+        for (uint32_t i = 0; i < uint32_t(a.size()); i++) {
+            if (a[i] != b[i])
+                mask |= (1 << i);
+        }
+        return mask;
     }
 
     class BitSetAllocator

@@ -58,7 +58,7 @@ namespace DSM::D3D12 {
                 rootDescriptor.RegisterSpace = m_Desc.registerSpace;
                 // 描述数据的波动性，驱动层会启动对应优化
                 rootDescriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC;
-                rootParametersVolatileCB.EmplaceBack(-1, rootDescriptor);
+                rootParametersVolatileCBs.emplace_back(-1, rootDescriptor);
             }
             else if(binding.type == ResourceType::PushConstants){
                 pushConstantByteSize = binding.size;
@@ -146,7 +146,7 @@ namespace DSM::D3D12 {
             rootConstantsIndex = rootParameters.size() - 1;
         }
         // 常量缓冲区
-        for(auto& [index, rootDescriptor] : rootParametersVolatileCB){
+        for(auto& [index, rootDescriptor] : rootParametersVolatileCBs){
             D3D12_ROOT_PARAMETER1 rootParameter{};
             rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
             rootParameter.ShaderVisibility = ConvertShaderStage(m_Desc.visibility);
@@ -216,15 +216,15 @@ namespace DSM::D3D12 {
                 continue;
             }
 
-            descriptorRanges.PushBack(std::move(range));
+            descriptorRanges.push_back(std::move(range));
         }
 
         if (desc.layoutType == BindlessLayoutDesc::LayoutType::Immutable)
         {
             rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             rootParameter.ShaderVisibility = ConvertShaderStage(desc.visibility);
-            rootParameter.DescriptorTable.NumDescriptorRanges = descriptorRanges.Size();
-            rootParameter.DescriptorTable.pDescriptorRanges = descriptorRanges.Data();
+            rootParameter.DescriptorTable.NumDescriptorRanges = descriptorRanges.size();
+            rootParameter.DescriptorTable.pDescriptorRanges = descriptorRanges.data();
         }
     }
     
@@ -254,7 +254,7 @@ namespace DSM::D3D12 {
         assert(bindingLayout != nullptr);
 
         // 处理易变的常量常量缓冲区
-        for(const auto& [index, descriptor] : bindingLayout->rootParametersVolatileCB) {
+        for(const auto& [index, descriptor] : bindingLayout->rootParametersVolatileCBs) {
             IBuffer* buffer{};
             auto it = std::find_if(m_Desc.bindings.begin(), m_Desc.bindings.end(),
                 [descriptor](const BindingSetItem& binding) {
@@ -268,7 +268,7 @@ namespace DSM::D3D12 {
                 resources.push_back(ResourceHandle{it->resourceHandle});
             }
 
-            rootParametersVolatileCB.EmplaceBack(index, buffer);
+            rootParametersVolatileCBs.emplace_back(index, buffer);
         }
 
         // 处理采样器

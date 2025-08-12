@@ -21,6 +21,7 @@ namespace DSM {
     static constexpr uint32_t c_MaxBindlessRegisterSpaces = 16u;
     static constexpr uint32_t c_ConstantBufferOffsetSizeAlignment = 256u;
     static constexpr uint32_t c_MaxVolatileConstantBuffersPerLayout = 6u;
+    static constexpr uint32_t c_MaxVolatileConstantBuffers = 32;
 
 
     using ObjectType = uint32_t;
@@ -605,9 +606,11 @@ namespace DSM {
         StaticVector<Viewport, c_MaxViewports> viewports;
         StaticVector<Rect, c_MaxViewports> scissorRects;
 
-        ViewportState& AddViewport(const Viewport& v) { viewports.PushBack(v); return *this; }
-        ViewportState& AddScissorRect(const Rect& r) { scissorRects.PushBack(r); return *this; }
+        ViewportState& AddViewport(const Viewport& v) { viewports.push_back(v); return *this; }
+        ViewportState& AddScissorRect(const Rect& r) { scissorRects.push_back(r); return *this; }
         ViewportState& AddViewportAndScissorRect(const Viewport& v) { return AddViewport(v).AddScissorRect(Rect(v)); }
+    
+        bool operator==(const ViewportState&) const = default;
     };
 
 

@@ -17,7 +17,7 @@ namespace DSM::D3D12 {
 
     public:
         using VolatileCBDescriptorVector = StaticVector<std::pair<uint32_t, D3D12_ROOT_DESCRIPTOR1>, c_MaxVolatileConstantBuffersPerLayout>;
-        VolatileCBDescriptorVector rootParametersVolatileCB;
+        VolatileCBDescriptorVector rootParametersVolatileCBs;
 
         uint32_t pushConstantByteSize = 0;
 
@@ -91,7 +91,7 @@ namespace DSM::D3D12 {
 
     public:
         using VolatileCBVector = StaticVector<std::pair<uint32_t, IBuffer*>, c_MaxVolatileConstantBuffersPerLayout>;
-        VolatileCBVector rootParametersVolatileCB{};
+        VolatileCBVector rootParametersVolatileCBs{};
         RefPtr<BindingLayout> bindingLayout;
         std::vector<ResourceHandle> resources;
 

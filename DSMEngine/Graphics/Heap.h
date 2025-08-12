@@ -21,6 +21,8 @@ namespace DSM {
         constexpr HeapDesc& SetCapacity(uint64_t value) { capacity = value; return *this; }
         constexpr HeapDesc& SetType(HeapType value) { type = value; return *this; }
         HeapDesc& SetDebugName(const std::string& value) { debugName = value; return *this; }
+
+        bool operator==(const HeapDesc& other) const = default;
     };
 
     struct IHeap : public IResource

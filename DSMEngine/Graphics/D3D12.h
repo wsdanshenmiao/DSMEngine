@@ -5,18 +5,15 @@
 #include "Device.h"
 #include <d3d12.h>
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-
 namespace DSM::D3D12{
+    struct DynamicResourceLocation;
 
     struct IRootSignature : public IResource {};
     using RootSignatureHandle = RefPtr<IRootSignature>;
 
     struct ICommandList : public DSM::ICommandList
     {
-        virtual bool AllocateUploadBuffer(size_t size, void** pCpuAddress, D3D12_GPU_VIRTUAL_ADDRESS* pGpuAddress) = 0;
+        virtual DynamicResourceLocation AllocateUploadBuffer(size_t size) = 0;
         virtual bool CommitDescriptorHeaps() = 0;
         virtual D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* buffer) = 0;
 

@@ -29,9 +29,9 @@ namespace DSM {
         FramebufferAttachment depthAttachment;
         FramebufferAttachment shadingRateAttachment;
 
-        FramebufferDesc& AddColorAttachment(const FramebufferAttachment& a) { colorAttachments.PushBack(a); return *this; }
-        FramebufferDesc& AddColorAttachment(ITexture* texture) { colorAttachments.PushBack(FramebufferAttachment().SetTexture(texture)); return *this; }
-        FramebufferDesc& AddColorAttachment(ITexture* texture, TextureSubresourceSet subresources) { colorAttachments.PushBack(FramebufferAttachment().SetTexture(texture).SetSubresources(subresources)); return *this; }
+        FramebufferDesc& AddColorAttachment(const FramebufferAttachment& a) { colorAttachments.push_back(a); return *this; }
+        FramebufferDesc& AddColorAttachment(ITexture* texture) { colorAttachments.push_back(FramebufferAttachment().SetTexture(texture)); return *this; }
+        FramebufferDesc& AddColorAttachment(ITexture* texture, TextureSubresourceSet subresources) { colorAttachments.push_back(FramebufferAttachment().SetTexture(texture).SetSubresources(subresources)); return *this; }
         FramebufferDesc& SetDepthAttachment(const FramebufferAttachment& d) { depthAttachment = d; return *this; }
         FramebufferDesc& SetDepthAttachment(ITexture* texture) { depthAttachment = FramebufferAttachment().SetTexture(texture); return *this; }
         FramebufferDesc& SetDepthAttachment(ITexture* texture, TextureSubresourceSet subresources) { depthAttachment = FramebufferAttachment().SetTexture(texture).SetSubresources(subresources); return *this; }
@@ -46,6 +46,8 @@ namespace DSM {
         Format depthFormat = Format::UNKNOWN;
         uint32_t sampleCount = 1;
         uint32_t sampleQuality = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
 
         FramebufferInfo() = default;
         FramebufferInfo(const FramebufferDesc& desc)
@@ -53,36 +55,26 @@ namespace DSM {
             for(const auto& attachment : desc.colorAttachments){
                 auto format = (attachment.format == Format::UNKNOWN && attachment.Valid()) ?
                     attachment.texture->GetDesc().format : attachment.format;
-                colorFormats.PushBack(format);
+                colorFormats.push_back(format);
             }
             if(desc.depthAttachment.Valid()){
                 const auto& texDesc = desc.depthAttachment.texture->GetDesc();
                 depthFormat = texDesc.format;
                 sampleCount = texDesc.sampleCount;
                 sampleQuality = texDesc.sampleQuality;
+                width = std::max(texDesc.width >> desc.depthAttachment.subresources.baseMipLevel, 1u);
+                height = std::max(texDesc.height >> desc.depthAttachment.subresources.baseMipLevel, 1u);
             }
-            else if(!desc.colorAttachments.Empty() && desc.colorAttachments[0].Valid()){
+            else if(!desc.colorAttachments.empty() && desc.colorAttachments[0].Valid()){
                 const auto& texDesc = desc.colorAttachments[0].texture->GetDesc();
                 sampleCount = texDesc.sampleCount;
                 sampleQuality = texDesc.sampleQuality;
+                width = std::max(texDesc.width >> desc.colorAttachments[0].subresources.baseMipLevel, 1u);
+                height = std::max(texDesc.height >> desc.colorAttachments[0].subresources.baseMipLevel, 1u);
             }
         }
         
-        bool operator==(const FramebufferInfo& other) const
-        {
-            return FormatsEqual(colorFormats, other.colorFormats)
-                && depthFormat == other.depthFormat
-                && sampleCount == other.sampleCount
-                && sampleQuality == other.sampleQuality;
-        }
-
-    private:
-        static bool FormatsEqual(const StaticVector<Format, c_MaxRenderTargets>& a, const StaticVector<Format, c_MaxRenderTargets>& b)
-        {
-            if (a.Size() != b.Size()) return false;
-            for (size_t i = 0; i < a.Size(); i++) if (a[i] != b[i]) return false;
-            return true;
-        }
+        bool operator==(const FramebufferInfo& other) const = default;
     };
 
     struct IFramebuffer : public IResource 

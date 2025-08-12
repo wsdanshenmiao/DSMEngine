@@ -5,6 +5,7 @@
 
 #include <list>
 #include <cassert>
+#include "Utils/Utils.h"
 
 namespace DSM {
     
@@ -31,8 +32,11 @@ namespace DSM {
             m_FreeList.emplace_back(0, maxSize);
         }
 
-        uint64_t Allocate(uint64_t size)
+        uint64_t Allocate(uint64_t size, uint32_t alignment = 0)
         {
+            if(size == 0) return InvalidAllocOffset;
+            size = Utility::Align(size, uint64_t(alignment));
+
             for(auto it = m_FreeList.begin(); it != m_FreeList.end();){
                 if(auto [start, rangeSize] = *it; size <= rangeSize){
                     it = m_FreeList.erase(it);

@@ -9,6 +9,7 @@ namespace DSM::D3D12 {
         if(desc.isUAV){
             m_ClearMipLevelUAVs.resize(desc.mipLevels, c_InvalidDescriptorIndex);
         }
+        planeCount = m_Resources.GetFormatPlaneCount(resourceDesc.Format);
     }
 
     Texture::~Texture()
@@ -406,6 +407,7 @@ namespace DSM::D3D12 {
         uint32_t descriptorIndex = m_ClearMipLevelUAVs[mipLevel];
         if(descriptorIndex == c_InvalidDescriptorIndex){
             descriptorIndex = m_Resources.shaderResourceViewHeap.AllocateDescriptor();
+            assert(descriptorIndex != c_InvalidDescriptorIndex);
             auto handle = m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
             TextureSubresourceSet subresources{mipLevel, 1, 0, TextureSubresourceSet::AllArraySlices};
             CreateUAV(handle.ptr, Format::UNKNOWN, TextureDimension::Unknown, subresources);

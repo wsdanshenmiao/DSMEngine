@@ -118,6 +118,58 @@ namespace DSM{
         class RootSignature;
 
 
+        struct Context
+        {
+            RefPtr<ID3D12Device> m_Device;
+            RefPtr<ID3D12Device2> m_Device2;
+            RefPtr<ID3D12Device5> m_Device5;
+            RefPtr<ID3D12Device8> m_Device8;
+
+            RefPtr<ID3D12CommandSignature> m_DrawIndirectSignature;
+            RefPtr<ID3D12CommandSignature> m_DrawIndexedIndirectSignature;
+            RefPtr<ID3D12CommandSignature> m_DispatchIndirectSignature;
+            RefPtr<ID3D12QueryHeap> m_TimerQueryHeap;
+            RefPtr<Buffer> m_TimerQueryResolveBuffer;
+
+            bool m_LogBufferLifetime = false;
+            IMessageCallback* m_MessageCallback = nullptr;
+            
+            void Error(const std::string& message) const
+            {
+                m_MessageCallback->Message(MessageSeverity::Error, message.c_str());
+            }
+
+            void Info(const std::string& message) const
+            {
+                m_MessageCallback->Message(MessageSeverity::Info, message.c_str());
+            }
+        };
+
+        class InputLayout : public IInputLayout
+        {
+        public:
+            uint32_t GetNumAttributes() const override { return attributes.size(); }
+            const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const override
+            {
+                return index < uint32_t(attributes.size()) ? &attributes[index] : nullptr;
+            }
+
+            std::vector<VertexAttributeDesc> attributes;
+            std::vector<D3D12_INPUT_ELEMENT_DESC> inputElements;
+
+            // 一个属性绑定一个槽
+            std::unordered_map<uint32_t, uint32_t> elementStride;
+        };
+
+        struct DX12_ViewportState
+        {
+            UINT numViewports = 0;
+            D3D12_VIEWPORT viewports[16] = {};
+            UINT numScissorRects = 0;
+            D3D12_RECT scissorRects[16] = {};
+        };
+
+        
         
         //////////////////////////////////////////////////////////////////////////
         // Convert Custom Structs/Enums to D3D12 Structs/Enums
@@ -440,6 +492,52 @@ namespace DSM{
         }
 
 
+        DX12_ViewportState ConvertViewportState(const RasterState& rasterState, const FramebufferInfo& framebufferInfo, const ViewportState& vpState)
+        {
+            DX12_ViewportState ret;
+
+            ret.numViewports = UINT(vpState.viewports.size());
+            for (size_t rt = 0; rt < vpState.viewports.size(); rt++)
+            {
+                ret.viewports[rt].TopLeftX = vpState.viewports[rt].minX;
+                ret.viewports[rt].TopLeftY = vpState.viewports[rt].minY;
+                ret.viewports[rt].Width = vpState.viewports[rt].maxX - vpState.viewports[rt].minX;
+                ret.viewports[rt].Height = vpState.viewports[rt].maxY - vpState.viewports[rt].minY;
+                ret.viewports[rt].MinDepth = vpState.viewports[rt].minZ;
+                ret.viewports[rt].MaxDepth = vpState.viewports[rt].maxZ;
+            }
+
+            ret.numScissorRects = UINT(vpState.scissorRects.size());
+            for(size_t rt = 0; rt < vpState.scissorRects.size(); rt++)
+            {
+                if (rasterState.scissorEnable)
+                {
+                    ret.scissorRects[rt].left = (LONG)vpState.scissorRects[rt].minX;
+                    ret.scissorRects[rt].top = (LONG)vpState.scissorRects[rt].minY;
+                    ret.scissorRects[rt].right = (LONG)vpState.scissorRects[rt].maxX;
+                    ret.scissorRects[rt].bottom = (LONG)vpState.scissorRects[rt].maxY;
+                }
+                else
+                {
+                    ret.scissorRects[rt].left = (LONG)vpState.viewports[rt].minX;
+                    ret.scissorRects[rt].top = (LONG)vpState.viewports[rt].minY;
+                    ret.scissorRects[rt].right = (LONG)vpState.viewports[rt].maxX;
+                    ret.scissorRects[rt].bottom = (LONG)vpState.viewports[rt].maxY;
+
+                    if (framebufferInfo.width > 0)
+                    {
+                        ret.scissorRects[rt].left = std::max(ret.scissorRects[rt].left, LONG(0));
+                        ret.scissorRects[rt].top = std::max(ret.scissorRects[rt].top, LONG(0));
+                        ret.scissorRects[rt].right = std::min(ret.scissorRects[rt].right, LONG(framebufferInfo.width));
+                        ret.scissorRects[rt].bottom = std::min(ret.scissorRects[rt].bottom, LONG(framebufferInfo.height));
+                    }
+                }
+            }
+
+            return ret;
+        }
+
+
         void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
         {
             // 进行等待
@@ -450,57 +548,15 @@ namespace DSM{
             }
         }
 
-
-        struct Context
+        // 计算子资源所对应的索引
+        inline uint32_t CalculateSubresource(
+            uint32_t mipSlice, uint32_t arraySlice, uint32_t planeSlice, 
+            uint32_t mipLevels, uint32_t arraySize)
         {
-            RefPtr<ID3D12Device> m_Device;
-            RefPtr<ID3D12Device2> m_Device2;
-            RefPtr<ID3D12Device5> m_Device5;
-            RefPtr<ID3D12Device8> m_Device8;
+            return mipSlice + arraySlice * mipLevels + planeSlice * arraySize * mipLevels;
+        }
 
-            RefPtr<ID3D12CommandSignature> m_DrawIndirectSignature;
-            RefPtr<ID3D12CommandSignature> m_DrawIndexedIndirectSignature;
-            RefPtr<ID3D12CommandSignature> m_DispatchIndirectSignature;
-            RefPtr<ID3D12QueryHeap> m_TimerQueryHeap;
-            RefPtr<Buffer> m_TimerQueryResolveBuffer;
 
-            bool m_LogBufferLifetime = false;
-            IMessageCallback* m_MessageCallback = nullptr;
-            
-            void Error(const std::string& message) const
-            {
-                m_MessageCallback->Message(MessageSeverity::Error, message.c_str());
-            }
-
-            void Info(const std::string& message) const
-            {
-                m_MessageCallback->Message(MessageSeverity::Info, message.c_str());
-            }
-        };
-
-        class InputLayout : public IInputLayout
-        {
-        public:
-            uint32_t GetNumAttributes() const override { return attributes.size(); }
-            const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const override
-            {
-                return index < uint32_t(attributes.size()) ? &attributes[index] : nullptr;
-            }
-
-            std::vector<VertexAttributeDesc> attributes;
-            std::vector<D3D12_INPUT_ELEMENT_DESC> inputElements;
-
-            // 一个属性绑定一个槽
-            std::unordered_map<uint32_t, uint32_t> elementStride;
-        };
-
-        struct DX12_ViewportState
-        {
-            UINT numViewports = 0;
-            D3D12_VIEWPORT viewports[16] = {};
-            UINT numScissorRects = 0;
-            D3D12_RECT scissorRects[16] = {};
-        };
 
     }
 }

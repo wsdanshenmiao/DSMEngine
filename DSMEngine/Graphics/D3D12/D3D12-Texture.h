@@ -40,6 +40,7 @@ namespace DSM::D3D12{
         HANDLE sharedHandle;
         HeapHandle heap;
         const D3D12_RESOURCE_DESC resourceDesc;
+        uint8_t planeCount = 1; // 纹理的平面切片数
 
     private:
         using TextureBindingHashMap = std::unordered_map<TextureBindingKey, uint32_t>;
