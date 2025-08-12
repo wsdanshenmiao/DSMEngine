@@ -44,9 +44,9 @@ namespace DSM::D3D12 {
     private:
         using FencevalueAndListPairQueue = std::queue<std::pair<uint64_t, InternalCommandList*>>;
         // 命令列表的缓存
-        static std::set<std::unique_ptr<InternalCommandList>> sm_CmdListPool;
-        static std::array<FencevalueAndListPairQueue, (size_t)CommandQueueType::Count> sm_RetiredCmdLists;
-        static std::array<std::queue<InternalCommandList*>, (size_t)CommandQueueType::Count> sm_AvailableCmdLists;
+        inline static std::set<std::unique_ptr<InternalCommandList>> sm_CmdListPool{};
+        inline static std::array<FencevalueAndListPairQueue, (size_t)CommandQueueType::Count> sm_RetiredCmdLists{};
+        inline static std::array<std::queue<InternalCommandList*>, (size_t)CommandQueueType::Count> sm_AvailableCmdLists{};
     };
 
     struct CommandListInstance

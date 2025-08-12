@@ -62,7 +62,9 @@ namespace DSM::D3D12{
                 sm_RetiredCmdLists[i].pop();
             }
         }
-        sm_CmdListPool.clear();
+        if (!sm_CmdListPool.empty()) {
+            sm_CmdListPool.clear();
+        }
     }
     
     InternalCommandList::InternalCommandList(Device& device, const CommandListParameters &desc)

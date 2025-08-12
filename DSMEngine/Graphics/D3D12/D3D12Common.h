@@ -94,7 +94,7 @@ namespace DSM{
         { Format::BC7_UNORM_SRGB,       DXGI_FORMAT_BC7_TYPELESS,           DXGI_FORMAT_BC7_UNORM_SRGB,           DXGI_FORMAT_BC7_UNORM_SRGB         },
     };
 
-    const DxgiFormatMapping& GetDxgiFormatMapping(Format abstractFormat)
+    static const DxgiFormatMapping& GetDxgiFormatMapping(Format abstractFormat)
     {
         static_assert(sizeof(c_FormatMappings) / sizeof(DxgiFormatMapping) == size_t(Format::COUNT), 
             "The format mapping table doesn't have the right number of elements");
@@ -104,7 +104,7 @@ namespace DSM{
         return mapping;
     }
 
-    std::string GetErrorMessage(HRESULT hr)
+    static std::string GetErrorMessage(HRESULT hr)
     {
         _com_error err{hr};
         std::wstring msg = err.ErrorMessage();
@@ -174,7 +174,7 @@ namespace DSM{
         //////////////////////////////////////////////////////////////////////////
         // Convert Custom Structs/Enums to D3D12 Structs/Enums
         //////////////////////////////////////////////////////////////////////////
-        D3D12_RESOURCE_STATES ConvertResourceStates(const ResourceStates& state)
+        static D3D12_RESOURCE_STATES ConvertResourceStates(const ResourceStates& state)
         {
             if (state == ResourceStates::Common)
                 return D3D12_RESOURCE_STATE_COMMON;
@@ -202,7 +202,7 @@ namespace DSM{
             return result;
         }
             
-        D3D12_SHADER_VISIBILITY ConvertShaderStage(ShaderType s)
+        static D3D12_SHADER_VISIBILITY ConvertShaderStage(ShaderType s)
         {
             switch (s) {
             case ShaderType::Vertex:
@@ -224,7 +224,7 @@ namespace DSM{
             }
         }
 
-        D3D12_BLEND ConvertBlendValue(BlendFactor value)
+        static D3D12_BLEND ConvertBlendValue(BlendFactor value)
         {
             switch (value) {
             case BlendFactor::Zero:
@@ -267,7 +267,7 @@ namespace DSM{
             }
         }
 
-        D3D12_BLEND_OP ConvertBlendOp(BlendOp value)
+        static D3D12_BLEND_OP ConvertBlendOp(BlendOp value)
         {
             switch (value) {
             case BlendOp::Add:
@@ -286,7 +286,7 @@ namespace DSM{
             }
         }
 
-        D3D12_STENCIL_OP ConvertStencilOp(StencilOp value)
+        static D3D12_STENCIL_OP ConvertStencilOp(StencilOp value)
         {
             switch (value) {
             case StencilOp::Keep:
@@ -311,7 +311,7 @@ namespace DSM{
             }
         }
 
-        D3D12_COMPARISON_FUNC ConvertComparisonFunc(ComparisonFunc value)
+        static D3D12_COMPARISON_FUNC ConvertComparisonFunc(ComparisonFunc value)
         {
             switch (value) {
             case ComparisonFunc::Never:
@@ -336,7 +336,7 @@ namespace DSM{
             }
         }
 
-        D3D12_DEPTH_STENCIL_DESC ConvertDepthStencilState(const DepthStencilState& inState)
+        static D3D12_DEPTH_STENCIL_DESC ConvertDepthStencilState(const DepthStencilState& inState)
         {
             D3D12_DEPTH_STENCIL_DESC outState{};
             outState.DepthEnable = inState.depthTestEnable ? TRUE : FALSE;
@@ -356,7 +356,7 @@ namespace DSM{
             return outState;
         }
 
-        D3D_PRIMITIVE_TOPOLOGY ConvertPrimitiveType(PrimitiveType pt, uint32_t controlPoints)
+        static D3D_PRIMITIVE_TOPOLOGY ConvertPrimitiveType(PrimitiveType pt, uint32_t controlPoints)
         {
             switch (pt)
             {
@@ -389,7 +389,7 @@ namespace DSM{
         }
 
 
-        D3D12_TEXTURE_ADDRESS_MODE ConvertAddressMode(SamplerAddressMode mode)
+        static D3D12_TEXTURE_ADDRESS_MODE ConvertAddressMode(SamplerAddressMode mode)
         {
             switch (mode) {
             case SamplerAddressMode::Clamp:
@@ -408,7 +408,7 @@ namespace DSM{
             }
         }
 
-        D3D12_FILTER_REDUCTION_TYPE ConvertReductionType(SamplerReductionType reductionType)
+        static D3D12_FILTER_REDUCTION_TYPE ConvertReductionType(SamplerReductionType reductionType)
         {
             switch (reductionType) {
             case SamplerReductionType::Standard:
@@ -426,7 +426,7 @@ namespace DSM{
         }
 
 
-        D3D12_BLEND_DESC ConvertBlendState(const BlendState& inState)
+        static D3D12_BLEND_DESC ConvertBlendState(const BlendState& inState)
         {
             D3D12_BLEND_DESC outState{};
             outState.AlphaToCoverageEnable = inState.alphaToCoverageEnable;
@@ -448,7 +448,7 @@ namespace DSM{
             return outState;
         }
 
-        D3D12_RASTERIZER_DESC ConvertRasterizerState(const RasterState& inState)
+        static D3D12_RASTERIZER_DESC ConvertRasterizerState(const RasterState& inState)
         {
             D3D12_RASTERIZER_DESC outState{};
             switch (inState.fillMode) {
@@ -492,7 +492,7 @@ namespace DSM{
         }
 
 
-        DX12_ViewportState ConvertViewportState(const RasterState& rasterState, const FramebufferInfo& framebufferInfo, const ViewportState& vpState)
+        static DX12_ViewportState ConvertViewportState(const RasterState& rasterState, const FramebufferInfo& framebufferInfo, const ViewportState& vpState)
         {
             DX12_ViewportState ret;
 
@@ -538,7 +538,7 @@ namespace DSM{
         }
 
 
-        void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
+        static void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
         {
             // 进行等待
             if(fence->GetCompletedValue() < fenceValue){

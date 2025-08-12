@@ -260,6 +260,9 @@ namespace DSM::D3D12 {
         D3D12_FEATURE_DATA_D3D12_OPTIONS6 m_Options6 = {};
         D3D12_FEATURE_DATA_D3D12_OPTIONS7 m_Options7 = {};
     };
+
+
+
 } // namespace DSM 
 
 #endif

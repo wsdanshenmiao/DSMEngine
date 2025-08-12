@@ -16,6 +16,16 @@
 #define QUEUE_TYPE_MOVEBITS 56
 
 namespace DSM::D3D12{
+    DXGI_FORMAT ConvertFormat(DSM::Format format)
+    {
+        return GetDxgiFormatMapping(format).srvFormat;
+    }
+
+    DeviceHandle CreateDevice(const DeviceDesc& desc)
+    {
+        return DeviceHandle{new Device(desc)};
+    }
+
 
     //////////////////////////////////////////////////////////////////////////
     // DeviceResources
@@ -179,7 +189,7 @@ namespace DSM::D3D12{
         m_Context.logBufferLifetime = desc.logBufferLifetime;
 
         DWORD factoryFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG) || 1
+#if defined(DEBUG) || defined(_DEBUG)
         // 开启调试层
         RefPtr<ID3D12Debug> pDebug{};
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(pDebug.GetAddressOf())))) {
@@ -321,7 +331,11 @@ namespace DSM::D3D12{
     Device::~Device()
     {
         WaitForIdle();
-
+        if (m_FenceEvent) {
+            CloseHandle(m_FenceEvent);
+            m_FenceEvent = nullptr;
+        }
+        InternalCommandList::Cleanup();
     }
 
     Object Device::GetNativeObject(ObjectType type)
