@@ -317,7 +317,7 @@ namespace DSM::D3D12 {
                 else{
                     // 没有采样器则创建一个默认采样器
                     D3D12_SAMPLER_DESC samplerDesc{};
-                    context.m_Device->CreateSampler(&samplerDesc, handle);
+                    context.device->CreateSampler(&samplerDesc, handle);
                 }
             }
         }
@@ -428,7 +428,7 @@ namespace DSM::D3D12 {
                         Buffer::CreateNullUAV(handle.ptr, Format::UNKNOWN, context);
                         break;
                     case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
-                        context.m_Device->CreateConstantBufferView(nullptr, handle);
+                        context.device->CreateConstantBufferView(nullptr, handle);
                         break;
                     case D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER:
                     default:

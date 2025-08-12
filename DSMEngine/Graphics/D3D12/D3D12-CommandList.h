@@ -15,6 +15,8 @@ namespace DSM::D3D12 {
     class Device;
     class Buffer;
     class RootSignature;
+    class TimerQuery;
+    class Framebuffer;
 
     class InternalCommandList
     {
@@ -34,7 +36,7 @@ namespace DSM::D3D12 {
         RefPtr<ID3D12GraphicsCommandList4> cmdList4{};
         RefPtr<ID3D12GraphicsCommandList6> cmdList6{};
 
-        uint64_t lastSubmittedInstance{};
+        uint64_t lastSubmittedFenceValue{};
 
         std::unique_ptr<DynamicResourceAllocator> uploadBufferAllocator{};
         std::unique_ptr<DynamicResourceAllocator> gpuBufferAllocator{};
@@ -58,8 +60,8 @@ namespace DSM::D3D12 {
         // 引用资源，命令完成后才可释放
         std::vector<ResourceHandle> refResources;
         std::vector<RefPtr<IUnknown>> refNativeResources;
-        std::vector<BufferHandle> refBuffer;
-        std::vector<TimerQueryHandle> refTimerQuery;
+        std::vector<RefPtr<Buffer>> refBuffer;
+        std::vector<RefPtr<TimerQuery>> refTimerQuery;
     };
 
     class CommandList : public ICommandList
@@ -141,6 +143,7 @@ namespace DSM::D3D12 {
 
                 
         DynamicResourceLocation AllocateUploadBuffer(size_t size) override;
+        DynamicResourceLocation AllocateGpuBuffer(size_t size) override;
         bool CommitDescriptorHeaps() override;
         D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* b) override;
 
@@ -156,9 +159,13 @@ namespace DSM::D3D12 {
             const RootSignature* rootSignature,
             bool isGraphics);
 
+        // 提交命令列表时调用
+        std::shared_ptr<CommandListInstance> Executed(CommandQueue& queue);
+
     private:
         void ClearStateCache();
 
+        void UpdateFramebuffer(Framebuffer* fb);
 
     private:
         struct VolatileBufferBinding

@@ -207,7 +207,7 @@ namespace DSM::D3D12 {
             return;
         }
 
-        m_Context.m_Device->CreateShaderResourceView(resource.Get(), &srvDesc, {descriptor});
+        m_Context.device->CreateShaderResourceView(resource.Get(), &srvDesc, {descriptor});
     }
     
     void Texture::CreateUAV(size_t descriptor, Format format, TextureDimension dimension, TextureSubresourceSet subresources) const
@@ -271,7 +271,7 @@ namespace DSM::D3D12 {
             break;
         }
 
-        m_Context.m_Device->CreateUnorderedAccessView(resource.Get(), nullptr, &uavDesc, {descriptor});
+        m_Context.device->CreateUnorderedAccessView(resource.Get(), nullptr, &uavDesc, {descriptor});
     }
 
     void Texture::CreateRTV(size_t descriptor, Format format, TextureSubresourceSet subresources) const
@@ -334,7 +334,7 @@ namespace DSM::D3D12 {
             break;
         }
 
-        m_Context.m_Device->CreateRenderTargetView(resource.Get(), &rtvDesc, {descriptor});
+        m_Context.device->CreateRenderTargetView(resource.Get(), &rtvDesc, {descriptor});
     }
 
     void Texture::CreateDSV(size_t descriptor, TextureSubresourceSet subresources, bool isReadOnly) const
@@ -395,7 +395,7 @@ namespace DSM::D3D12 {
             return;
         }
 
-        m_Context.m_Device->CreateDepthStencilView(resource.Get(), &dsvDesc, {descriptor});
+        m_Context.device->CreateDepthStencilView(resource.Get(), &dsvDesc, {descriptor});
     }
 
     uint32_t Texture::GetClearMipLevelUAV(uint32_t mipLevel)

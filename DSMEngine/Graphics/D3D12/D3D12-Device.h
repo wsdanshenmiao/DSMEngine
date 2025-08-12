@@ -5,6 +5,8 @@
 #include "DescriptorHeap.h"
 #include "D3D12Common.h"
 #include <unordered_map>
+#include <span>
+#include <queue>
 
 namespace DSM::D3D12 {
     class RootSignature;
@@ -53,7 +55,9 @@ namespace DSM::D3D12 {
         ID3D12Fence* GetFence() const { return m_Fence.Get(); }
         uint64_t GetNextFenceValue() {return m_NextFenceValue;}
 
-        uint64_t ExecuteCommandList(ID3D12CommandList* list);
+        uint64_t ExecuteCommandList(std::span<DSM::ICommandList* const> cmdLists);
+
+        void ClearCompletedCmdList();
 
     protected:
         Device& m_Device;
@@ -71,7 +75,7 @@ namespace DSM::D3D12 {
         
         std::atomic<uint64_t> m_RecordingInstance = 1;    // 命令提交次数
         // 提交命令列表后返回的实例，命令完成后才可释放
-        std::vector<std::shared_ptr<CommandListInstance>> m_UsedCommandLists{};
+        std::queue<std::shared_ptr<CommandListInstance>> m_ActiveCmdLists{};
     };
 
 
@@ -112,21 +116,23 @@ namespace DSM::D3D12 {
     class Device final : public IDevice
     {
     public:
+        explicit Device(DeviceDesc desc);
+        ~Device() override;
 
         Object GetNativeObject(ObjectType type) override;
 
         HeapHandle CreateHeap(const HeapDesc& d) override;
 
         TextureHandle CreateTexture(const TextureDesc& desc) override;
-        MemoryRequirements GetTextureMemoryRequirements(ITexture* texture) override;
+        MemoryRequirements GetTextureMemoryRequirements(ITexture* _texture) override;
         // 将保留资源绑定到具体的堆中
         bool BindTextureMemory(ITexture* _texture, IHeap* _heap, uint64_t offset) override;
 
         // 为原始的 D3D 资源创建纹理句柄
-        TextureHandle CreateHandleForNativeTexture(ObjectType objectType, Object texture, const TextureDesc& desc) override;
+        TextureHandle CreateHandleForNativeTexture(ObjectType objectType, Object _texture, const TextureDesc& desc) override;
 
-        void GetTextureTiling(ITexture* texture, uint32_t* numTiles, PackedMipDesc* desc, TileShape* tileShape, uint32_t* subresourceTilingsNum, SubresourceTiling* subresourceTilings) override;
-        void UpdateTextureTileMappings(ITexture* texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueueType executionQueue = CommandQueueType::Graphics) override;
+        void GetTextureTiling(ITexture* _texture, uint32_t* numTiles, PackedMipDesc* desc, TileShape* tileShape, uint32_t* subresourceTilingsNum, SubresourceTiling* subresourceTilings) override;
+        void UpdateTextureTileMappings(ITexture* _texture, const TextureTilesMapping* tileMappings, uint32_t numTileMappings, CommandQueueType executionQueue = CommandQueueType::Graphics) override;
 
         BufferHandle CreateBuffer(const BufferDesc& d) override;
         void* MapBuffer(IBuffer* _buffer, CpuAccessMode cpuAccess) override;
@@ -221,16 +227,38 @@ namespace DSM::D3D12 {
         RefPtr<RootSignature> GetRootSignature(const BindingLayoutVector& pipelineLayouts, bool allowInputLayout);
 
     private:
+        const DeviceDesc m_Desc;
         Context m_Context;
         DeviceResources m_Resources;
 
         std::array<std::unique_ptr<CommandQueue>, (size_t)CommandQueueType::Count> m_CommandQueues;
 
         HANDLE m_FenceEvent;
+        std::mutex m_Mutex;
 
-        D3D12_FEATURE_DATA_D3D12_OPTIONS m_Options{};
-
+        bool m_SinglePassStereoSupported = false;
+        bool m_HlslExtensionsSupported = false;
+        bool m_FastGeometryShaderSupported = false;
+        bool m_RayTracingSupported = false;
+        bool m_TraceRayInlineSupported = false;
+        bool m_MeshletsSupported = false;
+        bool m_VariableRateShadingSupported = false;
+        bool m_OpacityMicromapSupported = false;
+        bool m_RayTracingClustersSupported = false;
+        bool m_LinearSweptSpheresSupported = false;
+        bool m_SpheresSupported = false;
+        bool m_ShaderExecutionReorderingSupported = false;
+        bool m_SamplerFeedbackSupported = false;
+        bool m_AftermathEnabled = false;
         bool m_HeapDirectlyIndexedEnabled = false;
+        bool m_CoopVecInferencingSupported = false;
+        bool m_CoopVecTrainingSupported = false;
+
+        D3D12_FEATURE_DATA_D3D12_OPTIONS  m_Options = {};
+        D3D12_FEATURE_DATA_D3D12_OPTIONS1 m_Options1 = {};
+        D3D12_FEATURE_DATA_D3D12_OPTIONS5 m_Options5 = {};
+        D3D12_FEATURE_DATA_D3D12_OPTIONS6 m_Options6 = {};
+        D3D12_FEATURE_DATA_D3D12_OPTIONS7 m_Options7 = {};
     };
 } // namespace DSM 
 

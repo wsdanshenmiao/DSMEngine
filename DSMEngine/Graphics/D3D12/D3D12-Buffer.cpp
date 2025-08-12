@@ -5,7 +5,7 @@
 namespace DSM::D3D12{
     Buffer::~Buffer()
     {
-        if(m_Context.m_LogBufferLifetime){
+        if(m_Context.logBufferLifetime){
             m_Context.Info(std::format("Release buffer: {} {:#x}", 
                 m_Desc.debugName, resource->GetGPUVirtualAddress()));
         }
@@ -36,7 +36,7 @@ namespace DSM::D3D12{
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
         cbvDesc.BufferLocation = m_GpuVA + range.byteOffset;
         cbvDesc.SizeInBytes = Utility::Align((UINT)range.byteSize, c_ConstantBufferOffsetSizeAlignment);
-        m_Context.m_Device->CreateConstantBufferView(&cbvDesc, {descriptor});
+        m_Context.device->CreateConstantBufferView(&cbvDesc, {descriptor});
     }
     
     void Buffer::CreateSRV(size_t descriptor, Format format, BufferRange range, ResourceType type) const
@@ -80,7 +80,7 @@ namespace DSM::D3D12{
             return;
         }
 
-        m_Context.m_Device->CreateShaderResourceView(resource.Get(), &srvDesc, {descriptor});
+        m_Context.device->CreateShaderResourceView(resource.Get(), &srvDesc, {descriptor});
     }
     
     void Buffer::CreateUAV(size_t descriptor, Format format, BufferRange range, ResourceType type) const
@@ -123,7 +123,7 @@ namespace DSM::D3D12{
             return;
         }
 
-        m_Context.m_Device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, { descriptor });
+        m_Context.device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, { descriptor });
     }
 
     uint32_t Buffer::GetClearUAV()
@@ -146,7 +146,7 @@ namespace DSM::D3D12{
         srvDesc.Format = mapping.srvFormat;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        context.m_Device->CreateShaderResourceView(nullptr, &srvDesc, { descriptor });
+        context.device->CreateShaderResourceView(nullptr, &srvDesc, { descriptor });
     }
     
     void Buffer::CreateNullUAV(size_t descriptor, Format format, const Context &context)
@@ -156,6 +156,6 @@ namespace DSM::D3D12{
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format = mapping.srvFormat;
         uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-        context.m_Device->CreateUnorderedAccessView(nullptr, nullptr, &uavDesc, { descriptor });
+        context.device->CreateUnorderedAccessView(nullptr, nullptr, &uavDesc, { descriptor });
     }
 }

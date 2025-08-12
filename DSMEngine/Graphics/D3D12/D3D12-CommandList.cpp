@@ -6,6 +6,7 @@
 #include "D3D12-ResourceBindings.h"
 #include "D3d12-FrameBuffer.h"
 #include <functional>
+#include <pix.h>
 
 namespace DSM::D3D12{
     InternalCommandList *InternalCommandList::RequireCommandList(Device &device, const CommandListParameters &desc)
@@ -44,7 +45,9 @@ namespace DSM::D3D12{
         if(it == sm_CmdListPool.end()) return false;
 
         auto& retiredQueue = sm_RetiredCmdLists[(size_t)cmdList->type];
-        retiredQueue.emplace(cmdList->lastSubmittedInstance, cmdList);
+        cmdList->uploadBufferAllocator->Cleanup(cmdList->lastSubmittedFenceValue);
+        cmdList->uploadBufferAllocator->Cleanup(cmdList->lastSubmittedFenceValue);
+        retiredQueue.emplace(cmdList->lastSubmittedFenceValue, cmdList);
         
         return true;
     }
@@ -92,8 +95,8 @@ namespace DSM::D3D12{
             DynamicResourceAllocator::AllocateMode::GpuExclusive,
             desc.scratchChunkSize);
 
-        context.m_Device->CreateCommandAllocator(listType, IID_PPV_ARGS(allocator.GetAddressOf()));
-        context.m_Device->CreateCommandList(0, listType, allocator.Get(), nullptr, IID_PPV_ARGS(cmdList.GetAddressOf()));
+        context.device->CreateCommandAllocator(listType, IID_PPV_ARGS(allocator.GetAddressOf()));
+        context.device->CreateCommandList(0, listType, allocator.Get(), nullptr, IID_PPV_ARGS(cmdList.GetAddressOf()));
 
         cmdList->QueryInterface(IID_PPV_ARGS(cmdList4.GetAddressOf()));
         cmdList->QueryInterface(IID_PPV_ARGS(cmdList6.GetAddressOf()));
@@ -105,7 +108,7 @@ namespace DSM::D3D12{
         :m_Device(device), 
         m_Resources(resources), 
         m_Desc(std::move(desc)),
-        m_StateTracker(m_Device.GetContext().m_MessageCallback) { }
+        m_StateTracker(m_Device.GetContext().messageCallback) { }
 
     Object CommandList::GetNativeObject(ObjectType type)
     {
@@ -124,6 +127,7 @@ namespace DSM::D3D12{
 
     void CommandList::Open()
     {
+        // 在命令列表提交时释放
         m_CurrCmdList = InternalCommandList::RequireCommandList(m_Device, m_Desc);
 
         m_Instance = std::make_shared<CommandListInstance>();
@@ -134,7 +138,10 @@ namespace DSM::D3D12{
 
     void CommandList::Close()
     {
+        m_StateTracker.KeepBufferInitialStates();
+        m_StateTracker.KeepTextureInitialStates();
         CommitBarriers();
+
         auto hr = m_CurrCmdList->cmdList->Close();
         if(FAILED(hr)){
             std::string msg = std::format("Failed to close command list. Error msg: {}", GetErrorMessage(hr));
@@ -144,9 +151,7 @@ namespace DSM::D3D12{
 
         ClearStateCache();
 
-        // 释放命令列表
-        InternalCommandList::ReleaseCommandList(m_CurrCmdList);
-        m_CurrCmdList = nullptr;
+        m_VolatileBufferAddresses.clear();
     }
 
     void CommandList::ClearState()
@@ -342,7 +347,7 @@ namespace DSM::D3D12{
         uint32_t numRows;
         uint64_t rowSizeInBytes;
         uint64_t totalBytes;
-        m_Device.GetContext().m_Device->GetCopyableFootprints(
+        m_Device.GetContext().device->GetCopyableFootprints(
             &texture->resourceDesc, subresource, 1, 0, 
             &footprint, &numRows, &rowSizeInBytes, &totalBytes);
 
@@ -574,17 +579,7 @@ namespace DSM::D3D12{
         }
 
         if(updateFramebuffer){
-            if(m_EnableAutomaticBarriers){
-                SetResourceStatesForFramebuffer(framebuffer);
-            }
-            std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> RTVs(framebuffer->RTVs.size());
-            for(int i = 0; i < framebuffer->RTVs.size(); ++i){
-                RTVs[i] = m_Resources.shaderResourceViewHeap.GetCpuHandle(framebuffer->RTVs[i]);
-            }
-
-            D3D12_CPU_DESCRIPTOR_HANDLE DSV;
-            DSV = m_Resources.shaderResourceViewHeap.GetCpuHandle(framebuffer->DSV);
-            cmdList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, &DSV);
+            UpdateFramebuffer(framebuffer);
         }
 
         if(updatePipeline){
@@ -607,7 +602,7 @@ namespace DSM::D3D12{
         if(updateIndexBuffer){
             D3D12_INDEX_BUFFER_VIEW ibv{};
             if(state.indexBuffer.buffer != nullptr){
-                IBuffer* buffer = state.indexBuffer.buffer;
+                Buffer* buffer = Utility::CheckedCast<Buffer*>(state.indexBuffer.buffer);
                 m_Instance->refBuffer.push_back(buffer);
                 if(m_EnableAutomaticBarriers){
                     m_StateTracker.RequireBufferState(buffer, ResourceStates::IndexBuffer);
@@ -629,7 +624,7 @@ namespace DSM::D3D12{
             for(const auto& binding : state.vertexBuffers){
                 if(binding.slot >= c_MaxVertexAttributes) continue;
 
-                IBuffer* buffer = binding.buffer;
+                Buffer* buffer = Utility::CheckedCast<Buffer*>(binding.buffer);
                 m_Instance->refBuffer.push_back(buffer);
                 if(m_EnableAutomaticBarriers){
                     m_StateTracker.RequireBufferState(buffer, ResourceStates::VertexBuffer);
@@ -681,7 +676,7 @@ namespace DSM::D3D12{
         assert(indirectBuffer != nullptr);
 
         UpdateGraphicsVolatileBuffers();
-        auto commandSig = m_Device.GetContext().m_DrawIndirectSignature;
+        auto commandSig = m_Device.GetContext().drawIndirectSignature;
         m_CurrCmdList->cmdList->ExecuteIndirect(
             commandSig, drawCount, indirectBuffer->resource, offsetBytes, nullptr, 0);
     }
@@ -690,16 +685,202 @@ namespace DSM::D3D12{
     {        
         Buffer* indirectBuffer = Utility::CheckedCast<Buffer*>(m_CurrGraphicsState.indirectParams);
         assert(indirectBuffer != nullptr);
-        
+
         UpdateGraphicsVolatileBuffers();
-        auto commandSig = m_Device.GetContext().m_DrawIndexedIndirectSignature;
+        auto commandSig = m_Device.GetContext().drawIndexedIndirectSignature;
         m_CurrCmdList->cmdList->ExecuteIndirect(
             commandSig, drawCount, indirectBuffer->resource, offsetBytes, nullptr, 0);
+    }
+
+    void CommandList::SetComputeState(const ComputeState &state)
+    {
+        ComputePipeline* pso = Utility::CheckedCast<ComputePipeline*>(state.pipeline);
+        assert(pso !=nullptr);
+
+        const bool currStateInvalid = !m_CurrComputeStateValid;
+        const bool updatePipeline = currStateInvalid || m_CurrComputeState.pipeline != state.pipeline;
+        const bool updateRootSig = currStateInvalid || m_CurrComputeState.pipeline == nullptr ||
+            Utility::CheckedCast<ComputePipeline*>(m_CurrComputeState.pipeline)->rootSignature != pso->rootSignature;
+        const bool updateIndirectParams = currStateInvalid || state.indirectParams == nullptr ||
+            m_CurrComputeState.indirectParams != state.indirectParams;
+        
+        uint32_t bindingUpdateMask = 0;
+        if(CommitDescriptorHeaps() || currStateInvalid || updateRootSig){
+            bindingUpdateMask = uint32_t(-1);
+        }
+        if(bindingUpdateMask == 0){
+            bindingUpdateMask = Utility::ArrayDifferenceMask(m_CurrComputeState.bindings, state.bindings);
+        }
+
+        if(updatePipeline){
+            m_Instance->refResources.push_back(pso);
+
+            if(updateRootSig){
+                m_CurrCmdList->cmdList->SetComputeRootSignature(pso->rootSignature->rootSignature);
+            }
+            m_CurrCmdList->cmdList->SetPipelineState(pso->pipelineState);
+        }
+
+        SetResourceBindings(
+            state.bindings, 
+            bindingUpdateMask, 
+            state.indirectParams, 
+            updateIndirectParams, 
+            pso->rootSignature,
+            false);
+
+        CommitBarriers();
+
+        m_CurrComputeState = state;
+        m_CurrComputeStateValid = true;
+        m_CurrGraphicsStateValid = false;
+        m_CurrMeshletStateValid = false;
+    }
+
+    void CommandList::Dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ)
+    {
+        UpdateComputeVolatileBuffers();
+        m_CurrCmdList->cmdList->Dispatch(groupsX, groupsY, groupsZ);
+    }
+
+    void CommandList::DispatchIndirect(uint32_t offsetBytes)
+    {
+        Buffer* indirectBuffer = Utility::CheckedCast<Buffer*>(m_CurrComputeState.indirectParams);
+        UpdateComputeVolatileBuffers();
+        auto signature = m_Device.GetContext().dispatchIndirectSignature;
+        m_CurrCmdList->cmdList->ExecuteIndirect(signature, 1, indirectBuffer->resource, offsetBytes, nullptr, 0);
+    }
+
+    void CommandList::SetMeshletState(const MeshletState &state)
+    {
+        GraphicsPipeline* pso = Utility::CheckedCast<GraphicsPipeline*>(state.pipeline);
+        Framebuffer* framebuffer = Utility::CheckedCast<Framebuffer*>(state.framebuffer);
+        assert(pso != nullptr && framebuffer != nullptr);
+
+        const auto& psoDesc = pso->GetDesc();
+
+        const bool currStateInvalid = !m_CurrMeshletStateValid;
+
+        // 判断是否更新各个状态
+        const bool updatePipeline = currStateInvalid || m_CurrMeshletState.pipeline != state.pipeline;
+        const bool updateFramebuffer = currStateInvalid || m_CurrMeshletState.framebuffer != state.framebuffer;
+        const bool updateRootSig = currStateInvalid || m_CurrMeshletState.pipeline == nullptr || 
+            Utility::CheckedCast<GraphicsPipeline*>(m_CurrMeshletState.pipeline)->rootSignature != pso->rootSignature;
+        const bool updateIndirectParams = currStateInvalid || state.indirectParams == nullptr ||
+            m_CurrMeshletState.indirectParams != state.indirectParams;
+        const bool updateBlendFactor = currStateInvalid || m_CurrMeshletState.blendConstantColor != state.blendConstantColor;
+        const bool updateViewport = currStateInvalid || m_CurrMeshletState.viewport != state.viewport;
+
+        const uint8_t stencilRefValue = psoDesc.renderState.depthStencilState.dynamicStencilRef ?
+            state.dynamicStencilRefValue : psoDesc.renderState.depthStencilState.stencilRefValue;
+        const bool updateStencilRefValue = currStateInvalid || m_CurrMeshletState.dynamicStencilRefValue != stencilRefValue;
+        
+        uint32_t bindingUpdateMask = 0;
+        if(CommitDescriptorHeaps() || currStateInvalid || updateRootSig){
+            bindingUpdateMask = uint32_t(-1);
+        }
+        if(bindingUpdateMask == 0){
+            bindingUpdateMask = Utility::ArrayDifferenceMask(m_CurrMeshletState.bindings, state.bindings);
+        }
+
+        auto& cmdList = m_CurrCmdList->cmdList;
+
+        if(updateViewport){
+            DX12_ViewportState viewportState = ConvertViewportState(
+                psoDesc.renderState.rasterState, framebuffer->GetFramebufferInfo(), state.viewport);
+            if(viewportState.numViewports > 0){
+                cmdList->RSSetViewports(viewportState.numViewports, viewportState.viewports);
+            }
+            if(viewportState.numScissorRects > 0){
+                cmdList->RSSetScissorRects(viewportState.numScissorRects, viewportState.scissorRects);
+            }
+        }
+
+        if(updateFramebuffer){
+            UpdateFramebuffer(framebuffer);
+        }
+
+        if(updatePipeline){
+            m_Instance->refResources.push_back(pso);
+
+            if(updateRootSig){
+                cmdList->SetGraphicsRootSignature(pso->rootSignature->rootSignature);
+            }
+            cmdList->SetPipelineState(pso->pipelineState);
+            cmdList->IASetPrimitiveTopology(ConvertPrimitiveType(psoDesc.primType, psoDesc.patchControlPoints));            
+        }
+
+        if(updateBlendFactor && pso->requiresBlendFactor){
+            cmdList->OMSetBlendFactor(&state.blendConstantColor.r);
+        }
+        if(psoDesc.renderState.depthStencilState.stencilEnable && (updatePipeline || updateStencilRefValue)){
+            cmdList->OMSetStencilRef(stencilRefValue);
+        }
+
+        // 绑定描述符
+        SetResourceBindings( state.bindings, 
+            bindingUpdateMask, 
+            state.indirectParams, 
+            updateIndirectParams, 
+            pso->rootSignature, 
+            true);
+
+        CommitBarriers();
+
+        m_CurrGraphicsStateValid = false;
+        m_CurrComputeStateValid = false;
+        m_CurrMeshletStateValid = true;
+        m_CurrMeshletState = state;
+        m_CurrMeshletState.dynamicStencilRefValue = stencilRefValue;
+    }
+
+    void CommandList::DispatchMesh(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ)
+    {
+        UpdateGraphicsVolatileBuffers();
+        m_CurrCmdList->cmdList6->DispatchMesh(groupsX, groupsY, groupsZ);
+    }
+
+    void CommandList::BeginTimerQuery(ITimerQuery *_query)
+    {
+        TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
+        m_Instance->refTimerQuery.push_back(query);
+        m_CurrCmdList->cmdList->EndQuery(m_Device.GetContext().timerQueryHeap, D3D12_QUERY_TYPE_TIMESTAMP, query->beginQueryIndex);        
+    }
+
+    void CommandList::EndTimerQuery(ITimerQuery *_query)
+    {
+        TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
+        const auto& context = m_Device.GetContext();
+
+        m_Instance->refTimerQuery.push_back(query);
+
+        m_CurrCmdList->cmdList->EndQuery(context.timerQueryHeap, D3D12_QUERY_TYPE_TIMESTAMP, query->endQueryIndex);
+        m_CurrCmdList->cmdList->ResolveQueryData(context.timerQueryHeap,
+            D3D12_QUERY_TYPE_TIMESTAMP,
+            query->beginQueryIndex,
+            2,
+            context.timerQueryResolveBuffer->resource,
+            query->beginQueryIndex * 8);
+    }
+
+    void CommandList::BeginEvent(const char *name)
+    {
+        PIXBeginEvent(m_CurrCmdList->cmdList, 0, name);
+    }
+
+    void CommandList::EndEvent()
+    {
+        PIXEndEvent(m_CurrCmdList->cmdList);
     }
 
     DynamicResourceLocation CommandList::AllocateUploadBuffer(size_t size)
     {
         return m_CurrCmdList->uploadBufferAllocator->Allocate(size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+    }
+
+    DynamicResourceLocation CommandList::AllocateGpuBuffer(size_t size)
+    {
+        return m_CurrCmdList->gpuBufferAllocator->Allocate(size, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
     }
 
     bool CommandList::CommitDescriptorHeaps()
@@ -761,113 +942,6 @@ namespace DSM::D3D12{
         m_HasVolatileBufferWrites = false;
     }
 
-    void CommandList::SetResourceBindings(
-        const BindingSetVector &bindings, 
-        uint32_t bindingUpdateMask, 
-        IBuffer *indirectParams, 
-        bool updateIndirectParams, 
-        const RootSignature *rootSignature,
-        bool isGraphics)
-    {
-        if(updateIndirectParams && m_EnableAutomaticBarriers){
-            m_StateTracker.RequireBufferState(indirectParams, ResourceStates::IndirectArgument);
-            m_Instance->refBuffer.push_back(indirectParams);
-        }
-
-        uint32_t bindingMask = (1 << bindings.size()) - 1;
-        if((bindingMask & bindingUpdateMask) == bindingMask){
-            m_HasVolatileBufferWrites = false;
-        }
-
-        if(bindingUpdateMask == 0) return;
-        const auto& cmdList = m_CurrCmdList->cmdList;
-        auto setConstantBuffer = [&cmdList, isGraphics](UINT index, D3D12_GPU_VIRTUAL_ADDRESS address){
-            if(isGraphics){
-                cmdList->SetGraphicsRootConstantBufferView(index, address);
-            }
-            else{
-                cmdList->SetComputeRootConstantBufferView(index, address);
-            }
-        };
-        auto setDescriptorTable = [&cmdList, isGraphics](UINT index, D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle){
-            if(isGraphics){
-                cmdList->SetGraphicsRootDescriptorTable(index, gpuHandle);
-            }
-            else{
-                cmdList->SetComputeRootDescriptorTable(index, gpuHandle);
-            }
-        };
-
-        StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> newVolatileBuffers{};
-        for(size_t bindingIndex = 0; bindingIndex < bindings.size(); ++bindingIndex){
-            const auto& binding = bindings[bindingIndex];
-            if(binding == nullptr) continue;
-
-            const bool updateBinding = ((1 << bindingIndex) & bindingUpdateMask) != 0;
-            const auto& [rootIndexOffset, bindingLayout] = rootSignature->pipelineLayouts[bindingIndex];
-
-            if(binding->GetDesc() != nullptr){
-                BindingSet* bindingSet = Utility::CheckedCast<BindingSet*>(binding.Get());
-                assert(bindingLayout == bindingSet->GetLayout());
-
-                // 绑定常量缓冲区
-                for(const auto& [cbIndex, volatileCB] : bindingSet->rootParametersVolatileCBs){
-                    uint32_t rootIndex = cbIndex + rootIndexOffset;
-                    if(volatileCB == nullptr) continue;
-                    
-                    const auto& cbDesc = volatileCB->GetDesc();
-                    if(cbDesc.isVolatile){
-                        auto address = GetBufferGpuVA(volatileCB);
-                        if(address == 0){
-                            std::string msg = std::format("Attempted use of a volatile constant buffer {} before it was written into",
-                                DebugNameToString(volatileCB->GetDesc().debugName));
-                            m_Device.GetContext().Error(msg);
-                            continue;       
-                        }
-                        if (updateBinding || address != m_GraphicsVolatileBuffers[newVolatileBuffers.size()].address) {
-                            setConstantBuffer(rootIndex, address);
-                        }
-
-                        VolatileBufferBinding cbBinding{};
-                        cbBinding.buffer = volatileCB;
-                        cbBinding.address = address;
-                        cbBinding.rootParaIndex = rootIndex;
-                        newVolatileBuffers.push_back(std::move(cbBinding));
-                    }
-                    else if(updateBinding){
-                        setConstantBuffer(rootIndex, GetBufferGpuVA(volatileCB));
-                    }
-                }
-
-                if (updateBinding) {
-                    if (bindingSet->hasSamplers) {
-                        setDescriptorTable( rootIndexOffset + bindingSet->descriptorIndexSamplers,
-                            m_Resources.samplerHeap.GetGpuHandle(bindingSet->descriptorIndexSamplers));
-                    }
-                    if (bindingSet->hasSRVs) {
-                        setDescriptorTable(rootIndexOffset + bindingSet->descriptorIndexSRVs,
-                            m_Resources.shaderResourceViewHeap.GetGpuHandle(bindingSet->descriptorIndexSRVs));
-                    }
-                    if(bindingSet->GetDesc()->trackLiveness){
-                        m_Instance->refResources.push_back(bindingSet);
-                    }
-                }
-
-                if (m_EnableAutomaticBarriers && (updateBinding || bindingSet->hasUAVs)) {
-                    SetResourceStatesForBindingSet(bindingSet);
-                }
-            }
-            else if(rootIndexOffset != c_InvalidRootParameterIndex){  // DecriptorTable
-                DescriptorTable* table = Utility::CheckedCast<DescriptorTable*>(binding.Get());
-                auto gpuHandle = m_Resources.shaderResourceViewHeap.GetGpuHandle(table->firstDescriptor);
-                setDescriptorTable(rootIndexOffset, gpuHandle);
-            }
-        }
-
-        auto& volatileBuffers = isGraphics ? m_GraphicsVolatileBuffers : m_ComputeVolatileBuffers;
-        volatileBuffers = newVolatileBuffers;
-    }
-
     void CommandList::SetEnableAutomaticBarriers(bool enable)
     {
         m_EnableAutomaticBarriers = enable;
@@ -902,7 +976,7 @@ namespace DSM::D3D12{
 
     void CommandList::SetBufferState(IBuffer *b, ResourceStates stateBits)
     {
-        m_Instance->refBuffer.push_back(b);
+        m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(b));
         m_StateTracker.RequireBufferState(b, stateBits);
     }
 
@@ -1027,6 +1101,141 @@ namespace DSM::D3D12{
         return &m_Device;
     }
  
+    void CommandList::SetResourceBindings(
+        const BindingSetVector &bindings, 
+        uint32_t bindingUpdateMask, 
+        IBuffer *indirectParams, 
+        bool updateIndirectParams, 
+        const RootSignature *rootSignature,
+        bool isGraphics)
+    {
+        if(updateIndirectParams && m_EnableAutomaticBarriers){
+            m_StateTracker.RequireBufferState(indirectParams, ResourceStates::IndirectArgument);
+            m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(indirectParams));
+        }
+
+        uint32_t bindingMask = (1 << bindings.size()) - 1;
+        if((bindingMask & bindingUpdateMask) == bindingMask){
+            m_HasVolatileBufferWrites = false;
+        }
+
+        if(bindingUpdateMask == 0) return;
+        const auto& cmdList = m_CurrCmdList->cmdList;
+        auto setConstantBuffer = [&cmdList, isGraphics](UINT index, D3D12_GPU_VIRTUAL_ADDRESS address){
+            if(isGraphics){
+                cmdList->SetGraphicsRootConstantBufferView(index, address);
+            }
+            else{
+                cmdList->SetComputeRootConstantBufferView(index, address);
+            }
+        };
+        auto setDescriptorTable = [&cmdList, isGraphics](UINT index, D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle){
+            if(isGraphics){
+                cmdList->SetGraphicsRootDescriptorTable(index, gpuHandle);
+            }
+            else{
+                cmdList->SetComputeRootDescriptorTable(index, gpuHandle);
+            }
+        };
+
+        StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> newVolatileBuffers{};
+        for(size_t bindingIndex = 0; bindingIndex < bindings.size(); ++bindingIndex){
+            const auto& binding = bindings[bindingIndex];
+            if(binding == nullptr) continue;
+
+            const bool updateBinding = ((1 << bindingIndex) & bindingUpdateMask) != 0;
+            const auto& [rootIndexOffset, bindingLayout] = rootSignature->pipelineLayouts[bindingIndex];
+
+            if(binding->GetDesc() != nullptr){
+                BindingSet* bindingSet = Utility::CheckedCast<BindingSet*>(binding.Get());
+                assert(bindingLayout == bindingSet->GetLayout());
+
+                // 绑定常量缓冲区
+                for(const auto& [cbIndex, volatileCB] : bindingSet->rootParametersVolatileCBs){
+                    uint32_t rootIndex = cbIndex + rootIndexOffset;
+                    if(volatileCB == nullptr) continue;
+                    
+                    const auto& cbDesc = volatileCB->GetDesc();
+                    if(cbDesc.isVolatile){
+                        auto address = GetBufferGpuVA(volatileCB);
+                        if(address == 0){
+                            std::string msg = std::format("Attempted use of a volatile constant buffer {} before it was written into",
+                                DebugNameToString(volatileCB->GetDesc().debugName));
+                            m_Device.GetContext().Error(msg);
+                            continue;       
+                        }
+                        if (updateBinding || address != m_GraphicsVolatileBuffers[newVolatileBuffers.size()].address) {
+                            setConstantBuffer(rootIndex, address);
+                        }
+
+                        VolatileBufferBinding cbBinding{};
+                        cbBinding.buffer = volatileCB;
+                        cbBinding.address = address;
+                        cbBinding.rootParaIndex = rootIndex;
+                        newVolatileBuffers.push_back(std::move(cbBinding));
+                    }
+                    else if(updateBinding){
+                        setConstantBuffer(rootIndex, GetBufferGpuVA(volatileCB));
+                    }
+                }
+
+                if (updateBinding) {
+                    if (bindingSet->hasSamplers) {
+                        setDescriptorTable( rootIndexOffset + bindingSet->descriptorIndexSamplers,
+                            m_Resources.samplerHeap.GetGpuHandle(bindingSet->descriptorIndexSamplers));
+                    }
+                    if (bindingSet->hasSRVs) {
+                        setDescriptorTable(rootIndexOffset + bindingSet->descriptorIndexSRVs,
+                            m_Resources.shaderResourceViewHeap.GetGpuHandle(bindingSet->descriptorIndexSRVs));
+                    }
+                    if(bindingSet->GetDesc()->trackLiveness){
+                        m_Instance->refResources.push_back(bindingSet);
+                    }
+                }
+
+                if (m_EnableAutomaticBarriers && (updateBinding || bindingSet->hasUAVs)) {
+                    SetResourceStatesForBindingSet(bindingSet);
+                }
+            }
+            else if(rootIndexOffset != c_InvalidRootParameterIndex){  // DecriptorTable
+                DescriptorTable* table = Utility::CheckedCast<DescriptorTable*>(binding.Get());
+                auto gpuHandle = m_Resources.shaderResourceViewHeap.GetGpuHandle(table->firstDescriptor);
+                setDescriptorTable(rootIndexOffset, gpuHandle);
+            }
+        }
+
+        auto& volatileBuffers = isGraphics ? m_GraphicsVolatileBuffers : m_ComputeVolatileBuffers;
+        volatileBuffers = newVolatileBuffers;
+    }
+
+
+    std::shared_ptr<CommandListInstance> CommandList::Executed(CommandQueue &queue)
+    {
+        std::shared_ptr<CommandListInstance> instance = m_Instance;
+        instance->fence = queue.GetFence();
+        instance->submitFenceValue = queue.GetNextFenceValue() - 1;
+        m_Instance = nullptr;
+
+        m_CurrCmdList->lastSubmittedFenceValue = instance->submitFenceValue;
+        // 释放命令列表
+        assert(InternalCommandList::ReleaseCommandList(m_CurrCmdList));
+        m_CurrCmdList = nullptr;
+
+        for (const auto& buffer : instance->refBuffer) {
+            buffer->lastUseFence = queue.GetFence();
+            buffer->lastUseFenceValue = instance->submitFenceValue;
+        }
+        for (const auto& timer : instance->refTimerQuery) {
+            timer->fence = queue.GetFence();
+            timer->fenceCounter = instance->submitFenceValue;
+            timer->resolved = false;
+            timer->started = true;
+        }
+
+        m_StateTracker.CommandListSubmitted();
+        
+        return instance;
+    }
     
 
 
@@ -1043,5 +1252,20 @@ namespace DSM::D3D12{
         m_ComputeVolatileBuffers.resize(0);
     }
 
+    void CommandList::UpdateFramebuffer(Framebuffer *framebuffer)
+    {
+        if(m_EnableAutomaticBarriers){
+            SetResourceStatesForFramebuffer(framebuffer);
+        }
+        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> RTVs(framebuffer->RTVs.size());
+        for(int i = 0; i < framebuffer->RTVs.size(); ++i){
+            RTVs[i] = m_Resources.shaderResourceViewHeap.GetCpuHandle(framebuffer->RTVs[i]);
+        }
 
+        D3D12_CPU_DESCRIPTOR_HANDLE DSV;
+        DSV = m_Resources.shaderResourceViewHeap.GetCpuHandle(framebuffer->DSV);
+        m_CurrCmdList->cmdList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, &DSV);
+
+        m_Instance->refResources.push_back(framebuffer);
+    }
 }

@@ -120,28 +120,28 @@ namespace DSM{
 
         struct Context
         {
-            RefPtr<ID3D12Device> m_Device;
-            RefPtr<ID3D12Device2> m_Device2;
-            RefPtr<ID3D12Device5> m_Device5;
-            RefPtr<ID3D12Device8> m_Device8;
+            RefPtr<ID3D12Device> device;
+            RefPtr<ID3D12Device2> device2;
+            RefPtr<ID3D12Device5> device5;
+            RefPtr<ID3D12Device8> device8;
 
-            RefPtr<ID3D12CommandSignature> m_DrawIndirectSignature;
-            RefPtr<ID3D12CommandSignature> m_DrawIndexedIndirectSignature;
-            RefPtr<ID3D12CommandSignature> m_DispatchIndirectSignature;
-            RefPtr<ID3D12QueryHeap> m_TimerQueryHeap;
-            RefPtr<Buffer> m_TimerQueryResolveBuffer;
+            RefPtr<ID3D12CommandSignature> drawIndirectSignature;
+            RefPtr<ID3D12CommandSignature> drawIndexedIndirectSignature;
+            RefPtr<ID3D12CommandSignature> dispatchIndirectSignature;
+            RefPtr<ID3D12QueryHeap> timerQueryHeap;
+            RefPtr<Buffer> timerQueryResolveBuffer;
 
-            bool m_LogBufferLifetime = false;
-            IMessageCallback* m_MessageCallback = nullptr;
+            bool logBufferLifetime = false;
+            IMessageCallback* messageCallback = nullptr;
             
             void Error(const std::string& message) const
             {
-                m_MessageCallback->Message(MessageSeverity::Error, message.c_str());
+                messageCallback->Message(MessageSeverity::Error, message.c_str());
             }
 
             void Info(const std::string& message) const
             {
-                m_MessageCallback->Message(MessageSeverity::Info, message.c_str());
+                messageCallback->Message(MessageSeverity::Info, message.c_str());
             }
         };
 

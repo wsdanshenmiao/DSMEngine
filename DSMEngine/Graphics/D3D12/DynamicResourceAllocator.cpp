@@ -140,7 +140,7 @@ namespace DSM::D3D12 {
         }
         
         ID3D12Resource* ret = nullptr;
-        auto hr = m_Context.m_Device->CreateCommittedResource(
+        auto hr = m_Context.device->CreateCommittedResource(
             &heapProp, 
             D3D12_HEAP_FLAG_NONE, 
             &resourceDesc, 

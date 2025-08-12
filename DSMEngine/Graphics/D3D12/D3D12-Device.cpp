@@ -7,7 +7,10 @@
 #include "D3D12-ResourceBindings.h"
 #include "D3D12-Shader.h"
 #include "D3D12-PipelineState.h"
+#include "D3D12-CommandList.h"
 #include <format>
+#include <dxgi1_6.h>
+#include <dxgidebug.h>
 
 // 通过栅栏值的偏移来直接获取队列的类型
 #define QUEUE_TYPE_MOVEBITS 56
@@ -30,7 +33,7 @@ namespace DSM::D3D12{
         }
         else{
             D3D12_FEATURE_DATA_FORMAT_INFO info = {.Format = format, .PlaneCount = 1};
-            if(FAILED(m_Context.m_Device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_INFO, &info, sizeof(info)))){
+            if(FAILED(m_Context.device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_INFO, &info, sizeof(info)))){
                 planeCount = 255;
             }
             else{
@@ -60,19 +63,29 @@ namespace DSM::D3D12{
         case CommandQueueType::Copy:
             queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY; break;
         default:
-            assert(!"Invalid command queue type.");
             return;
         }
-        ID3D12Device* d3ddevice = m_Device.GetContext().m_Device;
-        auto hr = d3ddevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_CommandQueue.GetAddressOf()));
+        const auto& context = m_Device.GetContext();
+        auto hr = context.device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_CommandQueue.GetAddressOf()));
+        if(FAILED(hr)){
+            context.Error(std::format("Failed to create command queue. Error msg: {}.", GetErrorMessage(hr)));
+            m_CommandQueue = nullptr;
+            return;
+        }
 
-        hr = d3ddevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_Fence.GetAddressOf()));
-        assert(SUCCEEDED(hr));
+        hr = context.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_Fence.GetAddressOf()));
+        if(FAILED(hr)){
+            context.Error(std::format("Failed to create fence. Error msg: {}.", GetErrorMessage(hr)));
+            m_CommandQueue = nullptr;
+            return;
+        }
         m_Fence->SetName(L"CommandQueue::m_Fence");
         m_Fence->Signal(m_LastCompletedFenceValue);
 
         m_FenceEventHandle = CreateEvent(nullptr, false, false, nullptr);
-        assert(m_FenceEventHandle != nullptr);
+        if(m_FenceEventHandle == nullptr){
+            m_CommandQueue = nullptr;
+        }
     }
 
     uint64_t CommandQueue::IncrementFence()
@@ -120,17 +133,38 @@ namespace DSM::D3D12{
         m_LastCompletedFenceValue = fenceValue;
     }
 
-    uint64_t CommandQueue::ExecuteCommandList(ID3D12CommandList *list)
+    uint64_t CommandQueue::ExecuteCommandList(std::span<DSM::ICommandList* const> cmdLists)
     {
-        assert(list != nullptr);
+        assert(!cmdLists.empty());
     
         std::lock_guard<std::mutex> guard{m_EventMutex};
 
-        m_CommandQueue->ExecuteCommandLists(1, &list);
-        m_CommandQueue->Signal(m_Fence.Get(), m_NextFenceValue);
-        
-        return m_NextFenceValue++;
+        std::vector<ID3D12CommandList*> d3dCmdLists{};
+        d3dCmdLists.reserve(cmdLists.size());
+        for(const auto& cmdList : cmdLists){
+            d3dCmdLists.push_back(Utility::CheckedCast<CommandList*>(cmdList)->GetNativeObject(ObjectTypes::D3D12_GraphicsCommandList));
+        }
+
+        m_CommandQueue->ExecuteCommandLists(uint32_t(d3dCmdLists.size()), d3dCmdLists.data());
+        IncrementFence();
+
+        for (const auto& cmdList : cmdLists) {
+            // 执行完后 cmdList 内的命令列表变为空
+            auto instance = Utility::CheckedCast<CommandList*>(cmdList)->Executed(*this);
+            m_ActiveCmdLists.push(instance);
+        }
+
+        return m_NextFenceValue - 1;
     }
+
+    void CommandQueue::ClearCompletedCmdList()
+    {
+        while (!m_ActiveCmdLists.empty() && 
+            IsFenceComplete(m_ActiveCmdLists.front()->submitFenceValue)) {
+            m_ActiveCmdLists.pop();
+        }
+    }
+
 
 
 
@@ -139,11 +173,162 @@ namespace DSM::D3D12{
     // Device
     //////////////////////////////////////////////////////////////////////////
 
+    Device::Device(DeviceDesc desc)
+        :m_Desc(std::move(desc)), m_Resources(m_Context, m_Desc) {
+        m_Context.messageCallback = desc.errorCB;
+        m_Context.logBufferLifetime = desc.logBufferLifetime;
+
+        DWORD factoryFlags = 0;
+#if defined(DEBUG) || defined(_DEBUG) || 1
+        // 开启调试层
+        RefPtr<ID3D12Debug> pDebug{};
+        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(pDebug.GetAddressOf())))) {
+            pDebug->EnableDebugLayer();
+            RefPtr<ID3D12Debug1> pDebug1{};
+            if (SUCCEEDED(pDebug->QueryInterface(IID_PPV_ARGS(pDebug1.GetAddressOf())))) {
+                pDebug1->SetEnableGPUBasedValidation(true);
+            }
+        }
+        else {
+            m_Context.messageCallback->Message(MessageSeverity::Warning, "Failed to get D3D12 debug interface");
+        }
+
+        RefPtr<IDXGIInfoQueue> dxgiInfoQueue;
+        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgiInfoQueue.GetAddressOf())))) {
+            factoryFlags = DXGI_CREATE_FACTORY_DEBUG;
+
+            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
+            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
+
+            DXGI_INFO_QUEUE_MESSAGE_ID hide[] = {
+                80 /* IDXGISwapChain::GetContainingOutput: The swapchain's adapter does not control the output on which the swapchain's window resides. */,
+            };
+            DXGI_INFO_QUEUE_FILTER filter = {};
+            filter.DenyList.NumIDs = _countof(hide);
+            filter.DenyList.pIDList = hide;
+            dxgiInfoQueue->AddStorageFilterEntries(DXGI_DEBUG_DXGI, &filter);
+        }
+#endif
+        auto errorMsg = [this](const std::string& msg, HRESULT hr){
+            std::string error = std::format("{}.Error msg: {}.", msg, GetErrorMessage(hr));
+            m_Context.Error(error);
+            throw std::runtime_error(error);
+        };
+
+        RefPtr<IDXGIFactory6> dxgiFactory;
+        auto hr = CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(dxgiFactory.GetAddressOf()));
+        if(FAILED(hr)){
+            errorMsg("Create dxgifactory failed.", hr);
+        }
+
+        // 创建图形设备
+        RefPtr<IDXGIAdapter1> dxgiAdapter;
+        RefPtr<ID3D12Device> device;
+        SIZE_T maxSize{};
+        for (uint32_t i = 0; DXGI_ERROR_NOT_FOUND != dxgiFactory->EnumAdapters1(i, &dxgiAdapter); ++i) {
+            DXGI_ADAPTER_DESC1 dxgiDesc{};
+            dxgiAdapter->GetDesc1(&dxgiDesc);
+
+            if (HasFlags((DXGI_ADAPTER_FLAG)dxgiDesc.Flags , DXGI_ADAPTER_FLAG_SOFTWARE) ||
+                dxgiDesc.DedicatedVideoMemory < maxSize) {
+                continue;
+            }
+            if(hr = D3D12CreateDevice(dxgiAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)); 
+                FAILED(hr)) { continue; }
+
+            maxSize = dxgiDesc.DedicatedVideoMemory;
+
+            m_Context.Info(std::format("Selected GPU:  {} ({} MB)", 
+                Utility::WStringToUTF8(dxgiDesc.Description), dxgiDesc.DedicatedVideoMemory >> 20));
+        }
+        
+        // 硬件不支持则使用软适配器
+        if (device == nullptr) {
+            m_Context.Info("Failed to find a hardware adapter.  Falling back to WARP.\n");
+            hr = dxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(dxgiAdapter.GetAddressOf()));
+            hr = D3D12CreateDevice(dxgiAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(device.GetAddressOf()));
+            if(FAILED(hr)){
+                errorMsg("Failed to create device.", hr);
+            }
+        }
+
+        
+        // 创建设备相关资源
+        m_Context.device = device;
+        for(size_t i = 0; i < size_t(CommandQueueType::Count); ++i){
+            m_CommandQueues[i] = std::make_unique<CommandQueue>(*this, CommandQueueType(i));
+            if(m_CommandQueues[i]->GetCommandQueue() == nullptr){   // 创建队列失败则置空
+                m_CommandQueues[i] = nullptr;
+            }
+        }
+        if(m_CommandQueues[size_t(CommandQueueType::Graphics)] == nullptr){
+            errorMsg("Failed to create graphics command queue.", 0);
+        }
+        
+        m_Resources.shaderResourceViewHeap.AllocateResource(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, m_Desc.shaderResourceViewHeapSize, true);
+        m_Resources.depthStencilViewHeap.AllocateResource(
+            D3D12_DESCRIPTOR_HEAP_TYPE_DSV, m_Desc.depthStencilViewHeapSize, false);
+        m_Resources.renderTargetViewHeap.AllocateResource(
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV, m_Desc.renderTargetViewHeapSize, false);
+        m_Resources.samplerHeap.AllocateResource(
+            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, m_Desc.samplerHeapSize, false);
+        
+
+        // 检测特性支持
+        m_Context.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &m_Options, sizeof(m_Options));
+        m_Context.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &m_Options1, sizeof(m_Options1));
+        bool hasOptions5 = SUCCEEDED(m_Context.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &m_Options5, sizeof(m_Options5)));
+        bool hasOptions6 = SUCCEEDED(m_Context.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS6, &m_Options6, sizeof(m_Options6)));
+        bool hasOptions7 = SUCCEEDED(m_Context.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &m_Options7, sizeof(m_Options7)));
+
+        if (SUCCEEDED(m_Context.device->QueryInterface(&m_Context.device5)) && hasOptions5) {
+            m_RayTracingSupported = m_Options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0;
+            m_TraceRayInlineSupported = m_Options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1;
+        }
+        if (SUCCEEDED(m_Context.device->QueryInterface(&m_Context.device2)) && hasOptions7) {
+            m_MeshletsSupported = m_Options7.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1;
+        }
+        if (SUCCEEDED(m_Context.device->QueryInterface(&m_Context.device8)) && hasOptions7) {
+            m_SamplerFeedbackSupported = m_Options7.SamplerFeedbackTier >= D3D12_SAMPLER_FEEDBACK_TIER_0_9;
+        }        
+        if (hasOptions6) {
+            m_VariableRateShadingSupported = m_Options6.VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER_2;
+        }
+
+
+        // 创建命令签名
+        D3D12_INDIRECT_ARGUMENT_DESC argDesc = {};
+        D3D12_COMMAND_SIGNATURE_DESC csDesc = {};
+        csDesc.NumArgumentDescs = 1;
+        csDesc.pArgumentDescs = &argDesc;
+
+        csDesc.ByteStride = sizeof(D3D12_DRAW_ARGUMENTS);
+        argDesc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW;
+        m_Context.device->CreateCommandSignature(&csDesc, nullptr, IID_PPV_ARGS(&m_Context.drawIndirectSignature));
+
+        csDesc.ByteStride = sizeof(D3D12_DRAW_INDEXED_ARGUMENTS);
+        argDesc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
+        m_Context.device->CreateCommandSignature(&csDesc, nullptr, IID_PPV_ARGS(&m_Context.drawIndexedIndirectSignature));
+
+        csDesc.ByteStride = sizeof(D3D12_DISPATCH_ARGUMENTS);
+        argDesc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH;
+        m_Context.device->CreateCommandSignature(&csDesc, nullptr, IID_PPV_ARGS(&m_Context.dispatchIndirectSignature));
+
+        m_FenceEvent = CreateEvent(nullptr, false, false, nullptr);
+    }
+
+    Device::~Device()
+    {
+        WaitForIdle();
+
+    }
+
     Object Device::GetNativeObject(ObjectType type)
     {
         switch (type) {
         case ObjectTypes::D3D12_Device:
-            return Object(m_Context.m_Device);
+            return Object(m_Context.device);
         case ObjectTypes::D3D12_CommandQueue:
             return Object(GetQueue(CommandQueueType::Graphics)->GetCommandQueue());
         default:
@@ -182,7 +367,7 @@ namespace DSM::D3D12{
             D3D12_HEAP_FLAG_DENY_NON_RT_DS_TEXTURES : D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES;
 
         RefPtr<ID3D12Heap> d3dHeap{};
-        auto hr = m_Context.m_Device->CreateHeap(&heapDesc, IID_PPV_ARGS(d3dHeap.GetAddressOf()));
+        auto hr = m_Context.device->CreateHeap(&heapDesc, IID_PPV_ARGS(d3dHeap.GetAddressOf()));
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create heap {}, error msg: {}", 
@@ -237,13 +422,13 @@ namespace DSM::D3D12{
         // 创建资源
         HRESULT hr = S_OK;
         if(desc.isTiled){
-            hr = m_Context.m_Device->CreateReservedResource(
+            hr = m_Context.device->CreateReservedResource(
                 &resourceDesc, ConvertResourceStates(desc.initialState),
                 &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
         }
         else{
             heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
-            hr = m_Context.m_Device->CreateCommittedResource(
+            hr = m_Context.device->CreateCommittedResource(
                 &heapProp, heapFlags, 
                 &resourceDesc, ConvertResourceStates(desc.initialState),
                 &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
@@ -259,7 +444,7 @@ namespace DSM::D3D12{
 
         // 创建共享句柄
         if(isShared){
-            hr = m_Context.m_Device->CreateSharedHandle(
+            hr = m_Context.device->CreateSharedHandle(
                 resource.Get(), nullptr, GENERIC_ALL, nullptr, &texture->sharedHandle);
             return TextureHandle{nullptr};
         }
@@ -276,7 +461,7 @@ namespace DSM::D3D12{
     {
         Texture* tex = Utility::CheckedCast<Texture*>(texture);
 
-        D3D12_RESOURCE_ALLOCATION_INFO info = m_Context.m_Device->GetResourceAllocationInfo(1, 1, &tex->resourceDesc);
+        D3D12_RESOURCE_ALLOCATION_INFO info = m_Context.device->GetResourceAllocationInfo(1, 1, &tex->resourceDesc);
         MemoryRequirements ret{};
         ret.size = info.SizeInBytes;
         ret.alignment = info.Alignment;
@@ -293,7 +478,7 @@ namespace DSM::D3D12{
         if(heap == nullptr || !texture->GetDesc().isVirtual) return false;
 
         D3D12_CLEAR_VALUE clearValue = Texture::ConvertClearValue(texture->GetDesc());
-        auto hr = m_Context.m_Device->CreatePlacedResource(
+        auto hr = m_Context.device->CreatePlacedResource(
             heap->GetHeap(), 
             offset, 
             &texture->resourceDesc, 
@@ -332,7 +517,7 @@ namespace DSM::D3D12{
         D3D12_TILE_SHAPE tileShape{};
         D3D12_SUBRESOURCE_TILING subresourceTilings[16];
 
-        m_Context.m_Device->GetResourceTiling(
+        m_Context.device->GetResourceTiling(
             resource, numTiles, desc == nullptr ? nullptr : &packedMipInfo, 
             _tileShape == nullptr ? nullptr : &tileShape, 
             _subresourceTilingsNum, 0, subresourceTilings);
@@ -355,6 +540,78 @@ namespace DSM::D3D12{
             _subresourceTilings[i].startTileIndexInOverallResource = subresourceTilings[i].StartTileIndexInOverallResource;
         }
     }
+
+    void Device::UpdateTextureTileMappings(ITexture *_texture, const TextureTilesMapping *tileMappings, uint32_t numTileMappings, CommandQueueType executionQueue)
+    {
+        CommandQueue* queue = GetQueue(executionQueue);
+        Texture* texture = Utility::CheckedCast<Texture*>(_texture);
+
+        D3D12_TILE_SHAPE tileShape;
+        D3D12_SUBRESOURCE_TILING subresourceTiling;
+        m_Context.device->GetResourceTiling(texture->resource, nullptr, nullptr, &tileShape, nullptr, 0, &subresourceTiling);
+
+        for (size_t i = 0; i < numTileMappings; i++)
+        {
+            IHeap* iHeap = tileMappings[i].heap;
+            ID3D12Heap* heap = iHeap == nullptr ? Utility::CheckedCast<Heap*>(iHeap)->GetHeap() : nullptr;
+
+            uint32_t numRegions = tileMappings[i].numTextureRegions;
+            std::vector<D3D12_TILED_RESOURCE_COORDINATE> resourceCoordinates(numRegions);
+            std::vector<D3D12_TILE_REGION_SIZE> regionSizes(numRegions);
+            std::vector<D3D12_TILE_RANGE_FLAGS> rangeFlags(numRegions, heap ? D3D12_TILE_RANGE_FLAG_NONE : D3D12_TILE_RANGE_FLAG_NULL);
+            std::vector<UINT> heapStartOffsets(numRegions);
+            std::vector<UINT> rangeTileCounts(numRegions);
+
+            for (uint32_t j = 0; j < numRegions; ++j)
+            {
+                const TiledTextureCoordinate& tiledTexCoordinate = tileMappings[i].tiledTextureCoordinates[j];
+                const TiledTextureRegion& tiledTexRegion = tileMappings[i].tiledTextureRegions[j];
+
+                resourceCoordinates[j].Subresource = tiledTexCoordinate.mipLevel * texture->GetDesc().arraySize + tiledTexCoordinate.arrayLevel;
+                resourceCoordinates[j].X = tiledTexCoordinate.x;
+                resourceCoordinates[j].Y = tiledTexCoordinate.y;
+                resourceCoordinates[j].Z = tiledTexCoordinate.z;
+
+                if (tiledTexRegion.tilesNum > 0) {
+                    regionSizes[j].NumTiles = tiledTexRegion.tilesNum;
+                    regionSizes[j].UseBox = false;
+                }
+                else {
+                    uint32_t tilesX = (tiledTexRegion.width + (tileShape.WidthInTexels - 1)) / tileShape.WidthInTexels;
+                    uint32_t tilesY = (tiledTexRegion.height + (tileShape.HeightInTexels - 1)) / tileShape.HeightInTexels;
+                    uint32_t tilesZ = (tiledTexRegion.depth + (tileShape.DepthInTexels - 1)) / tileShape.DepthInTexels;
+
+                    regionSizes[j].Width = tilesX;
+                    regionSizes[j].Height = (uint16_t)tilesY;
+                    regionSizes[j].Depth = (uint16_t)tilesZ;
+
+                    regionSizes[j].NumTiles = tilesX * tilesY * tilesZ;
+                    regionSizes[j].UseBox = true;
+                }
+
+                // Offset in tiles
+                if (heap)
+                    heapStartOffsets[j] = (uint32_t)(tileMappings[i].byteOffsets[j] / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES);
+
+                rangeTileCounts[j] = regionSizes[j].NumTiles;
+            }
+
+            queue->GetCommandQueue()->UpdateTileMappings(
+                texture->resource, 
+                tileMappings[i].numTextureRegions, 
+                resourceCoordinates.data(), 
+                regionSizes.data(), 
+                heap, 
+                numRegions, 
+                rangeFlags.data(), 
+                heap ? heapStartOffsets.data() : nullptr, 
+                rangeTileCounts.data(), 
+                D3D12_TILE_MAPPING_FLAG_NONE);
+        }
+    }
+
+
+
 
     //////////////////////////////////////////////////////////////////////////
     // Buffer
@@ -428,7 +685,7 @@ namespace DSM::D3D12{
             resourceState = D3D12_RESOURCE_STATE_COMMON;
         }
 
-        auto hr = m_Context.m_Device->CreateCommittedResource(
+        auto hr = m_Context.device->CreateCommittedResource(
             &heapProp, heapFlags, 
             &resourceDesc, resourceState,
             nullptr, IID_PPV_ARGS(buffer->resource.GetAddressOf()));
@@ -487,7 +744,7 @@ namespace DSM::D3D12{
     {
         Buffer* buffer = Utility::CheckedCast<Buffer*>(_buffer);
 
-        auto info = m_Context.m_Device->GetResourceAllocationInfo(1, 1, &buffer->resourceDesc);
+        auto info = m_Context.device->GetResourceAllocationInfo(1, 1, &buffer->resourceDesc);
         MemoryRequirements memReq{};
         memReq.size = info.SizeInBytes;
         memReq.alignment = info.Alignment;
@@ -507,7 +764,7 @@ namespace DSM::D3D12{
         if(resourceState != D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
             resourceState = D3D12_RESOURCE_STATE_COMMON;
 
-        auto hr = m_Context.m_Device->CreatePlacedResource(
+        auto hr = m_Context.device->CreatePlacedResource(
             heap->GetHeap(), offset,
             &buffer->resourceDesc, resourceState, 
             nullptr, IID_PPV_ARGS(buffer->resource.GetAddressOf()));
@@ -615,7 +872,163 @@ namespace DSM::D3D12{
 
         return InputLayoutHandle(layout);
     }
-    
+
+    EventQueryHandle Device::CreateEventQuery()
+    {
+        return EventQueryHandle(new EventQuery());
+    }
+
+    void Device::SetEventQuery(IEventQuery *_query, CommandQueueType queue)
+    {
+        EventQuery* query = Utility::CheckedCast<EventQuery*>(_query);
+        CommandQueue* pQueue = GetQueue(queue);
+        
+        query->started = true;
+        query->fence = pQueue->GetFence();
+        query->fenceCounter = pQueue->GetNextFenceValue() - 1;
+        query->resolved = false;
+    }
+
+    bool Device::PollEventQuery(IEventQuery *_query)
+    {
+        EventQuery* query = Utility::CheckedCast<EventQuery*>(_query);
+
+        if (!query->started)
+            return false;
+
+        if (query->resolved)
+            return true;
+
+        assert(query->fence);
+        
+        if (query->fence->GetCompletedValue() >= query->fenceCounter) {
+            query->resolved = true;
+            query->fence = nullptr;
+        }
+
+        return query->resolved;
+    }
+
+    void Device::WaitEventQuery(IEventQuery *_query)
+    {
+        EventQuery* query = Utility::CheckedCast<EventQuery*>(_query);
+
+        if (!query->started || query->resolved)
+            return;
+
+        assert(query->fence);
+
+        WaitForFence(query->fence, query->fenceCounter, m_FenceEvent);
+    }
+
+    void Device::ResetEventQuery(IEventQuery *_query)
+    {
+        EventQuery* query = Utility::CheckedCast<EventQuery*>(_query);
+
+        query->started = false;
+        query->resolved = false;
+        query->fence = nullptr;
+    }
+
+    TimerQueryHandle Device::CreateTimerQuery()
+    {
+        if (!m_Context.timerQueryHeap)
+        {
+            std::lock_guard lockGuard(m_Mutex);
+
+            if (!m_Context.timerQueryHeap)
+            {
+                D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+                queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+                queryHeapDesc.Count = uint32_t(m_Resources.timerQueries.GetCapacity()) * 2; // Use 2 D3D12 queries per 1 TimerQuery
+                m_Context.device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&m_Context.timerQueryHeap));
+
+                BufferDesc qbDesc;
+                qbDesc.byteSize = queryHeapDesc.Count * 8;
+                qbDesc.cpuAccess = CpuAccessMode::Read;
+
+                BufferHandle timerQueryBuffer = CreateBuffer(qbDesc);
+                m_Context.timerQueryResolveBuffer = Utility::CheckedCast<Buffer*>(timerQueryBuffer.Get());
+            }
+        }
+
+        int queryIndex = m_Resources.timerQueries.Allocate();
+
+        if (queryIndex < 0)
+            return nullptr;
+        
+        TimerQuery* query = new TimerQuery(m_Resources);
+        query->beginQueryIndex = uint32_t(queryIndex) * 2;
+        query->endQueryIndex = query->beginQueryIndex + 1;
+        query->resolved = false;
+        query->time = 0.f;
+
+        return TimerQueryHandle{query};
+    }
+
+    bool Device::PollTimerQuery(ITimerQuery *_query)
+    {
+        TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
+
+        if (!query->started)
+            return false;
+
+        if (!query->fence)
+            return true;
+
+        if (query->fence->GetCompletedValue() >= query->fenceCounter) {
+            query->fence = nullptr;
+            return true;
+        }
+
+        return false;
+    }
+
+    float Device::GetTimerQueryTime(ITimerQuery *_query)
+    {
+        TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
+
+        if (!query->resolved)
+        {
+            if (query->fence)
+            {
+                WaitForFence(query->fence, query->fenceCounter, m_FenceEvent);
+                query->fence = nullptr;
+            }
+
+            uint64_t frequency;
+            GetQueue(CommandQueueType::Graphics)->GetCommandQueue()->GetTimestampFrequency(&frequency);
+
+            D3D12_RANGE bufferReadRange = {
+                query->beginQueryIndex * sizeof(uint64_t),
+                (query->beginQueryIndex + 2) * sizeof(uint64_t) };
+            uint64_t *data;
+            const HRESULT res = m_Context.timerQueryResolveBuffer->resource->Map(0, &bufferReadRange, (void**)&data);
+
+            if (FAILED(res)) {
+                m_Context.Error("getTimerQueryTime: Map() failed");
+                return 0.f;
+            }
+
+            query->resolved = true;
+            query->time = float(double(data[query->endQueryIndex] - data[query->beginQueryIndex]) / double(frequency));
+
+            m_Context.timerQueryResolveBuffer->resource->Unmap(0, nullptr);
+        }
+
+        return query->time;
+    }
+
+    void Device::ResetTimerQuery(ITimerQuery *_query)
+    {
+        TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
+
+        query->started = false;
+        query->resolved = false;
+        query->time = 0.f;
+        query->fence = nullptr;
+    }
+
     GraphicsAPI Device::GetGraphicsAPI()
     {
         return GraphicsAPI::D3D12;
@@ -749,7 +1162,7 @@ namespace DSM::D3D12{
         psoDesc.InputLayout.pInputElementDescs = inputLayout->inputElements.data();
 
         RefPtr<ID3D12PipelineState> pipelineState{};
-        auto hr = m_Context.m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
+        auto hr = m_Context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
         if(FAILED(hr)){
             m_Context.Error("Failed to create a graphics pipeline state object.");
             return nullptr;
@@ -773,7 +1186,7 @@ namespace DSM::D3D12{
         psoDesc.CS = { shaderBytecode, shaderBytecodeSize };
 
         RefPtr<ID3D12PipelineState> pipelineState{};
-        const auto hr = m_Context.m_Device->CreateComputePipelineState(
+        const auto hr = m_Context.device->CreateComputePipelineState(
             &psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
 
         if(FAILED(hr)){
@@ -881,7 +1294,7 @@ namespace DSM::D3D12{
         psoDesc.SizeInBytes = sizeof(psoStream);
 
         RefPtr<ID3D12PipelineState> pipelineState;
-        auto hr = m_Context.m_Device2->CreatePipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
+        auto hr = m_Context.device2->CreatePipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
         if(FAILED(hr)){
             m_Context.Error("Failed to create a meshlet pipeline state object");
             return nullptr;
@@ -933,12 +1346,12 @@ namespace DSM::D3D12{
         descriptorTable->capacity = newSize;
         if(preCapacity > 0){
             if(keepContents){   // 拷贝旧资源
-                m_Context.m_Device->CopyDescriptorsSimple(
+                m_Context.device->CopyDescriptorsSimple(
                     preCapacity, 
                     m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorTable->firstDescriptor),
                     m_Resources.shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-                m_Context.m_Device->CopyDescriptorsSimple(
+                m_Context.device->CopyDescriptorsSimple(
                     preCapacity, 
                     m_Resources.shaderResourceViewHeap.GetCpuHandleShaderVisible(descriptorTable->firstDescriptor),
                     m_Resources.shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
@@ -1009,9 +1422,162 @@ namespace DSM::D3D12{
         return true;
     }
 
+    DSM::CommandListHandle Device::CreateCommandList(const CommandListParameters &params)
+    {
+        if(GetQueue(params.queueType) == nullptr) return nullptr;
+
+        return DSM::CommandListHandle{new CommandList(*this, m_Resources, params)};
+    }
+
+    uint64_t Device::ExecuteCommandLists(DSM::ICommandList *const *pCommandLists, size_t numCommandLists, CommandQueueType executionQueue)
+    {
+        CommandQueue* queue = GetQueue(executionQueue);
+        assert(queue != nullptr);
+        queue->ExecuteCommandList({pCommandLists, numCommandLists});
+
+        HRESULT hr = m_Context.device->GetDeviceRemovedReason();
+        if (FAILED(hr)) {
+            m_Context.Error(std::format("Execute commandlist error. Error msg: {}!", GetErrorMessage(hr)));
+        }
+
+        return queue->GetNextFenceValue() - 1;
+    }
+
+    void Device::QueueWaitForCommandList(CommandQueueType waitQueue, CommandQueueType executionQueue, uint64_t instance)
+    {
+        GetQueue(waitQueue)->StallForFence(instance);
+    }
+
+    bool Device::WaitForIdle()
+    {
+        // 等待所有的队列执行完成
+        for (const auto& pQueue : m_CommandQueues) {
+            if (pQueue == nullptr) continue;
+
+            pQueue->WaitForIdle();
+        }
+        return true;
+    }
+
+    Object Device::GetNativeQueue(ObjectType objectType, CommandQueueType queue)
+    {
+        if (objectType != ObjectTypes::D3D12_CommandQueue ||
+            queue >= CommandQueueType::Count) return nullptr;
+
+        CommandQueue* pQueue = GetQueue(queue);
+
+        if (!pQueue) return nullptr;
+
+        return Object(pQueue->GetCommandQueue());
+    }
+
+    bool Device::QueryFeatureSupport(Feature feature, void *pInfo, size_t infoSize)
+    {
+        switch (feature) {
+        case Feature::DeferredCommandLists:
+            return true;
+        case Feature::SinglePassStereo:
+            return m_SinglePassStereoSupported;
+        case Feature::RayTracingAccelStruct:
+            return m_RayTracingSupported;
+        case Feature::RayTracingPipeline:
+            return m_RayTracingSupported;
+        case Feature::RayTracingOpacityMicromap:
+            return m_OpacityMicromapSupported;
+        case Feature::RayTracingClusters:
+            return m_RayTracingClustersSupported;
+        case Feature::RayQuery:
+            return m_TraceRayInlineSupported;
+        case Feature::FastGeometryShader:
+            return m_FastGeometryShaderSupported;
+        case Feature::ShaderExecutionReordering:
+            return m_ShaderExecutionReorderingSupported;
+        case Feature::Spheres:
+            return m_SpheresSupported;
+        case Feature::LinearSweptSpheres:
+            return m_LinearSweptSpheresSupported;
+        case Feature::Meshlets:
+            return m_MeshletsSupported;
+        case Feature::VariableRateShading:
+            return false;
+        case Feature::VirtualResources:
+            return true;
+        case Feature::ComputeQueue:
+            return (GetQueue(CommandQueueType::Compute) != nullptr);
+        case Feature::CopyQueue:
+            return (GetQueue(CommandQueueType::Copy) != nullptr);
+        case Feature::ConservativeRasterization:
+            return true;
+        case Feature::ConstantBufferRanges:
+            return true;
+        case Feature::HeapDirectlyIndexed:
+            return m_HeapDirectlyIndexedEnabled;
+        case Feature::SamplerFeedback:
+            return m_SamplerFeedbackSupported;
+        case Feature::HlslExtensionUAV:
+            return m_HlslExtensionsSupported;
+        case Feature::WaveLaneCountMinMax:
+            return false;
+        case Feature::CooperativeVectorInferencing:
+            return m_CoopVecInferencingSupported;
+        case Feature::CooperativeVectorTraining:
+            return m_CoopVecTrainingSupported;  
+        default:
+            return false;
+        }
+    }
+
+    FormatSupport Device::QueryFormatSupport(Format format)
+    {
+        const DxgiFormatMapping& formatMapping = GetDxgiFormatMapping(format);
+
+        FormatSupport result = FormatSupport::None;
+
+        D3D12_FEATURE_DATA_FORMAT_SUPPORT featureData = {};
+        featureData.Format = formatMapping.rtvFormat;
+
+        m_Context.device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &featureData, sizeof(featureData));
+
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_BUFFER)
+            result = result | FormatSupport::Buffer;
+        if (featureData.Support1 & (D3D12_FORMAT_SUPPORT1_TEXTURE1D | D3D12_FORMAT_SUPPORT1_TEXTURE2D | D3D12_FORMAT_SUPPORT1_TEXTURE3D | D3D12_FORMAT_SUPPORT1_TEXTURECUBE))
+            result = result | FormatSupport::Texture;
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_DEPTH_STENCIL)
+            result = result | FormatSupport::DepthStencil;
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_RENDER_TARGET)
+            result = result | FormatSupport::RenderTarget;
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_BLENDABLE)
+            result = result | FormatSupport::Blendable;
+
+        if (formatMapping.srvFormat != featureData.Format)
+        {
+            featureData.Format = formatMapping.srvFormat;
+            featureData.Support1 = (D3D12_FORMAT_SUPPORT1)0;
+            featureData.Support2 = (D3D12_FORMAT_SUPPORT2)0;
+            m_Context.device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &featureData, sizeof(featureData));
+        }
+
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_IA_INDEX_BUFFER)
+            result = result | FormatSupport::IndexBuffer;
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_IA_VERTEX_BUFFER)
+            result = result | FormatSupport::VertexBuffer;
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_SHADER_LOAD)
+            result = result | FormatSupport::ShaderLoad;
+        if (featureData.Support1 & D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE)
+            result = result | FormatSupport::ShaderSample;
+        if (featureData.Support2 & D3D12_FORMAT_SUPPORT2_UAV_ATOMIC_ADD)
+            result = result | FormatSupport::ShaderAtomic;
+        if (featureData.Support2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD)
+            result = result | FormatSupport::ShaderUavLoad;
+        if (featureData.Support2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE)
+            result = result | FormatSupport::ShaderUavStore;
+
+        return result;
+    }
+
     IMessageCallback *Device::GetMessageCallback()
     {
-        return m_Context.m_MessageCallback;
+        return m_Context.messageCallback;
     }
 
     GraphicsPipelineHandle Device::CreateHandleForNativeGraphicsPipeline(
@@ -1177,7 +1743,7 @@ namespace DSM::D3D12{
             return RootSignatureHandle{nullptr};
         }
 
-        hr = m_Context.m_Device->CreateRootSignature(
+        hr = m_Context.device->CreateRootSignature(
             0, signature->GetBufferPointer(), signature->GetBufferSize(),
             IID_PPV_ARGS(rootSig->rootSignature.GetAddressOf()));
         

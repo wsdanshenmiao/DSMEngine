@@ -46,7 +46,7 @@ namespace DSM::D3D12 {
             desc.BorderColor[2] = m_Desc.borderColor.b;
             desc.BorderColor[3] = m_Desc.borderColor.a;
 
-            m_Context.m_Device->CreateSampler(&desc, {descriptor});
+            m_Context.device->CreateSampler(&desc, {descriptor});
         }
 
     private:

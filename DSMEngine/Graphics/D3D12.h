@@ -14,6 +14,7 @@ namespace DSM::D3D12{
     struct ICommandList : public DSM::ICommandList
     {
         virtual DynamicResourceLocation AllocateUploadBuffer(size_t size) = 0;
+        virtual DynamicResourceLocation AllocateGpuBuffer(size_t size) = 0;
         virtual bool CommitDescriptorHeaps() = 0;
         virtual D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* buffer) = 0;
 
@@ -87,10 +88,6 @@ namespace DSM::D3D12{
     struct DeviceDesc
     {
         IMessageCallback* errorCB = nullptr;
-        ID3D12Device* pDevice = nullptr;
-        ID3D12CommandQueue* pGraphicsCommandQueue = nullptr;
-        ID3D12CommandQueue* pComputeCommandQueue = nullptr;
-        ID3D12CommandQueue* pCopyCommandQueue = nullptr;
 
         uint32_t renderTargetViewHeapSize = 1024;
         uint32_t depthStencilViewHeapSize = 1024;

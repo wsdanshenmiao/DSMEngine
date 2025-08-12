@@ -17,7 +17,7 @@ namespace DSM::D3D12{
         heapDesc.Type = heapType;
         heapDesc.NumDescriptors = numDescriptors;
         heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        auto hr = m_Context.m_Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(m_Heap.GetAddressOf()));
+        auto hr = m_Context.device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(m_Heap.GetAddressOf()));
 
         if(FAILED(hr)){
             m_Context.Error("Descriptor heap create failed");
@@ -26,13 +26,13 @@ namespace DSM::D3D12{
 
         m_StartCpuHandle = m_Heap->GetCPUDescriptorHandleForHeapStart();
         m_HeapType = heapType;
-        m_Stride = m_Context.m_Device->GetDescriptorHandleIncrementSize(heapType);
+        m_Stride = m_Context.device->GetDescriptorHandleIncrementSize(heapType);
         m_Allocator.Clear();
         m_Allocator.Resize(numDescriptors);
 
         if(shaderVisible){
             heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            auto hr = m_Context.m_Device->CreateDescriptorHeap(
+            auto hr = m_Context.device->CreateDescriptorHeap(
                 &heapDesc, IID_PPV_ARGS(m_ShaderVisibleHeap.GetAddressOf()));
             if(FAILED(hr)){
                 m_Context.Error("ShaderVisible descriptor heap create failed");
@@ -46,7 +46,7 @@ namespace DSM::D3D12{
 
     void DescriptorHeap::CopyToShaderVisibleHeap(uint32_t index, uint32_t count)
     {
-        m_Context.m_Device->CopyDescriptorsSimple(count, 
+        m_Context.device->CopyDescriptorsSimple(count, 
             GetCpuHandleShaderVisible(index), GetCpuHandle(index), m_HeapType);
     }
 
@@ -150,7 +150,7 @@ namespace DSM::D3D12{
         AllocateResource(m_HeapType, newSize, shaderVisible);
 
         // 拷贝源堆的描述符
-        auto& device = m_Context.m_Device;
+        auto& device = m_Context.device;
         device->CopyDescriptorsSimple(preSize, m_StartCpuHandle,
             oldHeap->GetCPUDescriptorHandleForHeapStart(), m_HeapType);
         if(shaderVisible){

@@ -15,7 +15,7 @@ namespace DSM::D3D12 {
         auto offset = m_Allocator.Allocate(resourceSize, alignment);
         ID3D12Resource* resource = nullptr;
         if (offset != LinearAllocator::InvalidAllocOffset) {
-            auto hr = m_Context.m_Device->CreatePlacedResource(
+            auto hr = m_Context.device->CreatePlacedResource(
                 m_Heap.Get(), offset, &resourceDesc,
                 resourceState, clearValue, IID_PPV_ARGS(&resource));
             if(FAILED(hr)){
@@ -70,7 +70,7 @@ namespace DSM::D3D12 {
         D3D12_RESOURCE_STATES resourceState,
             const D3D12_CLEAR_VALUE* clearValue)
     {
-        auto allocInfo = m_Context.m_Device->GetResourceAllocationInfo(0, 1, &resourceDesc);
+        auto allocInfo = m_Context.device->GetResourceAllocationInfo(0, 1, &resourceDesc);
         
         std::lock_guard lock{m_Mutex};
         
@@ -80,7 +80,7 @@ namespace DSM::D3D12 {
             prop.Type = m_Desc.m_HeapType;
             prop.CreationNodeMask = 1;
             prop.VisibleNodeMask = 1;
-            m_Context.m_Device->CreateCommittedResource(
+            m_Context.device->CreateCommittedResource(
                 &prop,
                 m_Desc.m_HeapFlags,
                 &resourceDesc,
@@ -154,7 +154,7 @@ namespace DSM::D3D12 {
         heapDesc.SizeInBytes = heapSize == 0 ? m_Desc.m_HeapSize : heapSize;
 
         ID3D12Heap* heap = nullptr;
-        m_Context.m_Device->CreateHeap(&heapDesc, IID_PPV_ARGS(&heap));
+        m_Context.device->CreateHeap(&heapDesc, IID_PPV_ARGS(&heap));
         auto heapName = L"PlacedResourceAllocator Heap" + std::to_wstring(m_PagePool.size());
         heap->SetName(heapName.c_str());
         
