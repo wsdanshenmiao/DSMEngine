@@ -12,6 +12,7 @@ namespace DSM::D3D12{
     InternalCommandList *InternalCommandList::RequireCommandList(Device &device, const CommandListParameters &desc)
     {        
         auto queue = device.GetQueue(desc.queueType);
+        const Context& context = device.GetContext();
         assert(queue != nullptr);
 
         InternalCommandList* cmdList = nullptr;
@@ -26,11 +27,28 @@ namespace DSM::D3D12{
 
         if(availedQueue.empty()){
             // 创建新的 Command list
-            cmdList = new InternalCommandList(device, desc);
+            try {
+                cmdList = new InternalCommandList(device, desc);
+            }
+            catch(const std::exception& e) {
+                context.Error(e.what());
+                return nullptr;
+            }
             sm_CmdListPool.emplace(cmdList);
         }
         else{   // 从池中获取
             cmdList = availedQueue.front();
+            auto hr = cmdList->allocator->Reset();
+            if(FAILED(hr)){
+                context.Error(std::format("Failed to reset allocator. Error msg", GetErrorMessage(hr)));
+                return nullptr;
+            }
+
+            hr = cmdList->cmdList->Reset(cmdList->allocator, nullptr);
+            if(FAILED(hr)){
+                context.Error(std::format("Failed to reset cmdList. Error msg", GetErrorMessage(hr)));
+                return nullptr;
+            }
             availedQueue.pop();
         }
         return cmdList;
@@ -97,9 +115,20 @@ namespace DSM::D3D12{
             DynamicResourceAllocator::AllocateMode::GpuExclusive,
             desc.scratchChunkSize);
 
-        context.device->CreateCommandAllocator(listType, IID_PPV_ARGS(allocator.GetAddressOf()));
-        context.device->CreateCommandList(0, listType, allocator.Get(), nullptr, IID_PPV_ARGS(cmdList.GetAddressOf()));
+        auto errorMsg = [this](const std::string& msg, auto hr){
+            uploadBufferAllocator = nullptr;
+            gpuBufferAllocator = nullptr;
+            throw std::runtime_error{std::format("{} Error msg: {}", msg, GetErrorMessage(hr))};
+        };
 
+        auto hr = context.device->CreateCommandAllocator(listType, IID_PPV_ARGS(allocator.GetAddressOf()));
+        if(FAILED(hr)){
+            errorMsg("Faile to create command allocator.", hr);
+        }
+        hr = context.device->CreateCommandList(0, listType, allocator.Get(), nullptr, IID_PPV_ARGS(cmdList.GetAddressOf()));
+        if(FAILED(hr)){
+            errorMsg("Faile to create command list.", hr);
+        }
         cmdList->QueryInterface(IID_PPV_ARGS(cmdList4.GetAddressOf()));
         cmdList->QueryInterface(IID_PPV_ARGS(cmdList6.GetAddressOf()));
     }
@@ -131,6 +160,7 @@ namespace DSM::D3D12{
     {
         // 在命令列表提交时释放
         m_CurrCmdList = InternalCommandList::RequireCommandList(m_Device, m_Desc);
+        assert(m_CurrCmdList != nullptr);
 
         m_Instance = std::make_shared<CommandListInstance>();
         m_Instance->queueType = m_Desc.queueType;

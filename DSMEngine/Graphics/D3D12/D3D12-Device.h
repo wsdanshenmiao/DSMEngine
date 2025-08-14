@@ -66,8 +66,8 @@ namespace DSM::D3D12 {
 
         // 用于 CPU 与 GPU 同步的栅栏
         RefPtr<ID3D12Fence> m_Fence{};
-        std::uint64_t m_NextFenceValue;
-        std::uint64_t m_LastCompletedFenceValue;
+        std::uint64_t m_NextFenceValue = 1;
+        std::uint64_t m_LastCompletedFenceValue = 0;
         std::mutex m_FenceMutex{};
 
         HANDLE m_FenceEventHandle{};

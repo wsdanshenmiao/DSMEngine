@@ -56,6 +56,14 @@ public:
     void OnUpdate() override
     {
         //DSM_INFO("ExampleLayer::OnUpdate");
+        CommandListParameters cmdListDesc{};
+        cmdListDesc.SetQueueType(CommandQueueType::Graphics);
+        auto cmdList = m_Device->CreateCommandList(cmdListDesc);
+        cmdList->Open();
+
+
+        cmdList->Close();
+        m_Device->ExecuteCommandList(cmdList);
     }
 
     void OnEvent(DSM::Event& event) override

@@ -62,7 +62,7 @@ namespace DSM::D3D12{
         :m_Device(device),
         m_QueueType(queueType),
         m_LastCompletedFenceValue((uint64_t)queueType << QUEUE_TYPE_MOVEBITS),
-        m_NextFenceValue(m_LastCompletedFenceValue | 1)
+        m_NextFenceValue(((uint64_t)queueType << QUEUE_TYPE_MOVEBITS) | 1)
     {
         D3D12_COMMAND_QUEUE_DESC queueDesc{};
         switch (queueType) {
@@ -156,15 +156,16 @@ namespace DSM::D3D12{
         }
 
         m_CommandQueue->ExecuteCommandLists(uint32_t(d3dCmdLists.size()), d3dCmdLists.data());
-        IncrementFence();
+        auto fenceValue = IncrementFence();
 
         for (const auto& cmdList : cmdLists) {
             // 执行完后 cmdList 内的命令列表变为空
             auto instance = Utility::CheckedCast<CommandList*>(cmdList)->Executed(*this);
             m_ActiveCmdLists.push(instance);
         }
+        m_RecordingInstance++;
 
-        return m_NextFenceValue - 1;
+        return fenceValue;
     }
 
     void CommandQueue::ClearCompletedCmdList()
@@ -1447,14 +1448,14 @@ namespace DSM::D3D12{
     {
         CommandQueue* queue = GetQueue(executionQueue);
         assert(queue != nullptr);
-        queue->ExecuteCommandList({pCommandLists, numCommandLists});
+        auto fenceValue = queue->ExecuteCommandList({pCommandLists, numCommandLists});
 
         HRESULT hr = m_Context.device->GetDeviceRemovedReason();
         if (FAILED(hr)) {
             m_Context.Error(std::format("Execute commandlist error. Error msg: {}!", GetErrorMessage(hr)));
         }
 
-        return queue->GetNextFenceValue() - 1;
+        return fenceValue;
     }
 
     void Device::QueueWaitForCommandList(CommandQueueType waitQueue, CommandQueueType executionQueue, uint64_t instance)
