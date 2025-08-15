@@ -37,9 +37,9 @@ namespace DSM {
     public:
         static void Create() { std::call_once(m_Initialized, []() { m_Instance.reset(CreateApplication()); }); }
 
-        static Application& Get() 
+        static Application& GetInstance() 
         { 
-            DSM_ASSERT(m_Instance != nullptr, "Application should be explicit initialized"); 
+            DSM_CORE_ASSERT(m_Instance != nullptr, "Application should be explicit initialized"); 
             return *m_Instance; 
         }
 

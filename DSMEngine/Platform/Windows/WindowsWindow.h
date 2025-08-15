@@ -1,8 +1,9 @@
 #ifndef __WINDOWSWINDOW_H__
 #define __WINDOWSWINDOW_H__
 
-#include <Windows.h>
 #include "Core/Window.h"
+
+struct GLFWwindow;
 
 namespace DSM {
 
@@ -10,24 +11,29 @@ namespace DSM {
     {
     public:
         WindowsWindow(const WindowProps& winProps);
-        ~WindowsWindow() = default;
+        virtual ~WindowsWindow();
 
         void OnUpdate() override;
 
-        inline uint32_t GetWidth() const override { return m_Width; };
-        inline uint32_t GetHeight() const override { return m_Height; };
+        inline uint32_t GetWidth() const override { return m_Desc.width; };
+        inline uint32_t GetHeight() const override { return m_Desc.height; };
 
-        inline void SetEventCallback(const EventCallbackFunc& func) override { m_Callback = func; };
+        inline void SetEventCallback(const EventCallbackFunc& func) override { m_Desc.callback = func; };
+        void SetVSync(bool enabled) override;
+		inline bool IsVSync() const override { return m_Desc.VSync; };
         
-        void* GetNativeWindow() const override;
+        inline void* GetNativeWindow() const override { return m_Window; }
 
     private:
-        
+        struct WindowData
+        {
+            uint32_t width, height;
+            bool VSync = false;
+            EventCallbackFunc callback;
+            std::string title;
+        } m_Desc;
 
-    private:
-        uint32_t m_Width, m_Height;
-        EventCallbackFunc m_Callback;
-        HWND m_Handle;
+        GLFWwindow* m_Window = nullptr;
     };
 
 } // namespace DSM 

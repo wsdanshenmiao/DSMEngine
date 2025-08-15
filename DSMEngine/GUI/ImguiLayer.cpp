@@ -8,7 +8,7 @@ namespace DSM {
     ImguiLayer::ImguiLayer(ID3D12Device *device, DXGI_FORMAT rtvFormat, HWND hwnd) 
         : Layer("ImguiLayer"), m_RtvFormat(rtvFormat), m_HWND(hwnd)
     {
-        DSM_ASSERT(device != nullptr);
+        DSM_CORE_ASSERT(device != nullptr);
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 		desc.NodeMask = 0;
 		desc.NumDescriptors = 1;

@@ -64,6 +64,9 @@ public:
 
         cmdList->Close();
         m_Device->ExecuteCommandList(cmdList);
+
+        //DSM_TRACE("Mouse position: {}, {}", Input::GetMouseX(), Input::GetMouseY());
+        //if(Input::IsKeyPressed(KeyCode::Tab)) DSM_TRACE("Tab press");
     }
 
     void OnEvent(DSM::Event& event) override

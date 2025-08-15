@@ -40,15 +40,16 @@ namespace DSM::D3D12{
             cmdList = availedQueue.front();
             auto hr = cmdList->allocator->Reset();
             if(FAILED(hr)){
-                context.Error(std::format("Failed to reset allocator. Error msg", GetErrorMessage(hr)));
+                context.Error(std::format("Failed to reset allocator. Error msg: {}", GetErrorMessage(hr)));
                 return nullptr;
             }
 
             hr = cmdList->cmdList->Reset(cmdList->allocator, nullptr);
             if(FAILED(hr)){
-                context.Error(std::format("Failed to reset cmdList. Error msg", GetErrorMessage(hr)));
+                context.Error(std::format("Failed to reset cmdList. Error msg: {}", GetErrorMessage(hr)));
                 return nullptr;
             }
+            cmdList->lastSubmittedFenceValue = 0;
             availedQueue.pop();
         }
         return cmdList;
@@ -64,7 +65,7 @@ namespace DSM::D3D12{
 
         auto& retiredQueue = sm_RetiredCmdLists[(size_t)cmdList->type];
         cmdList->uploadBufferAllocator->Cleanup(cmdList->lastSubmittedFenceValue);
-        cmdList->uploadBufferAllocator->Cleanup(cmdList->lastSubmittedFenceValue);
+        cmdList->gpuBufferAllocator->Cleanup(cmdList->lastSubmittedFenceValue);
         retiredQueue.emplace(cmdList->lastSubmittedFenceValue, cmdList);
         
         return true;
@@ -80,9 +81,7 @@ namespace DSM::D3D12{
                 sm_RetiredCmdLists[i].pop();
             }
         }
-        if (!sm_CmdListPool.empty()) {
-            sm_CmdListPool.clear();
-        }
+        sm_CmdListPool.clear();
     }
     
     InternalCommandList::InternalCommandList(Device& device, const CommandListParameters &desc)

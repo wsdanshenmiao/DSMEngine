@@ -336,7 +336,6 @@ namespace DSM::D3D12{
             CloseHandle(m_FenceEvent);
             m_FenceEvent = nullptr;
         }
-        InternalCommandList::Cleanup();
     }
 
     Object Device::GetNativeObject(ObjectType type)

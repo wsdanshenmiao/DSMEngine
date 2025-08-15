@@ -7,7 +7,7 @@
 #include <format>
 
 namespace DSM {
-    class KeyEvent : Event
+    class KeyEvent : public Event
     {
     public:
         EVENT_CLASS_CATEGORY(EventCategoryInput | EventCategoryKeyboard)
@@ -20,10 +20,10 @@ namespace DSM {
         KeyCode m_KeyCode;
     };
 
-    class KeyPressEvent : public KeyEvent
+    class KeyPressedEvent : public KeyEvent
     {
     public:
-        KeyPressEvent(KeyCode code, bool isRepeat = false)
+        KeyPressedEvent(KeyCode code, bool isRepeat = false)
             : KeyEvent(code), m_IsRepeat(isRepeat) {}
 
         EVENT_CLASS_TYPE(KeyPressed)
@@ -39,10 +39,10 @@ namespace DSM {
         bool m_IsRepeat;
     };
 
-    class KeyReleaseEvent : public KeyEvent
+    class KeyReleasedEvent : public KeyEvent
     {
     public:
-        KeyReleaseEvent(KeyCode code)
+        KeyReleasedEvent(KeyCode code)
             : KeyEvent(code) {}
 
         EVENT_CLASS_TYPE(KeyReleased)

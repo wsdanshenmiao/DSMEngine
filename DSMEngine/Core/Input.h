@@ -2,16 +2,17 @@
 #ifndef __INPUT_H__
 #define __INPUT_H__
 
-#include "Utils/Singleton.h"
+#include "KeyCodes.h"
+#include "MouseCodes.h"
+#include "Math/Vector.h"
 
-namespace DSM {
-    class Input
-    {
-        
-    };
+namespace DSM::Input {
 
-
-
+    bool IsKeyPressed(KeyCode keycode);
+    bool IsMouseButtonPressed(MouseCode mouseCode);
+    Vector2f GetMousePosition();
+    float GetMouseX();
+    float GetMouseY();
 
 } // namespace DSM 
 

@@ -2,6 +2,7 @@
 #ifndef __KEYCODE_H__
 #define __KEYCODE_H__
 
+#include <format>
 
 namespace DSM {
     enum class KeyCode : uint16_t
@@ -139,7 +140,22 @@ namespace DSM {
         Menu                = 348
     };
 
-    
 } // namespace DSM 
+
+template<>
+struct std::formatter<DSM::KeyCode>
+{
+    template<typename Context>
+    constexpr auto parse(Context& ctx) 
+    {
+        return ctx.begin();
+    }
+
+    template<typename Context>
+    auto format(const DSM::KeyCode& k, Context& ctx) const 
+    {
+        return std::format_to(ctx.out(), "{}", static_cast<std::underlying_type_t<DSM::KeyCode>>(k));
+    }
+};
 
 #endif

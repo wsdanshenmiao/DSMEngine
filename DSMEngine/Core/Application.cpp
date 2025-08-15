@@ -8,7 +8,7 @@ namespace DSM {
         WindowProps props{};
         m_Window = std::unique_ptr<Window>(Window::Create(props));
         m_Window->SetEventCallback([this](Event& event){
-            DSM_CORE_INFO(event.ToString());
+            //DSM_CORE_INFO(event.ToString());
             EventDispatcher dispatcher{event};
             dispatcher.Dispatch<WindowCloseEvent>([this](auto& event) { return this->OnWindowClose(event); });
             dispatcher.Dispatch<WindowResizeEvent>([this](auto& event) { return this->OnWindowResize(event); });

@@ -1,93 +1,148 @@
 #include "WindowsWindow.h"
+#include "glfw3.h"
 #include "Core/Core.h"
 #include "Utils/Utils.h"
 #include "Event/ApplicationEvent.h"
+#include "Event/KeyEvent.h"
+#include "Event/MouseButtonEvent.h"
 
 namespace DSM { 
+    static uint8_t s_GLFWWindowCount = 0;
+
     WindowsWindow::WindowsWindow(const WindowProps &winProps)
     {
-        std::wstring title = Utility::UTF8ToWString(winProps.m_Title);
-        m_Width = winProps.m_Width;
-        m_Height = winProps.m_Height;
+        m_Desc.title = winProps.m_Title;
+        m_Desc.width = winProps.m_Width;
+        m_Desc.height = winProps.m_Height;
 
-        HINSTANCE hInstance = GetModuleHandle(nullptr);
+        DSM_CORE_INFO("Creating window {} ({}, {})", m_Desc.title, m_Desc.width, m_Desc.height);
 
-        // 回调函数
-        auto WndProc = [](HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) ->LRESULT {
-            auto* pWindow = reinterpret_cast<WindowsWindow*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
-            std::unique_ptr<Event> pEvent{};
-            switch( message ) {
-            case WM_SIZE: {
-                auto width = (UINT)(UINT64)lParam & 0xFFFF;
-                auto height = (UINT)(UINT64)lParam >> 16;
-                pEvent = std::make_unique<WindowResizeEvent>(width, height);
+        if(s_GLFWWindowCount == 0){
+            int success = glfwInit();
+            DSM_CORE_ASSERT(success, "Could not initialize glfw.");
+            glfwSetErrorCallback([](int error, const char* description){
+                DSM_CORE_ERROR("GLFW Error ({0}): {1}", error, description);
+            });
+        }
+
+        
+        m_Window = glfwCreateWindow(m_Desc.width, m_Desc.height, m_Desc.title.c_str(), nullptr, nullptr);
+        s_GLFWWindowCount--;
+		glfwMakeContextCurrent(m_Window);
+
+        glfwSetWindowUserPointer(m_Window, &m_Desc);
+        
+        SetVSync(true);
+
+        // Set call back
+        glfwSetWindowCloseCallback(m_Window, [](GLFWwindow* window){
+            auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+            WindowCloseEvent event{};
+            data->callback(event);
+        });
+        
+        glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int width, int height){
+            auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+            data->width = width;
+            data->height = height;
+            WindowResizeEvent event{(uint32_t)width, (uint32_t)height};
+            data->callback(event);
+        });
+
+        glfwSetKeyCallback(m_Window, [](GLFWwindow* window, int key, int scancode, int action, int mods){
+            auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+			switch (action){
+            case GLFW_PRESS: {
+                KeyPressedEvent event{(KeyCode)key};
+                data->callback(event);
                 break;
             }
-            case WM_DESTROY: {
-                pEvent = std::make_unique<WindowCloseEvent>();
-                PostQuitMessage(0); 
+            case GLFW_RELEASE:{
+                KeyReleasedEvent event{(KeyCode)key};
+                data->callback(event);
                 break;
             }
-            default:
-                return DefWindowProc( hWnd, message, wParam, lParam );
+            case GLFW_REPEAT:{
+                KeyPressedEvent event{(KeyCode)key, true};
+                data->callback(event);
+                break;
             }
-            if(pEvent != nullptr && pWindow->m_Callback != nullptr){
-                pWindow->m_Callback(*pEvent);
+			}
+        });
+
+        glfwSetMouseButtonCallback(m_Window, [](GLFWwindow* window, int button, int action, int mods)
+		{
+			auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+			switch (action){
+            case GLFW_PRESS:{
+                MouseButtonPressedEvent event{(MouseCode)button};
+                data->callback(event);
+                break;
             }
+            case GLFW_RELEASE:{
+                MouseButtonReleasedEvent event{(MouseCode)button};
+                data->callback(event);
+                break;
+            }
+			}
+		});
 
-            return 0;
-        };
+        glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double x, double y)
+		{
+			auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
-        // 注册类
-        WNDCLASSEX wcex{};
-        wcex.hInstance = hInstance;
-        wcex.lpszClassName = title.c_str();
-        wcex.style= CS_HREDRAW | CS_VREDRAW;
-        wcex.hIcon = LoadIcon(hInstance, IDI_APPLICATION);
-        wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-        wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-        wcex.lpfnWndProc = WndProc;
-        wcex.cbSize = sizeof(WNDCLASSEX);
-        wcex.cbClsExtra = 0;
-        wcex.cbWndExtra = 0;
-        wcex.hIconSm = LoadIcon(hInstance, IDI_APPLICATION);
-        wcex.lpszMenuName = nullptr;
-        DSM_ASSERT(0 != RegisterClassEx(&wcex), "RegisterClassEx failed");
+			MouseMovedEvent event((float)x, (float)y);
+			data->callback(event);
+		});
 
-        // 创建窗口
-        RECT rect{ 0, 0, (LONG)winProps.m_Width, (LONG)winProps.m_Height };
-        AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+        glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double xOffset, double yOffset)
+		{
+			auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
-        m_Handle = CreateWindow(
-            title.c_str(),
-            title.c_str(),
-            WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-            rect.right - rect.left,
-            rect.bottom - rect.top,
-            nullptr, nullptr,
-            hInstance, nullptr);
+			MouseMovedEvent event((float)xOffset, (float)yOffset);
+			data->callback(event);
+		});
 
-        // 设置当前窗口关联的指针
-        SetWindowLongPtr(m_Handle, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+		glfwSetCharCallback(m_Window, [](GLFWwindow* window, unsigned int keycode)
+		{
+			auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
-        ShowWindow(m_Handle, SW_SHOWNORMAL);
+			KeyTypedEvent event((KeyCode)keycode);
+			data->callback(event);
+		});
+    }
+
+    WindowsWindow::~WindowsWindow()
+    {
+        glfwDestroyWindow(m_Window);
+        s_GLFWWindowCount--;
+
+        // 销毁所有资源
+        if(s_GLFWWindowCount == 0){
+            glfwTerminate();
+        }
     }
 
     void WindowsWindow::OnUpdate()
     {
-        UpdateWindow(m_Handle);
-        MSG msg{};
-        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+        // 处理事件
+        glfwPollEvents();
+        glfwSwapBuffers(m_Window);
+    }
 
-            if (msg.message == WM_QUIT) break;
+    void WindowsWindow::SetVSync(bool enabled)
+    {
+        m_Desc.VSync = enabled;
+        if(enabled){
+            glfwSwapInterval(1);
+        }
+        else{
+            glfwSwapInterval(0);
         }
     }
 
-    void *WindowsWindow::GetNativeWindow() const
-    {
-        return m_Handle;
-    }
+
 
 } // namespace DSM
