@@ -194,6 +194,8 @@ namespace DSM::D3D12 {
 
         FormatSupport QueryFormatSupport(Format format) override;
 
+        void RunGarbageCollection() override;
+        
         IMessageCallback* GetMessageCallback() override;
 
         RootSignatureHandle BuildRootSignature(

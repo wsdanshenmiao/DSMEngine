@@ -75,6 +75,8 @@ namespace DSM{
         // 等待成功返回true，遇到设备移除等问题返回false
         virtual bool WaitForIdle() = 0;
 
+        virtual void RunGarbageCollection() = 0;
+
         // 检测特性支持
         virtual bool QueryFeatureSupport(Feature feature, void* pInfo = nullptr, size_t infoSize = 0) = 0;
 

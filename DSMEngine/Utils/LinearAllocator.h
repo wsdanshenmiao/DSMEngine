@@ -66,8 +66,9 @@ namespace DSM {
             }
             
             if(left != m_FreeList.end()){
-                assert(left->m_Start >= (newRange.m_Start + newRange.m_Size) ||
-                    newRange.m_Start >= (left->m_Start + left->m_Size));
+                if (!(left->m_Start >= (newRange.m_Start + newRange.m_Size) ||
+                    newRange.m_Start >= (left->m_Start + left->m_Size))) 
+                    return false;
 
                 // 左侧合并
                 if(left->m_Start + left->m_Size == newRange.m_Start){

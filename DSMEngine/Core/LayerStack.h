@@ -11,11 +11,11 @@ namespace DSM {
         LayerStack() = default;
         ~LayerStack();
 
-        void PushLayer(Layer* layer);
-        void PushOverlay(Layer* layer);
+        void PushLayer(std::shared_ptr<Layer> layer);
+        void PushOverlay(std::shared_ptr<Layer> layer);
 
-        void PopLayer(Layer* layer);
-        void PopOverlay(Layer* layer);
+        void PopLayer(std::shared_ptr<Layer> layer);
+        void PopOverlay(std::shared_ptr<Layer> layer);
 
         decltype(auto) begin() noexcept { return m_Layers.begin(); }
         decltype(auto) begin() const noexcept { return m_Layers.begin(); }
@@ -30,7 +30,7 @@ namespace DSM {
         decltype(auto) rend() const noexcept { return m_Layers.rend(); }
 
     private:
-        std::vector<Layer*> m_Layers;
+        std::vector<std::shared_ptr<Layer>> m_Layers;
         uint32_t m_LayerInsertIndex = 0;
     };
 } // namespace DSM 

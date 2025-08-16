@@ -6,22 +6,23 @@ namespace DSM {
     {
         for(auto& layer : m_Layers){
             layer->OnDetach();
-            delete layer;
         }
     }
 
-    void LayerStack::PushLayer(Layer *layer)
+    void LayerStack::PushLayer(std::shared_ptr<Layer> layer)
     {
         m_Layers.emplace(begin() + m_LayerInsertIndex, layer);
         m_LayerInsertIndex++;
+        layer->OnAttach();
     }
 
-    void LayerStack::PushOverlay(Layer *layer)
+    void LayerStack::PushOverlay(std::shared_ptr<Layer> layer)
     {
         m_Layers.emplace_back(layer);
+        layer->OnAttach();
     }
 
-    void LayerStack::PopLayer(Layer *layer)
+    void LayerStack::PopLayer(std::shared_ptr<Layer> layer)
     {
         if(auto it = std::find(begin(), begin() + m_LayerInsertIndex, layer);
             it != begin() + m_LayerInsertIndex){
@@ -31,7 +32,7 @@ namespace DSM {
         }
     }
 
-    void LayerStack::PopOverlay(Layer *layer)
+    void LayerStack::PopOverlay(std::shared_ptr<Layer> layer)
     {
         if(auto it = std::find(begin() + m_LayerInsertIndex, end(), layer);
             it != end()){

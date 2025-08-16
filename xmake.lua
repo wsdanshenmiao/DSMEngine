@@ -15,6 +15,8 @@ add_defines("SPDLOG_USE_STD_FORMAT")
 
 if is_mode("debug") then 
     binDir = path.join(os.projectdir(), "bin/debug/")
+    set_symbols("debug")
+    set_optimize("none")
 else 
     binDir = path.join(os.projectdir(), "bin/release/")
 end 

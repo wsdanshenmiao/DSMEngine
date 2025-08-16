@@ -784,7 +784,7 @@ namespace DSM::D3D12{
 
     void CommandList::SetMeshletState(const MeshletState &state)
     {
-        GraphicsPipeline* pso = Utility::CheckedCast<GraphicsPipeline*>(state.pipeline);
+        MeshletPipeline* pso = Utility::CheckedCast<MeshletPipeline*>(state.pipeline);
         Framebuffer* framebuffer = Utility::CheckedCast<Framebuffer*>(state.framebuffer);
         assert(pso != nullptr && framebuffer != nullptr);
 
@@ -796,7 +796,7 @@ namespace DSM::D3D12{
         const bool updatePipeline = currStateInvalid || m_CurrMeshletState.pipeline != state.pipeline;
         const bool updateFramebuffer = currStateInvalid || m_CurrMeshletState.framebuffer != state.framebuffer;
         const bool updateRootSig = currStateInvalid || m_CurrMeshletState.pipeline == nullptr || 
-            Utility::CheckedCast<GraphicsPipeline*>(m_CurrMeshletState.pipeline)->rootSignature != pso->rootSignature;
+            Utility::CheckedCast<MeshletPipeline*>(m_CurrMeshletState.pipeline)->rootSignature != pso->rootSignature;
         const bool updateIndirectParams = currStateInvalid || state.indirectParams == nullptr ||
             m_CurrMeshletState.indirectParams != state.indirectParams;
         const bool updateBlendFactor = currStateInvalid || m_CurrMeshletState.blendConstantColor != state.blendConstantColor;
@@ -838,7 +838,7 @@ namespace DSM::D3D12{
                 cmdList->SetGraphicsRootSignature(pso->rootSignature->rootSignature);
             }
             cmdList->SetPipelineState(pso->pipelineState);
-            cmdList->IASetPrimitiveTopology(ConvertPrimitiveType(psoDesc.primType, psoDesc.patchControlPoints));            
+            cmdList->IASetPrimitiveTopology(ConvertPrimitiveType(psoDesc.primType, 0));            
         }
 
         if(updateBlendFactor && pso->requiresBlendFactor){
@@ -988,14 +988,14 @@ namespace DSM::D3D12{
         m_StateTracker.SetEnableUavBarrierForBuffer(b, enableBarriers);
     }
 
-    void CommandList::BeginTrackingTextureState(ITexture *texture, TextureSubresourceSet subresources, ResourceStates stateBits)
+    void CommandList::BeginTrackingTextureState(ITexture *texture, TextureSubresourceSet subresources)
     {
-        m_StateTracker.BeginTrackingTextureState(texture, subresources, stateBits);
+        m_StateTracker.BeginTrackingTextureState(texture, subresources);
     }
 
-    void CommandList::BeginTrackingBufferState(IBuffer *b, ResourceStates stateBits)
+    void CommandList::BeginTrackingBufferState(IBuffer *b)
     {
-        m_StateTracker.BeginTrackingBufferState(b, stateBits);
+        m_StateTracker.BeginTrackingBufferState(b);
     }
 
     void CommandList::SetTextureState(ITexture *texture, TextureSubresourceSet subresources, ResourceStates stateBits)
@@ -1076,7 +1076,7 @@ namespace DSM::D3D12{
             auto texture = Utility::CheckedCast<Texture*>(barrier.texture);
             const auto& desc = texture->GetDesc();
 
-            if(beforeState == afterState){
+            if(beforeState != afterState){
                 d3dBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
                 d3dBarrier.Transition.pResource = texture->resource.Get();
                 d3dBarrier.Transition.StateBefore = beforeState;

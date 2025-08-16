@@ -6,6 +6,7 @@ target(targetName)
     add_deps("spdlog")
     add_deps("imgui")
     add_deps("glfw")
+
     add_includedirs("./",{public = true})
     add_files("**.cpp")
     add_headerfiles("**.h")

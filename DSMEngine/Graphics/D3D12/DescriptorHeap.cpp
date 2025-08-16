@@ -72,7 +72,8 @@ namespace DSM::D3D12{
     {
         std::lock_guard lock{m_Mutex};
 
-        assert(m_Allocator.Deallocate(baseIndex, count));
+        // 由于多个对象拥有一个描述符，因此可以多次释放
+        m_Allocator.Deallocate(baseIndex, count);
     }
 
     void DescriptorHeap::ReleaseDescriptor(uint32_t index)

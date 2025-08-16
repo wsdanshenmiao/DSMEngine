@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "Event/ApplicationEvent.h"
-
+#include "Render/RenderLayer.h"
 
 namespace DSM {
     Application::Application()
@@ -19,7 +19,15 @@ namespace DSM {
             }
         });
 
-        // m_ImguiLayer = std::make_unique<ImguiLayer>();
+        RenderParameters renderDesc{};
+        renderDesc.enableDebugRuntime = true;
+        renderDesc.logBufferLifetime = true;
+        renderDesc.window = m_Window.get();
+        m_RenderLayer.reset(RenderLayer::Create(GraphicsAPI::D3D12, renderDesc));
+        m_ImguiLayer = std::make_shared<ImguiLayer>(m_RenderLayer->GetDevice());
+
+        PushLayer(m_RenderLayer);
+        PushLayer(m_ImguiLayer);
     }
 
     void Application::Run()
@@ -29,6 +37,13 @@ namespace DSM {
             for(auto& layer : m_LayerStack){
                 layer->OnUpdate();
             }
+
+            // m_ImguiLayer->Begin();
+            // for(auto& layer : m_LayerStack){
+            //     layer->OnGUIRender();
+            // }
+            // m_ImguiLayer->End();
+
             m_Window->OnUpdate();
         }
     }
@@ -44,16 +59,14 @@ namespace DSM {
         return true;
     }
 
-    void Application::PushLayer(Layer* layer)
+    void Application::PushLayer(std::shared_ptr<Layer> layer)
     {
         m_LayerStack.PushLayer(layer);
-        layer->OnAttach();
     }
 
-    void Application::PushOverlay(Layer* layer)
+    void Application::PushOverlay(std::shared_ptr<Layer> layer)
     {
         m_LayerStack.PushOverlay(layer);
-        layer->OnAttach();
     }
 
 

@@ -124,8 +124,8 @@ namespace DSM::D3D12 {
         void SetEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) override;
         void SetEnableUavBarriersForBuffer(IBuffer* b, bool enableBarriers) override;
 
-        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
-        void BeginTrackingBufferState(IBuffer* b, ResourceStates stateBits) override;
+        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources) override;
+        void BeginTrackingBufferState(IBuffer* b) override;
 
         void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
         void SetBufferState(IBuffer* b, ResourceStates stateBits) override;

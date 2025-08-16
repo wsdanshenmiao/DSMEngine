@@ -78,8 +78,8 @@ namespace DSM{
         virtual void SetEnableUavBarriersForBuffer(IBuffer* buffer, bool enableBarriers) = 0;
 
         // 在读写一个资源之前需要调用此接口来自动追踪资源的状态
-        virtual void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) = 0;
-        virtual void BeginTrackingBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
+        virtual void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources) = 0;
+        virtual void BeginTrackingBufferState(IBuffer* buffer) = 0;
 
         virtual void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) = 0;
         virtual void SetBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;

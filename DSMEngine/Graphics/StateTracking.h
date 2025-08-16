@@ -56,8 +56,8 @@ namespace DSM {
         void RequireTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates state);
         void RequireBufferState(IBuffer* buffer, ResourceStates state);
 
-        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits);
-        void BeginTrackingBufferState(IBuffer* buffer, ResourceStates stateBits);
+        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources);
+        void BeginTrackingBufferState(IBuffer* buffer);
         
         void KeepTextureInitialStates();
         void KeepBufferInitialStates();

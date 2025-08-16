@@ -513,7 +513,7 @@ namespace DSM::D3D12{
     
     TextureHandle Device::CreateHandleForNativeTexture(ObjectType objectType, Object texture, const TextureDesc &desc)
     {
-        if(texture.pointer != nullptr) return TextureHandle{nullptr};
+        if(texture.pointer == nullptr) return TextureHandle{nullptr};
         if(objectType != ObjectTypes::D3D12_Resource) return TextureHandle{nullptr};
         
         ID3D12Resource* resource = static_cast<ID3D12Resource*>(texture.pointer);
@@ -1587,6 +1587,14 @@ namespace DSM::D3D12{
             result = result | FormatSupport::ShaderUavStore;
 
         return result;
+    }
+
+    void Device::RunGarbageCollection()
+    {
+        for(uint32_t i = 0; i < (uint32_t)CommandQueueType::Count; ++i){
+            auto queue = GetQueue((CommandQueueType)i);
+            queue->ClearCompletedCmdList();
+        }
     }
 
     IMessageCallback *Device::GetMessageCallback()

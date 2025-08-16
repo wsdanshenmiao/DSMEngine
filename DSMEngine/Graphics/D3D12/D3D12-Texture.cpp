@@ -70,6 +70,7 @@ namespace DSM::D3D12 {
             }
 
             descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+            break;
         }
         case ObjectTypes::D3D12_UnorderedAccessViewGpuDescripror:{
             auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
@@ -87,6 +88,7 @@ namespace DSM::D3D12 {
             }
 
             descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+            break;
         }
         case ObjectTypes::D3D12_RenderTargetViewDescriptor:{
             auto& descriptorHeap = m_Resources.renderTargetViewHeap;
@@ -102,7 +104,8 @@ namespace DSM::D3D12 {
                 descriptorIndex = found->second;
             }
 
-            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+            descriptor = descriptorHeap.GetCpuHandle(descriptorIndex).ptr;
+            break;
         }
         case ObjectTypes::D3D12_DepthStencilViewDescriptor:{
             auto& descriptorHeap = m_Resources.depthStencilViewHeap;
@@ -118,7 +121,8 @@ namespace DSM::D3D12 {
                 descriptorIndex = found->second;
             }
 
-            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+            descriptor = descriptorHeap.GetCpuHandle(descriptorIndex).ptr;
+            break;
         }
         default:
             return Object{nullptr};
