@@ -11,22 +11,22 @@ class RenderPass : public IRenderPass
 public:
     void Render(Renderer* renderer, IFramebuffer* fb) override
     {
-        // auto device = renderer->GetDevice();
+        auto device = renderer->GetDevice();
 
-        // auto cmdList = device->CreateCommandList(
-        //     CommandListParameters().SetQueueType(CommandQueueType::Graphics));
+        auto cmdList = device->CreateCommandList(
+            CommandListParameters().SetQueueType(CommandQueueType::Graphics));
 
-        // cmdList->Open();
-        // const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-        // cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
-        // cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
-        // ID3D12GraphicsCommandList* nativeList = cmdList->GetNativeObject(ObjectTypes::D3D12_GraphicsCommandList);
-        // auto descriptor = rendertarget.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor);
-        // auto rtv = D3D12_CPU_DESCRIPTOR_HANDLE{descriptor.integer};
-        // nativeList->OMSetRenderTargets(1, &rtv, false, nullptr);
-        // cmdList->Close();
+        cmdList->Open();
+        const auto& rendertarget = fb->GetDesc().colorAttachments[0];
+        cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
+        cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
+        ID3D12GraphicsCommandList* nativeList = cmdList->GetNativeObject(ObjectTypes::D3D12_GraphicsCommandList);
+        auto descriptor = rendertarget.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor);
+        auto rtv = D3D12_CPU_DESCRIPTOR_HANDLE{descriptor.integer};
+        nativeList->OMSetRenderTargets(1, &rtv, false, nullptr);
+        cmdList->Close();
 
-        // device->ExecuteCommandList(cmdList); 
+        device->ExecuteCommandList(cmdList); 
     }
 };
 

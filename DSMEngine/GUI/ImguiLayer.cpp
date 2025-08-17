@@ -91,22 +91,22 @@ namespace DSM {
 		ImGui::Render();
         
 #if defined(DSM_PLATFORM_WINDOWS)
+        if(fb->GetDesc().colorAttachments.empty()) 
+            return;
+
         auto cmdList = m_Device->CreateCommandList(
             CommandListParameters().SetQueueType(CommandQueueType::Graphics));
         cmdList->Open();
 
-        const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-        cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
-        cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
         ID3D12GraphicsCommandList* nativeList = cmdList->GetNativeObject(ObjectTypes::D3D12_GraphicsCommandList);
-        auto descriptor = rendertarget.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor);
+        auto descriptor = fb->GetDesc().colorAttachments[0].texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor);
         auto rtv = D3D12_CPU_DESCRIPTOR_HANDLE{descriptor.integer};
         nativeList->OMSetRenderTargets(1, &rtv, false, nullptr);
-
-        //ID3D12GraphicsCommandList* nativeList = cmdList->GetNativeObject(ObjectTypes::D3D12_GraphicsCommandList);
         auto heap = s_DescriptorHeap->GetShaderVisibleHeap();
         nativeList->SetDescriptorHeaps(1, &heap);
+
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), nativeList);
+
         cmdList->Close();
         m_Device->ExecuteCommandList(cmdList);
 #endif
