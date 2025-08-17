@@ -2,27 +2,31 @@
 #include <Core/Layer.h>
 #include <print>
 #include "Graphics/D3D12.h"
-#include "Render/RenderLayer.h"
+#include "Render/Renderer.h"
 
 using namespace DSM;
 
 class RenderPass : public IRenderPass
 {
 public:
-    void Render(RenderLayer* renderer, IFramebuffer* fb) override
+    void Render(Renderer* renderer, IFramebuffer* fb) override
     {
-        auto device = renderer->GetDevice();
+        // auto device = renderer->GetDevice();
 
-        auto cmdList = device->CreateCommandList(
-            CommandListParameters().SetQueueType(CommandQueueType::Graphics));
+        // auto cmdList = device->CreateCommandList(
+        //     CommandListParameters().SetQueueType(CommandQueueType::Graphics));
 
-        cmdList->Open();
-        auto rendertarget = fb->GetDesc().colorAttachments[0];
-        cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
-        cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
-        cmdList->Close();
+        // cmdList->Open();
+        // const auto& rendertarget = fb->GetDesc().colorAttachments[0];
+        // cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
+        // cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
+        // ID3D12GraphicsCommandList* nativeList = cmdList->GetNativeObject(ObjectTypes::D3D12_GraphicsCommandList);
+        // auto descriptor = rendertarget.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor);
+        // auto rtv = D3D12_CPU_DESCRIPTOR_HANDLE{descriptor.integer};
+        // nativeList->OMSetRenderTargets(1, &rtv, false, nullptr);
+        // cmdList->Close();
 
-        device->ExecuteCommandList(cmdList);
+        // device->ExecuteCommandList(cmdList); 
     }
 };
 
@@ -48,7 +52,7 @@ public:
     Sample()
     {
         PushLayer(std::make_shared<ExampleLayer>());
-        m_RenderLayer->AddRenderPass(&m_RenderPass);
+        m_Renderer->AddRenderPass(&m_RenderPass);
     }
 
     RenderPass m_RenderPass{};

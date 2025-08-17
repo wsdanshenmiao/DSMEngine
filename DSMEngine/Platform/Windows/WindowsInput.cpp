@@ -1,6 +1,6 @@
 #include "Core/Input.h"
 #include "Core/Application.h"
-#include <glfw3.h>
+#include <GLFW/glfw3.h>
 
 namespace DSM::Input {
     bool IsKeyPressed(KeyCode keycode)

@@ -24,7 +24,7 @@ namespace DSM::D3D12{
     using CommandListHandle = RefPtr<ICommandList>;
 
     
-    class IDescriptorHeap
+    class IDescriptorHeap : public IResource
     {
     protected:
         IDescriptorHeap() = default;
@@ -51,6 +51,7 @@ namespace DSM::D3D12{
         IDescriptorHeap& operator=(const IDescriptorHeap&) = delete;
         IDescriptorHeap& operator=(const IDescriptorHeap&&) = delete;
     };
+    using DescriptorHeapHandle = RefPtr<IDescriptorHeap>;
 
     enum class DescriptorHeapType
     {
@@ -80,6 +81,8 @@ namespace DSM::D3D12{
             ID3D12PipelineState* pipelineState, 
             const MeshletPipelineDesc& desc, 
             const FramebufferInfo& framebufferInfo) = 0;
+
+        virtual DescriptorHeapHandle CreateDescriptorHeap(DescriptorHeapType type, uint32_t count, bool shaderVisible) = 0;
 
         [[nodiscard]] virtual IDescriptorHeap* GetDescriptorHeap(DescriptorHeapType heapType) = 0;
     };

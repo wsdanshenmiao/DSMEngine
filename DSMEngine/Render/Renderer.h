@@ -1,6 +1,6 @@
 #pragma once
-#ifndef __RENDERLAYER_H__
-#define __RENDERLAYER_H__
+#ifndef __RENDERER_H__
+#define __RENDERER_H__
 
 #include <set>
 #include "Core/Layer.h"
@@ -52,13 +52,13 @@ namespace DSM {
         IMessageCallback* callback;
     };
 
-    class RenderLayer : public Layer
+    class Renderer : public Layer
     {
     public:
-        using RenderCallbackFunc = std::function<void(RenderLayer&, uint32_t)>;
+        using RenderCallbackFunc = std::function<void(Renderer&, uint32_t)>;
 
-        RenderLayer(const std::string& name, RenderParameters renderDesc);
-        ~RenderLayer();
+        Renderer(const std::string& name, RenderParameters renderDesc);
+        ~Renderer();
 
         [[nodiscard]] IDevice* GetDevice() const { return m_Device; }
         [[nodiscard]] virtual GraphicsAPI GetGraphicsAPI() const = 0;
@@ -77,7 +77,7 @@ namespace DSM {
         IFramebuffer* GetCurrentFramebuffer() { return GetFramebuffer(GetCurrentBackBufferIndex()); }
         IFramebuffer* GetFramebuffer(uint32_t index);
 
-        static RenderLayer* Create(GraphicsAPI api, const RenderParameters& renderDesc);
+        static Renderer* Create(GraphicsAPI api, const RenderParameters& renderDesc);
 
     protected:
         virtual void ResizeSwapChain(uint32_t width, uint32_t height) = 0;
@@ -105,7 +105,7 @@ namespace DSM {
 
     struct IRenderPass
     {
-        virtual void Render(RenderLayer* renderlayer, IFramebuffer* framebuffer) {}
+        virtual void Render(Renderer* renderlayer, IFramebuffer* framebuffer) {}
         virtual void ResizeBackBuffer(uint32_t width, uint32_t height) {}
     };
 

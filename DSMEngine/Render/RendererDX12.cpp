@@ -1,19 +1,19 @@
-#include "RenderLayerDX12.h"
+#include "RendererDX12.h"
 #include "Graphics/D3D12.h"
-#include "RenderLayer.h"
+#include "Renderer.h"
 #include "Event/ApplicationEvent.h"
 #include "Core/Window.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
-#include <glfw3.h>
-#include <glfw3native.h>
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 using namespace DSM::D3D12;
 
 namespace DSM{
     
     RenderLayerDX12::RenderLayerDX12(const RenderParameters& renderDesc)
-        : RenderLayer("RenderLayer with DirectX12", renderDesc)
+        : Renderer("RenderLayer with DirectX12", renderDesc)
     {
         m_Desc.callback = m_Desc.callback == nullptr ? &m_Callback : m_Desc.callback;
         DeviceDesc deviceDesc{};

@@ -1172,8 +1172,10 @@ namespace DSM::D3D12{
         }
 
         InputLayout* inputLayout = Utility::CheckedCast<InputLayout*>(desc.inputLayout.Get());
-        psoDesc.InputLayout.NumElements = inputLayout->inputElements.size();
-        psoDesc.InputLayout.pInputElementDescs = inputLayout->inputElements.data();
+        if (inputLayout != nullptr) {
+            psoDesc.InputLayout.NumElements = inputLayout->inputElements.size();
+            psoDesc.InputLayout.pInputElementDescs = inputLayout->inputElements.data();
+        }
 
         RefPtr<ID3D12PipelineState> pipelineState{};
         auto hr = m_Context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
@@ -1634,6 +1636,29 @@ namespace DSM::D3D12{
         pso->requiresBlendFactor = desc.renderState.blendState.UsesConstantColor(framebufferInfo.colorFormats.size());
 
         return MeshletPipelineHandle{pso};
+    }
+
+    DescriptorHeapHandle Device::CreateDescriptorHeap(DescriptorHeapType type, uint32_t count, bool shaderVisible)
+    {
+        auto descriptorHeap = new DescriptorHeap(m_Context);
+        switch(type){
+        case DescriptorHeapType::ShaderResourceView:
+            descriptorHeap->AllocateResource(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, count, shaderVisible);
+            break;
+        case DescriptorHeapType::RenderTargetView:
+            descriptorHeap->AllocateResource(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, count, shaderVisible);
+            break;
+        case DescriptorHeapType::DepthStencilView:
+            descriptorHeap->AllocateResource(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, count, shaderVisible);
+            break;
+        case DescriptorHeapType::Sampler:
+            descriptorHeap->AllocateResource(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, count, shaderVisible);
+            break;
+        default:
+            assert(!"Invalid descriptor heap type.");
+            break;    
+        }
+        return DescriptorHeapHandle(descriptorHeap);
     }
 
     IDescriptorHeap *Device::GetDescriptorHeap(DescriptorHeapType heapType)

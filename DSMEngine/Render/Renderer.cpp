@@ -1,19 +1,19 @@
-#include "RenderLayer.h"
-#include "RenderLayerDX12.h"
+#include "Renderer.h"
+#include "RendererDX12.h"
 #include "Event/ApplicationEvent.h"
 
 namespace DSM{
     
-    RenderLayer::RenderLayer(const std::string &name, RenderParameters renderDesc)
+    Renderer::Renderer(const std::string &name, RenderParameters renderDesc)
         : Layer(name), m_Desc(std::move(renderDesc)) {}
 
-    RenderLayer::~RenderLayer()
+    Renderer::~Renderer()
     {
         m_SwapChainFramebuffers.clear();
     }
 
 
-    void RenderLayer::OnEvent(Event &event)
+    void Renderer::OnEvent(Event &event)
     {
         EventDispatcher dispatcher{event};
         dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& event){
@@ -36,12 +36,12 @@ namespace DSM{
         });
     }
 
-    void RenderLayer::AddRenderPass(IRenderPass* pass)
+    void Renderer::AddRenderPass(IRenderPass* pass)
     {
         m_RenderPass.emplace(pass);
     }
 
-    bool RenderLayer::RemoveRenderPass(IRenderPass *pass)
+    bool Renderer::RemoveRenderPass(IRenderPass *pass)
     {
         if(m_RenderPass.contains(pass)){
             m_RenderPass.erase(pass);
@@ -50,12 +50,12 @@ namespace DSM{
         return false;
     }
 
-    IFramebuffer *RenderLayer::GetFramebuffer(uint32_t index)
+    IFramebuffer *Renderer::GetFramebuffer(uint32_t index)
     {
         return index < m_SwapChainFramebuffers.size() ? m_SwapChainFramebuffers[index] : nullptr;
     }
 
-    RenderLayer *RenderLayer::Create(GraphicsAPI api, const RenderParameters& renderDesc)
+    Renderer *Renderer::Create(GraphicsAPI api, const RenderParameters& renderDesc)
     {
         switch (api) {
 #if defined(DSM_PLATFORM_WINDOWS)
@@ -71,7 +71,7 @@ namespace DSM{
         return nullptr;
     }
 
-    void RenderLayer::Render()
+    void Renderer::Render()
     {
         auto callback = [this](const auto& func){
             if(func != nullptr){
@@ -82,7 +82,8 @@ namespace DSM{
         // 执行渲染与回调函数
         callback(beforeFrame);
         if(BeginFrame()){
-            callback(beforeFrame);
+            callback(beforeRender);
+            auto cmdlist = m_Device->CreateCommandList();
             for(auto& pass : m_RenderPass){
                 pass->Render(this, GetCurrentFramebuffer());
             }
@@ -90,7 +91,7 @@ namespace DSM{
 
             callback(beforePresent);
             Present();
-            callback(beforePresent);
+            callback(afterPresent);
         }
 
         m_FrameIndex++;

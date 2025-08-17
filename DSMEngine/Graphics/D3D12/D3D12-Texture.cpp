@@ -50,6 +50,7 @@ namespace DSM::D3D12 {
         bool isReadOnlyDSV)
     {
         uint64_t descriptor{};
+        subresources = subresources.Resolve(m_Desc, false);
         TextureBindingKey key = TextureBindingKey(subresources, format);
         uint32_t descriptorIndex;
         switch (objType)

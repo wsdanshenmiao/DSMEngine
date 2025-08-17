@@ -1,10 +1,11 @@
 #include "WindowsWindow.h"
-#include "glfw3.h"
 #include "Core/Core.h"
 #include "Utils/Utils.h"
 #include "Event/ApplicationEvent.h"
 #include "Event/KeyEvent.h"
 #include "Event/MouseButtonEvent.h"
+#include <GLFW/glfw3.h>
+
 
 namespace DSM { 
     static uint8_t s_GLFWWindowCount = 0;

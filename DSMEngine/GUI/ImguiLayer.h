@@ -6,20 +6,23 @@
 
 namespace DSM {
     struct IDevice;
+    class Window;
+    struct IFramebuffer;
 
     class ImguiLayer : public Layer
     {
     public:
-        ImguiLayer(IDevice* device) : Layer("ImguiLayer") {}
+        ImguiLayer(IDevice* device, const Window& window);
 
         void OnAttach() override;
         void OnDetach() override;
-        void OnEvent(Event& event) override;
 
         void Begin();
-        void End();
+        void End(IFramebuffer* fb);
 
-        static ImguiLayer* Create();
+    private:
+        IDevice* m_Device{};
+        const Window& m_Window;
     };
     
 } // namespace DSM 

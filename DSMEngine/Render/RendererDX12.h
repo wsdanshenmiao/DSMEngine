@@ -1,13 +1,13 @@
 #pragma once
-#ifndef __RENDERLAYER_DX12_H__
-#define __RENDERLAYER_DX12_H__
+#ifndef __RENDERER_DX12_H__
+#define __RENDERER_DX12_H__
 
 
 #include <dxgi1_6.h>
-#include "RenderLayer.h"
+#include "Renderer.h"
 
 namespace DSM{
-    class RenderLayerDX12 : public RenderLayer
+    class RenderLayerDX12 : public Renderer
     {
     public:
         RenderLayerDX12(const RenderParameters& renderDesc);

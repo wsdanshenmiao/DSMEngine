@@ -216,6 +216,8 @@ namespace DSM::D3D12 {
             const MeshletPipelineDesc& desc, 
             const FramebufferInfo& framebufferInfo) override;
 
+        DescriptorHeapHandle CreateDescriptorHeap(DescriptorHeapType type, uint32_t count, bool shaderVisible) override;
+
         IDescriptorHeap* GetDescriptorHeap(DescriptorHeapType heapType) override;
 
 

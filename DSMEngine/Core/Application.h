@@ -14,7 +14,7 @@ namespace DSM {
     class WindowResizeEvent;
     class WindowCloseEvent;
     class Application;
-    class RenderLayer;
+    class Renderer;
 
     Application* CreateApplication();
 
@@ -22,7 +22,7 @@ namespace DSM {
     {
     public:
         Application();
-        virtual ~Application() = default;
+        virtual ~Application();
 
         void Run();
 
@@ -34,7 +34,7 @@ namespace DSM {
 
         Window& GetWindow() { return *m_Window; }
         std::shared_ptr<ImguiLayer> GetImguiLayer() { return m_ImguiLayer; }
-        std::shared_ptr<RenderLayer> GetRenderLayer() { return m_RenderLayer; }
+        std::shared_ptr<Renderer> GetRenderLayer() { return m_Renderer; }
 
         static void Create() { std::call_once(m_Initialized, []() { m_Instance.reset(CreateApplication()); }); }
 
@@ -53,7 +53,7 @@ namespace DSM {
         bool m_Running = true;
 
         std::shared_ptr<ImguiLayer> m_ImguiLayer;
-        std::shared_ptr<RenderLayer> m_RenderLayer;
+        std::shared_ptr<Renderer> m_Renderer;
     };
 
 
