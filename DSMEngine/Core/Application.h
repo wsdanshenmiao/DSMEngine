@@ -36,7 +36,8 @@ namespace DSM {
         std::shared_ptr<ImguiLayer> GetImguiLayer() { return m_ImguiLayer; }
         std::shared_ptr<Renderer> GetRenderLayer() { return m_Renderer; }
 
-        static void Create() { std::call_once(m_Initialized, []() { m_Instance.reset(CreateApplication()); }); }
+        static Application& Create();
+        static void ShutDown() { m_Instance = nullptr; }
 
         static Application& GetInstance() 
         { 
@@ -45,7 +46,6 @@ namespace DSM {
         }
 
     protected:
-        inline static std::once_flag m_Initialized{};
         inline static std::unique_ptr<Application> m_Instance{};
 
         std::unique_ptr<Window> m_Window{};

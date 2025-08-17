@@ -18,9 +18,9 @@ int WinMain(
     
     DSM::Log::Init();
     DSM_CORE_WARN("Initialized Log");
-    DSM::Application::Create();
-    auto& app = DSM::Application::GetInstance();
+    auto& app = DSM::Application::Create();
     app.Run();
+    DSM::Application::ShutDown();
     
     return 0;
 }

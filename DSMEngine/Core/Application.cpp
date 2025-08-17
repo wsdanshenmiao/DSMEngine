@@ -78,6 +78,11 @@ namespace DSM {
         m_LayerStack.PushOverlay(layer);
     }
 
-
+    Application &Application::Create() 
+    { 
+        DSM_CORE_ASSERT(m_Instance == nullptr); 
+        m_Instance.reset(CreateApplication()); 
+        return GetInstance(); 
+    }
 
 } // namespace DSM
