@@ -17,7 +17,7 @@ namespace DSM {
         void OnAttach() override;
         void OnDetach() override;
 
-        void Begin();
+        void Begin(IFramebuffer* fb);
         void End(IFramebuffer* fb);
 
     private:

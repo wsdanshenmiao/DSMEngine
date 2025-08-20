@@ -30,11 +30,12 @@ namespace DSM {
         PushLayer(m_ImguiLayer);
 
         m_Renderer->beforePresent = [this](Renderer& renderer, uint32_t frameIndex){
-            m_ImguiLayer->Begin();
+            IFramebuffer* fb = renderer.GetCurrentFramebuffer();
+            m_ImguiLayer->Begin(fb);
             for(auto& layer : m_LayerStack){
                 layer->OnGUIRender();
             }
-            m_ImguiLayer->End(renderer.GetCurrentFramebuffer());
+            m_ImguiLayer->End(fb);
         };
     }
 

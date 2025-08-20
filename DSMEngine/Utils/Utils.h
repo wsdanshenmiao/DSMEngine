@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <cassert>
 
 #ifdef min
 #undef min

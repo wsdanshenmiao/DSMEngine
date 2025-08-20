@@ -1,6 +1,7 @@
 #include <DSMEngine.h>
 #include <Core/Layer.h>
 #include <print>
+#include <imgui.h>
 #include "Graphics/D3D12.h"
 #include "Render/Renderer.h"
 
@@ -35,12 +36,10 @@ class ExampleLayer : public DSM::Layer
 public:
     ExampleLayer() : DSM::Layer("ExampleLayer") {}
 
-    void OnAttach() override
+    void OnGUIRender() override
     {
-    }
-
-    void OnUpdate() override
-    {
+        static bool show = true;
+        ImGui::ShowDemoWindow(&show);
     }
 
 private:

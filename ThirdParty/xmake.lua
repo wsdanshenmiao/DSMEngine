@@ -23,11 +23,9 @@ target("imgui")
     add_deps("glfw")
     add_headerfiles("imgui/*.h", 
         "imgui/backends/imgui_impl_dx12.h", 
-        "imgui/backends/imgui_impl_win32.h", 
         "imgui/backends/imgui_impl_glfw.h")
     add_files("imgui/*.cpp", 
         "imgui/backends/imgui_impl_dx12.cpp",
-        "imgui/backends/imgui_impl_win32.cpp",
         "imgui/backends/imgui_impl_glfw.cpp")
     add_includedirs(path.join(thirdPartyDir, "imgui"), {public = true})
 target_end()
