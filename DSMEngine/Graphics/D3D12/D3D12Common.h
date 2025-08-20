@@ -3,7 +3,6 @@
 #define __D3D12COMMON_H__
 
 #include "Graphics/D3D12.h"
-#include <comdef.h>
 #include <unordered_map>
 
 namespace DSM{    
@@ -104,12 +103,6 @@ namespace DSM{
         return mapping;
     }
 
-    static std::string GetErrorMessage(HRESULT hr)
-    {
-        _com_error err{hr};
-        std::wstring msg = err.ErrorMessage();
-        return Utility::WStringToUTF8(msg);
-    }
 
 
     namespace D3D12{     
@@ -485,7 +478,8 @@ namespace DSM{
             outState.DepthClipEnable = inState.depthClipEnable ? TRUE : FALSE;
             outState.MultisampleEnable = inState.multisampleEnable ? TRUE : FALSE;
             outState.AntialiasedLineEnable = inState.antialiasedLineEnable ? TRUE : FALSE;
-            outState.ConservativeRaster = inState.conservativeRasterEnable ? D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+            outState.ConservativeRaster = inState.conservativeRasterEnable ? 
+                D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
             outState.ForcedSampleCount = inState.forcedSampleCount;
             
             return outState;

@@ -2,6 +2,7 @@
 #ifndef __DEVICE_H__
 #define __DEVICE_H__
 
+#include <span>
 #include "CommandList.h"
 
 
@@ -35,7 +36,7 @@ namespace DSM{
         
         virtual SamplerHandle CreateSampler(const SamplerDesc& d) = 0;
 
-        virtual InputLayoutHandle CreateInputLayout(const VertexAttributeDesc* d, uint32_t attributeCount, IShader* vertexShader) = 0;
+        virtual InputLayoutHandle CreateInputLayout(std::span<const VertexAttributeDesc> descs, IShader* vertexShader) = 0;
         
         // 事件查询
         virtual EventQueryHandle CreateEventQuery() = 0;
@@ -70,7 +71,7 @@ namespace DSM{
         virtual bool WriteDescriptorTable(IDescriptorTable* descriptorTable, const BindingSetItem& item) = 0;
 
         virtual CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) = 0;
-        virtual uint64_t ExecuteCommandLists(ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueueType executionQueue = CommandQueueType::Graphics) = 0;
+        virtual uint64_t ExecuteCommandLists(std::span<ICommandList* const> cmdLists, CommandQueueType executionQueue = CommandQueueType::Graphics) = 0;
         virtual void QueueWaitForCommandList(CommandQueueType waitQueue, CommandQueueType executionQueue, uint64_t instance) = 0;
         // 等待成功返回true，遇到设备移除等问题返回false
         virtual bool WaitForIdle() = 0;
@@ -88,7 +89,7 @@ namespace DSM{
 
         uint64_t ExecuteCommandList(ICommandList* commandList, CommandQueueType executionQueue = CommandQueueType::Graphics)
         {
-            return ExecuteCommandLists(&commandList, 1, executionQueue);
+            return ExecuteCommandLists({&commandList, 1}, executionQueue);
         }
     };
     using DeviceHandle = RefPtr<IDevice>;

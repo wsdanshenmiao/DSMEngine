@@ -5,33 +5,40 @@
 #include <cassert>
 #include <format>
 
-using Microsoft::WRL::ComPtr;
-
 namespace DSM {
+
+    inline void AssertShaderCompiler(HRESULT hr)
+    {
+        if(FAILED(hr)){
+            DSM_CORE_ERROR("Compiler shader error.Error msg: {}", Utility::GetHRErrorMessage(hr));
+        }
+    }
 
     class ShaderCompiler
     {
     public:
         ShaderCompiler()
         {
-            DSM_CORE_ASSERT(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(m_DxcUtils.GetAddressOf())));
-            DSM_CORE_ASSERT(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(m_DxcCompiler.GetAddressOf())));
+            AssertShaderCompiler(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(m_DxcUtils.GetAddressOf())));
+            AssertShaderCompiler(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(m_DxcCompiler.GetAddressOf())));
         }
         ~ShaderCompiler() = default;
         ShaderCompiler(const ShaderCompiler&) = delete;
         ShaderCompiler(ShaderCompiler&&) = delete;
+        ShaderCompiler& operator=(const ShaderCompiler&) = delete;
+        ShaderCompiler& operator=(ShaderCompiler&&) = delete;
 
-        ComPtr<IDxcBlob> CompilerShader(
+        RefPtr<IDxcBlob> CompilerShader(
             const std::wstring& fileName,
             const std::wstring& entryPoint,
             const std::wstring& target,
             const std::vector<DxcDefine>& defines)
         {
-            ComPtr<IDxcIncludeHandler> includeHandler{};
-            DSM_CORE_ASSERT(m_DxcUtils->CreateDefaultIncludeHandler(includeHandler.GetAddressOf()));
+            RefPtr<IDxcIncludeHandler> includeHandler{};
+            AssertShaderCompiler(m_DxcUtils->CreateDefaultIncludeHandler(includeHandler.GetAddressOf()));
 
-            ComPtr<IDxcCompilerArgs> compilerArgs{};
-            DSM_CORE_ASSERT(m_DxcUtils->BuildArguments(
+            RefPtr<IDxcCompilerArgs> compilerArgs{};
+            AssertShaderCompiler(m_DxcUtils->BuildArguments(
                 fileName.c_str(),
                 entryPoint.c_str(),
                 target.c_str(),
@@ -41,40 +48,40 @@ namespace DSM {
                 defines.size(),
                 compilerArgs.GetAddressOf()));
 
-            ComPtr<IDxcBlobEncoding> sourceFileEncoding{};
-            DSM_CORE_ASSERT(m_DxcUtils->LoadFile(fileName.c_str(), nullptr, sourceFileEncoding.GetAddressOf()));
+            RefPtr<IDxcBlobEncoding> sourceFileEncoding{};
+            AssertShaderCompiler(m_DxcUtils->LoadFile(fileName.c_str(), nullptr, sourceFileEncoding.GetAddressOf()));
 
             DxcBuffer sourceBuffer{};
             sourceBuffer.Ptr = sourceFileEncoding->GetBufferPointer();
             sourceBuffer.Size = sourceFileEncoding->GetBufferSize();
             sourceBuffer.Encoding = DXC_CP_ACP;
 
-            ComPtr<IDxcResult> result{};
-            DSM_CORE_ASSERT(m_DxcCompiler->Compile(
+            RefPtr<IDxcResult> result{};
+            AssertShaderCompiler(m_DxcCompiler->Compile(
                 &sourceBuffer,
                 compilerArgs->GetArguments(),
                 compilerArgs->GetCount(),
                 includeHandler.Get(),
                 IID_PPV_ARGS(result.GetAddressOf())));
 
-            ComPtr<IDxcBlobUtf8> pErrors = nullptr;
-            DSM_CORE_ASSERT(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(pErrors.GetAddressOf()), nullptr));
+            RefPtr<IDxcBlobUtf8> pErrors = nullptr;
+            AssertShaderCompiler(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(pErrors.GetAddressOf()), nullptr));
 
             auto errorInfo = pErrors->GetStringPointer();
             if(pErrors != nullptr && pErrors->GetStringLength() != 0){
                 DSM_CORE_ERROR("Shader Compile Fail: {}\n", errorInfo);
             }
             
-            ComPtr<IDxcBlob> shaderByteCode = nullptr;
-            ComPtr<IDxcBlobUtf16> pShaderName = nullptr;
-            DSM_CORE_ASSERT(result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderByteCode), &pShaderName));
+            RefPtr<IDxcBlob> shaderByteCode = nullptr;
+            RefPtr<IDxcBlobUtf16> pShaderName = nullptr;
+            AssertShaderCompiler(result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderByteCode), &pShaderName));
             
             return shaderByteCode;
         }
 
     private:
-        ComPtr<IDxcUtils> m_DxcUtils;
-        ComPtr<IDxcCompiler3> m_DxcCompiler;
+        RefPtr<IDxcUtils> m_DxcUtils;
+        RefPtr<IDxcCompiler3> m_DxcCompiler;
     };
 
     static ShaderCompiler s_ShaderCompiler{};
@@ -109,14 +116,15 @@ namespace DSM {
         return target;
     }
     
-    ShaderByteCode::ShaderByteCode(const ShaderDesc& shaderDesc)
+    ShaderByteCode::ShaderByteCode(const ShaderCompileDesc& shaderDesc)
+        :m_Desc(shaderDesc)    
     {
         std::wstring fileName = Utility::UTF8ToWString(shaderDesc.m_FileName);
         std::wstring enterPoint = Utility::UTF8ToWString(shaderDesc.m_EnterPoint);
         std::wstring target = GetComileTarget(shaderDesc.m_Type, shaderDesc.m_Mode);
         auto defines = shaderDesc.m_Defines.Finish();
         
-        ComPtr<IDxcBlob> shaderByteCode = s_ShaderCompiler.CompilerShader(fileName, enterPoint, target, defines);
+        RefPtr<IDxcBlob> shaderByteCode = s_ShaderCompiler.CompilerShader(fileName, enterPoint, target, defines);
         m_ByteCode.resize(shaderByteCode->GetBufferSize());
         memcpy(m_ByteCode.data(), shaderByteCode->GetBufferPointer(), shaderByteCode->GetBufferSize());
     }

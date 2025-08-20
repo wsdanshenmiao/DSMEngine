@@ -11,8 +11,12 @@ namespace DSM::D3D12{
     class Texture : public ITexture
     {
     public:
-        Texture(const Context& context, DeviceResources& resources, TextureDesc desc, D3D12_RESOURCE_DESC rd);
-        ~Texture() override;
+        Texture(const Context& context, DeviceResources& resources);
+        ~Texture() override { Destroy(); }
+
+        bool Create(TextureDesc desc);
+        void Create(TextureDesc desc, ID3D12Resource* r);
+        void Destroy();
 
         const TextureDesc& GetDesc() const override { return m_Desc; }
         Object GetNativeObject(ObjectType type) override;
@@ -39,14 +43,14 @@ namespace DSM::D3D12{
         RefPtr<ID3D12Resource> resource;
         HANDLE sharedHandle;
         HeapHandle heap;
-        const D3D12_RESOURCE_DESC resourceDesc;
+        D3D12_RESOURCE_DESC resourceDesc;
         uint8_t planeCount = 1; // 纹理的平面切片数
 
     private:
         using TextureBindingHashMap = std::unordered_map<TextureBindingKey, uint32_t>;
 
         const Context& m_Context;
-        const TextureDesc m_Desc;
+        TextureDesc m_Desc;
         DeviceResources& m_Resources;
 
         // 储存子资源对应的描述符索引

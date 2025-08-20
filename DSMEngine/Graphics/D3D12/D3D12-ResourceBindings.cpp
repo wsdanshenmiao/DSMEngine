@@ -67,7 +67,7 @@ namespace DSM::D3D12 {
                 rootConstants.RegisterSpace = m_Desc.registerSpace;
                 rootConstants.Num32BitValues = binding.size / 4; // 每个32位值占用4个字节
             }
-            else if(!AreResourceTypesCompatible(binding.type, currType) && binding.slot != currSlot + 1){
+            else if(!AreResourceTypesCompatible(binding.type, currType) || binding.slot != currSlot + 1){
                 // 创建一个新的 DescriptorRange
                 if(binding.type == ResourceType::Sampler){
                     D3D12_DESCRIPTOR_RANGE1 range{};

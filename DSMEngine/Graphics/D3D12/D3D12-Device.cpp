@@ -78,14 +78,14 @@ namespace DSM::D3D12{
         const auto& context = m_Device.GetContext();
         auto hr = context.device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_CommandQueue.GetAddressOf()));
         if(FAILED(hr)){
-            context.Error(std::format("Failed to create command queue. Error msg: {}.", GetErrorMessage(hr)));
+            context.Error(std::format("Failed to create command queue. Error msg: {}.", Utility::GetHRErrorMessage(hr)));
             m_CommandQueue = nullptr;
             return;
         }
 
         hr = context.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_Fence.GetAddressOf()));
         if(FAILED(hr)){
-            context.Error(std::format("Failed to create fence. Error msg: {}.", GetErrorMessage(hr)));
+            context.Error(std::format("Failed to create fence. Error msg: {}.", Utility::GetHRErrorMessage(hr)));
             m_CommandQueue = nullptr;
             return;
         }
@@ -221,7 +221,7 @@ namespace DSM::D3D12{
         }
 #endif
         auto errorMsg = [this](const std::string& msg, HRESULT hr){
-            std::string error = std::format("{}.Error msg: {}.", msg, GetErrorMessage(hr));
+            std::string error = std::format("{}.Error msg: {}.", msg, Utility::GetHRErrorMessage(hr));
             m_Context.Error(error);
             throw std::runtime_error(error);
         };
@@ -283,7 +283,7 @@ namespace DSM::D3D12{
         m_Resources.renderTargetViewHeap.AllocateResource(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV, m_Desc.renderTargetViewHeapSize, false);
         m_Resources.samplerHeap.AllocateResource(
-            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, m_Desc.samplerHeapSize, false);
+            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, m_Desc.samplerHeapSize, true);
         
 
         // 检测特性支持
@@ -385,7 +385,7 @@ namespace DSM::D3D12{
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create heap {}, error msg: {}", 
-                DebugNameToString(d.debugName), GetErrorMessage(hr));
+                DebugNameToString(d.debugName), Utility::GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return HeapHandle{nullptr};
         }
@@ -406,66 +406,9 @@ namespace DSM::D3D12{
     //////////////////////////////////////////////////////////////////////////
     TextureHandle Device::CreateTexture(const TextureDesc &desc)
     {
-        
-        D3D12_RESOURCE_DESC resourceDesc = Texture::ConvertTextureDesc(desc);
-
-        D3D12_HEAP_PROPERTIES heapProp{};
-        D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
-        
-        bool isShared = false;
-        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared)){
-            heapFlags |= D3D12_HEAP_FLAG_SHARED;
-            isShared = true;
-        }
-        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
-            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
-            heapFlags |= D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER;
-        }
-        if(desc.isTiled){
-            resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
-        }
-
-        D3D12_CLEAR_VALUE clearValue = Texture::ConvertClearValue(desc);
-
-        Texture* texture = new Texture{m_Context, m_Resources, desc, resourceDesc};
-        auto& resource = texture->resource;
-
-        // 虚拟显存，后续使用 BingTextureMemory 绑定物理显存
-        if(desc.isVirtual) return TextureHandle{texture};
-
-        // 创建资源
-        HRESULT hr = S_OK;
-        if(desc.isTiled){
-            hr = m_Context.device->CreateReservedResource(
-                &resourceDesc, ConvertResourceStates(desc.initialState),
-                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
-        }
-        else{
-            heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
-            hr = m_Context.device->CreateCommittedResource(
-                &heapProp, heapFlags, 
-                &resourceDesc, ConvertResourceStates(desc.initialState),
-                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
-        }
-
-        if(FAILED(hr)){
-            std::string msg = std::format("Failed to create texture {}, error msg: {}", 
-                DebugNameToString(desc.debugName), GetErrorMessage(hr));
-            m_Context.Error(msg);
-            delete texture;
-            return TextureHandle{nullptr};
-        }
-
-        // 创建共享句柄
-        if(isShared){
-            hr = m_Context.device->CreateSharedHandle(
-                resource.Get(), nullptr, GENERIC_ALL, nullptr, &texture->sharedHandle);
-            return TextureHandle{nullptr};
-        }
-
-        if(!desc.debugName.empty()){
-            auto name = Utility::UTF8ToWString(desc.debugName);
-            resource->SetName(name.c_str());
+        Texture* texture = new Texture(m_Context, m_Resources);
+        if(!texture->Create(desc)){
+            return nullptr;
         }
 
         return TextureHandle{texture};
@@ -502,7 +445,7 @@ namespace DSM::D3D12{
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create placed texture {}, error msg: {}", 
-                DebugNameToString(texture->GetDesc().debugName), GetErrorMessage(hr));
+                DebugNameToString(texture->GetDesc().debugName), Utility::GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return false;
         }
@@ -518,8 +461,8 @@ namespace DSM::D3D12{
         
         ID3D12Resource* resource = static_cast<ID3D12Resource*>(texture.pointer);
 
-        Texture* tex = new Texture{m_Context, m_Resources, desc, resource->GetDesc()};
-        tex->resource = resource;
+        Texture* tex = new Texture{m_Context, m_Resources};
+        tex->Create(desc ,resource);
 
         return TextureHandle{tex};
     }
@@ -632,85 +575,9 @@ namespace DSM::D3D12{
     //////////////////////////////////////////////////////////////////////////
     BufferHandle Device::CreateBuffer(const BufferDesc &d)
     {
-        BufferDesc desc = d;
-        if(desc.isConstantBuffer)
-            desc.byteSize = Utility::Align(d.byteSize, 255llu);
-    
-        Buffer* buffer = new Buffer{m_Context, m_Resources, desc};
-        if(desc.isVolatile) return BufferHandle{buffer};
-
-        auto& resourceDesc = buffer->resourceDesc;
-        resourceDesc.Width = desc.byteSize;
-        resourceDesc.Height = 1;
-        resourceDesc.DepthOrArraySize = 1;
-        resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-        resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
-        resourceDesc.MipLevels = 1;
-        resourceDesc.SampleDesc = {1, 0};
-        resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        
-        if(desc.canHaveUAVs) 
-            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-        if(desc.isVirtual)
-            return BufferHandle{buffer};
-
-        D3D12_HEAP_PROPERTIES heapProp{};
-        D3D12_HEAP_FLAGS heapFlags{};
-        D3D12_RESOURCE_STATES resourceState{};
-
-        bool isShared = false;
-        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared)){
-            heapFlags |= D3D12_HEAP_FLAG_SHARED;
-            isShared = true;
-        }
-        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
-            heapFlags |= D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER;
-            isShared = true;
-        }
-
-        switch (desc.cpuAccess)
-        {
-        case CpuAccessMode::None:{
-            heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
-            resourceState = ConvertResourceStates(desc.initialState);
-            if(resourceState != D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
-                resourceState = D3D12_RESOURCE_STATE_COMMON;
-            break;
-        }
-        case CpuAccessMode::Read:{
-            heapProp.Type = D3D12_HEAP_TYPE_READBACK;
-            resourceState = D3D12_RESOURCE_STATE_COPY_DEST;
-            break;
-        }
-        case CpuAccessMode::Write:{
-            heapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
-            resourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
-            break;
-        }
-        }
-        
-        // Allow readback buffers to be used as resolve destination targets
-        if ((desc.cpuAccess == CpuAccessMode::Read) && (desc.initialState == ResourceStates::ResolveDest))
-        {
-            heapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
-            heapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
-            heapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-            resourceState = D3D12_RESOURCE_STATE_COMMON;
-        }
-
-        auto hr = m_Context.device->CreateCommittedResource(
-            &heapProp, heapFlags, 
-            &resourceDesc, resourceState,
-            nullptr, IID_PPV_ARGS(buffer->resource.GetAddressOf()));
-
-        if (FAILED(hr))
-        {
-            std::string msg = std::format("CreateCommittedResource call failed for buffer {}, error msg: {}.",
-                DebugNameToString(desc.debugName), GetErrorMessage(hr));
-            m_Context.Error(msg);
-            delete buffer;
-            return BufferHandle{nullptr};
+        auto buffer = new Buffer(m_Context, m_Resources);
+        if(!buffer->Create(d)){
+            return nullptr;
         }
         
         return BufferHandle{buffer};
@@ -739,7 +606,7 @@ namespace DSM::D3D12{
         auto hr = buffer->resource->Map(0, &range, &mappedData);
         if(FAILED(hr)){
             std::string msg = std::format("Map call failed for buffer {}, error msg: {}",
-                DebugNameToString(buffer->GetDesc().debugName), GetErrorMessage(hr));
+                DebugNameToString(buffer->GetDesc().debugName), Utility::GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return nullptr;
         }
@@ -785,7 +652,7 @@ namespace DSM::D3D12{
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create placed buffer {}, error msg: {}.",
-                DebugNameToString(buffer->GetDesc().debugName), GetErrorMessage(hr));
+                DebugNameToString(buffer->GetDesc().debugName), Utility::GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return false;
         }
@@ -800,8 +667,7 @@ namespace DSM::D3D12{
             return BufferHandle{nullptr};
 
         ID3D12Resource* resource = static_cast<ID3D12Resource*>(_buffer);
-        Buffer* buffer = new Buffer{m_Context, m_Resources, desc};
-        buffer->resource = resource;
+        Buffer* buffer = new Buffer{m_Context, m_Resources};
         
         return BufferHandle{buffer};
     }
@@ -817,7 +683,6 @@ namespace DSM::D3D12{
         Shader* shader = new Shader{d};
         shader->bytecode.resize(binarySize);
         std::memcpy(shader->bytecode.data(), binary, binarySize);
-
 
         return ShaderHandle{shader};
     }
@@ -847,15 +712,15 @@ namespace DSM::D3D12{
     //////////////////////////////////////////////////////////////////////////
     // InputLayout
     //////////////////////////////////////////////////////////////////////////
-    InputLayoutHandle Device::CreateInputLayout(const VertexAttributeDesc *desc, uint32_t attributeCount, IShader *vertexShader)
+    InputLayoutHandle Device::CreateInputLayout(std::span<const VertexAttributeDesc> attributes, IShader *vertexShader)
     {
         InputLayout* layout = new InputLayout{};
-        layout->attributes.resize(attributeCount);
+        layout->attributes.resize(attributes.size());
 
-        for(int i = 0; i < attributeCount; ++i){
+        for(int i = 0; i < attributes.size(); ++i){
             VertexAttributeDesc& attr = layout->attributes[i];
 
-            attr = desc[i];
+            attr = attributes[i];
 
             const auto& formatMapping = GetDxgiFormatMapping(attr.format);
             const auto& formatInfo = GetFormatInfo(attr.format);
@@ -1445,15 +1310,15 @@ namespace DSM::D3D12{
         return DSM::CommandListHandle{new CommandList(*this, m_Resources, params)};
     }
 
-    uint64_t Device::ExecuteCommandLists(DSM::ICommandList *const *pCommandLists, size_t numCommandLists, CommandQueueType executionQueue)
+    uint64_t Device::ExecuteCommandLists(std::span<DSM::ICommandList* const> cmdLists, CommandQueueType executionQueue)
     {
         CommandQueue* queue = GetQueue(executionQueue);
         assert(queue != nullptr);
-        auto fenceValue = queue->ExecuteCommandList({pCommandLists, numCommandLists});
+        auto fenceValue = queue->ExecuteCommandList(cmdLists);
 
         HRESULT hr = m_Context.device->GetDeviceRemovedReason();
         if (FAILED(hr)) {
-            m_Context.Error(std::format("Execute commandlist error. Error msg: {}!", GetErrorMessage(hr)));
+            m_Context.Error(std::format("Execute commandlist error. Error msg: {}!", Utility::GetHRErrorMessage(hr)));
         }
 
         return fenceValue;
@@ -1781,7 +1646,7 @@ namespace DSM::D3D12{
         RefPtr<ID3DBlob> error{};
         auto hr = D3D12SerializeVersionedRootSignature(&rsDesc, signature.GetAddressOf(), error.GetAddressOf());
         if(FAILED(hr)){
-            std::string msg = std::format("Failed to serialize root signature,Error msg: {}.", GetErrorMessage(hr));
+            std::string msg = std::format("Failed to serialize root signature,Error msg: {}.", Utility::GetHRErrorMessage(hr));
             if(error != nullptr && error->GetBufferSize() > 0){
                 msg += std::string(static_cast<const char*>(error->GetBufferPointer())) + ".";
             }
@@ -1795,7 +1660,7 @@ namespace DSM::D3D12{
             IID_PPV_ARGS(rootSig->rootSignature.GetAddressOf()));
         
         if(FAILED(hr)){
-            std::string msg = std::format("Failed to create root signature, Error msg: {}", GetErrorMessage(hr));
+            std::string msg = std::format("Failed to create root signature, Error msg: {}", Utility::GetHRErrorMessage(hr));
             m_Context.Error(msg);
             delete rootSig;
             return RootSignatureHandle{nullptr};

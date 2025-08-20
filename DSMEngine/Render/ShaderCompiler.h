@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <d3d12.h>
 #include "Utils/Utils.h"
+#include "Graphics/Shader.h"
 
 namespace DSM {
     class ShaderDefines
@@ -50,19 +51,6 @@ namespace DSM {
     private:
         std::map<std::wstring, std::wstring> m_Defines;
     };
-    
-    enum class ShaderType : int
-    {
-        Vertex,
-        Hull,
-        Domain,
-        Geometry,
-        Pixel,
-        Compute,
-        Mesh,
-        Amplification,
-        NumTypes
-    };
 
     enum class ShaderMode
     {
@@ -77,31 +65,34 @@ namespace DSM {
         SM_6_8
     };
 
-    struct ShaderDesc
+    struct ShaderCompileDesc
     {
         ShaderType m_Type;
         ShaderMode m_Mode;
         std::string m_FileName;
         std::string m_EnterPoint;
         ShaderDefines m_Defines;
+
+        ShaderCompileDesc& SetType(ShaderType type) { m_Type = type; return *this; }
+        ShaderCompileDesc& SetMode(ShaderMode mode) { m_Mode = mode; return *this; }
+        ShaderCompileDesc& SetFilename(const std::string& name) { m_FileName = name; return *this; }
+        ShaderCompileDesc& SetEnterPoint(const std::string& enterPoint) { m_EnterPoint = enterPoint; return *this; }
+        ShaderCompileDesc& AddDefine(const std::string& name, const std::string& val) { m_Defines.AddDefine(name, val); return *this; }
     };
     
     class ShaderByteCode
     {
         friend class ShaderCompiler;
     public:
-        ShaderByteCode(const ShaderDesc& shaderDesc);
+        ShaderByteCode(const ShaderCompileDesc& shaderDesc);
         ~ShaderByteCode() = default;
 
         const void* GetByteCode() const noexcept { return m_ByteCode.data(); }
         std::uint64_t GetByteCodeSize() const noexcept { return m_ByteCode.size(); }
-
-        operator D3D12_SHADER_BYTECODE() const noexcept
-        {
-            return { m_ByteCode.data(), m_ByteCode.size() };
-        }
+        const ShaderCompileDesc& GetDesc() const noexcept { return m_Desc; }
 
     private:
+        const ShaderCompileDesc m_Desc;
         std::vector<std::uint8_t> m_ByteCode{};
     };
 

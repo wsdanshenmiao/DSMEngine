@@ -2,19 +2,95 @@
 #include "D3D12-Device.h"
 
 namespace DSM::D3D12 {
-    Texture::Texture(const Context &context, DeviceResources &resources, 
-        TextureDesc desc, D3D12_RESOURCE_DESC rd)
-        :m_Context(context), m_Resources(resources), m_Desc(std::move(desc)), resourceDesc(rd)
+    Texture::Texture(const Context &context, DeviceResources &resources)
+        :m_Context(context), m_Resources(resources) {}
+
+    bool Texture::Create(TextureDesc desc)
     {
+        resourceDesc = Texture::ConvertTextureDesc(desc);
+
         if(desc.isUAV){
             m_ClearMipLevelUAVs.resize(desc.mipLevels, c_InvalidDescriptorIndex);
         }
         planeCount = m_Resources.GetFormatPlaneCount(resourceDesc.Format);
+
+        D3D12_HEAP_PROPERTIES heapProp{};
+        D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
+        
+        bool isShared = false;
+        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared)){
+            heapFlags |= D3D12_HEAP_FLAG_SHARED;
+            isShared = true;
+        }
+        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
+            heapFlags |= D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER;
+        }
+        if(desc.isTiled){
+            resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
+        }
+
+        D3D12_CLEAR_VALUE clearValue = Texture::ConvertClearValue(desc);
+
+        // 虚拟显存，后续使用 BingTextureMemory 绑定物理显存
+        if(desc.isVirtual) return true;
+
+        // 创建资源
+        HRESULT hr = S_OK;
+        if(desc.isTiled){
+            hr = m_Context.device->CreateReservedResource(
+                &resourceDesc, ConvertResourceStates(desc.initialState),
+                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
+        }
+        else{
+            heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
+            hr = m_Context.device->CreateCommittedResource(
+                &heapProp, heapFlags, 
+                &resourceDesc, ConvertResourceStates(desc.initialState),
+                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
+        }
+
+        if(FAILED(hr)){
+            std::string msg = std::format("Failed to create texture {}, error msg: {}", 
+                DebugNameToString(desc.debugName), Utility::GetHRErrorMessage(hr));
+            m_Context.Error(msg);
+            return false;
+        }
+
+        // 创建共享句柄
+        if(isShared){
+            hr = m_Context.device->CreateSharedHandle(
+                resource.Get(), nullptr, GENERIC_ALL, nullptr, &sharedHandle);
+            if(FAILED(hr)){
+                std::string msg = std::format("Failed to create shared handle for texture {}, error msg: {}", 
+                DebugNameToString(desc.debugName), Utility::GetHRErrorMessage(hr));
+                m_Context.Error(msg);
+                return false;
+            }
+        }
+
+        if(!desc.debugName.empty()){
+            auto name = Utility::UTF8ToWString(desc.debugName);
+            resource->SetName(name.c_str());
+        }
+
+        m_Desc = std::move(desc);
+        return true;
     }
 
-    Texture::~Texture()
+    void Texture::Create(TextureDesc desc, ID3D12Resource *r)
     {
-        // 析构时归还所有描述符
+        assert(r != nullptr);
+
+        resourceDesc = r->GetDesc();
+        m_Desc = std::move(desc);
+
+        resource = r;
+    }
+
+    void Texture::Destroy()
+    {
+        // 销毁时归还所有描述符
         for(const auto& [bindingKey, index] : m_RenderTargetViews){
             m_Resources.renderTargetViewHeap.ReleaseDescriptor(index);
         }
@@ -27,6 +103,14 @@ namespace DSM::D3D12 {
         for(const auto& [bindingKey, index] : m_CustomUAVs){
             m_Resources.shaderResourceViewHeap.ReleaseDescriptor(index);
         }
+
+        resource = nullptr;
+        heap = nullptr;
+        m_RenderTargetViews.clear();
+        m_DepthStencilViews.clear();
+        m_CustomSRVs.clear();
+        m_CustomUAVs.clear();
+        m_ClearMipLevelUAVs.clear();
     }
 
     Object Texture::GetNativeObject(ObjectType type)

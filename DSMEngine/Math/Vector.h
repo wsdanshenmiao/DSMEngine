@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <span>
 
 namespace DSM{
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
@@ -17,7 +18,7 @@ namespace DSM{
         constexpr Vector() noexcept;
         constexpr Vector(const T& value) noexcept;
         constexpr Vector(std::initializer_list<T> initList) noexcept;
-        constexpr Vector(const std::array<T, N>& data) noexcept;
+        constexpr Vector(std::span<const T, N> data) noexcept;
 
         auto& operator+=(const Vector& other) noexcept;
         auto& operator-=(const Vector& other) noexcept;
@@ -29,6 +30,8 @@ namespace DSM{
         constexpr bool operator==(const Vector& other);
 
         constexpr std::size_t size() const noexcept;
+        constexpr const T* data() const noexcept;
+        constexpr T* data() noexcept;
         constexpr void Fill(const T& v) noexcept;
         constexpr T SqrMagnitude() const noexcept;
         constexpr T Magnitude() const noexcept;
@@ -83,14 +86,27 @@ namespace DSM{
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
-    constexpr Vector<T, N>::Vector(const std::array<T, N>& data) noexcept
-        :m_Data(data){
+    constexpr Vector<T, N>::Vector(std::span<const T, N> data) noexcept
+    {
+        memcpy(m_Data.data(), data.data(), N * sizeof(T));
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
     constexpr std::size_t Vector<T, N>::size() const noexcept
     {
         return m_Data.size();
+    }
+    
+    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr const T* Vector<T, N>::data() const noexcept
+    {
+        return m_Data.data();
+    }
+
+    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr T* Vector<T, N>::data() noexcept
+    {
+        return m_Data.data();
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>

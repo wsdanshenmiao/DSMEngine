@@ -4,6 +4,7 @@
 
 
 #include <Windows.h>
+#include <comdef.h>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -88,6 +89,13 @@ namespace DSM::Utility {
         );
 
         return str;
+    }
+
+    inline std::string GetHRErrorMessage(HRESULT hr)
+    {
+        _com_error err{hr};
+        std::wstring msg = err.ErrorMessage();
+        return Utility::WStringToUTF8(msg);
     }
 
     template <class T>

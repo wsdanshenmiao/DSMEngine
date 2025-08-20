@@ -40,13 +40,13 @@ namespace DSM::D3D12{
             cmdList = availedQueue.front();
             auto hr = cmdList->allocator->Reset();
             if(FAILED(hr)){
-                context.Error(std::format("Failed to reset allocator. Error msg: {}", GetErrorMessage(hr)));
+                context.Error(std::format("Failed to reset allocator. Error msg: {}", Utility::GetHRErrorMessage(hr)));
                 return nullptr;
             }
 
             hr = cmdList->cmdList->Reset(cmdList->allocator, nullptr);
             if(FAILED(hr)){
-                context.Error(std::format("Failed to reset cmdList. Error msg: {}", GetErrorMessage(hr)));
+                context.Error(std::format("Failed to reset cmdList. Error msg: {}", Utility::GetHRErrorMessage(hr)));
                 return nullptr;
             }
             cmdList->lastSubmittedFenceValue = 0;
@@ -117,7 +117,7 @@ namespace DSM::D3D12{
         auto errorMsg = [this](const std::string& msg, auto hr){
             uploadBufferAllocator = nullptr;
             gpuBufferAllocator = nullptr;
-            throw std::runtime_error{std::format("{} Error msg: {}", msg, GetErrorMessage(hr))};
+            throw std::runtime_error{std::format("{} Error msg: {}", msg, Utility::GetHRErrorMessage(hr))};
         };
 
         auto hr = context.device->CreateCommandAllocator(listType, IID_PPV_ARGS(allocator.GetAddressOf()));
@@ -175,7 +175,7 @@ namespace DSM::D3D12{
 
         auto hr = m_CurrCmdList->cmdList->Close();
         if(FAILED(hr)){
-            std::string msg = std::format("Failed to close command list. Error msg: {}", GetErrorMessage(hr));
+            std::string msg = std::format("Failed to close command list. Error msg: {}", Utility::GetHRErrorMessage(hr));
             m_Device.GetContext().Error(msg);
             return;
         }
@@ -577,8 +577,8 @@ namespace DSM::D3D12{
         const bool updateFramebuffer = currStateInvalid || m_CurrGraphicsState.framebuffer != state.framebuffer;
         const bool updateRootSig = currStateInvalid || m_CurrGraphicsState.pipeline == nullptr || 
             Utility::CheckedCast<GraphicsPipeline*>(m_CurrGraphicsState.pipeline)->rootSignature != pso->rootSignature;
-        const bool updateIndirectParams = currStateInvalid || state.indirectParams == nullptr ||
-            m_CurrGraphicsState.indirectParams != state.indirectParams;
+        const bool updateIndirectParams = (currStateInvalid || m_CurrGraphicsState.indirectParams != state.indirectParams)
+            && state.indirectParams != nullptr;
         const bool updateBlendFactor = currStateInvalid || m_CurrGraphicsState.blendConstantColor != state.blendConstantColor;
         const bool updateIndexBuffer = currStateInvalid || m_CurrGraphicsState.indexBuffer != state.indexBuffer;
         const bool updateVertexBuffer = currStateInvalid || m_CurrGraphicsState.vertexBuffers != state.vertexBuffers;
@@ -662,7 +662,7 @@ namespace DSM::D3D12{
                 }
 
                 vbvs[binding.slot].BufferLocation = GetBufferGpuVA(buffer) + binding.offset;
-                vbvs[binding.slot].StrideInBytes = std::min(buffer->GetDesc().byteSize - binding.offset, uint64_t(-1));
+                vbvs[binding.slot].SizeInBytes = buffer->GetDesc().byteSize - binding.offset;
                 vbvs[binding.slot].StrideInBytes = inputlayout->elementStride[binding.slot];
                 maxVBIndex = std::max(binding.slot, maxVBIndex);
             }
@@ -1290,12 +1290,15 @@ namespace DSM::D3D12{
         }
         std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> RTVs(framebuffer->RTVs.size());
         for(int i = 0; i < framebuffer->RTVs.size(); ++i){
-            RTVs[i] = m_Resources.shaderResourceViewHeap.GetCpuHandle(framebuffer->RTVs[i]);
+            RTVs[i] = m_Resources.renderTargetViewHeap.GetCpuHandle(framebuffer->RTVs[i]);
         }
 
+        bool hasDepth = framebuffer->GetDesc().depthAttachment.Valid();
         D3D12_CPU_DESCRIPTOR_HANDLE DSV;
-        DSV = m_Resources.shaderResourceViewHeap.GetCpuHandle(framebuffer->DSV);
-        m_CurrCmdList->cmdList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, &DSV);
+        if (hasDepth) {
+            DSV = m_Resources.depthStencilViewHeap.GetCpuHandle(framebuffer->DSV);
+        }
+        m_CurrCmdList->cmdList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, hasDepth ? &DSV : nullptr);
 
         m_Instance->refResources.push_back(framebuffer);
     }

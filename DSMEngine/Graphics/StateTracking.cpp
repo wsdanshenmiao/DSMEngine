@@ -174,6 +174,7 @@ namespace DSM{
     
     void ResourceStateTracker::RequireBufferState(IBuffer *buffer, ResourceStates state)
     {
+        assert(buffer != nullptr);
         const auto& desc = buffer->GetDesc();
         
         // Cpu 可见的 Buffer 不可转换状态

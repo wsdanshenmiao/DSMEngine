@@ -3,7 +3,98 @@
 #include <format>
 
 namespace DSM::D3D12{
-    Buffer::~Buffer()
+    bool Buffer::Create(BufferDesc desc)
+    {
+        // 常量缓冲区需要对齐
+        if(desc.isConstantBuffer)
+            desc.byteSize = Utility::Align(desc.byteSize, 255llu);
+    
+        if(desc.isVolatile) 
+            return true;
+
+        resourceDesc.Width = desc.byteSize;
+        resourceDesc.Height = 1;
+        resourceDesc.DepthOrArraySize = 1;
+        resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+        resourceDesc.MipLevels = 1;
+        resourceDesc.SampleDesc = {1, 0};
+        resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        
+        if(desc.canHaveUAVs) 
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+        if(desc.isVirtual)
+            return true;
+
+        D3D12_HEAP_PROPERTIES heapProp{};
+        D3D12_HEAP_FLAGS heapFlags{};
+        D3D12_RESOURCE_STATES resourceState{};
+
+        bool isShared = false;
+        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared)){
+            heapFlags |= D3D12_HEAP_FLAG_SHARED;
+            isShared = true;
+        }
+        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
+            heapFlags |= D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER;
+            isShared = true;
+        }
+
+        switch (desc.cpuAccess) {
+        case CpuAccessMode::None:{
+            heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
+            resourceState = ConvertResourceStates(desc.initialState);
+            if(resourceState != D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
+                resourceState = D3D12_RESOURCE_STATE_COMMON;
+            break;
+        }
+        case CpuAccessMode::Read:{
+            heapProp.Type = D3D12_HEAP_TYPE_READBACK;
+            resourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+            break;
+        }
+        case CpuAccessMode::Write:{
+            heapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
+            resourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
+            break;
+        }
+        }
+        
+        // Allow readback buffers to be used as resolve destination targets
+        if ((desc.cpuAccess == CpuAccessMode::Read) && (desc.initialState == ResourceStates::ResolveDest)) {
+            heapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
+            heapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+            heapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
+            resourceState = D3D12_RESOURCE_STATE_COMMON;
+        }
+
+        auto hr = m_Context.device->CreateCommittedResource(
+            &heapProp, heapFlags, 
+            &resourceDesc, resourceState,
+            nullptr, IID_PPV_ARGS(resource.GetAddressOf()));
+
+        if (FAILED(hr))
+        {
+            std::string msg = std::format("CreateCommittedResource call failed for buffer {}, error msg: {}.",
+                DebugNameToString(desc.debugName), Utility::GetHRErrorMessage(hr));
+            m_Context.Error(msg);
+            return false;
+        }
+        m_GpuVA = resource->GetGPUVirtualAddress();
+
+        m_Desc = std::move(desc);
+        return true;
+    }
+
+    void Buffer::Create(BufferDesc desc, ID3D12Resource *resource)
+    {
+        resource = resource;
+        m_GpuVA = resource->GetGPUVirtualAddress();
+        m_Desc = std::move(desc);
+    }
+
+    void Buffer::Destroy()
     {
         if(m_Context.logBufferLifetime){
             m_Context.Info(std::format("Release buffer: {} {:#x}", 
@@ -13,8 +104,11 @@ namespace DSM::D3D12{
             m_Resources.shaderResourceViewHeap.ReleaseDescriptor(m_ClearUAV);
             m_ClearUAV = c_InvalidDescriptorIndex;
         }
+
+        resource = nullptr;
+        heap = nullptr;
     }
-    
+
     Object Buffer::GetNativeObject(ObjectType type)
     {
         switch (type)

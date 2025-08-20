@@ -278,9 +278,9 @@ namespace DSM {
         DepthStencilState depthStencilState;
         RasterState rasterState;
 
-        constexpr RenderState& setBlendState(const BlendState& value) { blendState = value; return *this; }
-        constexpr RenderState& setDepthStencilState(const DepthStencilState& value) { depthStencilState = value; return *this; }
-        constexpr RenderState& setRasterState(const RasterState& value) { rasterState = value; return *this; }
+        constexpr RenderState& SetBlendState(const BlendState& value) { blendState = value; return *this; }
+        constexpr RenderState& SetDepthStencilState(const DepthStencilState& value) { depthStencilState = value; return *this; }
+        constexpr RenderState& SetRasterState(const RasterState& value) { rasterState = value; return *this; }
     };
 
     // 图形管线
@@ -380,8 +380,8 @@ namespace DSM {
     struct VertexBufferBinding
     {
         IBuffer* buffer = nullptr;
-        uint32_t slot;
-        uint64_t offset;
+        uint32_t slot = 0;
+        uint64_t offset = 0;
 
         bool operator ==(const VertexBufferBinding& b) const
         {
@@ -399,8 +399,8 @@ namespace DSM {
     struct IndexBufferBinding
     {
         IBuffer* buffer = nullptr;
-        Format format;
-        uint32_t offset;
+        Format format = Format::UNKNOWN;
+        uint32_t offset = 0;
 
         bool operator ==(const IndexBufferBinding& b) const
         {

@@ -12,9 +12,13 @@ namespace DSM::D3D12{
     class Buffer : public IBuffer
     {
     public:
-        Buffer(const Context& context, DeviceResources& resources, BufferDesc desc)
-            : m_Context(context), m_Resources(resources), m_Desc(std::move(desc)){}
-        ~Buffer() override;
+        Buffer(const Context& context, DeviceResources& resources)
+            : m_Context(context), m_Resources(resources) {}
+        ~Buffer() override { Destroy(); };
+
+        bool Create(BufferDesc desc);
+        void Create(BufferDesc desc, ID3D12Resource* resource);
+        void Destroy();
 
         const BufferDesc& GetDesc() const override { return m_Desc; }
         GpuVirtualAddress GetGpuVirtualAddress() const override { return m_GpuVA; }
@@ -42,7 +46,7 @@ namespace DSM::D3D12{
         uint64_t lastUseFenceValue{};
 
     private:
-        const BufferDesc m_Desc;
+        BufferDesc m_Desc;
         const Context& m_Context;
         DeviceResources& m_Resources;
         D3D12_GPU_VIRTUAL_ADDRESS m_GpuVA{};

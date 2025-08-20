@@ -148,7 +148,7 @@ namespace DSM::D3D12 {
         
         SamplerHandle CreateSampler(const SamplerDesc& d) override;
 
-        InputLayoutHandle CreateInputLayout(const VertexAttributeDesc* d, uint32_t attributeCount, IShader* vertexShader) override;
+        InputLayoutHandle CreateInputLayout(std::span<const VertexAttributeDesc> descs, IShader* vertexShader) override;
         
         // 事件查询
         EventQueryHandle CreateEventQuery() override;
@@ -183,7 +183,7 @@ namespace DSM::D3D12 {
         bool WriteDescriptorTable(IDescriptorTable* _descriptorTable, const BindingSetItem& item) override;
 
         DSM::CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) override;
-        uint64_t ExecuteCommandLists(DSM::ICommandList* const* pCommandLists, size_t numCommandLists, CommandQueueType executionQueue = CommandQueueType::Graphics) override;
+        uint64_t ExecuteCommandLists(std::span<DSM::ICommandList* const> cmdLists, CommandQueueType executionQueue = CommandQueueType::Graphics) override;
         void QueueWaitForCommandList(CommandQueueType waitQueue, CommandQueueType executionQueue, uint64_t instance) override;
         // 等待成功返回true，遇到设备移除等问题返回false
         bool WaitForIdle() override;
