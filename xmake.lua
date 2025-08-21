@@ -11,8 +11,6 @@ set_languages("c11", "cxx23")
 set_toolchains("msvc")
 set_encodings("utf-8")
 
-add_defines("SPDLOG_USE_STD_FORMAT")
-
 if is_mode("debug") then 
     binDir = path.join(os.projectdir(), "bin/debug/")
     set_symbols("debug")

@@ -4,13 +4,13 @@
 
 #include "KeyCodes.h"
 #include "MouseCodes.h"
-#include "Math/Vector.h"
+#include "Math/MathCommon.h"
 
 namespace DSM::Input {
 
     bool IsKeyPressed(KeyCode keycode);
     bool IsMouseButtonPressed(MouseCode mouseCode);
-    Vector2f GetMousePosition();
+    Math::Vector2 GetMousePosition();
     float GetMouseX();
     float GetMouseY();
 

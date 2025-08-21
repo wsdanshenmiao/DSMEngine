@@ -7,7 +7,7 @@ namespace DSM::D3D12{
     {
         // 常量缓冲区需要对齐
         if(desc.isConstantBuffer)
-            desc.byteSize = Utility::Align(desc.byteSize, 255llu);
+            desc.byteSize = Math::Align(desc.byteSize, 255llu);
     
         if(desc.isVolatile) 
             return true;
@@ -129,7 +129,7 @@ namespace DSM::D3D12{
         range = range.Resolve(m_Desc);
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
         cbvDesc.BufferLocation = m_GpuVA + range.byteOffset;
-        cbvDesc.SizeInBytes = Utility::Align((UINT)range.byteSize, c_ConstantBufferOffsetSizeAlignment);
+        cbvDesc.SizeInBytes = Math::Align((UINT)range.byteSize, c_ConstantBufferOffsetSizeAlignment);
         m_Context.device->CreateConstantBufferView(&cbvDesc, {descriptor});
     }
     

@@ -133,7 +133,7 @@ namespace DSM::D3D12{
     void DescriptorHeap::Grow(uint32_t requireSize)
     {
         uint32_t preSize = m_Allocator.Capacity();
-        uint32_t newSize = NextPowerOf2(requireSize);
+        uint32_t newSize = Math::NextPowerOf2(requireSize);
 
         bool shaderVisible = m_ShaderVisibleHeap != nullptr;
         if(shaderVisible){

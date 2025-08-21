@@ -105,13 +105,6 @@ namespace DSM::Utility {
         return seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
 
-    template<typename T> requires std::is_unsigned_v<T>
-    inline T Align(T size, T alignment)
-    {
-        if(alignment <= 1) return size;
-        else return (size + alignment - 1) & ~(alignment - 1);
-    }
-
     // 用于将父类指针转换为子类指针
     template<typename T, typename U>
     inline T CheckedCast(U u)

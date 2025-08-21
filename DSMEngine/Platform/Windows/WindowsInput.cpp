@@ -17,23 +17,23 @@ namespace DSM::Input {
         return state == GLFW_PRESS;
     }
 
-    Vector2f GetMousePosition()
+    Math::Vector2 GetMousePosition()
     {
 		auto* window = static_cast<GLFWwindow*>(Application::GetInstance().GetWindow().GetNativeWindow());
 		double xpos, ypos;
 		glfwGetCursorPos(window, &xpos, &ypos);
 
-		return Vector2f{ (float)xpos, (float)ypos };    
+		return Math::Vector2{ (float)xpos, (float)ypos };    
     }
 
     float GetMouseX()
     {
-        return GetMousePosition()[0];
+        return GetMousePosition().Get(0);
     }
 
     float GetMouseY()
     {
-        return GetMousePosition()[1];
+        return GetMousePosition().Get(1);
     }
 
 } // namespace DSM

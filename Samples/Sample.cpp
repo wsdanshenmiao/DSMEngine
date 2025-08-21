@@ -6,6 +6,7 @@
 #include "Graphics/D3D12.h"
 #include "Render/Renderer.h"
 #include "Render/ShaderCompiler.h"
+#include "Math/MathCommon.h"
 
 using namespace DSM;
 
@@ -47,7 +48,7 @@ public:
         //     4, 0, 3,
         //     4, 3, 7
         // };
-        
+
         float width = (float)fb->GetFramebufferInfo().width;
         float height = (float)fb->GetFramebufferInfo().height;
         float aspectRatio = width / height;
@@ -114,7 +115,7 @@ public:
         std::vector<VertexAttributeDesc> attributes(2);
         attributes[0].SetName("POSITION")
             .SetBufferIndex(0)
-            .SetFormat(Format::RGBA32_FLOAT)
+            .SetFormat(Format::RGB32_FLOAT)
             .SetElementStride(GetFormatInfo(Format::RGB32_FLOAT).bytesPerBlock);
         attributes[1].SetName("COLOR")
             .SetBufferIndex(1)

@@ -42,7 +42,7 @@ namespace DSM::D3D12 {
         std::lock_guard lock(m_Mutex);
 
         // 过大的资源额外管理
-        if (auto alignSize = Utility::Align(bufferSize, uint64_t(alignment)); alignSize > m_PageSize) {
+        if (auto alignSize = Math::Align(bufferSize, uint64_t(alignment)); alignSize > m_PageSize) {
             DynamicResourceLocation location{};
             location.resource = CreateNewResource(alignSize);
             location.size = alignSize;

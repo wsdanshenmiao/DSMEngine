@@ -4,6 +4,7 @@
 
 #include "DescriptorHeap.h"
 #include "D3D12Common.h"
+#include "Math/MathCommon.h"
 #include <unordered_map>
 #include <span>
 #include <queue>
