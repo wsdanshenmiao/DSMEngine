@@ -7,6 +7,7 @@
 #include "Render/Renderer.h"
 #include "Render/ShaderCompiler.h"
 #include "Math/MathCommon.h"
+#include "Math/Matrix.h"
 
 using namespace DSM;
 
@@ -48,6 +49,8 @@ public:
         //     4, 0, 3,
         //     4, 3, 7
         // };
+
+        auto matrix = Matrix<float, 3, 4>::Identity * Matrix<float, 4, 3>::Identity;;
 
         float width = (float)fb->GetFramebufferInfo().width;
         float height = (float)fb->GetFramebufferInfo().height;

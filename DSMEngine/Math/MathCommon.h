@@ -9,9 +9,11 @@
 #include "XMScalar.h"
 #include "XMVector.h"
 #include "XMQuaternion.h"
+#include "XMMatrix.h"
 #else
 #include "Scalar.h"
 #include "Quaternion.h"
+#include "Matrix.h"
 #endif
 
 namespace DSM::Math {
@@ -42,11 +44,15 @@ namespace DSM::Math {
     using Vector3 = XMVector3;
     using Vector4 = XMVector4;
     using Quaternion = XMQuaternion;
+    using Matrix3 = XMMatrix3;
+    using Matrix4 = XMMatrix4;
 #else
     using Scalar = DSM::Scalar<float>;
     using Vector3 = DSM::Vector3f;
     using Vector4 = DSM::Vector4f;
     using Quaternion = DSM::Quaternion;
+    using Matrix3 = Matrix<float, 3, 3>;
+    using Matrix4 = Matrix<float, 4, 4>;
 #endif
     using Vector2 = DSM::Vector2f;
 

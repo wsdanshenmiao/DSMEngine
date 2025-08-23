@@ -87,4 +87,18 @@ namespace DSM {
 }
 
 
+template<>
+struct std::formatter<DSM::XMQuaternion>
+{
+    template<typename Context>
+    constexpr auto parse(Context& ctx) { return ctx.begin(); }
+
+    template<typename Context>
+    auto format(const DSM::XMQuaternion& k, Context& ctx) const 
+    {
+        return std::format_to(ctx.out(), "{}, {}, {}, {}/n", k.Get(0), k.Get(1), k.Get(2), k.Get(3));
+    }
+};
+
+
 #endif

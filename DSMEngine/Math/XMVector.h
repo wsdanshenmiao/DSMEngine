@@ -11,6 +11,7 @@ namespace DSM {
     
     class XMVector3
     {
+        friend class XMMatrix3;
     public:
         inline XMVector3() noexcept : m_Vector(DirectX::XMVectorReplicate(0)) {}
         inline XMVector3(float s) noexcept : m_Vector(XMScalar{s}) {}
@@ -133,6 +134,7 @@ namespace DSM {
 
     class XMVector4
     {
+        friend class XMMatrix4;
     public:
         inline XMVector4() noexcept : m_Vector(DirectX::XMVectorReplicate(0)) {}
         inline XMVector4(float s) noexcept : m_Vector(XMScalar{s}) {}
@@ -144,6 +146,7 @@ namespace DSM {
             memcpy(&tmp, initList.begin(), sizeof(float) * std::min(initList.size(), 4llu));
             m_Vector = DirectX::XMLoadFloat4(&tmp);
         }
+        inline explicit XMVector4(const XMVector3& v) :m_Vector(DirectX::XMVectorSetW(v, 0)) {}
 
         inline XMVector4& operator-() noexcept { m_Vector = DirectX::XMVectorNegate(m_Vector); return *this; }
 
@@ -255,5 +258,32 @@ namespace DSM {
 
 
 }
+
+template<>
+struct std::formatter<DSM::XMVector3>
+{
+    template<typename Context>
+    constexpr auto parse(Context& ctx) { return ctx.begin(); }
+
+    template<typename Context>
+    auto format(const DSM::XMVector3& k, Context& ctx) const 
+    {
+        return std::format_to(ctx.out(), "{}, {}, {}/n", k.Get(0), k.Get(1), k.Get(2));
+    }
+};
+
+template<>
+struct std::formatter<DSM::XMVector4>
+{
+    template<typename Context>
+    constexpr auto parse(Context& ctx) { return ctx.begin(); }
+
+    template<typename Context>
+    auto format(const DSM::XMVector4& k, Context& ctx) const 
+    {
+        return std::format_to(ctx.out(), "{}, {}, {}, {}/n", k.Get(0), k.Get(1), k.Get(2), k.Get(3));
+    }
+};
+
 
 #endif

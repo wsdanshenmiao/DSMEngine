@@ -17,6 +17,7 @@ namespace DSM{
         constexpr Vector(Scalar<T> val);
         constexpr Vector(std::span<const T, N> data);
         constexpr explicit Vector(std::initializer_list<T> initList);
+        constexpr explicit Vector(const Vector<T, N - 1>& v) requires (N > 1);
 
         auto& operator-() noexcept;
         auto& operator+=(const Vector& other) noexcept;
@@ -95,6 +96,12 @@ namespace DSM{
     constexpr Vector<T, N>::Vector(std::span<const T, N> data)
     {
         memcpy(m_Data.data(), data.data(), N * sizeof(T));
+    }
+
+    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr Vector<T, N>::Vector(const Vector<T, N - 1>& data) requires (N > 1)
+    {
+        memcpy(m_Data.data(), data.m_Data.data(), (N - 1) * sizeof(T));
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
@@ -388,9 +395,9 @@ struct std::formatter<DSM::Vector<T, N>>
     {
         std::string out{};
         for(size_t i = 0; i < N - 1; ++i){
-            out += std::to_string(k[i]) + ", ";
+            out += std::to_string(k.Get(i)) + ", ";
         }
-        out += std::to_string(k[N - 1]) + "/n";
+        out += std::to_string(k.Get(N - 1)) + "/n";
         return std::format_to(ctx.out(), "{}", out);
     }
 };

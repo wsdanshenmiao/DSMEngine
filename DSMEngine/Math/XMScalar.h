@@ -13,6 +13,8 @@ namespace DSM {
         friend class XMVector3;
         friend class XMVector4;
         friend class XMQuaternion;
+        friend class XMMatrix3;
+        friend class XMMatrix4;
     public:
         inline XMScalar() noexcept { m_Vector = DirectX::XMVectorReplicate(0);}
         inline XMScalar(float v) noexcept { m_Vector = DirectX::XMVectorReplicate(v);}
