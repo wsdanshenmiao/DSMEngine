@@ -8,6 +8,9 @@
 #include "Vector.h"
 
 namespace DSM {
+	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
+	class Matrix;
+
     template<typename T> requires std::is_arithmetic_v<T>
     class Quaternion {
     public:
@@ -31,6 +34,56 @@ namespace DSM {
             m_Vector.Set(1, sr*cp*cy - cr*sp*sy);
             m_Vector.Set(2, cr*sp*cy + sr*cp*sy);
             m_Vector.Set(3, cr*cp*sy - sr*sp*cy);
+        }
+        explicit Quaternion(const Matrix<T, 3, 3>& m) noexcept : Quaternion(Matrix<T, 4, 4>(m)) {}
+        explicit Quaternion(const Matrix<T, 4, 4>& m) noexcept
+        {
+            T w, x, y, z;
+            T m00 = m.Get(0, 0);
+            T m01 = m.Get(0, 1);
+            T m02 = m.Get(0, 2);
+            T m10 = m.Get(1, 0);
+            T m11 = m.Get(1, 1);
+            T m12 = m.Get(1, 2);
+            T m20 = m.Get(2, 0);
+            T m21 = m.Get(2, 1);
+            T m22 = m.Get(2, 2);
+            
+            // 计算迹
+            const T epsilon = T(1e-6);
+            T trace = m00 + m11 + m22;
+            
+            if (trace > epsilon) {
+                T s = T(0.5) / std::sqrt(trace + 1);
+                w = T(0.25) / s;
+                x = (m21 - m12) * s;
+                y = (m02 - m20) * s;
+                z = (m10 - m01) * s;
+            } 
+            else {
+                if (m00 > m11 && m00 > m22) {
+                    T s = T(0.5) / std::sqrt(1 + m00 - m11 - m22);
+                    w = (m21 - m12) * s;
+                    x = T(0.25) / s;
+                    y = (m01 + m10) * s;
+                    z = (m02 + m20) * s;
+                } 
+                else if (m11 > m22) {
+                    T s = T(0.5) * std::sqrt(1 + m11 - m00 - m22);
+                    w = (m02 - m20) * s;
+                    x = (m01 + m10) * s;
+                    y = T(0.25) / s;
+                    z = (m12 + m21) * s;
+                } 
+                else {
+                    T s = T(0.5) / std::sqrt(1 + m22 - m00 - m11);
+                    w = (m10 - m01) * s;
+                    x = (m02 + m20) * s;
+                    y = (m12 + m21) * s;
+                    z = T(0.25) / s;
+                }
+            }
+            m_Vector = Vector<T, 4>{w, x, y, z};
         }
 
         Quaternion operator-() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),-m_Vector.Get(3)}); }

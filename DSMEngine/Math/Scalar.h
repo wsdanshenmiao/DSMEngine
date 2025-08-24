@@ -14,7 +14,7 @@ namespace DSM {
         Scalar() = default;
         Scalar(T val) :m_Data(val) {}
         
-        Scalar& operator-() noexcept{ m_Data = -m_Data; return *this; }
+        Scalar operator-() const noexcept{ return -m_Data; }
 
         Scalar& operator+=(Scalar other) noexcept
         {

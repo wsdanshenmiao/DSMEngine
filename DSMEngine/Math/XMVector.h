@@ -23,8 +23,9 @@ namespace DSM {
             memcpy(&tmp, initList.begin(), sizeof(float) * std::min(initList.size(), 3llu));
             m_Vector = DirectX::XMLoadFloat3(&tmp);
         }
+        inline XMVector3(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
 
-        inline XMVector3& operator-() noexcept { m_Vector = DirectX::XMVectorNegate(m_Vector); return *this; }
+        inline XMVector3 operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
 
         inline XMVector3& operator+=(XMVector3 other) noexcept
         {
@@ -109,7 +110,6 @@ namespace DSM {
 
 
     private:
-        inline XMVector3(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
         inline XMVector3(const DirectX::XMFLOAT3& v) noexcept : m_Vector(DirectX::XMLoadFloat3(&v)) {}
 
     private:
@@ -147,8 +147,9 @@ namespace DSM {
             m_Vector = DirectX::XMLoadFloat4(&tmp);
         }
         inline explicit XMVector4(const XMVector3& v) :m_Vector(DirectX::XMVectorSetW(v, 0)) {}
+        inline XMVector4(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
 
-        inline XMVector4& operator-() noexcept { m_Vector = DirectX::XMVectorNegate(m_Vector); return *this; }
+        inline XMVector4 operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
 
         inline XMVector4& operator+=(XMVector4 other) noexcept
         {
@@ -235,7 +236,6 @@ namespace DSM {
 
 
     private:
-        inline XMVector4(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
         inline XMVector4(const DirectX::XMFLOAT4& v) noexcept : m_Vector(DirectX::XMLoadFloat4(&v)) {}
 
     private:

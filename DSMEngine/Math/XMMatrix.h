@@ -6,6 +6,7 @@
 #include <array>
 
 namespace DSM {
+    XMVector3 operator*(const XMVector3&, const XMMatrix3&) noexcept;
 
     // 行主序的矩阵
     __declspec(align(16)) class XMMatrix3
@@ -17,6 +18,7 @@ namespace DSM {
 
 		inline XMMatrix3& operator+=(const XMMatrix3& other) noexcept { for(size_t i = 3; i--; m_Matrix[i] += other.Get(i)); return *this; }
 		inline XMMatrix3& operator-=(const XMMatrix3& other) noexcept { for(size_t i = 3; i--; m_Matrix[i] -= other.Get(i)); return *this; }
+        inline XMMatrix3& operator*=(const XMMatrix3& m) noexcept { Set(0, Get(0) * m); Set(1, Get(1) * m); Set(2, Get(2) * m); return *this; }
 		inline XMMatrix3& operator/=(XMScalar v) noexcept { return operator/=(float(v)); }
 		inline XMMatrix3& operator*=(XMScalar v) noexcept { return operator*=(float(v)); }
 		inline XMMatrix3& operator/=(float v) noexcept { for(size_t i = 3; i--; m_Matrix[i] /= v); return *this; }
@@ -65,16 +67,7 @@ namespace DSM {
 
 	const XMMatrix3 XMMatrix3::Identity = XMMatrix3{ XMVector3{1, 0, 0}, XMVector3{0, 1, 0}, XMVector3{0, 0, 1} };
 
-    inline XMVector3 operator*(XMVector3 v, const XMMatrix3& m) noexcept 
-    {
-        auto ret = DirectX::XMVector3Transform(v, m); 
-        return XMVector3{ret.m128_f32[0], ret.m128_f32[1], ret.m128_f32[2]}; 
-    }
-    // 行矩阵相乘
-    inline XMMatrix3 operator*(const XMMatrix3& lhs, const XMMatrix3& rhs) noexcept
-    {
-        return XMMatrix3{lhs.Get(0) * rhs, lhs.Get(1) * rhs, lhs.Get(2) * rhs};
-    }
+    inline XMVector3 operator*(const XMVector3& v, const XMMatrix3& m) noexcept  { return DirectX::XMVector3Transform(v, m); }
 
 
 
@@ -106,9 +99,11 @@ namespace DSM {
             m_Matrix.r[3] = DirectX::XMVectorSetW(w, 1);
         }
         inline XMMatrix4(XMQuaternion q) noexcept :XMMatrix4(DirectX::XMMatrixRotationQuaternion(q)) {}
+        inline XMMatrix4(DirectX::FXMMATRIX matrix) noexcept : m_Matrix(matrix) {}
 
 		inline XMMatrix4& operator+=(const XMMatrix4& other) noexcept { m_Matrix += other; return *this; }
 		inline XMMatrix4& operator-=(const XMMatrix4& other) noexcept { m_Matrix -= other; return *this; }
+        inline XMMatrix4& operator*=(const XMMatrix4& other) noexcept { m_Matrix *= other; return *this; }
         inline XMMatrix4& operator/=(XMScalar v) noexcept { return operator/=(float(v)); }
 		inline XMMatrix4& operator*=(XMScalar v) noexcept { return operator*=(float(v)); }
 		inline XMMatrix4& operator/=(float v) noexcept { m_Matrix /= v; return *this; }
@@ -145,23 +140,13 @@ namespace DSM {
 
     private:
         inline XMMatrix4(const DirectX::XMFLOAT4X4& f4x4) : m_Matrix(DirectX::XMLoadFloat4x4(&f4x4)) {}
-        inline XMMatrix4(DirectX::FXMMATRIX matrix) noexcept : m_Matrix(matrix) {}
 
         DirectX::XMMATRIX m_Matrix;
     };
 	
     const XMMatrix4 XMMatrix4::Identity = XMMatrix4{ DirectX::XMMatrixIdentity() };
     
-    inline XMVector4 operator*(XMVector4 v, const XMMatrix4& m) noexcept
-    {
-        auto ret = DirectX::XMVector4Transform(v, m); 
-        return XMVector4{ret.m128_f32[0], ret.m128_f32[1], ret.m128_f32[2], ret.m128_f32[3]}; 
-    }
-    // 行矩阵相乘
-    inline XMMatrix4 operator*(const XMMatrix4& lhs, const XMMatrix4& rhs) noexcept
-    {
-        return XMMatrix4{rhs.Get(0) * lhs, rhs.Get(1) * lhs, rhs.Get(2) * lhs, rhs.Get(3) * lhs};
-    }
+    inline XMVector4 operator*(XMVector4 v, const XMMatrix4& m) noexcept { return DirectX::XMVector4Transform(v, m); }
 
 
 
@@ -169,6 +154,8 @@ namespace DSM {
     template<typename Matrix>
     concept MatrixType = std::is_same_v<Matrix, XMMatrix3> || std::is_same_v<Matrix, XMMatrix4>;
 
+    template<MatrixType Matrix>
+    inline Matrix operator-(Matrix m) noexcept { return Matrix{} -= m; }
     template<MatrixType Matrix>
     inline Matrix operator*(Matrix m, XMScalar s) noexcept { return m *= s; }
     template<MatrixType Matrix>
@@ -201,7 +188,12 @@ namespace DSM {
     inline Matrix operator-(Matrix m, float s) noexcept { return m -= s; }
     template<MatrixType Matrix>
     inline Matrix operator-(float s, const Matrix& rhs) noexcept { return rhs - s; }
-
+    template<MatrixType Matrix>
+    inline Matrix operator+(Matrix lhs, const Matrix& rhs) noexcept { return lhs += rhs; }
+    template<MatrixType Matrix>
+    inline Matrix operator-(Matrix lhs, const Matrix& rhs) noexcept { return lhs -= rhs; }
+    template<MatrixType Matrix>
+    inline Matrix operator*(Matrix lhs, const Matrix& rhs) noexcept { return lhs *= rhs; }
 
 }
 

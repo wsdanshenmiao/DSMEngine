@@ -5,6 +5,8 @@
 #include "XMVector.h"
 
 namespace DSM {
+    class XMMatrix3;
+    class XMMatrix4;
     
     class XMQuaternion
     {
@@ -15,10 +17,12 @@ namespace DSM {
         // 三个角分别为 俯仰角(x)、偏航角(y)、滚动角(z)
         inline XMQuaternion(float pitch, float yaw, float roll) noexcept
             :m_Vector((DirectX::XMQuaternionRotationRollPitchYaw(pitch, yaw, roll))){}
+        inline explicit XMQuaternion(const XMMatrix3& matrix);
+        inline explicit XMQuaternion(const XMMatrix4& matrix);
 
-        inline XMQuaternion operator-(){ return DirectX::XMVectorNegate(m_Vector); }
+        inline XMQuaternion operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
         // 返回四元数的共轭
-        inline XMQuaternion operator~(){ return DirectX::XMQuaternionConjugate(m_Vector); }
+        inline XMQuaternion operator~() const noexcept { return DirectX::XMQuaternionConjugate(m_Vector); }
         inline XMQuaternion& operator*=(XMQuaternion other) noexcept
         {
             m_Vector = DirectX::XMQuaternionMultiply(m_Vector, other.m_Vector);
@@ -27,30 +31,9 @@ namespace DSM {
 
         inline bool operator==(const XMQuaternion& o){ return DirectX::XMQuaternionEqual(m_Vector, o); }
     
-        inline XMScalar Get(size_t index) const 
-        {
-            switch (index) {
-            case 0: return XMScalar{DirectX::XMVectorSplatX(m_Vector)}; 
-            case 1: return XMScalar{DirectX::XMVectorSplatY(m_Vector)}; 
-            case 2: return XMScalar{DirectX::XMVectorSplatZ(m_Vector)};
-            case 3: return XMScalar{DirectX::XMVectorSplatW(m_Vector)};
-            default:
-                throw std::out_of_range("Index out of range.");
-            }
-            return XMScalar{};
-        }
+        XMScalar Get(size_t index) const;
         // XMVectorPermute 会从两个向量中重新布局新的向量，8个标量分别对应0 - 7 
-        inline void Set(size_t index, XMScalar x) 
-        { 
-            switch (index) {
-            case 0: m_Vector = DirectX::XMVectorPermute<4,1,2,3>(m_Vector, x);
-            case 1: m_Vector = DirectX::XMVectorPermute<0,5,2,3>(m_Vector, x);
-            case 2: m_Vector = DirectX::XMVectorPermute<0,1,6,3>(m_Vector, x);
-            case 3: m_Vector = DirectX::XMVectorPermute<0,1,2,7>(m_Vector, x);
-            default:
-                throw std::out_of_range("Index out of range.");
-            }
-        }
+        void Set(size_t index, XMScalar val);
         
         inline operator DirectX::XMVECTOR() const noexcept { return m_Vector; }
 

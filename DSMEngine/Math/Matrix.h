@@ -11,6 +11,7 @@ namespace DSM {
 	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
 	class Matrix
 	{
+		friend class Matrix<T, Row + 1, Col + 1>;
 	public:
 		using RowType = Vector<T, Col>;
 		using ColType = Vector<T, Row>;
@@ -50,7 +51,7 @@ namespace DSM {
         static inline Matrix GetScale(float s) noexcept requires Matrix3or4<Row, Col> { return GetScale(s, s, s); }
         static Matrix GetScale(float x, float y, float z) noexcept requires Matrix3or4<Row, Col>;
         static inline Matrix GetScale(const Vector<T, 3>& s) noexcept requires Matrix3or4<Row, Col> { return GetScale(s.Get(0), s.Get(1), s.Get(2)); }
-        static inline Matrix Inverse(Matrix m) noexcept requires (Row == Col) { auto det = CalculateDet(); assert(det != 0); return Adjugate() / det; }
+        static inline Matrix Inverse(Matrix m) noexcept requires (Row == Col) { auto det = m.CalculateDet(); assert(det != 0); return m.Adjugate() / det; }
         static Matrix<T, Col, Row> Transpose(Matrix m) noexcept;
         static inline Matrix InverseTranspose(Matrix m) noexcept requires (Row == Col) { return Transpose(Inverse(m)); }
 
@@ -112,9 +113,10 @@ namespace DSM {
 	constexpr Matrix<T, Row, Col>::Matrix(const LowerType& m, const Vector<T, Col - 1>& w) requires (Row > 1 && Col > 1)
 	{
 		for(size_t i = 0; i < Row - 1; ++i){
-			m_Matrix[i] = RowType{m};
+			m_Matrix[i] = RowType{m.Get(i)};
 		}
 		m_Matrix[Row - 1] = RowType{w};
+		m_Matrix[Row -1].Set(Col - 1, 1);
 	}
 
 	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
@@ -254,7 +256,7 @@ namespace DSM {
 			ret =  Get(0, 0);
 		}
 		else{
-			for(size_t i = Row; i--; ret += m_Matrix[0][i] * Cofactor(0, i));
+			for(size_t i = Row; i--; ret += Get(0, i) * Cofactor(0, i));
 		}
 		return ret;
 	}
@@ -296,6 +298,8 @@ namespace DSM {
     }
 
 	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
+    inline Matrix<T, Row, Col> operator-(const Matrix<T, Row, Col>& m) noexcept { return Matrix<T, Row, Col>{} - m; }
+	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
     inline Matrix<T, Row, Col> operator*(Matrix<T, Row, Col> m, Scalar<T> s) noexcept { return m *= s; }
     template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
     inline Matrix<T, Row, Col> operator*(Scalar<T> s, const Matrix<T, Row, Col>& rhs) noexcept { return rhs * s; }
@@ -327,7 +331,10 @@ namespace DSM {
     inline Matrix<T, Row, Col> operator-(Matrix<T, Row, Col> m, float s) noexcept { return m -= s; }
     template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
     inline Matrix<T, Row, Col> operator-(float s, const Matrix<T, Row, Col>& rhs) noexcept { return rhs - s; }
-
+    template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
+    inline Matrix<T, Row, Col> operator+(Matrix<T, Row, Col> lhs, Matrix<T, Row, Col> rhs) noexcept { return lhs += rhs; }
+    template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
+    inline Matrix<T, Row, Col> operator-(Matrix<T, Row, Col> lhs, const Matrix<T, Row, Col>& rhs) noexcept { return lhs -= rhs; }
 
 
 	using Matrix3f = Matrix<float, 3, 3>;

@@ -19,7 +19,7 @@ namespace DSM {
         inline XMScalar() noexcept { m_Vector = DirectX::XMVectorReplicate(0);}
         inline XMScalar(float v) noexcept { m_Vector = DirectX::XMVectorReplicate(v);}
 
-        inline XMScalar& operator-() noexcept{ m_Vector = DirectX::XMVectorNegate(m_Vector); return *this; }
+        inline XMScalar operator-() noexcept{ return DirectX::XMVectorNegate(m_Vector); }
         inline XMScalar& operator+=(XMScalar other) noexcept
         {
             m_Vector = DirectX::XMVectorAdd(m_Vector, other);

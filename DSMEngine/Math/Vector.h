@@ -19,7 +19,7 @@ namespace DSM{
         constexpr explicit Vector(std::initializer_list<T> initList);
         constexpr explicit Vector(const Vector<T, N - 1>& v) requires (N > 1);
 
-        auto& operator-() noexcept;
+        auto operator-() const noexcept;
         auto& operator+=(const Vector& other) noexcept;
         auto& operator-=(const Vector& other) noexcept;
         auto& operator*=(const T& v) noexcept;
@@ -117,12 +117,13 @@ namespace DSM{
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
-    auto& Vector<T, N>::operator-() noexcept
+    auto Vector<T, N>::operator-() const noexcept
     {
-        for(auto& v : m_Data){
+        Vector ret{*this};
+        for(auto& v : ret.m_Data){
             v = -v;
         }
-        return *this;
+        return ret;
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
