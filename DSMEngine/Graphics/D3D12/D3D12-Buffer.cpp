@@ -5,6 +5,8 @@
 namespace DSM::D3D12{
     bool Buffer::Create(BufferDesc desc)
     {
+        m_Desc = desc;
+
         // 常量缓冲区需要对齐
         if(desc.isConstantBuffer)
             desc.byteSize = Math::Align(desc.byteSize, 255llu);
@@ -82,8 +84,11 @@ namespace DSM::D3D12{
             return false;
         }
         m_GpuVA = resource->GetGPUVirtualAddress();
+        if(!desc.debugName.empty()){
+            auto name = Utility::UTF8ToWString(desc.debugName);
+            resource->SetName(name.c_str());
+        }
 
-        m_Desc = std::move(desc);
         return true;
     }
 
@@ -91,6 +96,10 @@ namespace DSM::D3D12{
     {
         resource = resource;
         m_GpuVA = resource->GetGPUVirtualAddress();
+        if(!desc.debugName.empty()){
+            auto name = Utility::UTF8ToWString(desc.debugName);
+            resource->SetName(name.c_str());
+        }
         m_Desc = std::move(desc);
     }
 

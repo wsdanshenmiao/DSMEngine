@@ -35,10 +35,10 @@ ConstantBuffer<PassConstants> g_PassCB : register(b1);
 VertexPosHColor VS(VertexPosLColor i)
 {
     VertexPosHColor o;
-    // float4x4 viewProj = mul(g_PassCB.View, g_PassCB.Proj);
-    // float4 posWS = mul(float4(i.PosLS, 1), g_ObjectCB.World);
-    // o.PosCS = mul(posWS, viewProj);
-    o.PosCS = float4(i.PosLS, 1);
+    float4x4 viewProj = mul(g_PassCB.View, g_PassCB.Proj);
+    float4 posWS = mul(float4(i.PosLS, 1), g_ObjectCB.World);
+    o.PosCS = mul(posWS, viewProj);
+    // o.PosCS = float4(i.PosLS, 1);
     o.Color = i.Color;
     return o;
 }

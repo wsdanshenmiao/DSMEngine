@@ -65,7 +65,7 @@ namespace DSM {
         std::array<XMVector3, 3> m_Matrix;
     };
 
-	const XMMatrix3 XMMatrix3::Identity = XMMatrix3{ XMVector3{1, 0, 0}, XMVector3{0, 1, 0}, XMVector3{0, 0, 1} };
+	inline const XMMatrix3 XMMatrix3::Identity = XMMatrix3{ XMVector3{1, 0, 0}, XMVector3{0, 1, 0}, XMVector3{0, 0, 1} };
 
     inline XMVector3 operator*(const XMVector3& v, const XMMatrix3& m) noexcept  { return DirectX::XMVector3Transform(v, m); }
 
@@ -144,7 +144,7 @@ namespace DSM {
         DirectX::XMMATRIX m_Matrix;
     };
 	
-    const XMMatrix4 XMMatrix4::Identity = XMMatrix4{ DirectX::XMMatrixIdentity() };
+    inline const XMMatrix4 XMMatrix4::Identity = XMMatrix4{ DirectX::XMMatrixIdentity() };
     
     inline XMVector4 operator*(XMVector4 v, const XMMatrix4& m) noexcept { return DirectX::XMVector4Transform(v, m); }
 

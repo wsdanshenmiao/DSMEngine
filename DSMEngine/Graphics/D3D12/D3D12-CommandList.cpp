@@ -52,6 +52,13 @@ namespace DSM::D3D12{
             cmdList->lastSubmittedFenceValue = 0;
             availedQueue.pop();
         }
+        if (!desc.debugName.empty()) {
+            auto name = Utility::UTF8ToWString(desc.debugName);
+            cmdList->cmdList->SetName(name.c_str());
+            name += L"::Allocator";
+            cmdList->allocator->SetName(name.c_str());
+        }
+
         return cmdList;
     }
 
@@ -124,10 +131,12 @@ namespace DSM::D3D12{
         if(FAILED(hr)){
             errorMsg("Faile to create command allocator.", hr);
         }
+
         hr = context.device->CreateCommandList(0, listType, allocator.Get(), nullptr, IID_PPV_ARGS(cmdList.GetAddressOf()));
         if(FAILED(hr)){
             errorMsg("Faile to create command list.", hr);
         }
+
         cmdList->QueryInterface(IID_PPV_ARGS(cmdList4.GetAddressOf()));
         cmdList->QueryInterface(IID_PPV_ARGS(cmdList6.GetAddressOf()));
     }
@@ -486,7 +495,7 @@ namespace DSM::D3D12{
         m_Instance->refNativeResources.push_back(upload.resource);
 
         if(desc.isVolatile){
-            m_VolatileBufferAddresses[buffer] = upload.gpuAddress;
+            m_VolatileBufferAddresses[std::make_pair(buffer, destOffsetBytes)] = upload.gpuAddress;
             m_HasVolatileBufferWrites = true;
         }
         else{
@@ -639,7 +648,7 @@ namespace DSM::D3D12{
                     m_StateTracker.RequireBufferState(buffer, ResourceStates::IndexBuffer);
                 }
 
-                ibv.BufferLocation = GetBufferGpuVA(buffer) + state.indexBuffer.offset;
+                ibv.BufferLocation = GetBufferGpuVA(buffer, state.indexBuffer.offset);
                 ibv.Format = GetDxgiFormatMapping(state.indexBuffer.format).srvFormat;
                 ibv.SizeInBytes = buffer->GetDesc().byteSize - state.indexBuffer.offset;
             }
@@ -661,7 +670,7 @@ namespace DSM::D3D12{
                     m_StateTracker.RequireBufferState(buffer, ResourceStates::VertexBuffer);
                 }
 
-                vbvs[binding.slot].BufferLocation = GetBufferGpuVA(buffer) + binding.offset;
+                vbvs[binding.slot].BufferLocation = GetBufferGpuVA(buffer, binding.offset);
                 vbvs[binding.slot].SizeInBytes = buffer->GetDesc().byteSize - binding.offset;
                 vbvs[binding.slot].StrideInBytes = inputlayout->elementStride[binding.slot];
                 maxVBIndex = std::max(binding.slot, maxVBIndex);
@@ -934,12 +943,12 @@ namespace DSM::D3D12{
         return true;
     }
 
-    D3D12_GPU_VIRTUAL_ADDRESS CommandList::GetBufferGpuVA(IBuffer *b)
+    D3D12_GPU_VIRTUAL_ADDRESS CommandList::GetBufferGpuVA(IBuffer *b, uint64_t offset)
     {
         Buffer* buffer = Utility::CheckedCast<Buffer*>(b);
 
         D3D12_GPU_VIRTUAL_ADDRESS address = buffer->GetDesc().isVolatile ? 
-            m_VolatileBufferAddresses[buffer] : buffer->GetGpuVirtualAddress();
+            m_VolatileBufferAddresses[std::make_pair(buffer, offset)] : buffer->GetGpuVirtualAddress();
         return address;
     }
 
@@ -948,7 +957,7 @@ namespace DSM::D3D12{
         if(!m_HasVolatileBufferWrites) return;
 
         for(auto& binding : m_GraphicsVolatileBuffers){
-            D3D12_GPU_VIRTUAL_ADDRESS address = m_VolatileBufferAddresses[binding.buffer];
+            D3D12_GPU_VIRTUAL_ADDRESS address = m_VolatileBufferAddresses[std::make_pair(binding.buffer, binding.offset)];
             if(address != binding.address){
                 m_CurrCmdList->cmdList->SetGraphicsRootConstantBufferView(binding.rootParaIndex, address);
                 binding.address = address;
@@ -963,7 +972,7 @@ namespace DSM::D3D12{
         if(!m_HasVolatileBufferWrites) return;
 
         for(auto& binding : m_ComputeVolatileBuffers){
-            D3D12_GPU_VIRTUAL_ADDRESS address = m_VolatileBufferAddresses[binding.buffer];
+            D3D12_GPU_VIRTUAL_ADDRESS address = m_VolatileBufferAddresses[std::make_pair(binding.buffer, binding.offset)];
             if(address != binding.address){
                 m_CurrCmdList->cmdList->SetComputeRootConstantBufferView(binding.rootParaIndex, address);
                 binding.address = address;
@@ -1039,6 +1048,8 @@ namespace DSM::D3D12{
             case ResourceType::TypedBuffer_UAV:
             case ResourceType::StructuredBuffer_UAV:
                 setBufferState(binding, ResourceStates::UnorderedAccess); break;
+            case ResourceType::ConstantBuffer:
+                setBufferState(binding, ResourceStates::ConstantBuffer); break;
             case ResourceType::RayTracingAccelStruct:
                 // TODO:后续支持 RayTracing 后添加
                 break;
@@ -1182,13 +1193,13 @@ namespace DSM::D3D12{
                 assert(bindingLayout == bindingSet->GetLayout());
 
                 // 绑定常量缓冲区
-                for(const auto& [cbIndex, volatileCB] : bindingSet->rootParametersVolatileCBs){
+                for(const auto& [cbIndex, volatileCB, bufferOffset] : bindingSet->rootParametersVolatileCBs){
                     uint32_t rootIndex = cbIndex + rootIndexOffset;
                     if(volatileCB == nullptr) continue;
-                    
+                    GpuVirtualAddress address = GetBufferGpuVA(volatileCB, bufferOffset);
+
                     const auto& cbDesc = volatileCB->GetDesc();
                     if(cbDesc.isVolatile){
-                        auto address = GetBufferGpuVA(volatileCB);
                         if(address == 0){
                             std::string msg = std::format("Attempted use of a volatile constant buffer {} before it was written into",
                                 DebugNameToString(volatileCB->GetDesc().debugName));
@@ -1200,13 +1211,14 @@ namespace DSM::D3D12{
                         }
 
                         VolatileBufferBinding cbBinding{};
-                        cbBinding.buffer = volatileCB;
-                        cbBinding.address = address;
                         cbBinding.rootParaIndex = rootIndex;
+                        cbBinding.buffer = volatileCB;
+                        cbBinding.offset = bufferOffset;
+                        cbBinding.address = address;
                         newVolatileBuffers.push_back(std::move(cbBinding));
                     }
                     else if(updateBinding){
-                        setConstantBuffer(rootIndex, GetBufferGpuVA(volatileCB));
+                        setConstantBuffer(rootIndex, address);
                     }
                 }
 

@@ -4,6 +4,7 @@
 
 #include <concepts>
 #include <cassert>
+#include "Core/PlatformDetection.h"
 #include "Vector.h"
 
 #if defined(DSM_PLATFORM_WINDOWS)
@@ -51,6 +52,39 @@ namespace DSM::Math {
         return SRT;
 #endif
     }
+    
+    inline Matrix4 GetProjMatrix(float fovAngleY, float aspect, float nearZ, float farZ)
+    {
+#if defined(DSM_PLATFORM_WINDOWS)
+        return Math::Matrix4{DirectX::XMMatrixPerspectiveFovLH(fovAngleY, aspect, nearZ, farZ)};
+#else
+#endif
+        float height = 1.f / std::tan(fovAngleY * 0.5f);
+        float width = height / aspect;
+        float fRange = farZ / (farZ - nearZ);
+
+        Matrix4 m;
+        m.Set(0, 0, width);
+        m.Set(0, 1, 0);
+        m.Set(0, 2, 0);
+        m.Set(0, 3, 0);
+
+        m.Set(1, 0, 0);
+        m.Set(1, 1, height);
+        m.Set(1, 2, 0);
+        m.Set(1, 3, 0);
+
+        m.Set(2, 0, 0);
+        m.Set(2, 1, 0);
+        m.Set(2, 2, fRange);
+        m.Set(2, 3, 1);
+
+        m.Set(3, 0, 0);
+        m.Set(3, 1, 0);
+        m.Set(3, 2, -nearZ * fRange);
+        m.Set(3, 3, 0);
+        return m;
+    }
 
     inline Quaternion LookTo(const Vector3& pos, const Vector3& dir, const Vector3& up)
     {
@@ -96,6 +130,7 @@ namespace DSM::Math {
         return LookTo(pos, negEyeDirection, up);
 #endif
     }
+
 
 
     template <std::unsigned_integral T>

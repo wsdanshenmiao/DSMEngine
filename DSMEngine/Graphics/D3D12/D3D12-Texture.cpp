@@ -7,6 +7,7 @@ namespace DSM::D3D12 {
 
     bool Texture::Create(TextureDesc desc)
     {
+        m_Desc = desc;
         resourceDesc = Texture::ConvertTextureDesc(desc);
 
         if(desc.isUAV){
@@ -74,7 +75,6 @@ namespace DSM::D3D12 {
             resource->SetName(name.c_str());
         }
 
-        m_Desc = std::move(desc);
         return true;
     }
 
@@ -82,7 +82,11 @@ namespace DSM::D3D12 {
     {
         assert(r != nullptr);
 
-        resourceDesc = r->GetDesc();
+        resourceDesc = r->GetDesc();        
+        if(!desc.debugName.empty()){
+            auto name = Utility::UTF8ToWString(desc.debugName);
+            r->SetName(name.c_str());
+        }
         m_Desc = std::move(desc);
 
         resource = r;

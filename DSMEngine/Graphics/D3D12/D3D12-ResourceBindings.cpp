@@ -255,20 +255,22 @@ namespace DSM::D3D12 {
 
         // 处理易变的常量常量缓冲区
         for(const auto& [index, descriptor] : bindingLayout->rootParametersVolatileCBs) {
-            IBuffer* buffer{};
+            VolatileBufferBinding cbBinding{};
+            cbBinding.rootIndex = index;
             auto it = std::find_if(m_Desc.bindings.begin(), m_Desc.bindings.end(),
                 [descriptor](const BindingSetItem& binding) {
                     return binding.type == ResourceType::VolatileConstantBuffer && 
                         descriptor.ShaderRegister == binding.slot;
                 });
             
-                if(it != m_Desc.bindings.end()){
+            if(it != m_Desc.bindings.end()){
                 assert(it->resourceHandle != nullptr);
-                buffer = Utility::CheckedCast<IBuffer*>(it->resourceHandle);
+                cbBinding.offset = it->range.byteOffset;
+                cbBinding.buffer = Utility::CheckedCast<IBuffer*>(it->resourceHandle);
                 resources.push_back(ResourceHandle{it->resourceHandle});
             }
 
-            rootParametersVolatileCBs.emplace_back(index, buffer);
+            rootParametersVolatileCBs.push_back(std::move(cbBinding));
         }
 
         // 处理采样器

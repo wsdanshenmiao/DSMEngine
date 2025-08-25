@@ -7,6 +7,29 @@
 #include "Graphics/StateTracking.h"
 #include "DynamicResourceAllocator.h"
 
+template <>
+struct std::hash<std::pair<DSM::IBuffer*, uint64_t>> 
+{
+    size_t operator()(const std::pair<DSM::IBuffer*, uint64_t> &p) const noexcept 
+    {
+        // 将指针转换为整数进行哈希
+        auto ptr_hash = std::hash<uintptr_t>{}(reinterpret_cast<uintptr_t>(p.first));
+        auto int_hash = std::hash<uint64_t>{}(p.second);
+        
+        const size_t kMul = 0x9ddfea08eb382d69ULL;
+        
+        size_t seed = ptr_hash;
+        seed ^= int_hash + kMul + (seed << 6) + (seed >> 2);
+        
+        // 最终混合
+        seed *= kMul;
+        seed ^= seed >> 47;
+        seed *= kMul;
+        
+        return seed;
+    }
+};
+
 namespace DSM::D3D12 {
     struct Context;
     struct DynamicResourceLocation;
@@ -145,7 +168,7 @@ namespace DSM::D3D12 {
         DynamicResourceLocation AllocateUploadBuffer(size_t size) override;
         DynamicResourceLocation AllocateGpuBuffer(size_t size) override;
         bool CommitDescriptorHeaps() override;
-        D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* b) override;
+        D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* b, uint64_t offset = 0) override;
 
         void UpdateGraphicsVolatileBuffers() override;
         void UpdateComputeVolatileBuffers() override;
@@ -170,8 +193,9 @@ namespace DSM::D3D12 {
     private:
         struct VolatileBufferBinding
         {
+            uint32_t rootParaIndex = 0;
             IBuffer* buffer = nullptr;
-            uint32_t rootParaIndex;
+            uint64_t offset = 0;
             D3D12_GPU_VIRTUAL_ADDRESS address{};
         };
             
@@ -201,13 +225,15 @@ namespace DSM::D3D12 {
         StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> m_GraphicsVolatileBuffers;
         StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> m_ComputeVolatileBuffers;
 
-        std::unordered_map<IBuffer*, D3D12_GPU_VIRTUAL_ADDRESS> m_VolatileBufferAddresses{};
+        std::unordered_map<std::pair<IBuffer*, uint64_t>, D3D12_GPU_VIRTUAL_ADDRESS> m_VolatileBufferAddresses{};
 
         bool m_HasVolatileBufferWrites = false;
         bool m_EnableAutomaticBarriers = true;
     };
 
 } // namespace DSM::D3D12 
+
+
 
 
 #endif

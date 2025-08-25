@@ -106,7 +106,7 @@ namespace DSM {
     struct IRenderPass
     {
         virtual void Render(Renderer* renderlayer, IFramebuffer* framebuffer) {}
-        virtual void ResizeBackBuffer(uint32_t width, uint32_t height) {}
+        virtual void OnResize(uint32_t width, uint32_t height) {}
     };
 
 

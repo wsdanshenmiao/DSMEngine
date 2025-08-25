@@ -90,7 +90,13 @@ namespace DSM::D3D12 {
         void CreateSRVDescriptors(const Context& context);
 
     public:
-        using VolatileCBVector = StaticVector<std::pair<uint32_t, IBuffer*>, c_MaxVolatileConstantBuffersPerLayout>;
+        struct VolatileBufferBinding
+        {
+            uint32_t rootIndex;
+            IBuffer* buffer;
+            uint64_t offset;
+        };
+        using VolatileCBVector = StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffersPerLayout>;
         VolatileCBVector rootParametersVolatileCBs{};
         RefPtr<BindingLayout> bindingLayout;
         std::vector<ResourceHandle> resources;

@@ -29,7 +29,7 @@ namespace DSM{
             }
 
             for(auto& pass : m_RenderPass){
-                pass->ResizeBackBuffer(event.GetWidth(), event.GetHeight());
+                pass->OnResize(event.GetWidth(), event.GetHeight());
             }
 
             return true;

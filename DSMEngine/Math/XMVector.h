@@ -4,6 +4,7 @@
 
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include "XMScalar.h"
 
 namespace DSM {
@@ -20,7 +21,7 @@ namespace DSM {
         inline explicit XMVector3(std::initializer_list<float> initList)
         {
             DirectX::XMFLOAT3 tmp{};
-            memcpy(&tmp, initList.begin(), sizeof(float) * std::min(initList.size(), 3llu));
+            memcpy(&tmp, initList.begin(), sizeof(float) * (std::min)(initList.size(), 3llu));
             m_Vector = DirectX::XMLoadFloat3(&tmp);
         }
         inline XMVector3(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
@@ -88,11 +89,11 @@ namespace DSM {
         inline operator DirectX::XMVECTOR() const noexcept { return m_Vector; }
 
         static inline void Normalize(XMVector3& v) noexcept { DirectX::XMVector3Normalize(v.m_Vector); }
-        static inline XMScalar Distance(XMVector3 v1, XMVector3 v2) noexcept;
+        static inline XMScalar Distance(const XMVector3& v1, const XMVector3& v2) noexcept;
         static inline XMVector3 Zero() noexcept { return XMVector3{}; }
         static inline XMVector3 One() noexcept { return XMVector3{1}; }
         static inline XMVector3 NegativeInfinity() noexcept { return XMVector3{std::numeric_limits<float>::lowest()}; }
-        static inline XMVector3 PositiveInfinity() noexcept { return XMVector3{std::numeric_limits<float>::max()}; }
+        static inline XMVector3 PositiveInfinity() noexcept { return XMVector3{(std::numeric_limits<float>::max)()}; }
         // 限制向量在某个长度
         static inline XMVector3 ClampMagnitude(XMVector3 v, XMScalar maxLen) noexcept { DirectX::XMVector3ClampLengthV(v, XMScalar{0}, maxLen); }
         static inline XMVector3 Lerp(XMVector3 v1, XMVector3 v2, XMScalar t) noexcept { DirectX::XMVectorLerp(v1, v2, t); }
@@ -101,7 +102,7 @@ namespace DSM {
         // 所有位取两个向量的最小值
         static inline XMVector3 Min(XMVector3 v1, XMVector3 v2) noexcept { return DirectX::XMVectorMin(v1, v2); }
         // 将向量v1投影到v2
-        static inline XMVector3 Project(XMVector3 v1, XMVector3 v2) noexcept;
+        static inline XMVector3 Project(const XMVector3& v1, const XMVector3& v2) noexcept;
         static inline XMVector3 Reflect(XMVector3 v, XMVector3 n) noexcept { return DirectX::XMVector3Reflect(v, n); }
         // 根据法线和折射率计算折射光线
         static inline XMVector3 Refract(XMVector3 v, XMVector3 n, float refractiveIndex) noexcept { return DirectX::XMVector3Refract(v, n, refractiveIndex); }
@@ -116,19 +117,19 @@ namespace DSM {
         DirectX::XMVECTOR m_Vector{};
     };
 
-    inline XMVector3 operator+(XMVector3 v0, XMVector3 v1) noexcept { return v0 += v1; };
-    inline XMVector3 operator-(XMVector3 v0, XMVector3 v1) noexcept { return v0 -= v1; };
-    inline XMVector3 operator*(XMVector3 v0, XMVector3 v1) noexcept { return v0 *= v1; };
+    inline XMVector3 operator+(XMVector3 v0, const XMVector3& v1) noexcept { return v0 += v1; };
+    inline XMVector3 operator-(XMVector3 v0, const XMVector3& v1) noexcept { return v0 -= v1; };
+    inline XMVector3 operator*(XMVector3 v0, const XMVector3& v1) noexcept { return v0 *= v1; };
     inline XMVector3 operator*(XMVector3 v0, XMScalar scalar) noexcept { return v0 *= scalar; };
     inline XMVector3 operator*(XMScalar scalar, XMVector3 v) noexcept { return v *= scalar; };
     inline XMVector3 operator*(XMVector3 v0, float scalar) noexcept { return v0 *= scalar; };
     inline XMVector3 operator*(float scalar, XMVector3 v) noexcept { return v *= scalar; };
-    inline XMVector3 operator/(XMVector3 v0, XMVector3 v1) noexcept { return v0 /= v1; };
+    inline XMVector3 operator/(XMVector3 v0, const XMVector3& v1) noexcept { return v0 /= v1; };
     inline XMVector3 operator/(XMVector3 v0, XMScalar scalar) noexcept { return v0 /= scalar; };
     inline XMVector3 operator/(XMVector3 v, float scalar) noexcept { return v /= scalar; };
     
-    XMScalar XMVector3::Distance(XMVector3 v1, XMVector3 v2) noexcept { return (v2 - v1).Magnitude(); }
-    XMVector3 Project(XMVector3 v1, XMVector3 v2) { return (XMVector3::Dot(v1, v2) / v2.SqrMagnitude()) * v2; }
+    XMScalar XMVector3::Distance(const XMVector3& v1, const XMVector3& v2) noexcept { return (v2 - v1).Magnitude(); }
+    XMVector3 XMVector3::Project(const XMVector3& v1, const XMVector3& v2) noexcept { return (XMVector3::Dot(v1, v2) / v2.SqrMagnitude()) * v2; }
 
 
 
@@ -143,7 +144,7 @@ namespace DSM {
         inline explicit XMVector4(std::initializer_list<float> initList)
         {
             DirectX::XMFLOAT4 tmp{};
-            memcpy(&tmp, initList.begin(), sizeof(float) * std::min(initList.size(), 4llu));
+            memcpy(&tmp, initList.begin(), sizeof(float) * (std::min)(initList.size(), 4llu));
             m_Vector = DirectX::XMLoadFloat4(&tmp);
         }
         inline explicit XMVector4(const XMVector3& v) :m_Vector(DirectX::XMVectorSetW(v, 0)) {}
@@ -218,7 +219,7 @@ namespace DSM {
         static inline XMVector4 Zero() noexcept { return XMVector4{}; }
         static inline XMVector4 One() noexcept { return XMVector4{1}; }
         static inline XMVector4 NegativeInfinity() noexcept { return XMVector4{std::numeric_limits<float>::lowest()}; }
-        static inline XMVector4 PositiveInfinity() noexcept { return XMVector4{std::numeric_limits<float>::max()}; }
+        static inline XMVector4 PositiveInfinity() noexcept { return XMVector4{(std::numeric_limits<float>::max)()}; }
         // 限制向量在某个长度
         static inline XMVector4 ClampMagnitude(XMVector4 v, XMScalar maxLen) noexcept { DirectX::XMVector4ClampLength(v, 0, maxLen); }
         static inline XMVector4 Lerp(XMVector4 v1, XMVector4 v2, XMScalar t) noexcept { DirectX::XMVectorLerp(v1, v2, t); }
@@ -254,7 +255,7 @@ namespace DSM {
     inline XMVector4 operator/(XMVector4 v, float scalar) noexcept { return v /= scalar; };
 
     XMScalar XMVector4::Distance(XMVector4 v1, XMVector4 v2) noexcept { return (v2 - v1).Magnitude(); }
-    XMVector4 Project(XMVector4 v1, XMVector4 v2) { return (XMVector4::Dot(v1, v2) / v2.SqrMagnitude()) * v2; }
+    XMVector4 XMVector4::Project(XMVector4 v1, XMVector4 v2) noexcept { return (XMVector4::Dot(v1, v2) / v2.SqrMagnitude()) * v2; }
 
 
 }

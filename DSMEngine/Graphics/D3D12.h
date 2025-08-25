@@ -16,7 +16,7 @@ namespace DSM::D3D12{
         virtual DynamicResourceLocation AllocateUploadBuffer(size_t size) = 0;
         virtual DynamicResourceLocation AllocateGpuBuffer(size_t size) = 0;
         virtual bool CommitDescriptorHeaps() = 0;
-        virtual D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* buffer) = 0;
+        virtual D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* buffer, uint64_t offset = 0) = 0;
 
         virtual void UpdateGraphicsVolatileBuffers() = 0;
         virtual void UpdateComputeVolatileBuffers() = 0;

@@ -8,14 +8,32 @@
 #include "Render/ShaderCompiler.h"
 #include "Math/MathCommon.h"
 #include "Math/Matrix.h"
+#include "Render/CameraController.h"
 
 using namespace DSM;
 
 class RenderPass : public IRenderPass
 {
 public:
-    void Render(Renderer* renderer, IFramebuffer* fb) override
+
+    struct ObjectConstants
     {
+        Math::Matrix4 World;
+        Math::Matrix4 WorldInvTranspose;
+    };
+
+    struct PassConstants
+    {
+        Math::Matrix4 View;
+        Math::Matrix4 InvView;
+        Math::Matrix4 Proj;
+        Math::Matrix4 InvProj;
+        Math::Vector3 EyePosW;
+    };
+
+    RenderPass(IDevice* device, uint32_t width, uint32_t height)
+    {
+
         // std::array<Vector3f, 8> vertexPos = {
         //     Vector3f{-1.0f, -1.0f, -1.0f},
         //     Vector3f{-1.0f, +1.0f, -1.0f},
@@ -50,46 +68,49 @@ public:
         //     4, 3, 7
         // };
 
-        auto matrix = Matrix<float, 3, 4>::Identity * Matrix<float, 4, 3>::Identity;;
-
-        float width = (float)fb->GetFramebufferInfo().width;
-        float height = (float)fb->GetFramebufferInfo().height;
-        float aspectRatio = width / height;
-
         std::array<Vector3f, 3> vertexPos = {
-            Vector3f{ 0.0f, 0.25f * aspectRatio, 0.0f },
-            Vector3f{ 0.25f, -0.25f * aspectRatio, 0.0f },
-            Vector3f{ -0.25f, -0.25f * aspectRatio, 0.0f } };
+            Vector3f{ 0.0f, 0.25f, 1.0f },
+            Vector3f{ 0.25f, -0.25f, 1.0f },
+            Vector3f{ -0.25f, -0.25f, 1.0f } };
 
         std::array<Vector4f, 8> vertexColor = {
             Vector4f{ 1.0f, 0.0f, 0.0f, 1.0f },
             Vector4f{ 0.0f, 1.0f, 0.0f, 1.0f },
             Vector4f{ 0.0f, 0.0f, 1.0f, 1.0f } };
 
-        auto device = renderer->GetDevice();
-        auto cmdList = device->CreateCommandList(
-            CommandListParameters().SetQueueType(CommandQueueType::Graphics));
-        cmdList->Open();
+        m_VertexCount = vertexPos.size();
 
-        uint32_t posByteSize = sizeof(Vector3f) * vertexPos.size();
+        m_PosByteSize = sizeof(Vector3f) * m_VertexCount;
         uint32_t colorByteSize = sizeof(Vector4f) * vertexColor.size();
-        auto vertexBuffer = device->CreateBuffer(BufferDesc()
-            .SetByteSize(posByteSize + colorByteSize)
+        m_VertexBuffer = device->CreateBuffer(BufferDesc()
+            .SetByteSize(m_PosByteSize + colorByteSize)
             .SetDebugName("VertexBuffer")
             .SetIsVertexBuffer(true));
-        // auto indexBuffer = device->CreateBuffer(BufferDesc()
+        // m_IndexBuffer = device->CreateBuffer(BufferDesc()
         //     .SetByteSize(sizeof(uint32_t) * indices.size())
         //     .SetDebugName("IndexBuffer")
         //     .SetIsIndexBuffer(true)
         //     .SetFormat(Format::R32_UINT));
 
-        cmdList->WriteBuffer(vertexBuffer, vertexPos.data(), posByteSize);
-        cmdList->WriteBuffer(vertexBuffer, vertexColor.data(), colorByteSize, posByteSize);
+        auto objectCBByteSize = Math::Align(sizeof(ObjectConstants), uint64_t(c_ConstantBufferOffsetSizeAlignment));
+        auto passCBByteSize = sizeof(PassConstants);
+        m_ConstBuffer = device->CreateBuffer(BufferDesc()
+            .SetIsConstantBuffer(true)
+            .SetByteSize(objectCBByteSize + passCBByteSize)
+            .SetDebugName("ConstBuffer")
+            .SetIsVolatile(true));
+        
+
+        auto cmdList = device->CreateCommandList(
+            CommandListParameters().SetQueueType(CommandQueueType::Graphics).SetDebugName("Write VertexBuffer"));
+        cmdList->Open();
+
+        cmdList->WriteBuffer(m_VertexBuffer, vertexPos.data(), m_PosByteSize);
+        cmdList->WriteBuffer(m_VertexBuffer, vertexColor.data(), colorByteSize, m_PosByteSize);
         // cmdList->WriteBuffer(indexBuffer, indices.data(), indexBuffer->GetDesc().byteSize);
 
-        const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-        cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
-        cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
+        cmdList->Close();
+        device->ExecuteCommandList(cmdList);
 
         // 创建着色器
         ShaderByteCode vs{ShaderCompileDesc()
@@ -103,12 +124,12 @@ public:
             .SetFilename("Shaders/Color.hlsl")
             .SetEnterPoint("PS")};
         
-        ShaderHandle vertex = device->CreateShader(ShaderDesc()
+        m_VS = device->CreateShader(ShaderDesc()
             .SetEntryName(vs.GetDesc().m_EnterPoint)
             .SetShaderType(vs.GetDesc().m_Type)
             .SetDebugName("ColorVS"), 
             vs.GetByteCode(), vs.GetByteCodeSize());
-        ShaderHandle pixel = device->CreateShader(ShaderDesc()
+        m_PS = device->CreateShader(ShaderDesc()
             .SetEntryName(ps.GetDesc().m_EnterPoint)
             .SetShaderType(ps.GetDesc().m_Type)
             .SetDebugName("ColorVS"), 
@@ -124,12 +145,54 @@ public:
             .SetBufferIndex(1)
             .SetFormat(Format::RGBA32_FLOAT)
             .SetElementStride(GetFormatInfo(Format::RGBA32_FLOAT).bytesPerBlock);
-        InputLayoutHandle layout = device->CreateInputLayout(attributes, vertex);
+        m_Layout = device->CreateInputLayout(attributes, m_VS);
+
+        m_Camera = std::make_unique<Camera>();
+        m_CameraController = std::make_unique<CameraController>();
+        m_CameraController->InitCamera(m_Camera.get());
+        OnResize(width, height);
+    }
+
+    void Render(Renderer* renderer, IFramebuffer* fb) override
+    {
+        m_CameraController->Update(0.01f);
+
+        float width = (float)fb->GetFramebufferInfo().width;
+        float height = (float)fb->GetFramebufferInfo().height;
+        float aspectRatio = width / height;
+
+        auto device = renderer->GetDevice();
+        auto cmdList = device->CreateCommandList(
+            CommandListParameters().SetQueueType(CommandQueueType::Graphics));
+        cmdList->Open();
+
+        const auto& rendertarget = fb->GetDesc().colorAttachments[0];
+        cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
+        cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
+
+        auto cbOffset = Math::Align(sizeof(ObjectConstants), uint64_t(c_ConstantBufferOffsetSizeAlignment));
+        PassConstants passCB{};
+        passCB.View = Math::Matrix4::Transpose(m_Camera->GetViewMatrix());
+        passCB.InvView = Math::Matrix4::Inverse(passCB.View);
+        passCB.Proj = Math::Matrix4::Transpose(m_Camera->GetProjMatrix());
+        passCB.InvProj = Math::Matrix4::Inverse(passCB.Proj);
+        passCB.EyePosW = m_Camera->GetPosition();
+        ObjectConstants objectCB{};
+        objectCB.World = Math::Matrix4::Identity;
+        objectCB.WorldInvTranspose = objectCB.World;
+        cmdList->WriteBuffer(m_ConstBuffer, &objectCB, sizeof(objectCB));
+        cmdList->WriteBuffer(m_ConstBuffer, &passCB, sizeof(passCB), cbOffset);
 
         auto binding = device->CreateBindingLayout(BindingLayoutDesc()
             .SetVisibility(ShaderType::All)
-            .AddItem(BindingLayoutItem{}.ConstantBuffer(0))
-            .AddItem(BindingLayoutItem{}.ConstantBuffer(1)));
+            .AddItem(BindingLayoutItem{}.VolatileConstantBuffer(0))
+            .AddItem(BindingLayoutItem{}.VolatileConstantBuffer(1)));
+
+        auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+            .AddItem(BindingSetItem().ConstantBuffer(0, m_ConstBuffer, 
+                BufferRange().SetByteOffset(0).SetByteSize(sizeof(ObjectConstants))))
+            .AddItem(BindingSetItem().ConstantBuffer(1, m_ConstBuffer, 
+                BufferRange().SetByteOffset(cbOffset).SetByteSize(sizeof(PassConstants)))), binding);
 
         RenderState renderState{};
         renderState.SetBlendState(BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{}))
@@ -137,23 +200,23 @@ public:
             .SetDepthStencilState(DepthStencilState{}.SetDepthTestEnable(false));
 
         auto pso = device->CreateGraphicsPipeline(GraphicsPipelineDesc()
-            .SetInputLayout(layout)
-            .SetVertexShader(vertex)
-            .SetPixelShader(pixel)
+            .SetInputLayout(m_Layout)
+            .SetVertexShader(m_VS)
+            .SetPixelShader(m_PS)
             .SetRenderState(renderState)
             .AddBindingLayout(binding), fb);
 
         GraphicsState state{};
-        state.SetFramebuffer(fb).SetPipeline(pso)
+        state.SetFramebuffer(fb).SetPipeline(pso).AddBindingSet(bindingSet)
             .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
             // .SetIndexBuffer(IndexBufferBinding{}.SetBuffer(indexBuffer).SetFormat(Format::R32_UINT))
-            .AddVertexBuffer(VertexBufferBinding{}.SetBuffer(vertexBuffer).SetSlot(0))
-            .AddVertexBuffer(VertexBufferBinding{}.SetBuffer(vertexBuffer).SetSlot(1).SetOffset(posByteSize));
+            .AddVertexBuffer(VertexBufferBinding{}.SetBuffer(m_VertexBuffer).SetSlot(0))
+            .AddVertexBuffer(VertexBufferBinding{}.SetBuffer(m_VertexBuffer).SetSlot(1).SetOffset(m_PosByteSize));
 
         cmdList->SetGraphicsState(state);
         
         // cmdList->DrawIndexed(DrawArguments{}.SetVertexCount(indices.size()));
-        cmdList->Draw(DrawArguments{}.SetVertexCount(vertexPos.size()));
+        cmdList->Draw(DrawArguments{}.SetVertexCount(m_VertexCount));
 
         cmdList->Close();
 
@@ -161,6 +224,27 @@ public:
 
         device->RunGarbageCollection();
     }
+
+    void OnResize(uint32_t width, uint32_t height) override
+    {
+        m_Camera->SetViewPort(Viewport{float(width), float(height)});
+        m_Camera->SetFrustum(std::numbers::pi * 0.5f, float(width) / height, 0.1f, 1000.f);
+    }
+
+private:
+    BufferHandle m_VertexBuffer;
+    BufferHandle m_IndexBuffer;
+    BufferHandle m_ConstBuffer;
+
+    ShaderHandle m_VS;
+    ShaderHandle m_PS;
+    InputLayoutHandle m_Layout;
+
+    uint32_t m_PosByteSize;
+    uint32_t m_VertexCount;
+
+    std::unique_ptr<Camera> m_Camera;
+    std::unique_ptr<CameraController> m_CameraController;
 };
 
 class ExampleLayer : public DSM::Layer
@@ -183,10 +267,13 @@ public:
     Sample()
     {
         PushLayer(std::make_shared<ExampleLayer>());
-        m_Renderer->AddRenderPass(&m_RenderPass);
+        auto pass = std::make_unique<RenderPass>(m_Renderer->GetDevice(), m_Window->GetWidth(), m_Window->GetHeight());
+        m_Renderer->AddRenderPass(pass.get());
+        m_RenderPasses.push_back(std::move(pass));
     }
 
-    RenderPass m_RenderPass{};
+private:
+    std::vector<std::unique_ptr<IRenderPass>> m_RenderPasses;
 };
 
 DSM::Application* DSM::CreateApplication()

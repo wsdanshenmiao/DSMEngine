@@ -19,9 +19,12 @@ namespace DSM{
         // 命令队列的类型
         CommandQueueType queueType = CommandQueueType::Graphics;
 
+        std::string debugName{};
+
         CommandListParameters& SetUploadChunkSize(size_t value) { uploadChunkSize = value; return *this; }
         CommandListParameters& SetScratchChunkSize(size_t value) { scratchChunkSize = value; return *this; }
         CommandListParameters& SetQueueType(CommandQueueType value) { queueType = value; return *this; }
+        CommandListParameters& SetDebugName(const std::string& name) { debugName = name; return *this; }
     };
 
     struct ICommandList : public IResource

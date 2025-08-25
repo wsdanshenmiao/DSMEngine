@@ -1049,7 +1049,6 @@ namespace DSM::D3D12{
             return nullptr;
         }
 
-
         return CreateHandleForNativeGraphicsPipeline(rootSig.Get(), pipelineState.Get(), desc, fbInfo);
     }
 
