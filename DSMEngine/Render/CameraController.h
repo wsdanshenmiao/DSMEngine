@@ -29,8 +29,8 @@ namespace DSM {
         Camera* m_pCamera = nullptr;
 
         float m_MoveSpeed = 5.0f;
-        float m_MouseSensitivityX = 0.0005f;
-        float m_MouseSensitivityY = 0.0005f;
+        float m_MouseSensitivityX = 0.005f;
+        float m_MouseSensitivityY = 0.005f;
 
         float m_CurrentYaw = 0.0f;
         float m_CurrentPitch = 0.0f;

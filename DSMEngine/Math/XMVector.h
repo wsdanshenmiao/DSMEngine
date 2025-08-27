@@ -43,14 +43,14 @@ namespace DSM {
             m_Vector = DirectX::XMVectorMultiply(m_Vector, scalar);
             return *this;
         }
-        inline XMVector3& operator*=(XMScalar scalar) noexcept { return operator*=(XMVector3{scalar}); }
+        inline XMVector3& operator*=(XMScalar scalar) noexcept { return operator*=(XMVector3(scalar)); }
         inline XMVector3& operator*=(float v) noexcept { return operator*=(XMScalar{v}); }
         inline XMVector3& operator/=(XMVector3 scalar) noexcept
         {
             m_Vector = DirectX::XMVectorDivide(m_Vector, scalar);
             return *this;
         }
-        inline XMVector3& operator/=(XMScalar scalar) noexcept { return operator/=(XMVector3{scalar}); }
+        inline XMVector3& operator/=(XMScalar scalar) noexcept { return operator/=(XMVector3(scalar)); }
         inline XMVector3& operator/=(float v) noexcept { return operator/=(XMScalar{v}); }
         
         inline bool operator==(const XMVector3& other) const noexcept { return DirectX::XMVector3Equal(m_Vector, other); }
@@ -167,14 +167,14 @@ namespace DSM {
             m_Vector = DirectX::XMVectorMultiply(m_Vector, scalar);
             return *this;
         }
-        inline XMVector4& operator*=(XMScalar scalar) noexcept { return operator*=(XMVector4{scalar}); }
+        inline XMVector4& operator*=(XMScalar scalar) noexcept { return operator*=(XMVector4(scalar)); }
         inline XMVector4& operator*=(float v) noexcept { return operator*=(XMScalar{v}); }
         inline XMVector4& operator/=(XMVector4 scalar) noexcept
         {
             m_Vector = DirectX::XMVectorDivide(m_Vector, scalar);
             return *this;
         }
-        inline XMVector4& operator/=(XMScalar scalar) noexcept { return operator/=(XMVector4{scalar}); }
+        inline XMVector4& operator/=(XMScalar scalar) noexcept { return operator/=(XMVector4(scalar)); }
         inline XMVector4& operator/=(float v) noexcept { return operator/=(XMScalar{v}); }
         
         inline bool operator==(const XMVector4& other) noexcept { return DirectX::XMVector4Equal(m_Vector, other); }

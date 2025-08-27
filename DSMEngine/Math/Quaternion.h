@@ -25,8 +25,11 @@ namespace DSM {
             m_Vector.Set(2, axis.Get(1) * s);        // y
             m_Vector.Set(3, axis.Get(2) * s);       // z
         }
-        Quaternion(T pitch, T yaw, T roll) noexcept 
+        Quaternion(T pitch, T yaw, T roll) noexcept : Quaternion(Vector<T, 3>{pitch, yaw, roll}) {}
+        Quaternion(const Vector<T, 3>& v) noexcept
         {
+            T pi2 = T(std::numbers::pi) * T(2);
+            T pitch = v.Get(0) % pi2, yaw = v.Get(1) % pi2, roll = v.Get(2) % pi2;
             T cr = std::cos(roll * T(0.5)), sr = std::sin(roll * T(0.5));
             T cp = std::cos(pitch * T(0.5)), sp = std::sin(pitch * T(0.5));
             T cy = std::cos(yaw * T(0.5)), sy = std::sin(yaw * T(0.5));
@@ -103,6 +106,32 @@ namespace DSM {
 
         inline Scalar<T> Get(size_t index) const noexcept { return m_Vector.Get(index); }
         inline void Set(size_t index, T val) noexcept { m_Vector.Set(index, val); }
+        // 四元数转欧拉角（Pitch, Yaw, Roll），返回Vector<T, 3>，单位为弧度
+        Vector<T, 3> ToEulerAngles()
+        {
+            float w = m_Vector.Get(0);
+            float x = m_Vector.Get(1);
+            float y = m_Vector.Get(2);
+            float z = m_Vector.Get(3);
+
+            // pitch (X轴)
+            float sinX = 2.0f * (w * x - y * z);
+            sinX = sinX > 1.0f ? 1.0f : sinX;
+            sinX = sinX < -1.0f ? -1.0f : sinX;
+            float pitch = std::asin(sinX);
+
+            // roll (Y轴)
+            float sinY_cosX = 2.0f * (w * y + x * z);
+            float cosY_cosX = 1.0f - 2.0f * (x * x + y * y);
+            float yaw = std::atan2(sinY_cosX, cosY_cosX);
+
+            // yaw (Z轴)
+            float sinZ_cosX = 2.0f * (w * z + x * y);
+            float cosZ_cosX = 1.0f - 2.0f * (x * x + z * z);
+            float roll = std::atan2(sinZ_cosX, cosZ_cosX);
+
+            return Vector<T, 3>{pitch, yaw, roll};
+        }
 
         inline Quaternion Normalized() const noexcept { Quaternion ret = *this; Normalize(ret); return ret; }
 

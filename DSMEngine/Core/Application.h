@@ -8,7 +8,7 @@
 #include "LayerStack.h"
 #include "GUI/ImguiLayer.h"
 #include "Utils/Singleton.h"
-
+#include "CpuTimer.h"
 
 namespace DSM {
     class WindowResizeEvent;
@@ -54,6 +54,8 @@ namespace DSM {
 
         std::shared_ptr<ImguiLayer> m_ImguiLayer;
         std::shared_ptr<Renderer> m_Renderer;
+
+        ::CpuTimer m_Timer{};  
     };
 
 

@@ -49,9 +49,11 @@ namespace DSM {
 
     void Application::Run()
     {
+        m_Timer.Reset();
         while (m_Running) {
+            m_Timer.Tick();
             for(auto& layer : m_LayerStack){
-                layer->OnUpdate();
+                layer->OnUpdate(m_Timer);
             }
 
             m_Window->OnUpdate();

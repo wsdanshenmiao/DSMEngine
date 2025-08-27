@@ -9,6 +9,7 @@
 #include "Math/MathCommon.h"
 #include "Math/Matrix.h"
 #include "Render/CameraController.h"
+#include "Core/CpuTimer.h"
 
 using namespace DSM;
 
@@ -34,51 +35,52 @@ public:
     RenderPass(IDevice* device, uint32_t width, uint32_t height)
     {
 
-        // std::array<Vector3f, 8> vertexPos = {
-        //     Vector3f{-1.0f, -1.0f, -1.0f},
-        //     Vector3f{-1.0f, +1.0f, -1.0f},
-        //     Vector3f{+1.0f, +1.0f, -1.0f},
-        //     Vector3f{+1.0f, -1.0f, -1.0f},
-        //     Vector3f{-1.0f, -1.0f, +1.0f},
-        //     Vector3f{-1.0f, +1.0f, +1.0f},
-        //     Vector3f{+1.0f, +1.0f, +1.0f},
-        //     Vector3f{+1.0f, -1.0f, +1.0f}};
-        // std::array<Vector4f, 8> vertexColor = {
-        //     Vector4f{DirectX::Colors::White.f},
-        //     Vector4f{DirectX::Colors::Black.f},
-        //     Vector4f{DirectX::Colors::Red.f},
-        //     Vector4f{DirectX::Colors::Green.f},
-        //     Vector4f{DirectX::Colors::Blue.f},
-        //     Vector4f{DirectX::Colors::Yellow.f},
-        //     Vector4f{DirectX::Colors::Cyan.f},
-        //     Vector4f{DirectX::Colors::Magenta.f}};
-
-        // std::array<std::uint32_t, 36> indices ={
-        //     0, 1, 2,
-        //     0, 2, 3,
-        //     4, 6, 5,
-        //     4, 7, 6,
-        //     4, 5, 1,
-        //     4, 1, 0,
-        //     3, 2, 6,
-        //     3, 6, 7,
-        //     1, 5, 6,
-        //     1, 6, 2,
-        //     4, 0, 3,
-        //     4, 3, 7
-        // };
-
-        std::array<Vector3f, 3> vertexPos = {
-            Vector3f{ 0.0f, 0.25f, 1.0f },
-            Vector3f{ 0.25f, -0.25f, 1.0f },
-            Vector3f{ -0.25f, -0.25f, 1.0f } };
-
+        std::array<Vector3f, 8> vertexPos = {
+            Vector3f{-1.0f, -1.0f, -1.0f},
+            Vector3f{-1.0f, +1.0f, -1.0f},
+            Vector3f{+1.0f, +1.0f, -1.0f},
+            Vector3f{+1.0f, -1.0f, -1.0f},
+            Vector3f{-1.0f, -1.0f, +1.0f},
+            Vector3f{-1.0f, +1.0f, +1.0f},
+            Vector3f{+1.0f, +1.0f, +1.0f},
+            Vector3f{+1.0f, -1.0f, +1.0f}};
         std::array<Vector4f, 8> vertexColor = {
-            Vector4f{ 1.0f, 0.0f, 0.0f, 1.0f },
-            Vector4f{ 0.0f, 1.0f, 0.0f, 1.0f },
-            Vector4f{ 0.0f, 0.0f, 1.0f, 1.0f } };
+            Vector4f{DirectX::Colors::White.f},
+            Vector4f{DirectX::Colors::Black.f},
+            Vector4f{DirectX::Colors::Red.f},
+            Vector4f{DirectX::Colors::Green.f},
+            Vector4f{DirectX::Colors::Blue.f},
+            Vector4f{DirectX::Colors::Yellow.f},
+            Vector4f{DirectX::Colors::Cyan.f},
+            Vector4f{DirectX::Colors::Magenta.f}};
+
+        std::array<std::uint32_t, 36> indices ={
+            0, 1, 2,
+            0, 2, 3,
+            4, 6, 5,
+            4, 7, 6,
+            4, 5, 1,
+            4, 1, 0,
+            3, 2, 6,
+            3, 6, 7,
+            1, 5, 6,
+            1, 6, 2,
+            4, 0, 3,
+            4, 3, 7
+        };
+
+        // std::array<Vector3f, 3> vertexPos = {
+        //     Vector3f{ 0.0f, 0.25f, 1.0f },
+        //     Vector3f{ 0.25f, -0.25f, 1.0f },
+        //     Vector3f{ -0.25f, -0.25f, 1.0f } };
+
+        // std::array<Vector4f, 8> vertexColor = {
+        //     Vector4f{ 1.0f, 0.0f, 0.0f, 1.0f },
+        //     Vector4f{ 0.0f, 1.0f, 0.0f, 1.0f },
+        //     Vector4f{ 0.0f, 0.0f, 1.0f, 1.0f } };
 
         m_VertexCount = vertexPos.size();
+        m_IndexCount = indices.size();
 
         m_PosByteSize = sizeof(Vector3f) * m_VertexCount;
         uint32_t colorByteSize = sizeof(Vector4f) * vertexColor.size();
@@ -86,11 +88,11 @@ public:
             .SetByteSize(m_PosByteSize + colorByteSize)
             .SetDebugName("VertexBuffer")
             .SetIsVertexBuffer(true));
-        // m_IndexBuffer = device->CreateBuffer(BufferDesc()
-        //     .SetByteSize(sizeof(uint32_t) * indices.size())
-        //     .SetDebugName("IndexBuffer")
-        //     .SetIsIndexBuffer(true)
-        //     .SetFormat(Format::R32_UINT));
+        m_IndexBuffer = device->CreateBuffer(BufferDesc()
+            .SetByteSize(sizeof(uint32_t) * indices.size())
+            .SetDebugName("IndexBuffer")
+            .SetIsIndexBuffer(true)
+            .SetFormat(Format::R32_UINT));
 
         auto objectCBByteSize = Math::Align(sizeof(ObjectConstants), uint64_t(c_ConstantBufferOffsetSizeAlignment));
         auto passCBByteSize = sizeof(PassConstants);
@@ -99,7 +101,6 @@ public:
             .SetByteSize(objectCBByteSize + passCBByteSize)
             .SetDebugName("ConstBuffer")
             .SetIsVolatile(true));
-        
 
         auto cmdList = device->CreateCommandList(
             CommandListParameters().SetQueueType(CommandQueueType::Graphics).SetDebugName("Write VertexBuffer"));
@@ -107,7 +108,7 @@ public:
 
         cmdList->WriteBuffer(m_VertexBuffer, vertexPos.data(), m_PosByteSize);
         cmdList->WriteBuffer(m_VertexBuffer, vertexColor.data(), colorByteSize, m_PosByteSize);
-        // cmdList->WriteBuffer(indexBuffer, indices.data(), indexBuffer->GetDesc().byteSize);
+        cmdList->WriteBuffer(m_IndexBuffer, indices.data(), m_IndexBuffer->GetDesc().byteSize);
 
         cmdList->Close();
         device->ExecuteCommandList(cmdList);
@@ -153,9 +154,9 @@ public:
         OnResize(width, height);
     }
 
-    void Render(Renderer* renderer, IFramebuffer* fb) override
+    void Render(const CpuTimer& timer, Renderer* renderer, IFramebuffer* fb) override
     {
-        m_CameraController->Update(0.01f);
+        m_CameraController->Update(timer.DeltaTime());
 
         float width = (float)fb->GetFramebufferInfo().width;
         float height = (float)fb->GetFramebufferInfo().height;
@@ -209,14 +210,14 @@ public:
         GraphicsState state{};
         state.SetFramebuffer(fb).SetPipeline(pso).AddBindingSet(bindingSet)
             .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
-            // .SetIndexBuffer(IndexBufferBinding{}.SetBuffer(indexBuffer).SetFormat(Format::R32_UINT))
+            .SetIndexBuffer(IndexBufferBinding{}.SetBuffer(m_IndexBuffer).SetFormat(Format::R32_UINT))
             .AddVertexBuffer(VertexBufferBinding{}.SetBuffer(m_VertexBuffer).SetSlot(0))
             .AddVertexBuffer(VertexBufferBinding{}.SetBuffer(m_VertexBuffer).SetSlot(1).SetOffset(m_PosByteSize));
 
         cmdList->SetGraphicsState(state);
         
-        // cmdList->DrawIndexed(DrawArguments{}.SetVertexCount(indices.size()));
-        cmdList->Draw(DrawArguments{}.SetVertexCount(m_VertexCount));
+        cmdList->DrawIndexed(DrawArguments{}.SetVertexCount(m_IndexCount));
+        // cmdList->Draw(DrawArguments{}.SetVertexCount(m_VertexCount));
 
         cmdList->Close();
 
@@ -242,6 +243,7 @@ private:
 
     uint32_t m_PosByteSize;
     uint32_t m_VertexCount;
+    uint32_t m_IndexCount{};
 
     std::unique_ptr<Camera> m_Camera;
     std::unique_ptr<CameraController> m_CameraController;

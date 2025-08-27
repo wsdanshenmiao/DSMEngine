@@ -4,8 +4,10 @@
 
 #include "Event/Event.h"
 
+class CpuTimer;
 
 namespace DSM {
+
     class Layer
     {
     public:
@@ -14,7 +16,7 @@ namespace DSM {
 
         virtual void OnAttach() {}
         virtual void OnDetach() {}
-        virtual void OnUpdate() {}
+        virtual void OnUpdate(const CpuTimer& timer) {}
         virtual void OnGUIRender() {}
         virtual void OnEvent(Event& event) {}
 

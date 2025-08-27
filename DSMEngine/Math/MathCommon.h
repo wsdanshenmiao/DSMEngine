@@ -58,7 +58,6 @@ namespace DSM::Math {
 #if defined(DSM_PLATFORM_WINDOWS)
         return Math::Matrix4{DirectX::XMMatrixPerspectiveFovLH(fovAngleY, aspect, nearZ, farZ)};
 #else
-#endif
         float height = 1.f / std::tan(fovAngleY * 0.5f);
         float width = height / aspect;
         float fRange = farZ / (farZ - nearZ);
@@ -84,6 +83,7 @@ namespace DSM::Math {
         m.Set(3, 2, -nearZ * fRange);
         m.Set(3, 3, 0);
         return m;
+#endif
     }
 
     inline Quaternion LookTo(const Vector3& pos, const Vector3& dir, const Vector3& up)

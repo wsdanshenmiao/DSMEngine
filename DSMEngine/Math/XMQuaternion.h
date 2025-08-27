@@ -15,15 +15,15 @@ namespace DSM {
         inline XMQuaternion(const XMVector3& axis, const XMScalar& angle) noexcept
             :m_Vector(DirectX::XMQuaternionRotationAxis(axis, angle)){}
         // 三个角分别为 俯仰角(x)、偏航角(y)、滚动角(z)
-        inline XMQuaternion(float pitch, float yaw, float roll) noexcept
-            :m_Vector((DirectX::XMQuaternionRotationRollPitchYaw(pitch, yaw, roll))){}
-        inline explicit XMQuaternion(const XMMatrix3& matrix);
-        inline explicit XMQuaternion(const XMMatrix4& matrix);
+        inline XMQuaternion(float pitch, float yaw, float roll) noexcept : XMQuaternion(XMVector3{pitch, yaw, roll}) {}
+        XMQuaternion(XMVector3 v) noexcept;
+        explicit XMQuaternion(const XMMatrix3& matrix);
+        explicit XMQuaternion(const XMMatrix4& matrix);
 
         inline XMQuaternion operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
         // 返回四元数的共轭
         inline XMQuaternion operator~() const noexcept { return DirectX::XMQuaternionConjugate(m_Vector); }
-        inline XMQuaternion& operator*=(XMQuaternion other) noexcept
+        inline XMQuaternion& operator*=(const XMQuaternion& other) noexcept
         {
             m_Vector = DirectX::XMQuaternionMultiply(m_Vector, other.m_Vector);
             return *this;
@@ -34,7 +34,12 @@ namespace DSM {
         XMScalar Get(size_t index) const;
         // XMVectorPermute 会从两个向量中重新布局新的向量，8个标量分别对应0 - 7 
         void Set(size_t index, XMScalar val);
+
+        // 四元数转欧拉角（Pitch, Yaw, Roll），返回XMVector3，单位为弧度
+        XMVector3 ToEulerAngles();
         
+        inline XMQuaternion Normalized() const noexcept { XMQuaternion ret = *this; Normalize(ret); return ret; }
+
         inline operator DirectX::XMVECTOR() const noexcept { return m_Vector; }
 
 

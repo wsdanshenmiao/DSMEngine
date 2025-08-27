@@ -35,7 +35,12 @@ namespace DSM::Math {
         inline void Translate(Math::Vector3 translation) noexcept { m_Position += translation; }
         inline void Rotate(const Math::Vector3& axis, float angle) noexcept { m_Rotation *= Math::Quaternion{axis, angle}; }
         // 根据 俯仰角、偏航角、滚动角 进行旋转
-        inline void Rotate(float pitch, float yaw, float roll) noexcept { m_Rotation *= Math::Quaternion{pitch, yaw, roll}; }
+        inline void Rotate(float pitch, float yaw, float roll) noexcept 
+        {
+            Math::Vector3 angles = m_Rotation.ToEulerAngles();
+            angles += Math::Vector3{pitch, yaw, roll};
+            m_Rotation = Math::Quaternion{angles};
+        }
         // 根据 俯仰角、偏航角、滚动角 进行旋转
         inline void Rotate(Math::Vector3 pyr) { m_Rotation *= Math::Quaternion{pyr.Get(0), pyr.Get(1), pyr.Get(2)}; }
         // 绕特定的点进行旋转

@@ -64,7 +64,7 @@ namespace DSM {
         [[nodiscard]] virtual GraphicsAPI GetGraphicsAPI() const = 0;
         [[nodiscard]] uint32_t GetFrameIndex() const { return m_FrameIndex; }
         
-        void OnUpdate() override { Render(); }
+        void OnUpdate(const CpuTimer& timer) override { Render(timer); }
         void OnEvent(Event& event) override;
 
         void AddRenderPass(IRenderPass* pass);
@@ -82,7 +82,7 @@ namespace DSM {
     protected:
         virtual void ResizeSwapChain(uint32_t width, uint32_t height) = 0;
 
-        void Render();
+        void Render(const CpuTimer& timer);
         virtual bool BeginFrame() = 0;
         virtual void Present() = 0;
 
@@ -105,7 +105,7 @@ namespace DSM {
 
     struct IRenderPass
     {
-        virtual void Render(Renderer* renderlayer, IFramebuffer* framebuffer) {}
+        virtual void Render(const CpuTimer& deltaTime, Renderer* renderlayer, IFramebuffer* framebuffer) {}
         virtual void OnResize(uint32_t width, uint32_t height) {}
     };
 

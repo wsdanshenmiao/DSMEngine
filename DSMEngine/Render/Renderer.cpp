@@ -71,7 +71,7 @@ namespace DSM{
         return nullptr;
     }
 
-    void Renderer::Render()
+    void Renderer::Render(const CpuTimer& timer)
     {
         auto callback = [this](const auto& func){
             if(func != nullptr){
@@ -85,7 +85,7 @@ namespace DSM{
             callback(beforeRender);
             auto cmdlist = m_Device->CreateCommandList();
             for(auto& pass : m_RenderPass){
-                pass->Render(this, GetCurrentFramebuffer());
+                pass->Render(timer, this, GetCurrentFramebuffer());
             }
             callback(afterRender);
 
