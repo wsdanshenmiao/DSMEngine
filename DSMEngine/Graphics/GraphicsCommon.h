@@ -10,6 +10,7 @@
 #include "Utils/EnumUtil.h"
 #include "Utils/Container.h"
 #include "Utils/Utils.h"
+#include "Math/MathCommon.h"
 
 namespace DSM {
     using GpuVirtualAddress = uint64_t;
@@ -575,6 +576,21 @@ namespace DSM {
         const FormatInfo& info = c_FormatInfo[uint32_t(format)];
         assert(info.format == format);
         return info;
+    }
+
+	static uint64_t GetRowPitch(Format format, uint32_t width, uint32_t mipIndex = 0)
+    {
+        const auto& formatInfo = GetFormatInfo(format);
+    	uint64_t numBlocks = (std::max)(1u, Math::DivideByMultiple(width >> mipIndex, formatInfo.blockSize));
+    	return numBlocks * formatInfo.bytesPerBlock;
+    }
+
+	static uint64_t GetSlicePitch(Format format, uint32_t width, uint32_t height, uint32_t mipIndex = 0)
+    {
+        const auto& formatInfo = GetFormatInfo(format);
+    	uint64_t numBlocksX = (std::max)(1u, Math::DivideByMultiple(width >> mipIndex, formatInfo.blockSize));
+    	uint64_t numBlocksY = (std::max)(1u, Math::DivideByMultiple(height >> mipIndex, formatInfo.blockSize));
+    	return numBlocksX * numBlocksY * formatInfo.bytesPerBlock;
     }
 
 

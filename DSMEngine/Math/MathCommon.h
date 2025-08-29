@@ -8,10 +8,10 @@
 #include "Vector.h"
 
 #if defined(DSM_PLATFORM_WINDOWS)
-#include "XMScalar.h"
-#include "XMVector.h"
-#include "XMQuaternion.h"
-#include "XMMatrix.h"
+#include "DirectXMath/XMScalar.h"
+#include "DirectXMath/XMVector.h"
+#include "DirectXMath/XMQuaternion.h"
+#include "DirectXMath/XMMatrix.h"
 #else
 #include "Scalar.h"
 #include "Quaternion.h"
@@ -154,6 +154,11 @@ namespace DSM::Math {
         else return (size + alignment - 1) & ~(alignment - 1);
     }
 
+    template <typename T> requires std::is_arithmetic_v<T>
+    inline constexpr T DivideByMultiple(T value, std::uint64_t alignment) noexcept
+    {
+        return (T)((value + alignment - 1) / alignment);
+    }
 
 } // namespace DSM 
 

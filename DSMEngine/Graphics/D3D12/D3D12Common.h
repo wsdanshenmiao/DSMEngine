@@ -485,7 +485,6 @@ namespace DSM{
             return outState;
         }
 
-
         static DX12_ViewportState ConvertViewportState(const RasterState& rasterState, const FramebufferInfo& framebufferInfo, const ViewportState& vpState)
         {
             DX12_ViewportState ret;
@@ -531,6 +530,146 @@ namespace DSM{
             return ret;
         }
 
+        static D3D12_RESOURCE_DESC ConvertTextureDesc(const TextureDesc &desc)
+        {
+            const auto& formatMapping = GetDxgiFormatMapping(desc.format);
+            const FormatInfo& formatInfo = GetFormatInfo(desc.format);
+
+            D3D12_RESOURCE_DESC resourceDesc{};
+            resourceDesc.Width = desc.width;
+            resourceDesc.Height = desc.height;
+            resourceDesc.DepthOrArraySize = 1;
+            resourceDesc.MipLevels = desc.mipLevels;
+            resourceDesc.Format = desc.isTypeless ? formatMapping.resourceFormat : formatMapping.rtvFormat;
+            resourceDesc.SampleDesc = {.Count = desc.sampleCount, .Quality = desc.sampleQuality};
+
+            if(desc.isRenderTarget){
+                resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+            }
+            if(!desc.isShaderResource){
+                resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+            }
+            if(desc.isUAV){
+                resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+            }
+
+            switch (desc.dimension)
+            {
+            case TextureDimension::Texture1D:
+            case TextureDimension::Texture1DArray:
+                resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+                resourceDesc.DepthOrArraySize = desc.arraySize;
+            case TextureDimension::Texture2D:
+            case TextureDimension::Texture2DArray:
+            case TextureDimension::TextureCube:
+            case TextureDimension::TextureCubeArray:
+            case TextureDimension::Texture2DMS:
+            case TextureDimension::Texture2DMSArray:
+                resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+                resourceDesc.DepthOrArraySize = desc.arraySize;
+            case TextureDimension::Texture3D:
+                resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+                resourceDesc.DepthOrArraySize = desc.depth;
+            case TextureDimension::Unknown:
+            default:
+                assert("Invalid texture dimension.");
+                break;
+            }
+
+            return resourceDesc;
+        }
+
+        static D3D12_CLEAR_VALUE ConvertClearValue(const TextureDesc &desc)
+        {
+            const auto& formatMapping = GetDxgiFormatMapping(desc.format);
+            const FormatInfo& formatInfo = GetFormatInfo(desc.format);
+            D3D12_CLEAR_VALUE clearValue = {};
+            clearValue.Format = formatMapping.rtvFormat;
+            if (formatInfo.hasDepth || formatInfo.hasStencil) {
+                clearValue.DepthStencil.Depth = desc.clearValue.r;
+                clearValue.DepthStencil.Stencil = UINT8(desc.clearValue.g);
+            }
+            else {
+                clearValue.Color[0] = desc.clearValue.r;
+                clearValue.Color[1] = desc.clearValue.g;
+                clearValue.Color[2] = desc.clearValue.b;
+                clearValue.Color[3] = desc.clearValue.a;
+            }
+
+            return clearValue;
+        }
+
+        static TextureDesc ConvertD3D12TextureDesc(
+            const D3D12_RESOURCE_DESC &resourceDesc, 
+            const std::string& name,
+            bool isCubeMap)
+        {
+            TextureDesc desc{};
+            desc.width = resourceDesc.Width;
+            desc.height = resourceDesc.Height;
+            desc.mipLevels = resourceDesc.MipLevels;
+            desc.sampleCount = resourceDesc.SampleDesc.Count;
+            desc.sampleQuality = resourceDesc.SampleDesc.Quality;
+            desc.debugName = name;
+            desc.initialState = ResourceStates::Common;
+            
+            std::span formatMapping = c_FormatMappings;
+            for(auto it = formatMapping.begin(); it != formatMapping.end(); it++){
+                auto format = resourceDesc.Format;
+                if(it->resourceFormat == format || it->srvFormat == format || it->rtvFormat == format){
+                    desc.format = it->abstractFormat;
+                    break;
+                }
+            }
+            
+            if(HasFlags(resourceDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)){
+                desc.isRenderTarget = true;
+            }
+            if(HasFlags(resourceDesc.Flags, D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE)){
+                desc.isShaderResource = false;
+            }
+            if(HasFlags(resourceDesc.Flags, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)){
+                desc.isUAV = true;
+            }
+
+            switch (resourceDesc.Dimension)
+            {
+            case D3D12_RESOURCE_DIMENSION_TEXTURE1D:{
+                if(resourceDesc.DepthOrArraySize > 1){
+                    desc.arraySize = resourceDesc.DepthOrArraySize;
+                    desc.dimension = TextureDimension::Texture1DArray;
+                }
+                else{
+                    desc.dimension = TextureDimension::Texture1D;
+                }
+                break;
+            }
+            case D3D12_RESOURCE_DIMENSION_TEXTURE2D: {
+                if(resourceDesc.DepthOrArraySize > 6 && isCubeMap){
+                    desc.arraySize = resourceDesc.DepthOrArraySize;
+                    desc.dimension = desc.arraySize == 6 ? TextureDimension::TextureCube : TextureDimension::TextureCubeArray;
+                }
+                else if(resourceDesc.DepthOrArraySize > 1){
+                    desc.arraySize = resourceDesc.DepthOrArraySize;
+                    desc.dimension = desc.sampleCount > 1 ? TextureDimension::Texture2DMSArray : TextureDimension::Texture2DArray;
+                }
+                else{
+                    desc.dimension = desc.sampleCount > 1 ? TextureDimension::Texture2DMS : TextureDimension::Texture2D;
+                }
+                break;
+            }
+            case D3D12_RESOURCE_DIMENSION_TEXTURE3D:
+                desc.dimension = TextureDimension::Texture3D;
+                desc.depth = resourceDesc.DepthOrArraySize;
+                break;
+            case D3D12_RESOURCE_DIMENSION_UNKNOWN:
+            default:
+                assert("Invalid texture dimension.");
+                break;
+            }
+
+            return desc;
+        }
 
         static void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
         {

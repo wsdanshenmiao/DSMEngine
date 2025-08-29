@@ -434,7 +434,7 @@ namespace DSM::D3D12{
 
         if(heap == nullptr || !texture->GetDesc().isVirtual) return false;
 
-        D3D12_CLEAR_VALUE clearValue = Texture::ConvertClearValue(texture->GetDesc());
+        D3D12_CLEAR_VALUE clearValue = ConvertClearValue(texture->GetDesc());
         auto hr = m_Context.device->CreatePlacedResource(
             heap->GetHeap(), 
             offset, 

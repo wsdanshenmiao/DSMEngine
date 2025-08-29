@@ -5,10 +5,13 @@
 namespace DSM{
     
     Renderer::Renderer(const std::string &name, RenderParameters renderDesc)
-        : Layer(name), m_Desc(std::move(renderDesc)) {}
+        : Layer(name), m_Desc(std::move(renderDesc)) 
+    {
+    }
 
     Renderer::~Renderer()
     {
+
         m_SwapChainFramebuffers.clear();
     }
 

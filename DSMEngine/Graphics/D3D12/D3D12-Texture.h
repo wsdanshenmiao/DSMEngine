@@ -36,9 +36,6 @@ namespace DSM::D3D12{
         // 获取某个 Mipmap 的描述符
         uint32_t GetClearMipLevelUAV(uint32_t mipLevel);
 
-        static D3D12_RESOURCE_DESC ConvertTextureDesc(const TextureDesc& desc);
-        static D3D12_CLEAR_VALUE ConvertClearValue(const TextureDesc& desc);
-
     public:
         RefPtr<ID3D12Resource> resource;
         HANDLE sharedHandle;

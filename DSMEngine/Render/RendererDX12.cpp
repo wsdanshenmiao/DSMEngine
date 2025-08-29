@@ -3,6 +3,8 @@
 #include "Renderer.h"
 #include "Event/ApplicationEvent.h"
 #include "Core/Window.h"
+#include "TextureManager.h"
+#include "ModelLoader.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
@@ -20,7 +22,10 @@ namespace DSM{
         deviceDesc.errorCB = m_Desc.callback;
         deviceDesc.logBufferLifetime = true;
         m_Device = CreateDevice(deviceDesc);
-        
+
+        TextureManager::Init(m_Device);
+        ModelLoader::Init(m_Device);
+
         GLFWwindow* window = static_cast<GLFWwindow*>(m_Desc.window->GetNativeWindow());
 
         m_hWnd = glfwGetWin32Window(window);
@@ -89,6 +94,8 @@ namespace DSM{
 
     RenderLayerDX12::~RenderLayerDX12()
     {
+        TextureManager::Destroy();
+        ModelLoader::Destroy();
         // 需要等待GPU处理完所有事件，否则交换链的资源无法正常释放
         m_Device->WaitForIdle();
         m_Device->RunGarbageCollection();

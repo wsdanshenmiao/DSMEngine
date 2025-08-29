@@ -10,3 +10,6 @@
 [submodule "ThirdParty/dxc"]
 	path = ThirdParty/dxc
 	url = git@github.com:microsoft/DirectXShaderCompiler.git
+[submodule "ThirdParty/assimp"]
+	path = ThirdParty/assimp
+	url = https://github.com/assimp/assimp.git

@@ -10,6 +10,7 @@
 #include "Math/Matrix.h"
 #include "Render/CameraController.h"
 #include "Core/CpuTimer.h"
+#include "Render/ModelLoader.h"
 
 using namespace DSM;
 
@@ -152,6 +153,9 @@ public:
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(m_Camera.get());
         OnResize(width, height);
+
+
+        m_Model = ModelLoader::LoadModel("Models//Sponza//sponza.gltf");
     }
 
     void Render(const CpuTimer& timer, Renderer* renderer, IFramebuffer* fb) override
@@ -247,6 +251,8 @@ private:
 
     std::unique_ptr<Camera> m_Camera;
     std::unique_ptr<CameraController> m_CameraController;
+
+    std::shared_ptr<Model> m_Model;
 };
 
 class ExampleLayer : public DSM::Layer
@@ -260,6 +266,10 @@ public:
         ImGui::ShowDemoWindow(&show);
     }
 
+    void OnUpdate(const CpuTimer& timer) override
+    {
+    }
+
 private:
 };
 
@@ -271,6 +281,7 @@ public:
         PushLayer(std::make_shared<ExampleLayer>());
         auto pass = std::make_unique<RenderPass>(m_Renderer->GetDevice(), m_Window->GetWidth(), m_Window->GetHeight());
         m_Renderer->AddRenderPass(pass.get());
+        
         m_RenderPasses.push_back(std::move(pass));
     }
 

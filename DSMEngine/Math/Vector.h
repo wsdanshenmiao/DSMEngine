@@ -16,7 +16,7 @@ namespace DSM{
         constexpr Vector(const T& value);
         constexpr Vector(Scalar<T> val);
         constexpr Vector(std::span<const T, N> data);
-        constexpr explicit Vector(std::initializer_list<T> initList);
+        constexpr Vector(std::initializer_list<T> initList);
         constexpr explicit Vector(const Vector<T, N - 1>& v) requires (N > 1);
 
         auto operator-() const noexcept;

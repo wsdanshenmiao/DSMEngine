@@ -8,7 +8,7 @@ namespace DSM::D3D12 {
     bool Texture::Create(TextureDesc desc)
     {
         m_Desc = desc;
-        resourceDesc = Texture::ConvertTextureDesc(desc);
+        resourceDesc = ConvertTextureDesc(desc);
 
         if(desc.isUAV){
             m_ClearMipLevelUAVs.resize(desc.mipLevels, c_InvalidDescriptorIndex);
@@ -31,7 +31,7 @@ namespace DSM::D3D12 {
             resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
         }
 
-        D3D12_CLEAR_VALUE clearValue = Texture::ConvertClearValue(desc);
+        D3D12_CLEAR_VALUE clearValue = ConvertClearValue(desc);
 
         // 虚拟显存，后续使用 BingTextureMemory 绑定物理显存
         if(desc.isVirtual) return true;
@@ -40,15 +40,20 @@ namespace DSM::D3D12 {
         HRESULT hr = S_OK;
         if(desc.isTiled){
             hr = m_Context.device->CreateReservedResource(
-                &resourceDesc, ConvertResourceStates(desc.initialState),
-                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
+                &resourceDesc, 
+                ConvertResourceStates(desc.initialState),
+                desc.useClearValue ? &clearValue : nullptr, 
+                IID_PPV_ARGS(resource.GetAddressOf()));
         }
         else{
             heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
             hr = m_Context.device->CreateCommittedResource(
-                &heapProp, heapFlags, 
-                &resourceDesc, ConvertResourceStates(desc.initialState),
-                &clearValue, IID_PPV_ARGS(resource.GetAddressOf()));
+                &heapProp, 
+                heapFlags, 
+                &resourceDesc, 
+                ConvertResourceStates(desc.initialState),
+                desc.useClearValue ? &clearValue : nullptr, 
+                IID_PPV_ARGS(resource.GetAddressOf()));
         }
 
         if(FAILED(hr)){
@@ -511,73 +516,5 @@ namespace DSM::D3D12 {
         return descriptorIndex;
     }
 
-    D3D12_RESOURCE_DESC Texture::ConvertTextureDesc(const TextureDesc &desc)
-    {
-        const auto& formatMapping = GetDxgiFormatMapping(desc.format);
-        const FormatInfo& formatInfo = GetFormatInfo(desc.format);
-
-        D3D12_RESOURCE_DESC resourceDesc{};
-        resourceDesc.Width = desc.width;
-        resourceDesc.Height = desc.height;
-        resourceDesc.DepthOrArraySize = 1;
-        resourceDesc.MipLevels = desc.mipLevels;
-        resourceDesc.Format = desc.isTypeless ? formatMapping.resourceFormat : formatMapping.rtvFormat;
-        resourceDesc.SampleDesc = {.Count = desc.sampleCount, .Quality = desc.sampleQuality};
-
-        if(desc.isRenderTarget){
-            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-        }
-        if(!desc.isShaderResource){
-            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-        }
-        if(desc.isUAV){
-            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-        }
-
-        switch (desc.dimension)
-        {
-        case TextureDimension::Texture1D:
-        case TextureDimension::Texture1DArray:
-            resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
-            resourceDesc.DepthOrArraySize = desc.arraySize;
-        case TextureDimension::Texture2D:
-        case TextureDimension::Texture2DArray:
-        case TextureDimension::TextureCube:
-        case TextureDimension::TextureCubeArray:
-        case TextureDimension::Texture2DMS:
-        case TextureDimension::Texture2DMSArray:
-            resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-            resourceDesc.DepthOrArraySize = desc.arraySize;
-        case TextureDimension::Texture3D:
-            resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-            resourceDesc.DepthOrArraySize = desc.depth;
-        case TextureDimension::Unknown:
-        default:
-            assert("Invalid texture dimension.");
-            break;
-        }
-
-        return resourceDesc;
-    }
-
-    D3D12_CLEAR_VALUE Texture::ConvertClearValue(const TextureDesc &desc)
-    {
-        const auto& formatMapping = GetDxgiFormatMapping(desc.format);
-        const FormatInfo& formatInfo = GetFormatInfo(desc.format);
-        D3D12_CLEAR_VALUE clearValue = {};
-        clearValue.Format = formatMapping.rtvFormat;
-        if (formatInfo.hasDepth || formatInfo.hasStencil) {
-            clearValue.DepthStencil.Depth = desc.clearValue.r;
-            clearValue.DepthStencil.Stencil = UINT8(desc.clearValue.g);
-        }
-        else {
-            clearValue.Color[0] = desc.clearValue.r;
-            clearValue.Color[1] = desc.clearValue.g;
-            clearValue.Color[2] = desc.clearValue.b;
-            clearValue.Color[3] = desc.clearValue.a;
-        }
-
-        return clearValue;
-    }
 
 } // namespace DSM::D3D12

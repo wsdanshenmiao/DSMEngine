@@ -3,10 +3,10 @@ target(targetName)
     set_kind("static")
     set_targetdir(path.join(binDir, targetName))
 
-    add_deps("spdlog")
-    add_deps("imgui")
-    add_deps("glfw")
-    add_deps("dxc")
+    add_deps("ThirdParty")
+    
+    add_packages("assimp")
+
     add_links("dxcompiler")
 
     add_includedirs("./",{public = true})
