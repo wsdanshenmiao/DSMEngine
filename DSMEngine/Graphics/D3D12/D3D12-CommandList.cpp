@@ -948,7 +948,7 @@ namespace DSM::D3D12{
         Buffer* buffer = Utility::CheckedCast<Buffer*>(b);
 
         D3D12_GPU_VIRTUAL_ADDRESS address = buffer->GetDesc().isVolatile ? 
-            m_VolatileBufferAddresses[std::make_pair(buffer, offset)] : buffer->GetGpuVirtualAddress();
+            m_VolatileBufferAddresses[std::make_pair(buffer, offset)] : (buffer->GetGpuVirtualAddress() + offset);
         return address;
     }
 
@@ -1186,6 +1186,7 @@ namespace DSM::D3D12{
             if(binding == nullptr) continue;
 
             const bool updateBinding = ((1 << bindingIndex) & bindingUpdateMask) != 0;
+            // 获取根签名对应的绑定布局
             const auto& [rootIndexOffset, bindingLayout] = rootSignature->pipelineLayouts[bindingIndex];
 
             if(binding->GetDesc() != nullptr){
@@ -1224,11 +1225,11 @@ namespace DSM::D3D12{
 
                 if (updateBinding) {
                     if (bindingSet->hasSamplers) {
-                        setDescriptorTable( rootIndexOffset + bindingSet->descriptorIndexSamplers,
+                        setDescriptorTable( rootIndexOffset + bindingSet->bindingLayout->rootParameterIndexSamplers,
                             m_Resources.samplerHeap.GetGpuHandle(bindingSet->descriptorIndexSamplers));
                     }
                     if (bindingSet->hasSRVs) {
-                        setDescriptorTable(rootIndexOffset + bindingSet->descriptorIndexSRVs,
+                        setDescriptorTable(rootIndexOffset + bindingSet->bindingLayout->rootParameterIndexSRVs,
                             m_Resources.shaderResourceViewHeap.GetGpuHandle(bindingSet->descriptorIndexSRVs));
                     }
                     if(bindingSet->GetDesc()->trackLiveness){

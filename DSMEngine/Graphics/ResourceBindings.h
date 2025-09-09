@@ -8,7 +8,7 @@
 #include "Sampler.h"
 
 namespace DSM {
-    // identifies the underlying resource type in a binding
+    // 资源的类型
     enum class ResourceType : uint8_t
     {
         None,
@@ -33,7 +33,7 @@ namespace DSM {
     struct BindingLayoutItem
     {
         uint32_t slot;
-        uint16_t size : 16;
+        uint16_t size : 16;     // 提供给根常量
         ResourceType type : 8;
         uint8_t pad0 : 8;
 
@@ -97,34 +97,20 @@ namespace DSM {
 
     struct BindlessLayoutDesc
     {
-
-        // BindlessDescriptorType bridges the DX12 and Vulkan in supporting HLSL ResourceDescriptorHeap and SamplerDescriptorHeap
-        // For DX12: 
-        // - MutableSrvUavCbv, MutableCounters will enable D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED for the Root Signature
-        // - MutableSampler will enable D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED for the Root Signature
-        // - The BindingLayout will be ignored in terms of setting a descriptor set. DescriptorIndexing should use GetDescriptorIndexInHeap()
-        // For Vulkan:
-        // - The type corresponds to the SPIRV bindings which map to ResourceDescriptorHeap and SamplerDescriptorHeap
-        // - The shader needs to be compiled with the same descriptor set index as is passed into setState
-        // https://github.com/microsoft/DirectXShaderCompiler/blob/main/docs/SPIR-V.rst#resourcedescriptorheaps-samplerdescriptorheaps
+        // Bindless 资源的绑定布局，在 DX12 中 CBV_SRV_UAV 和 Sampler 可以直接通过索引来访问在描述符堆中的资源
+        // 为了使用直接索引的功能，需要给根签名添加 D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED
+        // 或 D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED 标志来创建根签名
         enum class LayoutType
         {
-            Immutable = 0,      // Must use registerSpaces to define a fixed descriptor type
-
-            MutableSrvUavCbv,   // Corresponds to SPIRV binding -fvk-bind-resource-heap (Counter resources ResourceDescriptorHeap)
-                                // Valid descriptor types: Texture_SRV, Texture_UAV, TypedBuffer_SRV, TypedBuffer_UAV,
-                                // StructuredBuffer_SRV, StructuredBuffer_UAV, RawBuffer_SRV, RawBuffer_UAV, ConstantBuffer
-
-            MutableCounters,    // Corresponds to SPIRV binding -fvk-bind-counter-heap (Counter resources accessed via ResourceDescriptorHeap)
-                                // Valid descriptor types: StructuredBuffer_UAV
-
-            MutableSampler,     // Corresponds to SPIRV binding -fvk-bind-sampler-heap (SamplerDescriptorHeap)
-                                // Valid descriptor types: Sampler
+            Immutable = 0,      // 使用 DescriptorTable 来实现 Bindless，不能直接通过索引访问
+            MutableSrvUavCbv,   // 使用动态资源的方式实现 Bindless，可直接通过索引访问，适用于 CBV_SRV_UAV
+            MutableCounters,    // 适用于 StructuredBuffer_UAV
+            MutableSampler,     // 使用动态资源的方式实现 Bindless，可直接通过索引访问，适用于 Sampler
         };
 
         ShaderType visibility = ShaderType::None;
         uint32_t firstSlot = 0;
-        uint32_t maxCapacity = 0;
+        uint32_t maxCapacity = 0;   // 在 DX12 的实现中不使用
         StaticVector<BindingLayoutItem, c_MaxBindlessRegisterSpaces> registerSpaces;
 
         LayoutType layoutType = LayoutType::Immutable;
@@ -136,6 +122,7 @@ namespace DSM {
         BindlessLayoutDesc& SetLayoutType(LayoutType value) { layoutType = value; return *this; }
     };
 
+    // 绑定布局，描述资源的分布，对应 DX12 中的根签名
     struct IBindingLayout : public IResource
     {
         [[nodiscard]] virtual const BindingLayoutDesc* GetDesc() const = 0;           // returns nullptr for bindless layouts
@@ -153,11 +140,6 @@ namespace DSM {
 
         uint32_t slot;
 
-        // Specifies the index in a binding array.
-        // Must be less than the 'size' property of the matching BindingLayoutItem.
-        // - DX11/12: Effective binding slot index is calculated as (slot + arrayElement), i.e. arrays are flattened
-        // - Vulkan: Descriptor arrays are used.
-        // This behavior matches the behavior of HLSL resource array declarations when compiled with DXC.
         uint32_t arrayElement;
 
         ResourceType type           : 8;
@@ -431,6 +413,7 @@ namespace DSM {
         BindingSetDesc& SetTrackLiveness(bool value) { trackLiveness = value; return *this; }
     };
 
+    // 绑定集合，描述各个资源槽绑定的实际资源
     class IBindingSet : public IResource
     {
     public:
@@ -440,11 +423,7 @@ namespace DSM {
     using BindingSetHandle = RefPtr<IBindingSet>;
     using BindingSetVector = StaticVector<BindingSetHandle, c_MaxBindingLayouts>;
 
-    // Descriptor tables are bare, without extra mappings, state, or liveness tracking.
-    // Unlike binding sets, descriptor tables are mutable - moreover, modification is the only way to populate them.
-    // They can be grown or shrunk, and they are not tied to any binding layout.
-    // All tracking is off, so applications should use descriptor tables with great care.
-    // IDescriptorTable is derived from IBindingSet to allow mixing them in the binding arrays.
+    // 描述符表
     class IDescriptorTable : public IBindingSet
     {
     public:

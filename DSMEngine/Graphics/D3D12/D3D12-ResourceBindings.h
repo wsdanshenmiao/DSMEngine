@@ -16,19 +16,24 @@ namespace DSM::D3D12 {
         const BindlessLayoutDesc* GetBindlessDesc() const override { return nullptr; }
 
     public:
+        // 易失性常量缓冲区，使用根描述符直接绑定
         using VolatileCBDescriptorVector = StaticVector<std::pair<uint32_t, D3D12_ROOT_DESCRIPTOR1>, c_MaxVolatileConstantBuffersPerLayout>;
         VolatileCBDescriptorVector rootParametersVolatileCBs;
 
+        // 根常数的字节数
         uint32_t pushConstantByteSize = 0;
 
-        uint32_t descriptorTableSizeSamplers = 0;;
+        uint32_t descriptorTableSizeSamplers = 0;
         uint32_t descriptorTableSizeSRVs = 0;
+
+        // 描述符范围，由于根参数使用了引用，所以这里需要保存描述符范围
         std::vector<D3D12_DESCRIPTOR_RANGE1> descriptorRangeSamplers;
         std::vector<D3D12_DESCRIPTOR_RANGE1> descriptorRangeSRVs;
         
+        // 各种根参数的索引
         uint32_t rootConstantsIndex = 0;
-        uint32_t rootParameterSamplers = 0;
-        uint32_t rootParameterSRVs = 0;
+        uint32_t rootParameterIndexSamplers = 0;
+        uint32_t rootParameterIndexSRVs = 0;
         std::vector<D3D12_ROOT_PARAMETER1> rootParameters;
         
     private:
@@ -96,9 +101,12 @@ namespace DSM::D3D12 {
             IBuffer* buffer;
             uint64_t offset;
         };
+        // 绑定的易失性常量缓冲区
         using VolatileCBVector = StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffersPerLayout>;
         VolatileCBVector rootParametersVolatileCBs{};
+        
         RefPtr<BindingLayout> bindingLayout;
+        // 相关的所有资源，需要储存下来以保证其生命周期
         std::vector<ResourceHandle> resources;
 
         // 是否有描述符

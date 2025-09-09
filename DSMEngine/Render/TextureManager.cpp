@@ -28,32 +28,41 @@ namespace DSM::TextureManager {
         // 创建默认纹理
         TextureDesc texDesc{};
 		texDesc.format = Format::RGBA8_UNORM;
+		texDesc.initialState = ResourceStates::ShaderResource;
+		texDesc.debugName = "Magenta2D";
         uint32_t MagentaPixel = 0xFFFF00FF;
 		s_DefaultTextures[kMagenta2D] = s_GraphicsDevice->CreateTexture(texDesc);
 		cmdList->WriteTexture(s_DefaultTextures[kMagenta2D], 0, 0, &MagentaPixel, 4);
-		
+
+		texDesc.debugName = "BlackOpaque2D";
         uint32_t BlackOpaqueTexel = 0xFF000000;
         s_DefaultTextures[kBlackOpaque2D] = s_GraphicsDevice->CreateTexture(texDesc);
         cmdList->WriteTexture(s_DefaultTextures[kBlackOpaque2D], 0, 0, &BlackOpaqueTexel, 4);
 
+		texDesc.debugName = "BlackTransparent2D";
         uint32_t BlackTransparentTexel = 0x00000000;
 		s_DefaultTextures[kBlackTransparent2D] = s_GraphicsDevice->CreateTexture(texDesc);
 		cmdList->WriteTexture(s_DefaultTextures[kBlackTransparent2D], 0, 0, &BlackTransparentTexel, 4);
-        
+
+		texDesc.debugName = "WhiteOpaque2D";
 		uint32_t WhiteOpaqueTexel = 0xFFFFFFFF;
         s_DefaultTextures[kWhiteOpaque2D] = s_GraphicsDevice->CreateTexture(texDesc);
         cmdList->WriteTexture(s_DefaultTextures[kWhiteOpaque2D], 0, 0, &WhiteOpaqueTexel, 4);
 
+		texDesc.debugName = "WhiteTransparent2D";
         uint32_t WhiteTransparentTexel = 0x00FFFFFF;
         s_DefaultTextures[kWhiteTransparent2D] = s_GraphicsDevice->CreateTexture(texDesc);
         cmdList->WriteTexture(s_DefaultTextures[kWhiteTransparent2D], 0, 0, &WhiteTransparentTexel, 4);
-        
+
+		texDesc.debugName = "DefaultNormalTex";
 		uint32_t FlatNormalTexel = 0x00FF8080;
         s_DefaultTextures[kDefaultNormalTex] = s_GraphicsDevice->CreateTexture(texDesc);
         cmdList->WriteTexture(s_DefaultTextures[kDefaultNormalTex], 0, 0, &FlatNormalTexel, 4);
 
+		texDesc.debugName = "BlackCubeTex";
 		uint32_t BlackCubeTexels[6] = {};
         texDesc.arraySize = 6;
+		texDesc.dimension = TextureDimension::TextureCube;
         s_DefaultTextures[kBlackCubeTex] = s_GraphicsDevice->CreateTexture(texDesc);
         cmdList->WriteTexture(s_DefaultTextures[kBlackCubeTex], 0, 0, BlackCubeTexels, 6 * 4);
 		
@@ -101,6 +110,17 @@ namespace DSM::TextureManager {
 	        D3D12_RESOURCE_DESC d3dDesc = resource->GetDesc();
 			texDesc = D3D12::ConvertD3D12TextureDesc(d3dDesc, texName, isCubeMap);
 			texture = s_GraphicsDevice->CreateHandleForNativeTexture(ObjectTypes::D3D12_Resource, resource, texDesc);
+			
+			auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("Init Texture"));
+			cmdList->Open();	
+			for(size_t i = 0; i < subResources.size(); ++i){
+				size_t arraySlice = i / std::max(texDesc.mipLevels, 1u);
+				size_t mipLevel = i % texDesc.mipLevels;
+				cmdList->WriteTexture(texture, arraySlice, mipLevel, subResources[i].pData, subResources[i].RowPitch, subResources[i].SlicePitch);
+			}
+			cmdList->Close();
+			s_GraphicsDevice->ExecuteCommandList(cmdList);
+
 			return texture;
 		}
 #endif

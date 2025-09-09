@@ -18,6 +18,7 @@ namespace DSM{
         constexpr Vector(std::span<const T, N> data);
         constexpr Vector(std::initializer_list<T> initList);
         constexpr explicit Vector(const Vector<T, N - 1>& v) requires (N > 1);
+        constexpr explicit Vector(const Vector<T, N - 1>& v, T val) requires (N > 1);
 
         auto operator-() const noexcept;
         auto& operator+=(const Vector& other) noexcept;
@@ -102,6 +103,13 @@ namespace DSM{
     constexpr Vector<T, N>::Vector(const Vector<T, N - 1>& data) requires (N > 1)
     {
         memcpy(m_Data.data(), data.m_Data.data(), (N - 1) * sizeof(T));
+    }
+
+    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr Vector<T, N>::Vector(const Vector<T, N - 1> &v, T val) requires (N > 1)
+    {
+        memcpy(m_Data.data(), v.m_Data.data(), (N - 1) * sizeof(T));
+        m_Data[N - 1] = val;
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>

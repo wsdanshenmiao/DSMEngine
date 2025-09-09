@@ -190,7 +190,7 @@ namespace DSM::D3D12{
         m_Context.logBufferLifetime = desc.logBufferLifetime;
 
         DWORD factoryFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG)
+#if defined(DEBUG) || defined(_DEBUG) && 0
         // 开启调试层
         RefPtr<ID3D12Debug> pDebug{};
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(pDebug.GetAddressOf())))) {
@@ -307,6 +307,13 @@ namespace DSM::D3D12{
             m_VariableRateShadingSupported = m_Options6.VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER_2;
         }
 
+        if (desc.enableHeapDirectlyIndexed) {
+            D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_6 };
+            bool hasShaderModel = SUCCEEDED(m_Context.device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)));
+
+            m_HeapDirectlyIndexedEnabled = m_Options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_3 && 
+                hasShaderModel && shaderModel.HighestShaderModel >= D3D_SHADER_MODEL_6_6;
+        }
 
         // 创建命令签名
         D3D12_INDIRECT_ARGUMENT_DESC argDesc = {};
@@ -1573,6 +1580,7 @@ namespace DSM::D3D12{
 
         RootSignature* rootSig = new RootSignature(m_Resources);
         
+        // 额外的根参数
         std::vector<D3D12_ROOT_PARAMETER1> rootParameters(numCustomParameters);
         for(uint32_t i = 0; i < numCustomParameters; ++i){
             rootParameters[i] = pCustomParameters[i];
@@ -1581,6 +1589,7 @@ namespace DSM::D3D12{
         bool useSamplersHeap = false;
         bool useSRVsHeap = false;
 
+        // 处理每一个绑定布局
         for(const auto& layout : pipelineLayouts){
             uint32_t rootParameterOffset = rootParameters.size();
             // 普通根参数
@@ -1599,11 +1608,11 @@ namespace DSM::D3D12{
                 BindlessLayout* bindlessLayout = Utility::CheckedCast<BindlessLayout*>(layout.Get());
 
                 auto layoutType = bindlessLayout->GetBindlessDesc()->layoutType;
-                if(layoutType == BindlessLayoutDesc::LayoutType::Immutable){
+                if(layoutType == BindlessLayoutDesc::LayoutType::Immutable){    // 使用描述符表
                     rootSig->pipelineLayouts.emplace_back(rootParameterOffset, bindlessLayout);
                     rootParameters.push_back(bindlessLayout->rootParameter);
                 }
-                else{
+                else{   // 使用直接索引
                     rootSig->pipelineLayouts.emplace_back(c_InvalidRootParameterIndex, bindlessLayout);
                     useSamplersHeap = layoutType == BindlessLayoutDesc::LayoutType::MutableSampler;
                     useSRVsHeap = !useSamplersHeap;

@@ -7,8 +7,8 @@
 #include "Graphics/PipelineState.h"
 #include "Graphics/ResourceBindings.h"
 
+
 namespace DSM {
-	struct Material;
 
 	enum PSOFlags : uint16_t
 	{
@@ -17,8 +17,7 @@ namespace DSM {
 		kHasTangent = ( 1 << 2 ),
 		kHasUV = ( 1 << 3 ),
 		kAlphaBlend = ( 1 << 4 ),
-		kAlphaTest = ( 1 << 5 ),
-		kBothSide = ( 1 << 6 ),
+		kBothSide = ( 1 << 5 ),
 	};
 
 	struct Mesh

@@ -36,4 +36,7 @@ target("ThirdParty")
     add_headerfiles("DDSTextureLoader/**.h")
     add_files("DDSTextureLoader/**.cpp")
     add_includedirs(path.join(thirdPartyDir, "DDSTextureLoader/"), {public = true})
+
+
+    
 target_end()

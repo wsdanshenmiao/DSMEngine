@@ -559,6 +559,7 @@ namespace DSM{
             case TextureDimension::Texture1DArray:
                 resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
                 resourceDesc.DepthOrArraySize = desc.arraySize;
+                break;
             case TextureDimension::Texture2D:
             case TextureDimension::Texture2DArray:
             case TextureDimension::TextureCube:
@@ -567,9 +568,11 @@ namespace DSM{
             case TextureDimension::Texture2DMSArray:
                 resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
                 resourceDesc.DepthOrArraySize = desc.arraySize;
+                break;
             case TextureDimension::Texture3D:
                 resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
                 resourceDesc.DepthOrArraySize = desc.depth;
+                break;
             case TextureDimension::Unknown:
             default:
                 assert("Invalid texture dimension.");

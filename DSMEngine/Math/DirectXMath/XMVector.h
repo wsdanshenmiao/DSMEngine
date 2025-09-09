@@ -70,9 +70,9 @@ namespace DSM {
         inline void Set(size_t index, XMScalar x) 
         { 
             switch (index) {
-            case 0: m_Vector = DirectX::XMVectorPermute<4,1,2,3>(m_Vector, x);
-            case 1: m_Vector = DirectX::XMVectorPermute<0,5,2,3>(m_Vector, x);
-            case 2: m_Vector = DirectX::XMVectorPermute<0,1,6,3>(m_Vector, x);
+            case 0: m_Vector = DirectX::XMVectorPermute<4,1,2,3>(m_Vector, x); break;
+            case 1: m_Vector = DirectX::XMVectorPermute<0,5,2,3>(m_Vector, x); break;
+            case 2: m_Vector = DirectX::XMVectorPermute<0,1,6,3>(m_Vector, x); break;
             default:
                 throw std::out_of_range("Index out of range.");
             }
@@ -148,6 +148,7 @@ namespace DSM {
             m_Vector = DirectX::XMLoadFloat4(&tmp);
         }
         inline explicit XMVector4(const XMVector3& v) :m_Vector(DirectX::XMVectorSetW(v, 0)) {}
+        inline explicit XMVector4(const XMVector3& v, float val) :m_Vector(DirectX::XMVectorSetW(v, val)) {}
         inline XMVector4(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
 
         inline XMVector4 operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
@@ -195,10 +196,10 @@ namespace DSM {
         inline void Set(size_t index, XMScalar x) 
         { 
             switch (index) {
-            case 0: m_Vector = DirectX::XMVectorPermute<4,1,2,3>(m_Vector, x);
-            case 1: m_Vector = DirectX::XMVectorPermute<0,5,2,3>(m_Vector, x);
-            case 2: m_Vector = DirectX::XMVectorPermute<0,1,6,3>(m_Vector, x);
-            case 3: m_Vector = DirectX::XMVectorPermute<0,1,2,7>(m_Vector, x);
+            case 0: m_Vector = DirectX::XMVectorPermute<4, 1, 2, 3>(m_Vector, x); break;
+            case 1: m_Vector = DirectX::XMVectorPermute<0,5,2,3>(m_Vector, x); break;
+            case 2: m_Vector = DirectX::XMVectorPermute<0,1,6,3>(m_Vector, x); break;
+            case 3: m_Vector = DirectX::XMVectorPermute<0,1,2,7>(m_Vector, x); break;
             default:
                 throw std::out_of_range("Index out of range.");
             }

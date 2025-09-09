@@ -43,7 +43,7 @@ rule_end()
 rule("ModelCopy")
     after_build(
         function(target)
-            modelFiles = path.join(target:scriptdir(), "/Models")
+            modelFiles = path.join(target:scriptdir(), "../Models")
             if(os.exists(modelFiles)) then
                 os.cp(modelFiles, target:targetdir())
             end
@@ -53,7 +53,7 @@ rule_end()
 rule("TextureCopy")
     after_build(
         function(target)
-            modelFiles = path.join(target:scriptdir(), "/Textures")
+            modelFiles = path.join(target:scriptdir(), "../Textures")
             if(os.exists(modelFiles)) then
                 os.cp(modelFiles, target:targetdir())
             end

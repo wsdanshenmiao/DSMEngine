@@ -1,4 +1,4 @@
-targetName = "Sample"
+targetName = "PBR"
 target(targetName)
     set_kind("binary")
     set_targetdir(path.join(binDir, targetName))

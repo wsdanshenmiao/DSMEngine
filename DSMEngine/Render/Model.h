@@ -6,6 +6,8 @@
 #include <vector>
 #include <memory>
 #include "Mesh.h"
+#include "Material.h"
+
 
 namespace DSM {
     class MeshRenderer;

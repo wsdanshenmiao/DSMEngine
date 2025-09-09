@@ -52,15 +52,17 @@ namespace DSM::D3D12 {
         uint32_t currSlot = uint32_t(-1);
 
         for(const BindingLayoutItem& binding : m_Desc.bindings){
-            if(binding.type == ResourceType::VolatileConstantBuffer){
-                D3D12_ROOT_DESCRIPTOR1 rootDescriptor{};
-                rootDescriptor.ShaderRegister = binding.slot;
-                rootDescriptor.RegisterSpace = m_Desc.registerSpace;
-                // 描述数据的波动性，驱动层会启动对应优化
-                rootDescriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC;
-                rootParametersVolatileCBs.emplace_back(-1, rootDescriptor);
+            if(binding.type == ResourceType::VolatileConstantBuffer){   // 易失性常量缓冲区
+                for (size_t i = 0; i < binding.size; ++i) { // 直接使用 CBV
+                    D3D12_ROOT_DESCRIPTOR1 rootDescriptor{};
+                    rootDescriptor.ShaderRegister = binding.slot + i;
+                    rootDescriptor.RegisterSpace = m_Desc.registerSpace;
+                    // 描述数据的波动性，驱动层会启动对应优化
+                    rootDescriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC;
+                    rootParametersVolatileCBs.emplace_back(-1, rootDescriptor);
+                }
             }
-            else if(binding.type == ResourceType::PushConstants){
+            else if(binding.type == ResourceType::PushConstants){   // 根常数
                 pushConstantByteSize = binding.size;
 
                 rootConstants.ShaderRegister = binding.slot;
@@ -69,7 +71,7 @@ namespace DSM::D3D12 {
             }
             else if(!AreResourceTypesCompatible(binding.type, currType) || binding.slot != currSlot + 1){
                 // 创建一个新的 DescriptorRange
-                if(binding.type == ResourceType::Sampler){
+                if(binding.type == ResourceType::Sampler){  // 采样器
                     D3D12_DESCRIPTOR_RANGE1 range{};
                     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
                     range.NumDescriptors = binding.GetArraySize();
@@ -80,7 +82,7 @@ namespace DSM::D3D12 {
                     descriptorTableSizeSamplers += binding.size;
                     descriptorRangeSamplers.push_back(std::move(range));
                 }
-                else {
+                else {  // 其他 SRV/UAV/CBV
                     D3D12_DESCRIPTOR_RANGE1 range{};
 
                     switch (binding.type) {
@@ -119,7 +121,7 @@ namespace DSM::D3D12 {
                 currSlot = binding.slot;
             }
             else{   // 兼容则扩展当前 descriptor range
-                if(binding.type == ResourceType::Sampler){
+                if(binding.type == ResourceType::Sampler){  // 不使用静态采样器
                     assert(!descriptorRangeSamplers.empty());
                     auto& range = descriptorRangeSamplers.back();
                     range.NumDescriptors += binding.GetArraySize();
@@ -142,8 +144,8 @@ namespace DSM::D3D12 {
             rootParameter.ShaderVisibility = ConvertShaderStage(m_Desc.visibility);
             rootParameter.Constants = rootConstants;
 
+            rootConstantsIndex = rootParameters.size();
             rootParameters.push_back(std::move(rootParameter));
-            rootConstantsIndex = rootParameters.size() - 1;
         }
         // 常量缓冲区
         for(auto& [index, rootDescriptor] : rootParametersVolatileCBs){
@@ -152,8 +154,8 @@ namespace DSM::D3D12 {
             rootParameter.ShaderVisibility = ConvertShaderStage(m_Desc.visibility);
             rootParameter.Descriptor = rootDescriptor;
 
+            index = rootParameters.size();
             rootParameters.push_back(std::move(rootParameter));
-            index = rootParameters.size() - 1;
         }
         // 采样器
         if(descriptorTableSizeSamplers > 0){
@@ -163,8 +165,8 @@ namespace DSM::D3D12 {
             rootParameter.DescriptorTable.NumDescriptorRanges = descriptorRangeSamplers.size();
             rootParameter.DescriptorTable.pDescriptorRanges = descriptorRangeSamplers.data();
 
+            rootParameterIndexSamplers = rootParameters.size();
             rootParameters.push_back(std::move(rootParameter));
-            rootParameterSamplers = rootParameters.size() - 1;
         }
         // SRVs
         if(descriptorTableSizeSRVs > 0){
@@ -174,8 +176,8 @@ namespace DSM::D3D12 {
             rootParameter.DescriptorTable.NumDescriptorRanges = descriptorRangeSRVs.size();
             rootParameter.DescriptorTable.pDescriptorRanges = descriptorRangeSRVs.data();
 
+            rootParameterIndexSRVs = rootParameters.size();
             rootParameters.push_back(std::move(rootParameter));
-            rootParameterSRVs = rootParameters.size() - 1;
         }
     }
     
@@ -188,7 +190,7 @@ namespace DSM::D3D12 {
             range.BaseShaderRegister = m_Desc.firstSlot;
             range.RegisterSpace = binding.slot;
             range.OffsetInDescriptorsFromTableStart = 0;
-            range.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
+            range.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;    // 需要指定为易变的
 
             switch (binding.type)
             {
@@ -253,10 +255,11 @@ namespace DSM::D3D12 {
     {
         assert(bindingLayout != nullptr);
 
-        // 处理易变的常量常量缓冲区
+        // 处理绑定布局中的所有易变的常量常量缓冲区
         for(const auto& [index, descriptor] : bindingLayout->rootParametersVolatileCBs) {
             VolatileBufferBinding cbBinding{};
             cbBinding.rootIndex = index;
+            // 查找是否有其对应的资源
             auto it = std::find_if(m_Desc.bindings.begin(), m_Desc.bindings.end(),
                 [descriptor](const BindingSetItem& binding) {
                     return binding.type == ResourceType::VolatileConstantBuffer && 
@@ -265,7 +268,7 @@ namespace DSM::D3D12 {
             
             if(it != m_Desc.bindings.end()){
                 assert(it->resourceHandle != nullptr);
-                cbBinding.offset = it->range.byteOffset;
+                cbBinding.offset = it->range.byteOffset;    // 在 Buffer 中的偏移量
                 cbBinding.buffer = Utility::CheckedCast<IBuffer*>(it->resourceHandle);
                 resources.push_back(ResourceHandle{it->resourceHandle});
             }
@@ -291,7 +294,7 @@ namespace DSM::D3D12 {
 
     void BindingSet::CreateSamplerDescriptors(const Context &context)
     {
-        uint32_t rootParametersIndex = bindingLayout->rootParameterSamplers;
+        uint32_t rootParametersIndex = bindingLayout->rootParameterIndexSamplers;
         uint32_t numSamplers = bindingLayout->descriptorTableSizeSamplers;
         uint32_t descriptorTableBaseIndex = m_Resources.samplerHeap.AllocateDescriptors(numSamplers);
     
@@ -329,7 +332,6 @@ namespace DSM::D3D12 {
 
     void BindingSet::CreateSRVDescriptors(const Context &context)
     {
-        uint32_t rootParametersIndex = bindingLayout->rootParameterSRVs;
         uint32_t numSRVs = bindingLayout->descriptorTableSizeSRVs;
         uint32_t descriptorTableBaseIndex = m_Resources.shaderResourceViewHeap.AllocateDescriptors(numSRVs);
 
@@ -368,6 +370,7 @@ namespace DSM::D3D12 {
                             Buffer::CreateNullSRV(handle.ptr, binding.format, context);
                         }
                         found = true;
+                        break;
                     }
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, ResourceType::TypedBuffer_UAV)){
                         if(binding.resourceHandle != nullptr){
@@ -381,6 +384,7 @@ namespace DSM::D3D12 {
                         
                         hasUAVs = true;
                         found = true;
+                        break;
                     }
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, ResourceType::Texture_SRV)) {
                         auto texture = Utility::CheckedCast<Texture*>(binding.resourceHandle);
@@ -388,6 +392,7 @@ namespace DSM::D3D12 {
                         texture->CreateSRV(handle.ptr, binding.format, binding.dimension, binding.subresources);
                         resource = texture;
                         found = true;
+                        break;
                     }
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, ResourceType::Texture_UAV)) {
                         auto texture = Utility::CheckedCast<Texture*>(binding.resourceHandle);
@@ -396,6 +401,7 @@ namespace DSM::D3D12 {
                         resource = texture;
                         found = true;
                         hasUAVs = true;
+                        break;
                     }
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, ResourceType::ConstantBuffer)) {
                         auto buffer = Utility::CheckedCast<Buffer*>(binding.resourceHandle);
@@ -410,11 +416,11 @@ namespace DSM::D3D12 {
                             break;
                         }
                         found = true;
+                        break;
                     }
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, ResourceType::RayTracingAccelStruct)){
                         // TODO: 后续支持光追时添加资源的绑定
                     }
-                    break;
                 }
 
                 if(resource != nullptr){

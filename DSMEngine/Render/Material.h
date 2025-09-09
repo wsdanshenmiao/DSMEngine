@@ -3,7 +3,7 @@
 #define __MATERIAL_H__
 
 #include <array>
-
+#include "Math/MathCommon.h"
 
 namespace DSM {
     enum MaterialTex
@@ -11,10 +11,10 @@ namespace DSM {
         kBaseColor, kDiffuseRoughness, kMetalness, kOcclusion, kEmissive, kNormal, kNumTextures
     };
 
-    __declspec(align(256)) struct Material
+    struct Material
     {
-        float baseColor[4] = {1,1,1,1};
-        float emissiveColor[3] = {0,0,0};
+        Math::Vector4 baseColor = {1,1,1,1};
+        Math::Vector3 emissiveColor = {0,0,0};
         float normalTexScale = 1;
         float metallicFactor = 1;
         float roughnessFactor = 1;

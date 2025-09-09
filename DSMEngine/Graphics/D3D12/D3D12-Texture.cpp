@@ -234,6 +234,7 @@ namespace DSM::D3D12 {
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
         srvDesc.Format = GetDxgiFormatMapping(format).srvFormat;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
         uint32_t planeSlice = (srvDesc.Format == DXGI_FORMAT_X24_TYPELESS_G8_UINT) ? 1 : 0;
 
@@ -317,7 +318,7 @@ namespace DSM::D3D12 {
 
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
         uavDesc.Format = GetDxgiFormatMapping(format).srvFormat;
-        
+
         switch (dimension)
         {
         case TextureDimension::Texture1D:{

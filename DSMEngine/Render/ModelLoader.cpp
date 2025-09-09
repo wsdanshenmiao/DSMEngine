@@ -278,15 +278,10 @@ namespace DSM::ModelLoader {
 			float value{};
 
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_BASE_COLOR, (float*)&vector, &num)) {
-				modelMaterial->baseColor[0] = vector.Get(0);
-				modelMaterial->baseColor[1] = vector.Get(1);
-				modelMaterial->baseColor[2] = vector.Get(2);
-				modelMaterial->baseColor[3] = 1.0f;
+				modelMaterial->baseColor = Math::Vector4{vector, 1};
 			}
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, (float*)&vector, &num)) {
-				modelMaterial->emissiveColor[0] = vector.Get(0);
-				modelMaterial->emissiveColor[1] = vector.Get(1);
-				modelMaterial->emissiveColor[2] = vector.Get(2);
+				modelMaterial->emissiveColor = vector;
 			}
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_METALLIC_FACTOR, value)) {
 				modelMaterial->metallicFactor = value;
@@ -294,7 +289,6 @@ namespace DSM::ModelLoader {
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_ROUGHNESS_FACTOR, value)) {
 				modelMaterial->roughnessFactor = value;
 			}
-
 			aiString aiPath;
 			std::filesystem::path texFilename;
 			std::string texName;
@@ -368,6 +362,9 @@ namespace DSM::ModelLoader {
 				auto& material = scene->mMaterials[submesh.materialIndex];
 				if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {
 					mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kBothSide;
+				}
+				if(aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
+					mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kAlphaBlend;
 				}
 			}
 		}
