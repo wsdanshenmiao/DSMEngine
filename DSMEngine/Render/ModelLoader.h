@@ -12,8 +12,8 @@ namespace DSM{
         enum VertexAttributeSlot
         {
             Position = 0,
-            Normal,
             TexCoord,
+            Normal,
             Tangent,
             Count
         };

@@ -13,7 +13,7 @@ namespace DSM::D3D12{
     {
     public:
         Buffer(const Context& context, DeviceResources& resources)
-            : m_Context(context), m_Resources(resources) {}
+            : m_Context(context), m_Resources(resources) { }
         ~Buffer() override { Destroy(); };
 
         bool Create(BufferDesc desc);

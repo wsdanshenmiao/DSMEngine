@@ -678,7 +678,9 @@ namespace DSM {
         constexpr VertexAttributeDesc& SetElementStride(uint32_t value) { elementStride = value; return *this; }
         constexpr VertexAttributeDesc& SetIsInstanced(bool value) { isInstanced = value; return *this; }
 
-        VertexAttributeDesc& SetName(const std::string& value) { name = value; return *this; }    
+        VertexAttributeDesc& SetName(const std::string& value) { name = value; return *this; }
+
+        constexpr bool operator==(const VertexAttributeDesc& other) const = default;
     };
 
     struct IInputLayout : public IResource
@@ -870,6 +872,23 @@ struct std::hash<DSM::RefPtr<T>>
     {
         std::hash<T*> hash{};
         return hash(s.Get());
+    }
+};
+
+template <>
+struct std::hash<DSM::VertexAttributeDesc>
+{
+    std::size_t operator()(const DSM::VertexAttributeDesc& v) const
+    {
+        using namespace DSM::Utility;
+        std::size_t hash = 0;
+        hash = HashCombine(hash, v.name);
+        hash = HashCombine(hash, v.format);
+        hash = HashCombine(hash, v.arraySize);
+        hash = HashCombine(hash, v.bufferIndex);
+        hash = HashCombine(hash, v.elementStride);
+        hash = HashCombine(hash, v.isInstanced);
+        return hash;
     }
 };
 

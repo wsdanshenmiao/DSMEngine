@@ -75,6 +75,7 @@ namespace DSM::TextureManager {
 		assert(s_GraphicsDevice != nullptr);
 		s_GraphicsDevice = nullptr;
 		s_Textures.clear();
+		std::array<TextureHandle, kNumDefaultTexture>().swap(s_DefaultTextures);
 	}
 
     TextureHandle GetDefaultTexture(DefaultTexture texID)

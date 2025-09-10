@@ -12,46 +12,70 @@ namespace DSM{
         m_BufferBarriers.clear();
     }
 
-    TesxtureState *ResourceStateTracker::GetTextureState(ITexture *texture, bool allowCreate)
+    TesxtureState *ResourceStateTracker::GetInternalTextureState(ITexture *texture)
     {
         TesxtureState* ret{};
         if(auto it = m_TextureStates.find(texture); it != m_TextureStates.end()){
             ret = it->second.get();
         }
-        else if(allowCreate) {
-            auto texState = std::make_unique<TesxtureState>();
-            texState->state = texture->GetDesc().initialState;
-            ret = texState.get();
-            m_TextureStates.emplace(texture, std::move(texState));
-            if(texture->GetDesc().keepInitialState){
-                ret->state = texture->GetDesc().initialState;
-            }
+        if(ret == nullptr){
+            m_Callback->Message(MessageSeverity::Error, "Unknown prior state of texture");
+            assert(ret != nullptr);
         }
         return ret;
     }
     
-    BufferState *ResourceStateTracker::GetBufferState(IBuffer *buffer, bool allowCreate)
+    BufferState *ResourceStateTracker::GetInternalBufferState(IBuffer *buffer)
     {
         BufferState* ret{};
         if(auto it = m_BufferStates.find(buffer); it != m_BufferStates.end()){
             ret = it->second.get();
         }
-        else if(allowCreate) {
-            auto bufferState = std::make_unique<BufferState>();
-            bufferState->state = buffer->GetDesc().initialState;
-            ret = bufferState.get();
-            m_BufferStates.emplace(buffer, std::move(bufferState));
-            if(buffer->GetDesc().keepInitialState){
-                ret->state = buffer->GetDesc().initialState;
-            }
+        if(ret == nullptr){
+            m_Callback->Message(MessageSeverity::Error, "Unknown prior state of buffer");
+            assert(ret != nullptr);
         }
         return ret;
     }
-    
+
+    void ResourceStateTracker::RegisterBuffer(IBuffer *buffer)
+    {
+        assert(buffer != nullptr);
+        if(!m_BufferStates.contains(buffer)){
+            m_BufferStates[buffer] = std::make_unique<BufferState>();
+            m_BufferStates[buffer]->state = buffer->GetDesc().initialState;
+        }
+    }
+
+    void ResourceStateTracker::RegisterTexture(ITexture *texture)
+    {
+        assert(texture != nullptr);
+        if(!m_TextureStates.contains(texture)){
+            m_TextureStates[texture] = std::make_unique<TesxtureState>();
+            m_TextureStates[texture]->state = texture->GetDesc().initialState;
+        }
+    }
+
+    void ResourceStateTracker::UnregisterBuffer(IBuffer *buffer)
+    {
+        assert(buffer != nullptr);
+        if(m_BufferStates.contains(buffer)){
+            m_BufferStates.erase(buffer);
+        }
+    }
+
+    void ResourceStateTracker::UnregisterTexture(ITexture *texture)
+    {
+        assert(texture != nullptr);
+        if(m_TextureStates.contains(texture)){
+            m_TextureStates.erase(texture);
+        }
+    }
+
     ResourceStates ResourceStateTracker::GetTextureSubresourceState(ITexture *texture, uint32_t mipLevel, uint32_t arraySlice)
     {
         const auto& desc = texture->GetDesc();
-        TesxtureState* texState = GetTextureState(texture, false);
+        TesxtureState* texState = GetInternalTextureState(texture);
         if(texState == nullptr){
             return desc.keepInitialState ? desc.initialState : ResourceStates::Unknown;
         }
@@ -65,7 +89,7 @@ namespace DSM{
     
     ResourceStates ResourceStateTracker::GetBufferState(IBuffer *buffer)
     {
-        BufferState* bufferState = GetBufferState(buffer, false);
+        BufferState* bufferState = GetInternalBufferState(buffer);
         if(bufferState == nullptr){
             return buffer->GetDesc().keepInitialState ? 
                 buffer->GetDesc().initialState : ResourceStates::Unknown;
@@ -75,14 +99,14 @@ namespace DSM{
     
     void ResourceStateTracker::SetEnableUavBarrierForTexture(ITexture *texture, bool enable)
     {
-        TesxtureState* state = GetTextureState(texture, true);
+        TesxtureState* state = GetInternalTextureState(texture);
         state->enableUavBarriers = enable;
         state->firstUavBarrierPlaced = false;
     }
 
     void ResourceStateTracker::SetEnableUavBarrierForBuffer(IBuffer * buffer, bool enable)
     {
-        BufferState* state = GetBufferState(buffer, true);
+        BufferState* state = GetInternalBufferState(buffer);
         state->enableUavBarriers = enable;
         state->firstUavBarrierPlaced = false;
     }
@@ -92,7 +116,7 @@ namespace DSM{
         const auto& desc = texture->GetDesc();
         subresources = subresources.Resolve(desc, false);
 
-        TesxtureState* texState = GetTextureState(texture, true);
+        TesxtureState* texState = GetInternalTextureState(texture);
 
         if(subresources.IsEntireTexture(desc) && texState->subresourceStates.empty()){
             bool needTransition = texState->state != state;
@@ -117,18 +141,8 @@ namespace DSM{
             }
         }
         else{
-            auto messageError = [this](const std::string& name){
-                std::string msg = "Unknown prior state of texture " + std::string{DebugNameToString(name)};
-                msg += ".Call CommandList::beginTrackingTextureState(...) before using the texture";
-                msg += "or use the keepInitialState and initialState members of TextureDesc.";
-                m_Callback->Message(MessageSeverity::Error, msg.c_str());
-            };
             bool stateExpanded = false;
             if(texState->subresourceStates.empty()){    // 扩展子资源状态
-                if(texState->state == ResourceStates::Unknown){
-                    messageError(desc.debugName);
-                }
-
                 texState->subresourceStates.resize(desc.arraySize * desc.mipLevels, texState->state);
                 stateExpanded = true;
             }
@@ -141,10 +155,6 @@ namespace DSM{
 
                     uint32_t subresourceIndex = CalculateSubresource(mipLevel, arraySlices, desc);
                     ResourceStates& subresourceState = texState->subresourceStates[subresourceIndex];
-
-                    if(subresourceState == ResourceStates::Unknown && !stateExpanded){
-                        messageError(desc.debugName);
-                    }
 
                     bool needTransition = subresourceState != state;
                     bool needUav = HasFlags(state, ResourceStates::UnorderedAccess) && 
@@ -180,14 +190,8 @@ namespace DSM{
         // Cpu 可见的 Buffer 不可转换状态
         if(desc.cpuAccess != CpuAccessMode::None) return;
 
-        BufferState* bufferState = GetBufferState(buffer, true);
-        if(bufferState->state == ResourceStates::Unknown){
-            std::string msg = "Unknown prior state of texture " + std::string{DebugNameToString(desc.debugName)};
-            msg += ".Call CommandList::beginTrackingTextureState(...) before using the texture";
-            msg += "or use the keepInitialState and initialState members of TextureDesc.";
-            m_Callback->Message(MessageSeverity::Error, msg.c_str());
-        }
-
+        BufferState* bufferState = GetInternalBufferState(buffer);
+        
         bool needTransition = bufferState->state != state;
         bool needUav = HasFlags(state, ResourceStates::UnorderedAccess) &&
             (bufferState->enableUavBarriers || !bufferState->firstUavBarrierPlaced);
@@ -217,39 +221,6 @@ namespace DSM{
         }
         bufferState->state = state;
     }
-    
-    void ResourceStateTracker::BeginTrackingTextureState(ITexture *texture, TextureSubresourceSet subresources)
-    {
-        const auto& desc = texture->GetDesc();
-        subresources = subresources.Resolve(desc, false);
-
-        TesxtureState* texState = GetTextureState(texture, true);
-        if(subresources.IsEntireTexture(desc)){
-            //texState->state = stateBits;
-            texState->subresourceStates.clear();
-        }
-        else{
-            if(texState->subresourceStates.empty()){
-                texState->subresourceStates.resize(desc.mipLevels * desc.arraySize, texState->state);
-            }
-            texState->state = ResourceStates::Unknown;
-
-            // // 初始化所有子状态
-            // for(uint32_t i = 0; i < subresources.numMipLevels; ++i){
-            //     uint32_t mipLevel = i + subresources.baseMipLevel;
-            //     for(uint32_t j = 0; j < subresources.numArraySlices; ++j){
-            //         uint32_t arraySlice = j + subresources.baseArraySlice;
-            //         uint32_t subresourceIndex = CalculateSubresource(mipLevel, arraySlice, desc);
-            //         texState->subresourceStates[subresourceIndex];
-            //     }
-            // }
-        }
-    }
-    
-    void ResourceStateTracker::BeginTrackingBufferState(IBuffer *buffer)
-    {
-        BufferState* bufferState = GetBufferState(buffer, true);
-    }
 
     void ResourceStateTracker::KeepTextureInitialStates()
     {        
@@ -268,11 +239,5 @@ namespace DSM{
                 RequireBufferState(buffer, desc.initialState);
             }
         }
-    }
-    
-    void ResourceStateTracker::CommandListSubmitted()
-    {
-        m_TextureBarriers.clear();
-        m_BufferStates.clear();
     }
 }

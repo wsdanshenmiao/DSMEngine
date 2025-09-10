@@ -7,6 +7,11 @@ namespace DSM::D3D12 {
 
     bool Texture::Create(TextureDesc desc)
     {
+        auto createSuccess = [this]() {
+            m_Context.stateTracker->RegisterTexture(this);
+            return true;
+        };
+
         m_Desc = desc;
         resourceDesc = ConvertTextureDesc(desc);
 
@@ -34,7 +39,7 @@ namespace DSM::D3D12 {
         D3D12_CLEAR_VALUE clearValue = ConvertClearValue(desc);
 
         // 虚拟显存，后续使用 BingTextureMemory 绑定物理显存
-        if(desc.isVirtual) return true;
+        if(desc.isVirtual) return createSuccess();
 
         // 创建资源
         HRESULT hr = S_OK;
@@ -60,6 +65,7 @@ namespace DSM::D3D12 {
             std::string msg = std::format("Failed to create texture {}, error msg: {}", 
                 DebugNameToString(desc.debugName), Utility::GetHRErrorMessage(hr));
             m_Context.Error(msg);
+            m_Context.stateTracker->UnregisterTexture(this);
             return false;
         }
 
@@ -71,6 +77,7 @@ namespace DSM::D3D12 {
                 std::string msg = std::format("Failed to create shared handle for texture {}, error msg: {}", 
                 DebugNameToString(desc.debugName), Utility::GetHRErrorMessage(hr));
                 m_Context.Error(msg);
+                m_Context.stateTracker->UnregisterTexture(this);
                 return false;
             }
         }
@@ -80,7 +87,7 @@ namespace DSM::D3D12 {
             resource->SetName(name.c_str());
         }
 
-        return true;
+        return createSuccess();
     }
 
     void Texture::Create(TextureDesc desc, ID3D12Resource *r)
@@ -95,10 +102,13 @@ namespace DSM::D3D12 {
         m_Desc = std::move(desc);
 
         resource = r;
+
+        m_Context.stateTracker->RegisterTexture(this);
     }
 
     void Texture::Destroy()
     {
+        m_Context.stateTracker->UnregisterTexture(this);
         // 销毁时归还所有描述符
         for(const auto& [bindingKey, index] : m_RenderTargetViews){
             m_Resources.renderTargetViewHeap.ReleaseDescriptor(index);
@@ -209,7 +219,7 @@ namespace DSM::D3D12 {
                 m_CustomSRVs[key] = descriptorIndex;
 
                 const D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = descriptorHeap.GetCpuHandle(descriptorIndex);
-                CreateSRV(cpuHandle.ptr, format, dimension, subresources);
+                CreateDSV(cpuHandle.ptr, subresources, isReadOnlyDSV);
             }
             else {
                 descriptorIndex = found->second;

@@ -19,6 +19,7 @@ class RenderPass : public IRenderPass
 {
 public:
     RenderPass(IDevice* device, uint32_t width, uint32_t height)
+        : m_Device(device)
     {
         m_Model = ModelLoader::LoadModel("Models/Sponza/sponza.gltf");
         assert(m_Model != nullptr);
@@ -84,19 +85,21 @@ public:
             .SetIsVolatile(true)
             .SetDebugName("PassConstants"));
 
-        m_Sampler = device->CreateSampler(SamplerDesc());
-
-        GenerateRenderConfigs(device, m_Model);
+        m_Sampler = device->CreateSampler(SamplerDesc().SetAllAddressModes(SamplerAddressMode::Wrap));
 
         OnResize(width, height);
+
+        GenerateRenderConfigs(device, m_Model);
     }
 
     void Render(const CpuTimer& timer, Renderer* renderer, IFramebuffer* fb) override
     {
+        DSM_INFO("FPS: {}./n", 1.f / timer.DeltaTime());
+
         m_CameraController->Update(timer.DeltaTime());
 
-        float width = (float)fb->GetFramebufferInfo().width;
-        float height = (float)fb->GetFramebufferInfo().height;
+        float width = (float)m_Framebuffer->GetFramebufferInfo().width;
+        float height = (float)m_Framebuffer->GetFramebufferInfo().height;
         float aspectRatio = width / height;
 
         auto device = renderer->GetDevice();
@@ -104,29 +107,27 @@ public:
             CommandListParameters().SetQueueType(CommandQueueType::Graphics));
         cmdList->Open();
 
-        const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-        cmdList->BeginTrackingTextureState(rendertarget.texture, AllSubresources);
+        const auto& rendertarget = m_Framebuffer->GetDesc().colorAttachments[0];
         cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
-
+        cmdList->ClearDepthStencilTexture(m_DepthTex, AllSubresources, true, 1, false, 0);
+        
         PassConstants passCB{};
         passCB.view = Math::Matrix4::Transpose(m_Camera->GetViewMatrix());
         passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
         passCB.proj = Math::Matrix4::Transpose(m_Camera->GetProjMatrix());
         passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
-        passCB.shadowTrans = Math::Matrix4::Identity; // TODO
+        passCB.shadowTrans = Math::Matrix4::Identity;
         passCB.cameraPos = m_Camera->GetPosition();
         passCB.totalTime = timer.TotalTime();
         passCB.deltaTime = timer.DeltaTime();
-        cmdList->BeginTrackingBufferState(m_PassCB);
         cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
 
         for(const auto& mesh : m_Model->meshes){        
             for(const auto& [name, submesh] : mesh->subMeshes){
                 MeshConstants meshCB{};
-                meshCB.world = Math::Matrix4::Transpose(Math::Matrix4::Identity);
+                meshCB.world = Math::Matrix4::Transpose(Math::Matrix4::GetScale(0.01, 0.01, 0.01));
                 meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
                 auto& meshBuffer = m_RenderConfigs[mesh->psoIndex].meshCB;
-                cmdList->BeginTrackingBufferState(meshBuffer);
                 cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
 
                 // 绑定资源
@@ -140,12 +141,9 @@ public:
                 bindingDesc.AddItem(BindingSetItem().Sampler(0, m_Sampler));
                 auto bindingSet = device->CreateBindingSet(bindingDesc, m_CommonBindingLayout);
 
-                // 配置管线状态
-                auto pso = device->CreateGraphicsPipeline(m_RenderConfigs[mesh->psoIndex].pipelineDesc, fb);
-
                 GraphicsState state{};
-                state.SetFramebuffer(fb)
-                    .SetPipeline(pso)
+                state.SetFramebuffer(m_Framebuffer)
+                    .SetPipeline(m_PSOCache[m_RenderConfigs[mesh->psoIndex].pipelineDesc])
                     .AddBindingSet(bindingSet)
                     .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
                     .SetIndexBuffer(mesh->indexBufferViews);
@@ -172,6 +170,9 @@ public:
             }
         }
 
+        auto backTexture = fb->GetDesc().colorAttachments[0].texture;
+        cmdList->CopyTexture(backTexture, {}, rendertarget.texture, {});
+
         cmdList->Close();
 
         device->ExecuteCommandList(cmdList);
@@ -181,8 +182,36 @@ public:
 
     void OnResize(uint32_t width, uint32_t height) override
     {
+        if(m_Camera->GetViewPort().Width() == width && m_Camera->GetViewPort().Height() == height) 
+            return;
+        
+        m_Device->WaitForIdle();
+
         m_Camera->SetViewPort(Viewport{float(width), float(height)});
         m_Camera->SetFrustum(std::numbers::pi * 0.5f, float(width) / height, 0.1f, 1000.f);
+
+        m_ColorTex = m_Device->CreateTexture(TextureDesc()
+            .SetWidth(width)
+            .SetHeight(height)
+            .SetFormat(Format::RGBA8_UNORM)
+            .SetClearValue(Color{1, 0.7f, 0.75f, 1})
+            .SetInitialState(ResourceStates::RenderTarget)
+            .SetIsRenderTarget(true)
+            .SetDebugName("ColorTex"));
+        m_DepthTex = m_Device->CreateTexture(TextureDesc()
+            .SetWidth(width)
+            .SetHeight(height)
+            .SetFormat(Format::D24S8)
+            .SetClearValue(Color{1, 0, 0, 0})
+            .SetInitialState(ResourceStates::DepthWrite)
+            .SetIsRenderTarget(true)    // 深度纹理也需要设置
+            .SetDebugName("DepthTex"));
+        m_Framebuffer = m_Device->CreateFramebuffer(FramebufferDesc()
+            .AddColorAttachment(m_ColorTex).SetDepthAttachment(m_DepthTex));
+
+        for(auto& [desc, pipeline] : m_PSOCache){
+            pipeline = m_Device->CreateGraphicsPipeline(desc, m_Framebuffer);
+        }
     }
 
 private:
@@ -236,20 +265,26 @@ private:
                 .SetInputLayout(layout)
                 .SetVertexShader(hasTangent ? m_VS : m_VSNoTangent)
                 .SetPixelShader(hasTangent ? m_PS : m_PSNoTangent)
-                .SetRenderState(RenderState{blendState, depthState, rasterState})
-                .AddBindingLayout(m_CommonBindingLayout)
-                .AddBindingLayout(m_CommonBindlessLayout);
+                .SetRenderState(RenderState{ blendState, depthState, rasterState })
+                .AddBindingLayout(m_CommonBindingLayout);
+                //.AddBindingLayout(m_CommonBindlessLayout);
             auto buffer = device->CreateBuffer(BufferDesc()
                 .SetDebugName(mesh->name + "MeshConstants")
                 .SetByteSize(sizeof(MeshConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true));
             mesh->psoIndex = m_RenderConfigs.size();
+
+            if(!m_PSOCache.contains(desc)){
+                m_PSOCache[desc] = device->CreateGraphicsPipeline(desc, m_Framebuffer);
+            }
             m_RenderConfigs.push_back({ desc, buffer });
         }
     }
 
 private:
+    // 管线状态缓存
+    std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> m_PSOCache;
     struct RenderConfig
     {
         GraphicsPipelineDesc pipelineDesc;
@@ -257,11 +292,16 @@ private:
     };
     std::vector<RenderConfig> m_RenderConfigs;
 
+    IDevice* m_Device = nullptr;
+
     ShaderHandle m_VS;
     ShaderHandle m_PS;
     ShaderHandle m_VSNoTangent;
     ShaderHandle m_PSNoTangent;
 
+    FramebufferHandle m_Framebuffer;
+    TextureHandle m_ColorTex;
+    TextureHandle m_DepthTex;
     BufferHandle m_PassCB;
     SamplerHandle m_Sampler;
 

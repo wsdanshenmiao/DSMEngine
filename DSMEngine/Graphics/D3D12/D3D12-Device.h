@@ -224,7 +224,7 @@ namespace DSM::D3D12 {
 
 
         CommandQueue* GetQueue(CommandQueueType type) { return m_CommandQueues[size_t(type)].get(); }
-        const Context& GetContext() const noexcept { return m_Context; }
+        Context& GetContext() noexcept { return m_Context; }
 
 
     private:

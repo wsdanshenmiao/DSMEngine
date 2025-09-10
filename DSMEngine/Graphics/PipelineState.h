@@ -182,6 +182,8 @@ namespace DSM {
         constexpr RasterState& SetConservativeRasterEnable(bool value) { conservativeRasterEnable = value; return *this; }
         constexpr RasterState& EnableConservativeRaster() { conservativeRasterEnable = true; return *this; }
         constexpr RasterState& DisableConservativeRaster() { conservativeRasterEnable = false; return *this; }
+    
+        constexpr bool operator==(const RasterState& other) const = default;
     };
 
 
@@ -189,71 +191,75 @@ namespace DSM {
 
    enum class StencilOp : uint8_t
    {
-       Keep = 1,
-       Zero = 2,
-       Replace = 3,
-       IncrementAndClamp = 4,
-       DecrementAndClamp = 5,
-       Invert = 6,
-       IncrementAndWrap = 7,
-       DecrementAndWrap = 8
+        Keep = 1,
+        Zero = 2,
+        Replace = 3,
+        IncrementAndClamp = 4,
+        DecrementAndClamp = 5,
+        Invert = 6,
+        IncrementAndWrap = 7,
+        DecrementAndWrap = 8
    };
 
    enum class ComparisonFunc : uint8_t
    {
-       Never = 1,
-       Less = 2,
-       Equal = 3,
-       LessOrEqual = 4,
-       Greater = 5,
-       NotEqual = 6,
-       GreaterOrEqual = 7,
-       Always = 8
+        Never = 1,
+        Less = 2,
+        Equal = 3,
+        LessOrEqual = 4,
+        Greater = 5,
+        NotEqual = 6,
+        GreaterOrEqual = 7,
+        Always = 8
    };
 
    struct DepthStencilState
    {
        struct StencilOpDesc
        {
-           StencilOp failOp = StencilOp::Keep;
-           StencilOp depthFailOp = StencilOp::Keep;
-           StencilOp passOp = StencilOp::Keep;
-           ComparisonFunc stencilFunc = ComparisonFunc::Always;
+            StencilOp failOp = StencilOp::Keep;
+            StencilOp depthFailOp = StencilOp::Keep;
+            StencilOp passOp = StencilOp::Keep;
+            ComparisonFunc stencilFunc = ComparisonFunc::Always;
 
-           constexpr StencilOpDesc& SetFailOp(StencilOp value) { failOp = value; return *this; }
-           constexpr StencilOpDesc& SetDepthFailOp(StencilOp value) { depthFailOp = value; return *this; }
-           constexpr StencilOpDesc& SetPassOp(StencilOp value) { passOp = value; return *this; }
-           constexpr StencilOpDesc& SetStencilFunc(ComparisonFunc value) { stencilFunc = value; return *this; }
-       };
+            constexpr StencilOpDesc& SetFailOp(StencilOp value) { failOp = value; return *this; }
+            constexpr StencilOpDesc& SetDepthFailOp(StencilOp value) { depthFailOp = value; return *this; }
+            constexpr StencilOpDesc& SetPassOp(StencilOp value) { passOp = value; return *this; }
+            constexpr StencilOpDesc& SetStencilFunc(ComparisonFunc value) { stencilFunc = value; return *this; }
+        
+            constexpr bool operator ==(const StencilOpDesc& other) const = default;
+        };
 
-       bool            depthTestEnable = true;
-       bool            depthWriteEnable = true;
-       ComparisonFunc  depthFunc = ComparisonFunc::Less;
-       bool            stencilEnable = false;
-       uint8_t         stencilReadMask = 0xff;
-       uint8_t         stencilWriteMask = 0xff;
-       uint8_t         stencilRefValue = 0;
-       bool            dynamicStencilRef = false;
-       StencilOpDesc   frontFaceStencil;
-       StencilOpDesc   backFaceStencil;
+        bool            depthTestEnable = true;
+        bool            depthWriteEnable = true;
+        ComparisonFunc  depthFunc = ComparisonFunc::Less;
+        bool            stencilEnable = false;
+        uint8_t         stencilReadMask = 0xff;
+        uint8_t         stencilWriteMask = 0xff;
+        uint8_t         stencilRefValue = 0;
+        bool            dynamicStencilRef = false;
+        StencilOpDesc   frontFaceStencil;
+        StencilOpDesc   backFaceStencil;
 
-       constexpr DepthStencilState& SetDepthTestEnable(bool value) { depthTestEnable = value; return *this; }
-       constexpr DepthStencilState& EnableDepthTest() { depthTestEnable = true; return *this; }
-       constexpr DepthStencilState& DisableDepthTest() { depthTestEnable = false; return *this; }
-       constexpr DepthStencilState& SetDepthWriteEnable(bool value) { depthWriteEnable = value; return *this; }
-       constexpr DepthStencilState& EnableDepthWrite() { depthWriteEnable = true; return *this; }
-       constexpr DepthStencilState& DisableDepthWrite() { depthWriteEnable = false; return *this; }
-       constexpr DepthStencilState& SetDepthFunc(ComparisonFunc value) { depthFunc = value; return *this; }
-       constexpr DepthStencilState& SetStencilEnable(bool value) { stencilEnable = value; return *this; }
-       constexpr DepthStencilState& EnableStencil() { stencilEnable = true; return *this; }
-       constexpr DepthStencilState& DisableStencil() { stencilEnable = false; return *this; }
-       constexpr DepthStencilState& SetStencilReadMask(uint8_t value) { stencilReadMask = value; return *this; }
-       constexpr DepthStencilState& SetStencilWriteMask(uint8_t value) { stencilWriteMask = value; return *this; }
-       constexpr DepthStencilState& SetStencilRefValue(uint8_t value) { stencilRefValue = value; return *this; }
-       constexpr DepthStencilState& SetFrontFaceStencil(const StencilOpDesc& value) { frontFaceStencil = value; return *this; }
-       constexpr DepthStencilState& SetBackFaceStencil(const StencilOpDesc& value) { backFaceStencil = value; return *this; }
-       constexpr DepthStencilState& SetDynamicStencilRef(bool value) { dynamicStencilRef = value; return *this; }
-   };
+        constexpr DepthStencilState& SetDepthTestEnable(bool value) { depthTestEnable = value; return *this; }
+        constexpr DepthStencilState& EnableDepthTest() { depthTestEnable = true; return *this; }
+        constexpr DepthStencilState& DisableDepthTest() { depthTestEnable = false; return *this; }
+        constexpr DepthStencilState& SetDepthWriteEnable(bool value) { depthWriteEnable = value; return *this; }
+        constexpr DepthStencilState& EnableDepthWrite() { depthWriteEnable = true; return *this; }
+        constexpr DepthStencilState& DisableDepthWrite() { depthWriteEnable = false; return *this; }
+        constexpr DepthStencilState& SetDepthFunc(ComparisonFunc value) { depthFunc = value; return *this; }
+        constexpr DepthStencilState& SetStencilEnable(bool value) { stencilEnable = value; return *this; }
+        constexpr DepthStencilState& EnableStencil() { stencilEnable = true; return *this; }
+        constexpr DepthStencilState& DisableStencil() { stencilEnable = false; return *this; }
+        constexpr DepthStencilState& SetStencilReadMask(uint8_t value) { stencilReadMask = value; return *this; }
+        constexpr DepthStencilState& SetStencilWriteMask(uint8_t value) { stencilWriteMask = value; return *this; }
+        constexpr DepthStencilState& SetStencilRefValue(uint8_t value) { stencilRefValue = value; return *this; }
+        constexpr DepthStencilState& SetFrontFaceStencil(const StencilOpDesc& value) { frontFaceStencil = value; return *this; }
+        constexpr DepthStencilState& SetBackFaceStencil(const StencilOpDesc& value) { backFaceStencil = value; return *this; }
+        constexpr DepthStencilState& SetDynamicStencilRef(bool value) { dynamicStencilRef = value; return *this; }
+    
+        constexpr bool operator==(const DepthStencilState& other) const = default;
+    };
 
 
     enum class PrimitiveType : uint8_t
@@ -281,6 +287,8 @@ namespace DSM {
         constexpr RenderState& SetBlendState(const BlendState& value) { blendState = value; return *this; }
         constexpr RenderState& SetDepthStencilState(const DepthStencilState& value) { depthStencilState = value; return *this; }
         constexpr RenderState& SetRasterState(const RasterState& value) { rasterState = value; return *this; }
+    
+        constexpr bool operator==(const RenderState& other) const = default;
     };
 
     // 图形管线
@@ -313,6 +321,42 @@ namespace DSM {
         GraphicsPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         GraphicsPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
         GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
+    
+        constexpr bool operator==(const GraphicsPipelineDesc& other) const
+        {
+            bool equal = (primType == other.primType) &&
+                (patchControlPoints == other.patchControlPoints) &&
+                (renderState == other.renderState) && 
+                (VS == other.VS) && (HS == other.HS) && (DS == other.DS) &&
+                (GS == other.GS) && (PS == other.PS);
+            if(!equal) 
+                return false;
+            if(inputLayout != other.inputLayout){
+                if(inputLayout->GetNumAttributes() != other.inputLayout->GetNumAttributes())
+                    return false;
+                for(size_t i = 0; i < inputLayout->GetNumAttributes(); i++)
+                {
+                    auto attr = inputLayout->GetAttributeDesc(i);
+                    auto otherAttr = other.inputLayout->GetAttributeDesc(i);
+                    if(attr != otherAttr && 
+                        (attr == nullptr || otherAttr == nullptr || *attr != *otherAttr))
+                        return false;
+                }
+            }
+
+            for(const auto& binding : bindingLayouts)
+            {
+                auto otherBinding = std::find_if(other.bindingLayouts.begin(), other.bindingLayouts.end(),
+                    [&binding](const BindingLayoutHandle& otherBinding) {
+                        return binding->GetDesc() == otherBinding->GetDesc() &&
+                            binding->GetBindlessDesc() == otherBinding->GetBindlessDesc();
+                    });
+                if(otherBinding == other.bindingLayouts.end())
+                    return false;
+            }
+
+            return equal;
+        }
     };
 
     class IGraphicsPipeline : public IResource
@@ -508,6 +552,107 @@ struct std::hash<DSM::BlendState>
         hash = DSM::Utility::HashCombine(hash, s.alphaToCoverageEnable);
         for (const auto& target : s.targets)
             hash = DSM::Utility::HashCombine(hash, target);
+        return hash;
+    }
+};
+
+template<>
+struct std::hash<DSM::DepthStencilState::StencilOpDesc>
+{
+    std::size_t operator()(DSM::DepthStencilState::StencilOpDesc const& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        size_t hash = 0;
+        hash = HashCombine(hash, s.failOp);
+        hash = HashCombine(hash, s.depthFailOp);
+        hash = HashCombine(hash, s.passOp);
+        hash = HashCombine(hash, s.stencilFunc);
+        return hash;
+    }
+};
+
+template<> 
+struct std::hash<DSM::DepthStencilState>
+{
+    std::size_t operator()(DSM::DepthStencilState const& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        size_t hash = 0;
+        hash = HashCombine(hash, s.depthTestEnable);
+        hash = HashCombine(hash, s.depthWriteEnable);
+        hash = HashCombine(hash, s.depthFunc);
+        hash = HashCombine(hash, s.stencilEnable);
+        hash = HashCombine(hash, s.stencilReadMask);
+        hash = HashCombine(hash, s.stencilWriteMask);
+        hash = HashCombine(hash, s.stencilRefValue);
+        hash = HashCombine(hash, s.dynamicStencilRef);
+        hash = HashCombine(hash, s.frontFaceStencil);
+        hash = HashCombine(hash, s.backFaceStencil);
+        return hash;
+    }
+};
+
+template<> 
+struct std::hash<DSM::RasterState>
+{
+    std::size_t operator()(DSM::RasterState const& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        size_t hash = 0;
+        hash = HashCombine(hash, s.fillMode);
+        hash = HashCombine(hash, s.cullMode);
+        hash = HashCombine(hash, s.frontCounterClockwise);
+        hash = HashCombine(hash, s.depthClipEnable);
+        hash = HashCombine(hash, s.scissorEnable);
+        hash = HashCombine(hash, s.multisampleEnable);
+        hash = HashCombine(hash, s.antialiasedLineEnable);
+        hash = HashCombine(hash, s.depthBias);
+        hash = HashCombine(hash, s.depthBiasClamp);
+        hash = HashCombine(hash, s.slopeScaledDepthBias);
+        hash = HashCombine(hash, s.forcedSampleCount);
+        hash = HashCombine(hash, s.conservativeRasterEnable);
+        return hash;
+    }
+};
+
+template<> 
+struct std::hash<DSM::RenderState>
+{
+    std::size_t operator()(DSM::RenderState const& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        size_t hash = 0;
+        hash = HashCombine(hash, s.blendState);
+        hash = HashCombine(hash, s.depthStencilState);
+        hash = HashCombine(hash, s.rasterState);
+        return hash;
+    }
+};
+
+template<>
+struct std::hash<DSM::GraphicsPipelineDesc>
+{
+    std::size_t operator()(DSM::GraphicsPipelineDesc const& s) const noexcept
+    {
+        using namespace DSM::Utility;
+        size_t hash = 0;
+        hash = HashCombine(hash, s.primType);
+        hash = HashCombine(hash, s.patchControlPoints);
+        for(size_t i = 0; i < s.inputLayout->GetNumAttributes(); ++i){
+            auto attr = s.inputLayout->GetAttributeDesc(i);
+            if(attr != nullptr)
+                hash = HashCombine(hash, *attr);
+        }
+        hash = HashCombine(hash, s.VS);
+        hash = HashCombine(hash, s.HS);
+        hash = HashCombine(hash, s.DS);
+        hash = HashCombine(hash, s.GS);
+        hash = HashCombine(hash, s.PS);
+        hash = HashCombine(hash, s.renderState);
+        for (const auto& layout : s.bindingLayouts){
+            hash = HashCombine(hash, layout->GetDesc());
+            hash = HashCombine(hash, layout->GetBindlessDesc());
+        }
         return hash;
     }
 };

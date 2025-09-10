@@ -467,4 +467,51 @@ struct std::hash<DSM::BindingSetDesc>
     }
 };
 
+template<>
+struct std::hash<DSM::BindingLayoutItem>
+{
+    std::size_t operator()(const DSM::BindingLayoutItem& b) const noexcept
+    {
+        using namespace DSM::Utility;
+        std::size_t hash = 0;
+        hash = HashCombine(hash, b.slot);
+        hash = HashCombine(hash, b.type);
+        hash = HashCombine(hash, b.size);
+        return hash;
+    }
+};
+
+template<>
+struct std::hash<DSM::BindingLayoutDesc>
+{
+    std::size_t operator()(const DSM::BindingLayoutDesc& b) const noexcept
+    {
+        using namespace DSM::Utility;
+        std::size_t hash = 0;
+        hash = HashCombine(hash, b.registerSpace);
+        hash = HashCombine(hash, b.visibility);
+        for (const auto& item : b.bindings) {
+            hash = HashCombine(hash, item);
+        }
+        return hash;
+    }
+};
+
+template<>
+struct std::hash<DSM::BindlessLayoutDesc>
+{
+    std::size_t operator()(const DSM::BindlessLayoutDesc& b) const noexcept
+    {
+        using namespace DSM::Utility;
+        std::size_t hash = 0;
+        hash = HashCombine(hash, b.visibility);
+        hash = HashCombine(hash, b.firstSlot);
+        hash = HashCombine(hash, b.maxCapacity);
+        hash = HashCombine(hash, b.layoutType);
+        for(const auto& item : b.registerSpaces)
+            hash = HashCombine(hash, item);
+        return hash;
+    }
+};
+
 #endif

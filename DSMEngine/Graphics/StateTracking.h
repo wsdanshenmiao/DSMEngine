@@ -46,6 +46,11 @@ namespace DSM {
     public:
         ResourceStateTracker(IMessageCallback* callback) : m_Callback(callback) {}
 
+        void RegisterBuffer(IBuffer* buffer);
+        void RegisterTexture(ITexture* texture);
+        void UnregisterBuffer(IBuffer* buffer);
+        void UnregisterTexture(ITexture* texture);
+
         ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t mipLevel, uint32_t arraySlice);
         ResourceStates GetBufferState(IBuffer* buffer);
 
@@ -55,21 +60,17 @@ namespace DSM {
         // 记录资源的状态转换
         void RequireTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates state);
         void RequireBufferState(IBuffer* buffer, ResourceStates state);
-
-        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources);
-        void BeginTrackingBufferState(IBuffer* buffer);
         
         void KeepTextureInitialStates();
         void KeepBufferInitialStates();
-        void CommandListSubmitted();
 
         [[nodiscard]] const std::vector<TextureBarrier>& GetTextureBarriers() const { return m_TextureBarriers; }
         [[nodiscard]] const std::vector<BufferBarrier>& GetBufferBarriers() const { return m_BufferBarriers; }
         void ClearBarriers();
 
     private:
-        TesxtureState* GetTextureState(ITexture* texture, bool allowCreate);
-        BufferState* GetBufferState(IBuffer* buffer, bool allowCreate);
+        TesxtureState* GetInternalTextureState(ITexture* texture);
+        BufferState* GetInternalBufferState(IBuffer* buffer);
 
     private:
         IMessageCallback* m_Callback;

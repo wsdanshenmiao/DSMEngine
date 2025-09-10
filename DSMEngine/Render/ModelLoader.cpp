@@ -98,10 +98,10 @@ namespace DSM::ModelLoader {
 			return nullptr;
 		}
 
+		model->name = pScene->mRootNode->mName.C_Str();
+
 		ProcessNode(*model, pScene->mRootNode, pScene);
 		ProcessMaterial(*model, filename, pScene);
-
-		model->name = pScene->mRootNode->mName.C_Str();
 
 		return model;
 	}
@@ -223,7 +223,7 @@ namespace DSM::ModelLoader {
 
 		auto meshDataBufferSize = posByteSize + normalByteSize + uvsByteSize + tangentsByteSize + indexByteSize;
 		mesh.meshData = s_GraphicsDevice->CreateBuffer(
-			BufferDesc().SetByteSize(meshDataBufferSize).SetDebugName("MeshData"));
+			BufferDesc().SetByteSize(meshDataBufferSize).SetDebugName("MeshData" + mesh.name));
 		
 		std::uint32_t offset = 0;
 		cmdList->WriteBuffer(mesh.meshData, positions.data(), posByteSize, offset);
@@ -363,7 +363,7 @@ namespace DSM::ModelLoader {
 				if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {
 					mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kBothSide;
 				}
-				if(aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
+				if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
 					mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kAlphaBlend;
 				}
 			}
@@ -377,7 +377,7 @@ namespace DSM::ModelLoader {
 		model.materialData = s_GraphicsDevice->CreateBuffer(BufferDesc().
 			SetByteSize(matDataSize).
 			SetIsConstantBuffer(true).
-			SetDebugName("Model MaterialData"));
+			SetDebugName("Model MaterialData" + model.name));
 
 		auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("Init MaterialConstants"));
 		cmdList->Open();

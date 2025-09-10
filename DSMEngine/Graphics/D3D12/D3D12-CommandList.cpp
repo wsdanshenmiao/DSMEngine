@@ -147,7 +147,7 @@ namespace DSM::D3D12{
         :m_Device(device), 
         m_Resources(resources), 
         m_Desc(std::move(desc)),
-        m_StateTracker(m_Device.GetContext().messageCallback) { }
+        m_StateTracker(*device.GetContext().stateTracker) { }
 
     Object CommandList::GetNativeObject(ObjectType type)
     {
@@ -997,16 +997,6 @@ namespace DSM::D3D12{
         m_StateTracker.SetEnableUavBarrierForBuffer(b, enableBarriers);
     }
 
-    void CommandList::BeginTrackingTextureState(ITexture *texture, TextureSubresourceSet subresources)
-    {
-        m_StateTracker.BeginTrackingTextureState(texture, subresources);
-    }
-
-    void CommandList::BeginTrackingBufferState(IBuffer *b)
-    {
-        m_StateTracker.BeginTrackingBufferState(b);
-    }
-
     void CommandList::SetTextureState(ITexture *texture, TextureSubresourceSet subresources, ResourceStates stateBits)
     {
         // 由于 Barrier 可能会使用 Texture，因此需要记录
@@ -1275,8 +1265,6 @@ namespace DSM::D3D12{
             timer->resolved = false;
             timer->started = true;
         }
-
-        m_StateTracker.CommandListSubmitted();
         
         return instance;
     }

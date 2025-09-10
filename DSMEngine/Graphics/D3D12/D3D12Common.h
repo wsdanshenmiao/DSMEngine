@@ -3,6 +3,7 @@
 #define __D3D12COMMON_H__
 
 #include "Graphics/D3D12.h"
+#include "Graphics/StateTracking.h"
 #include <unordered_map>
 
 namespace DSM{    
@@ -123,6 +124,8 @@ namespace DSM{
             RefPtr<ID3D12CommandSignature> dispatchIndirectSignature;
             RefPtr<ID3D12QueryHeap> timerQueryHeap;
             RefPtr<Buffer> timerQueryResolveBuffer;
+            
+            std::unique_ptr<ResourceStateTracker> stateTracker;
 
             bool logBufferLifetime = false;
             IMessageCallback* messageCallback = nullptr;
@@ -544,7 +547,8 @@ namespace DSM{
             resourceDesc.SampleDesc = {.Count = desc.sampleCount, .Quality = desc.sampleQuality};
 
             if(desc.isRenderTarget){
-                resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+                resourceDesc.Flags |= (formatInfo.hasDepth || formatInfo.hasStencil) ?
+                    D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
             }
             if(!desc.isShaderResource){
                 resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
@@ -553,8 +557,7 @@ namespace DSM{
                 resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
             }
 
-            switch (desc.dimension)
-            {
+            switch (desc.dimension) {
             case TextureDimension::Texture1D:
             case TextureDimension::Texture1DArray:
                 resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;

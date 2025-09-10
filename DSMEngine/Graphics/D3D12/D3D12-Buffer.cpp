@@ -5,6 +5,11 @@
 namespace DSM::D3D12{
     bool Buffer::Create(BufferDesc desc)
     {
+        auto createSuccess = [this]() {
+            m_Context.stateTracker->RegisterBuffer(this);
+            return true;
+        };
+
         m_Desc = desc;
 
         // 常量缓冲区需要对齐
@@ -12,7 +17,7 @@ namespace DSM::D3D12{
             desc.byteSize = Math::Align(desc.byteSize, 255llu);
     
         if(desc.isVolatile) 
-            return true;
+            return createSuccess();
 
         resourceDesc.Width = desc.byteSize;
         resourceDesc.Height = 1;
@@ -27,7 +32,7 @@ namespace DSM::D3D12{
             resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
         if(desc.isVirtual)
-            return true;
+            return createSuccess();
 
         D3D12_HEAP_PROPERTIES heapProp{};
         D3D12_HEAP_FLAGS heapFlags{};
@@ -89,11 +94,13 @@ namespace DSM::D3D12{
             resource->SetName(name.c_str());
         }
 
-        return true;
+        return createSuccess();
     }
 
     void Buffer::Create(BufferDesc desc, ID3D12Resource *resource)
     {
+        assert(resource != nullptr);
+        
         resource = resource;
         m_GpuVA = resource->GetGPUVirtualAddress();
         if(!desc.debugName.empty()){
@@ -101,10 +108,13 @@ namespace DSM::D3D12{
             resource->SetName(name.c_str());
         }
         m_Desc = std::move(desc);
+
+        m_Context.stateTracker->RegisterBuffer(this);
     }
 
     void Buffer::Destroy()
     {
+        m_Context.stateTracker->UnregisterBuffer(this);
         if(m_Context.logBufferLifetime){
             m_Context.Info(std::format("Release buffer: {} {:#x}", 
                 m_Desc.debugName, resource->GetGPUVirtualAddress()));

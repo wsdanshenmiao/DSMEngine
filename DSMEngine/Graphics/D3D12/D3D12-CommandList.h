@@ -3,9 +3,10 @@
 #define __D3D12_COMMANDLIST_H__
 
 #include <set>
+#include <unordered_map>
 #include "Graphics/D3D12.h"
-#include "Graphics/StateTracking.h"
 #include "DynamicResourceAllocator.h"
+#include "D3D12Common.h"
 
 template <>
 struct std::hash<std::pair<DSM::IBuffer*, uint64_t>> 
@@ -147,9 +148,6 @@ namespace DSM::D3D12 {
         void SetEnableUavBarriersForTexture(ITexture* texture, bool enableBarriers) override;
         void SetEnableUavBarriersForBuffer(IBuffer* b, bool enableBarriers) override;
 
-        void BeginTrackingTextureState(ITexture* texture, TextureSubresourceSet subresources) override;
-        void BeginTrackingBufferState(IBuffer* b) override;
-
         void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
         void SetBufferState(IBuffer* b, ResourceStates stateBits) override;
         void SetResourceStatesForBindingSet(IBindingSet* bindingSet) override;
@@ -201,6 +199,7 @@ namespace DSM::D3D12 {
             
         Device& m_Device;
         DeviceResources& m_Resources;
+        ResourceStateTracker& m_StateTracker;
 
         // Command list
         CommandQueue* m_Queue;
@@ -215,8 +214,6 @@ namespace DSM::D3D12 {
         bool m_CurrGraphicsStateValid = false;
         bool m_CurrComputeStateValid = false;
         bool m_CurrMeshletStateValid = false;
-        
-        ResourceStateTracker m_StateTracker;
 
         ID3D12DescriptorHeap* m_CurrSRVHeap = nullptr;
         ID3D12DescriptorHeap* m_CurrSamplerHeap = nullptr;
