@@ -15,8 +15,11 @@ namespace DSM {
 
         void OnUpdate() override;
 
-        inline uint32_t GetWidth() const override { return m_Desc.width; };
-        inline uint32_t GetHeight() const override { return m_Desc.height; };
+        inline uint32_t GetWidth() const override { return m_Desc.width; }
+        inline uint32_t GetHeight() const override { return m_Desc.height; }
+        inline const std::string& GetTitle() const override { return m_Desc.title; }
+
+        void SetTitle(const std::string& title) override;
 
         inline void SetEventCallback(const EventCallbackFunc& func) override { m_Desc.callback = func; };
         void SetVSync(bool enabled) override;

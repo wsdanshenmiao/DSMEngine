@@ -52,6 +52,7 @@ namespace DSM {
         m_Timer.Reset();
         while (m_Running) {
             m_Timer.Tick();
+            CalculateFrameStates();
             for(auto& layer : m_LayerStack){
                 layer->OnUpdate(m_Timer);
             }
@@ -86,6 +87,27 @@ namespace DSM {
         DSM_CORE_ASSERT(m_Instance == nullptr); 
         m_Instance.reset(CreateApplication()); 
         return GetInstance(); 
+    }
+
+    void Application::CalculateFrameStates()
+    {
+        static int frameCnt = 0;
+        static float timeElapsed = 0.0f;
+        static std::string originTitle = m_Window->GetTitle();
+
+        frameCnt++;
+
+        if ((m_Timer.TotalTime() - timeElapsed) >= 1.0f) {
+            float fps = (float)frameCnt; // fps = frameCnt / 1
+            float mspf = 1000.0f / fps;
+
+            auto title = std::format("{}    FPS: {}    Frame Time: {} (ms)", originTitle, fps, mspf);
+            m_Window->SetTitle(title);
+
+            // Reset for next average.
+            frameCnt = 0;
+            timeElapsed += 1.0f;
+        }
     }
 
 } // namespace DSM

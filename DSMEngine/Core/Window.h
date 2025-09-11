@@ -26,6 +26,9 @@ namespace DSM{
 
         virtual uint32_t GetWidth() const = 0;
         virtual uint32_t GetHeight() const = 0;
+        virtual const std::string& GetTitle() const = 0;
+
+        virtual void SetTitle(const std::string& title) = 0;
 
         virtual void SetEventCallback(const EventCallbackFunc& func) = 0;
         // 垂直同步

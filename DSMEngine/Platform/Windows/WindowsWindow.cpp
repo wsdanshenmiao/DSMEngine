@@ -133,6 +133,12 @@ namespace DSM {
         glfwSwapBuffers(m_Window);
     }
 
+    void WindowsWindow::SetTitle(const std::string &title)
+    {
+        m_Desc.title = title;
+        glfwSetWindowTitle(m_Window, m_Desc.title.c_str());
+    }
+
     void WindowsWindow::SetVSync(bool enabled)
     {
         m_Desc.VSync = enabled;

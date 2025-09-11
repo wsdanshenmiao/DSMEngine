@@ -10,17 +10,17 @@ struct MaterialConstants
     float pad1;
 };
 
-ConstantBuffer<MeshConstants> _MeshConstants : register(b0);
-ConstantBuffer<MaterialConstants> _MaterialConstants : register(b1);
-ConstantBuffer<PassConstants> _PassConstants : register(b2);
+ConstantBuffer<MeshConstants> gMeshConstants : register(b0);
+ConstantBuffer<MaterialConstants> gMaterialConstants : register(b1);
+ConstantBuffer<PassConstants> gPassConstants : register(b2);
 
 // PBR相关纹理
-Texture2D<float4> _BaseColorTex : register(t0);
-Texture2D<float4> _DiffuseRoughnessTex : register(t1);
-Texture2D<float> _MetalnessTex : register(t2);
-Texture2D<float> _OcclusionTex : register(t3);
-Texture2D<float3> _EmissiveTex : register(t4);
-Texture2D<float3> _NormalTex : register(t5);
+Texture2D<float4> gBaseColorTex : register(t0);
+Texture2D<float4> gDiffuseRoughnessTex : register(t1);
+Texture2D<float> gMetalnessTex : register(t2);
+Texture2D<float> gOcclusionTex : register(t3);
+Texture2D<float3> gEmissiveTex : register(t4);
+Texture2D<float3> gNormalTex : register(t5);
 
 SamplerState defaultSampler : register(s0);
 
@@ -52,18 +52,18 @@ Varyings LitPassVS(Attributes i)
 {
     Varyings o;
 
-    float4x4 viewProj = mul(_PassConstants.view, _PassConstants.proj);
+    float4x4 viewProj = mul(gPassConstants.view, gPassConstants.proj);
 
-    float4 posWS = mul(float4(i.posOS, 1), _MeshConstants.world);
-    float3 normal = mul(i.normal, (float3x3)_MeshConstants.worldIT);
+    float4 posWS = mul(float4(i.posOS, 1), gMeshConstants.world);
+    float3 normal = mul(i.normal, (float3x3)gMeshConstants.worldIT);
     o.posWS = posWS.xyz;
     o.posCS = mul(posWS, viewProj);
     o.uv = i.uv;
     o.normal = normalize(normal);
 #if defined(USE_TANGENT)
-    o.tangent.xyz = mul(i.tangent.xyz, (float3x3)_MeshConstants.worldIT).xyz;
+    o.tangent.xyz = mul(i.tangent.xyz, (float3x3)gMeshConstants.worldIT).xyz;
 #endif
-    o.posShadow = mul(float4(o.posWS, 1), _PassConstants.shadowTrans).xyz;
+    o.posShadow = mul(float4(o.posWS, 1), gPassConstants.shadowTrans).xyz;
 
     return o;
 }
@@ -72,7 +72,7 @@ Varyings LitPassVS(Attributes i)
 
 float4 LitPassPS(Varyings i) : SV_TARGET0
 {
-    float4 baseCol = _BaseColorTex.Sample(defaultSampler, i.uv);
+    float4 baseCol = gBaseColorTex.Sample(defaultSampler, i.uv);
 
     return baseCol;
     return float4(dot(normalize(float3(1,1,1)), normalize(i.normal)) * baseCol.rgb, baseCol.a);

@@ -46,6 +46,9 @@ namespace DSM {
         }
 
     protected:
+        void CalculateFrameStates();
+
+    protected:
         inline static std::unique_ptr<Application> m_Instance{};
 
         std::unique_ptr<Window> m_Window{};

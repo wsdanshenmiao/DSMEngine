@@ -94,8 +94,6 @@ public:
 
     void Render(const CpuTimer& timer, Renderer* renderer, IFramebuffer* fb) override
     {
-        DSM_INFO("FPS: {}./n", 1.f / timer.DeltaTime());
-
         m_CameraController->Update(timer.DeltaTime());
 
         float width = (float)m_Framebuffer->GetFramebufferInfo().width;
