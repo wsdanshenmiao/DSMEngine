@@ -23,7 +23,6 @@ struct PassConstants
     float4x4 projInv;
     float4x4 shadowTrans;
     float3 cameraPos;
-    float totalTime;
     float deltaTime;
 };
 

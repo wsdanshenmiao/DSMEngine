@@ -1,26 +1,20 @@
-#include <DSMEngine.h>
-#include <Core/Layer.h>
-#include <DirectXColors.h>
-#include <print>
-#include <imgui.h>
-#include "Graphics/D3D12.h"
-#include "Render/Renderer.h"
-#include "Render/ShaderCompiler.h"
-#include "Math/MathCommon.h"
-#include "Math/Matrix.h"
-#include "Render/CameraController.h"
-#include "Core/CpuTimer.h"
-#include "Render/ModelLoader.h"
+#include "Editor/DSMEditor.h"
+#include "Runtime/DSMEngine.h"
+#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/ModelLoader.h"
+#include "Runtime/Render/CameraController.h"
+#include "Runtime/Render/ShaderCompiler.h"
 #include "Shaders/ConstantBuffers.h"
 
 using namespace DSM;
 
-class RenderPass : public IRenderPass
+class RenderPipeline : public DSM::IRenderPipeline
 {
 public:
-    RenderPass(IDevice* device, uint32_t width, uint32_t height)
-        : m_Device(device)
+    void Initialize(DSM::Renderer& renderer)
     {
+        m_Device = renderer.GetDevice();
+
         m_Model = ModelLoader::LoadModel("Models/Sponza/sponza.gltf");
         assert(m_Model != nullptr);
 
@@ -46,62 +40,71 @@ public:
         ShaderByteCode psNoTangent{psDesc};
         ShaderByteCode ps{psDesc.AddDefine("USE_TANGENT", "1")};
 
-        m_VS = device->CreateShader(ShaderDesc()
+        m_VS = m_Device->CreateShader(ShaderDesc()
             .SetEntryName(vs.GetDesc().m_EnterPoint)
             .SetShaderType(vs.GetDesc().m_Type)
             .SetDebugName("LitPassVS"), 
             vs.GetByteCode(), vs.GetByteCodeSize());
-        m_VSNoTangent = device->CreateShader(ShaderDesc()
+        m_VSNoTangent = m_Device->CreateShader(ShaderDesc()
             .SetEntryName(vsNoTangent.GetDesc().m_EnterPoint)
             .SetShaderType(vsNoTangent.GetDesc().m_Type)
             .SetDebugName("LitPassVSNoTangent"), 
             vsNoTangent.GetByteCode(), vsNoTangent.GetByteCodeSize());
-        m_PS = device->CreateShader(ShaderDesc()
+        m_PS = m_Device->CreateShader(ShaderDesc()
             .SetEntryName(ps.GetDesc().m_EnterPoint)
             .SetShaderType(ps.GetDesc().m_Type)
             .SetDebugName("LitPassPS"), 
             ps.GetByteCode(), ps.GetByteCodeSize());
-        m_PSNoTangent = device->CreateShader(ShaderDesc()
+        m_PSNoTangent = m_Device->CreateShader(ShaderDesc()
             .SetEntryName(psNoTangent.GetDesc().m_EnterPoint)
             .SetShaderType(psNoTangent.GetDesc().m_Type)
             .SetDebugName("LitPassPSNoTangent"), 
             psNoTangent.GetByteCode(), psNoTangent.GetByteCodeSize());
 
-        m_CommonBindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
+        m_CommonBindingLayout = m_Device->CreateBindingLayout(BindingLayoutDesc()
             .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
             .AddItem(BindingLayoutItem().ConstantBuffer(1)) // MaterialData
             .AddItem(BindingLayoutItem().VolatileConstantBuffer(2)) // PassConstants
             .AddItem(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0).SetSize(10)) // 10 个用于 PBR 的纹理
             .AddItem(BindingLayoutItem().Sampler(0)));
 
-        m_CommonBindlessLayout = device->CreateBindlessLayout(BindlessLayoutDesc()
+        m_CommonBindlessLayout = m_Device->CreateBindlessLayout(BindlessLayoutDesc()
             .SetFirstSlot(10)
             .SetVisibility(ShaderType::All)
             .AddRegisterSpace(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0)));
 
-        m_PassCB = device->CreateBuffer(BufferDesc()
+        m_PassCB = m_Device->CreateBuffer(BufferDesc()
             .SetByteSize(sizeof(PassConstants))
             .SetIsConstantBuffer(true)
             .SetIsVolatile(true)
             .SetDebugName("PassConstants"));
 
-        m_Sampler = device->CreateSampler(SamplerDesc().SetAllAddressModes(SamplerAddressMode::Wrap));
+        m_Sampler = m_Device->CreateSampler(SamplerDesc().SetAllAddressModes(SamplerAddressMode::Wrap));
 
-        OnResize(width, height);
+        const auto& backBufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
+        OnResize(backBufferDesc.width, backBufferDesc.height);
 
-        GenerateRenderConfigs(device, m_Model);
+        GenerateRenderConfigs(m_Device, m_Model);
     }
 
-    void Render(const CpuTimer& timer, Renderer* renderer, IFramebuffer* fb) override
+
+    void Render(DSM::Renderer& renderer, float deltaTime) override
     {
-        m_CameraController->Update(timer.DeltaTime());
+        if (!m_Initialized) {
+            // Initialize resources
+            Initialize(renderer);
+            m_Initialized = true;
+        }
+
+        auto fb = renderer.GetCurrentFramebuffer();
+
+        m_CameraController->Update(deltaTime);
 
         float width = (float)m_Framebuffer->GetFramebufferInfo().width;
         float height = (float)m_Framebuffer->GetFramebufferInfo().height;
         float aspectRatio = width / height;
 
-        auto device = renderer->GetDevice();
-        auto cmdList = device->CreateCommandList(
+        auto cmdList = m_Device->CreateCommandList(
             CommandListParameters().SetQueueType(CommandQueueType::Graphics));
         cmdList->Open();
 
@@ -116,8 +119,7 @@ public:
         passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
         passCB.shadowTrans = Math::Matrix4::Identity;
         passCB.cameraPos = m_Camera->GetPosition();
-        passCB.totalTime = timer.TotalTime();
-        passCB.deltaTime = timer.DeltaTime();
+        passCB.deltaTime = deltaTime;
         cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
 
         for(const auto& mesh : m_Model->meshes){        
@@ -137,7 +139,7 @@ public:
                     bindingDesc.AddItem(BindingSetItem().Texture_SRV(i, submesh.textures[i]));
                 }
                 bindingDesc.AddItem(BindingSetItem().Sampler(0, m_Sampler));
-                auto bindingSet = device->CreateBindingSet(bindingDesc, m_CommonBindingLayout);
+                auto bindingSet = m_Device->CreateBindingSet(bindingDesc, m_CommonBindingLayout);
 
                 GraphicsState state{};
                 state.SetFramebuffer(m_Framebuffer)
@@ -173,9 +175,9 @@ public:
 
         cmdList->Close();
 
-        device->ExecuteCommandList(cmdList);
+        m_Device->ExecuteCommandList(cmdList);
 
-        device->RunGarbageCollection();
+        m_Device->RunGarbageCollection();
     }
 
     void OnResize(uint32_t width, uint32_t height) override
@@ -213,7 +215,7 @@ public:
     }
 
 private:
-    void GenerateRenderConfigs(IDevice* device, std::shared_ptr<Model> model)
+    void GenerateRenderConfigs(IDevice* m_Device, std::shared_ptr<Model> model)
     {
         // 创建渲染配置
         GraphicsPipelineHandle pipeline{};
@@ -253,7 +255,7 @@ private:
             
             bool hasTangent = HasFlags(PSOFlags(mesh->psoFlags), kHasTangent);
 
-            InputLayoutHandle layout = device->CreateInputLayout(attributes, hasTangent ? m_VS : m_VSNoTangent);
+            InputLayoutHandle layout = m_Device->CreateInputLayout(attributes, hasTangent ? m_VS : m_VSNoTangent);
 
             const auto& blendState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? hasBlend : noBlend;
             const auto& depthState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? readDepth : readWriteDepth;
@@ -266,7 +268,7 @@ private:
                 .SetRenderState(RenderState{ blendState, depthState, rasterState })
                 .AddBindingLayout(m_CommonBindingLayout);
                 //.AddBindingLayout(m_CommonBindlessLayout);
-            auto buffer = device->CreateBuffer(BufferDesc()
+            auto buffer = m_Device->CreateBuffer(BufferDesc()
                 .SetDebugName(mesh->name + "MeshConstants")
                 .SetByteSize(sizeof(MeshConstants))
                 .SetIsConstantBuffer(true)
@@ -274,13 +276,16 @@ private:
             mesh->psoIndex = m_RenderConfigs.size();
 
             if(!m_PSOCache.contains(desc)){
-                m_PSOCache[desc] = device->CreateGraphicsPipeline(desc, m_Framebuffer);
+                m_PSOCache[desc] = m_Device->CreateGraphicsPipeline(desc, m_Framebuffer);
             }
             m_RenderConfigs.push_back({ desc, buffer });
         }
     }
 
+
 private:
+    bool m_Initialized = false;    
+    
     // 管线状态缓存
     std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> m_PSOCache;
     struct RenderConfig
@@ -312,42 +317,16 @@ private:
     std::unique_ptr<CameraController> m_CameraController;
 };
 
-class ExampleLayer : public DSM::Layer
+int main()
 {
-public:
-    ExampleLayer() : DSM::Layer("ExampleLayer") {}
+    DSM::DSMEngine engine;
+    engine.StartEngine();
+    engine.SetRenderPipeline(std::make_unique<RenderPipeline>());
 
-    void OnGUIRender() override
-    {
-        static bool show = true;
-        ImGui::ShowDemoWindow(&show);
-    }
+    DSM::DSMEditor editor(&engine);
+    editor.Run();
 
-    void OnUpdate(const CpuTimer& timer) override
-    {
-    }
+    engine.ShutDownEngine();
 
-private:
-};
-
-class Sample : public DSM::Application
-{
-public:
-    Sample()
-    {
-        PushLayer(std::make_shared<ExampleLayer>());
-        auto pass = std::make_unique<RenderPass>(m_Renderer->GetDevice(), m_Window->GetWidth(), m_Window->GetHeight());
-        m_Renderer->AddRenderPass(pass.get());
-        
-        m_RenderPasses.push_back(std::move(pass));
-    }
-
-private:
-    std::vector<std::unique_ptr<IRenderPass>> m_RenderPasses;
-};
-
-DSM::Application* DSM::CreateApplication()
-{
-    return new Sample();
+    return 0;
 }
-
