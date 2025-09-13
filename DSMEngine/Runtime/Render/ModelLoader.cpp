@@ -369,19 +369,19 @@ namespace DSM::ModelLoader {
 			}
 		}
 
-		std::vector<Material> materialConstants(model.materials.size());
+		auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
+		std::vector<uint8_t> materialData(matByteSize * model.materials.size());
 		for (std::size_t i = 0; i < model.materials.size(); i++) {
-			memcpy(&materialConstants[i], model.materials[i].get(), sizeof(Material));
+			memcpy(materialData.data() + i * matByteSize, model.materials[i].get(), sizeof(Material));
 		}
-		auto matDataSize = sizeof(Material) * materialConstants.size();
 		model.materialData = s_GraphicsDevice->CreateBuffer(BufferDesc().
-			SetByteSize(matDataSize).
+			SetByteSize(materialData.size()).
 			SetIsConstantBuffer(true).
 			SetDebugName("Model MaterialData" + model.name));
 
 		auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("Init MaterialConstants"));
 		cmdList->Open();
-		cmdList->WriteBuffer(model.materialData, materialConstants.data(), matDataSize);
+		cmdList->WriteBuffer(model.materialData, materialData.data(), materialData.size());
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
 	}

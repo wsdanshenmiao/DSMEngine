@@ -27,4 +27,10 @@ struct PassConstants
 };
 
 
+struct DirectionalLightData
+{
+    float4 color;
+    float4 direction;
+};
+
 #endif

@@ -65,7 +65,7 @@ namespace DSM {
         Viewport m_Viewport{};
         float m_NearZ = 0.1f;
         float m_FarZ = 1000.0f;
-        float m_Aspect = 0.0f;
+        float m_Aspect = 1.0f;
         float m_FovY = std::numbers::pi * 0.5f;
 
         bool m_ReversedZ = false;

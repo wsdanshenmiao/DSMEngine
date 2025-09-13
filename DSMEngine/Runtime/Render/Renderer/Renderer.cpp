@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include "RendererDX12.h"
 #include "Runtime/Event/ApplicationEvent.h"
+#include "Runtime/Core/Window.h"
 
 namespace DSM{
 
@@ -13,11 +14,14 @@ namespace DSM{
         default:
             break;
         }
+
+        OnResize(renderDesc.window->GetWidth(), renderDesc.window->GetHeight());
     }
 
     Renderer::~Renderer()
     {
         m_Internal = nullptr;
+        m_RenderPipeline = nullptr;
     }
 
 
@@ -25,13 +29,27 @@ namespace DSM{
     {
         EventDispatcher dispatcher{event};
         dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& event){
-            // 由于交换链改变大小时所有额外的 Buffer 引用都需要释放
-            m_Internal->ResizeFramebuffer(event.GetWidth(), event.GetHeight());
-            if(m_RenderPipeline != nullptr){
-                m_RenderPipeline->OnResize(event.GetWidth(), event.GetHeight());
-            }
+            const auto& bufferDesc = m_Internal->GetCurrentBackBuffer()->GetDesc();
+            if(bufferDesc.width == event.GetWidth() && bufferDesc.height == event.GetHeight())
+                return false;
+
+            OnResize(event.GetWidth(), event.GetHeight());
             return true;
         });
+    }
+
+    void Renderer::OnResize(uint32_t width, uint32_t height)
+    {
+        m_Internal->device->WaitForIdle();
+
+        m_Camera.SetViewPort(Viewport{float(width), float(height)});
+        m_Camera.SetFrustum(std::numbers::pi * 0.5f, float(width) / float(height), 0.1f, 1000.f);
+
+        // 由于交换链改变大小时所有额外的 Buffer 引用都需要释放
+        m_Internal->ResizeFramebuffer(width, height);
+        if(m_RenderPipeline != nullptr){
+            m_RenderPipeline->OnResize(*this, width, height);
+        }
     }
 
     IFramebuffer *Renderer::GetFramebuffer(uint32_t index)

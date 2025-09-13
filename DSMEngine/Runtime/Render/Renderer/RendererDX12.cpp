@@ -35,10 +35,8 @@ namespace DSM{
 
         m_hWnd = glfwGetWin32Window(window);
 
-        RECT clientRect;
-        GetClientRect(m_hWnd, &clientRect);
-        UINT width = clientRect.right - clientRect.left;
-        UINT height = clientRect.bottom - clientRect.top;
+        UINT width = desc.window->GetWidth();
+        UINT height = desc.window->GetHeight();
 
         ZeroMemory(&m_SwapChainDesc, sizeof(m_SwapChainDesc));
         m_SwapChainDesc.Width = width;
@@ -92,8 +90,6 @@ namespace DSM{
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to convert swapchain.");
 
         CreateRenderTarget();
-
-        ResizeFramebuffer(width, height);
     }
 
     RendererDX12::~RendererDX12()
@@ -144,7 +140,7 @@ namespace DSM{
         init_info.Device = device->GetNativeObject(ObjectTypes::D3D12_Device);
         init_info.CommandQueue = device->GetNativeQueue(ObjectTypes::D3D12_CommandQueue, CommandQueueType::Graphics);
         init_info.NumFramesInFlight = GetBackBufferCount();
-        init_info.RTVFormat = m_SwapChainDesc.Format;
+        init_info.RTVFormat = ConvertFormat(desc.swapChainFormat);
         init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
         init_info.SrvDescriptorHeap = s_DescriptorHeap->GetHeap();
         init_info.SrvDescriptorAllocFn = [](auto, auto cpu_handle, auto gpu_handle) { 

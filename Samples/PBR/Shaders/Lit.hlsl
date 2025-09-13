@@ -1,13 +1,27 @@
-#include "ConstantBuffers.h"
+#include "ResourceData.h"
+#include "Light.hlsli"
 
 struct MaterialConstants
 {
     float4 baseColor;
-    float4 emissiveColorAndMetallicFactor;
-    float NormalTexScale;
-    float RoughnessFactor;
-    float pad0;
+    float4 emissiveColor;
+    float normalTexScale;
+    float metallicFactor;
+    float roughnessFactor;
     float pad1;
+};
+
+// 物体的表面属性
+struct Surface
+{
+    float3 position;
+    float depth;
+    float3 normal;
+    float roughness;
+    float3 color;
+    float alpha;
+    float3 viewDirection;
+    float metallic;
 };
 
 ConstantBuffer<MeshConstants> gMeshConstants : register(b0);
@@ -74,6 +88,11 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
 {
     float4 baseCol = gBaseColorTex.Sample(defaultSampler, i.uv);
 
-    return baseCol;
-    return float4(dot(normalize(float3(1,1,1)), normalize(i.normal)) * baseCol.rgb, baseCol.a);
+    Light dirLight = GetDirectionalLight(0);
+    float lambert = saturate(dot(normalize(i.normal), normalize(dirLight.direction)));
+
+    float3 color = baseCol.rgb;
+    color *= dirLight.color * dirLight.attenuation * lambert;
+
+    return float4(color, baseCol.a);
 }

@@ -2,89 +2,43 @@
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Render/ModelLoader.h"
-#include "Runtime/Render/CameraController.h"
-#include "Runtime/Render/ShaderCompiler.h"
-#include "Shaders/ConstantBuffers.h"
+#include "Runtime/Render/Camera/CameraController.h"
+#include "Passes/SetupPass.h"
+#include "Passes/GeometryPass.h"
+#include "Passes/FinalPass.h"
+#include "Passes/LightingPass.h"
 
 using namespace DSM;
 
 class RenderPipeline : public DSM::IRenderPipeline
 {
 public:
+    ~RenderPipeline() override
+    {
+        g_RenderResources = {};
+    }
+
     void Initialize(DSM::Renderer& renderer)
     {
-        m_Device = renderer.GetDevice();
+        auto model = ModelLoader::LoadModel("Models/Sponza/sponza.gltf");
+        assert(model != nullptr);
+        m_Models.push_back(model);
 
-        m_Model = ModelLoader::LoadModel("Models/Sponza/sponza.gltf");
-        assert(m_Model != nullptr);
+        auto dirLight = Light{
+            .lightType = LightType::Directional, 
+            .color = Math::Vector4{1,1,1,1}, 
+            .range = 10.0f};
+        dirLight.transform.LookTo({-0.8, -1, 0.8});
+        g_RenderResources.lights.push_back(dirLight);
 
-        m_Camera = std::make_unique<Camera>();
-        m_Camera->SetPosition(0, 0, -5);
+        m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
+        m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
+        m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer, m_Models));
+        m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
+
+        renderer.GetCamera().SetPosition(0, 0, -5);
         m_CameraController = std::make_unique<CameraController>();
-        m_CameraController->InitCamera(m_Camera.get());
-
-        // 创建着色器
-        ShaderCompileDesc vsDesc{};
-        vsDesc.SetType(ShaderType::Vertex)
-            .SetMode(ShaderMode::SM_6_1)
-            .SetFilename("Shaders/Lit.hlsl")
-            .SetEnterPoint("LitPassVS");
-        ShaderByteCode vsNoTangent{vsDesc};
-        ShaderByteCode vs{vsDesc.AddDefine("USE_TANGENT", "1")};
-
-        ShaderCompileDesc psDesc{};
-        psDesc.SetType(ShaderType::Pixel)
-            .SetMode(ShaderMode::SM_6_1)
-            .SetFilename("Shaders/Lit.hlsl")
-            .SetEnterPoint("LitPassPS");
-        ShaderByteCode psNoTangent{psDesc};
-        ShaderByteCode ps{psDesc.AddDefine("USE_TANGENT", "1")};
-
-        m_VS = m_Device->CreateShader(ShaderDesc()
-            .SetEntryName(vs.GetDesc().m_EnterPoint)
-            .SetShaderType(vs.GetDesc().m_Type)
-            .SetDebugName("LitPassVS"), 
-            vs.GetByteCode(), vs.GetByteCodeSize());
-        m_VSNoTangent = m_Device->CreateShader(ShaderDesc()
-            .SetEntryName(vsNoTangent.GetDesc().m_EnterPoint)
-            .SetShaderType(vsNoTangent.GetDesc().m_Type)
-            .SetDebugName("LitPassVSNoTangent"), 
-            vsNoTangent.GetByteCode(), vsNoTangent.GetByteCodeSize());
-        m_PS = m_Device->CreateShader(ShaderDesc()
-            .SetEntryName(ps.GetDesc().m_EnterPoint)
-            .SetShaderType(ps.GetDesc().m_Type)
-            .SetDebugName("LitPassPS"), 
-            ps.GetByteCode(), ps.GetByteCodeSize());
-        m_PSNoTangent = m_Device->CreateShader(ShaderDesc()
-            .SetEntryName(psNoTangent.GetDesc().m_EnterPoint)
-            .SetShaderType(psNoTangent.GetDesc().m_Type)
-            .SetDebugName("LitPassPSNoTangent"), 
-            psNoTangent.GetByteCode(), psNoTangent.GetByteCodeSize());
-
-        m_CommonBindingLayout = m_Device->CreateBindingLayout(BindingLayoutDesc()
-            .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
-            .AddItem(BindingLayoutItem().ConstantBuffer(1)) // MaterialData
-            .AddItem(BindingLayoutItem().VolatileConstantBuffer(2)) // PassConstants
-            .AddItem(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0).SetSize(10)) // 10 个用于 PBR 的纹理
-            .AddItem(BindingLayoutItem().Sampler(0)));
-
-        m_CommonBindlessLayout = m_Device->CreateBindlessLayout(BindlessLayoutDesc()
-            .SetFirstSlot(10)
-            .SetVisibility(ShaderType::All)
-            .AddRegisterSpace(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0)));
-
-        m_PassCB = m_Device->CreateBuffer(BufferDesc()
-            .SetByteSize(sizeof(PassConstants))
-            .SetIsConstantBuffer(true)
-            .SetIsVolatile(true)
-            .SetDebugName("PassConstants"));
-
-        m_Sampler = m_Device->CreateSampler(SamplerDesc().SetAllAddressModes(SamplerAddressMode::Wrap));
-
-        const auto& backBufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
-        OnResize(backBufferDesc.width, backBufferDesc.height);
-
-        GenerateRenderConfigs(m_Device, m_Model);
+        m_CameraController->InitCamera(&renderer.GetCamera());
     }
 
 
@@ -95,225 +49,27 @@ public:
             Initialize(renderer);
             m_Initialized = true;
         }
-
-        auto fb = renderer.GetCurrentFramebuffer();
-
         m_CameraController->Update(deltaTime);
 
-        float width = (float)m_Framebuffer->GetFramebufferInfo().width;
-        float height = (float)m_Framebuffer->GetFramebufferInfo().height;
-        float aspectRatio = width / height;
-
-        auto cmdList = m_Device->CreateCommandList(
-            CommandListParameters().SetQueueType(CommandQueueType::Graphics));
-        cmdList->Open();
-
-        const auto& rendertarget = m_Framebuffer->GetDesc().colorAttachments[0];
-        cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
-        cmdList->ClearDepthStencilTexture(m_DepthTex, AllSubresources, true, 1, false, 0);
-        
-        PassConstants passCB{};
-        passCB.view = Math::Matrix4::Transpose(m_Camera->GetViewMatrix());
-        passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
-        passCB.proj = Math::Matrix4::Transpose(m_Camera->GetProjMatrix());
-        passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
-        passCB.shadowTrans = Math::Matrix4::Identity;
-        passCB.cameraPos = m_Camera->GetPosition();
-        passCB.deltaTime = deltaTime;
-        cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
-
-        for(const auto& mesh : m_Model->meshes){        
-            for(const auto& [name, submesh] : mesh->subMeshes){
-                MeshConstants meshCB{};
-                meshCB.world = Math::Matrix4::Transpose(Math::Matrix4::GetScale(0.01, 0.01, 0.01));
-                meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
-                auto& meshBuffer = m_RenderConfigs[mesh->psoIndex].meshCB;
-                cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
-
-                // 绑定资源
-                auto bindingDesc = BindingSetDesc()
-                    .AddItem(BindingSetItem().ConstantBuffer(0, m_RenderConfigs[mesh->psoIndex].meshCB))
-                    .AddItem(BindingSetItem().ConstantBuffer(1, m_Model->materialData))
-                    .AddItem(BindingSetItem().ConstantBuffer(2, m_PassCB));
-                for(size_t i = 0; i < kNumTextures; ++i){
-                    bindingDesc.AddItem(BindingSetItem().Texture_SRV(i, submesh.textures[i]));
-                }
-                bindingDesc.AddItem(BindingSetItem().Sampler(0, m_Sampler));
-                auto bindingSet = m_Device->CreateBindingSet(bindingDesc, m_CommonBindingLayout);
-
-                GraphicsState state{};
-                state.SetFramebuffer(m_Framebuffer)
-                    .SetPipeline(m_PSOCache[m_RenderConfigs[mesh->psoIndex].pipelineDesc])
-                    .AddBindingSet(bindingSet)
-                    .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
-                    .SetIndexBuffer(mesh->indexBufferViews);
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
-                    state.AddVertexBuffer(mesh->positionStream);
-                }
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasUV)){
-                    state.AddVertexBuffer(mesh->uvStream);
-                }
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
-                    state.AddVertexBuffer(mesh->normalStream);
-                }
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasTangent)){
-                    state.AddVertexBuffer(mesh->tangentStream);
-                }
-                
-                cmdList->SetGraphicsState(state);
-
-                // 绘制
-                cmdList->DrawIndexed(DrawArguments{}
-                    .SetStartIndexLocation(submesh.indexOffset)
-                    .SetStartVertexLocation(submesh.vertexOffset)
-                    .SetVertexCount(submesh.indexCount));
-            }
-        }
-
-        auto backTexture = fb->GetDesc().colorAttachments[0].texture;
-        cmdList->CopyTexture(backTexture, {}, rendertarget.texture, {});
-
-        cmdList->Close();
-
-        m_Device->ExecuteCommandList(cmdList);
-
-        m_Device->RunGarbageCollection();
-    }
-
-    void OnResize(uint32_t width, uint32_t height) override
-    {
-        if(m_Camera->GetViewPort().Width() == width && m_Camera->GetViewPort().Height() == height) 
-            return;
-        
-        m_Device->WaitForIdle();
-
-        m_Camera->SetViewPort(Viewport{float(width), float(height)});
-        m_Camera->SetFrustum(std::numbers::pi * 0.5f, float(width) / height, 0.1f, 1000.f);
-
-        m_ColorTex = m_Device->CreateTexture(TextureDesc()
-            .SetWidth(width)
-            .SetHeight(height)
-            .SetFormat(Format::RGBA8_UNORM)
-            .SetClearValue(Color{1, 0.7f, 0.75f, 1})
-            .SetInitialState(ResourceStates::RenderTarget)
-            .SetIsRenderTarget(true)
-            .SetDebugName("ColorTex"));
-        m_DepthTex = m_Device->CreateTexture(TextureDesc()
-            .SetWidth(width)
-            .SetHeight(height)
-            .SetFormat(Format::D24S8)
-            .SetClearValue(Color{1, 0, 0, 0})
-            .SetInitialState(ResourceStates::DepthWrite)
-            .SetIsRenderTarget(true)    // 深度纹理也需要设置
-            .SetDebugName("DepthTex"));
-        m_Framebuffer = m_Device->CreateFramebuffer(FramebufferDesc()
-            .AddColorAttachment(m_ColorTex).SetDepthAttachment(m_DepthTex));
-
-        for(auto& [desc, pipeline] : m_PSOCache){
-            pipeline = m_Device->CreateGraphicsPipeline(desc, m_Framebuffer);
+        for (auto& renderPass : m_RenderPasses) {
+            renderPass->Render(renderer, deltaTime);
         }
     }
 
-private:
-    void GenerateRenderConfigs(IDevice* m_Device, std::shared_ptr<Model> model)
+    void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
     {
-        // 创建渲染配置
-        GraphicsPipelineHandle pipeline{};
-        std::vector<VertexAttributeDesc> attributes{};
-        attributes.reserve(4);
-
-        BlendState hasBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{}.SetBlendEnable(true));
-        BlendState noBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{});
-
-        DepthStencilState readWriteDepth = DepthStencilState{};
-        DepthStencilState readDepth = DepthStencilState{}.SetDepthWriteEnable(false);
-
-        RasterState defaultRaster = RasterState{};
-        RasterState twoSided = RasterState{}.SetCullMode(RasterCullMode::None);
-
-        auto addAttribute = [&attributes](auto currFlag, auto flag, 
-            const std::string& name, auto index, auto format, auto size) {
-            if (HasFlags(PSOFlags(currFlag), flag)) {
-                attributes.push_back(VertexAttributeDesc()
-                    .SetName(name)
-                    .SetBufferIndex(index)
-                    .SetFormat(format)
-                    .SetElementStride(size));
-            }
-        };
-
-        for(auto& mesh : model->meshes){
-            attributes.clear();
-            addAttribute(mesh->psoFlags, kHasPosition, 
-                "POSITION", 0, Format::RGB32_FLOAT, sizeof(Math::Vector3));
-            addAttribute(mesh->psoFlags, kHasUV, 
-                "TEXCOORD", 1, Format::RG32_FLOAT, sizeof(Math::Vector2));
-            addAttribute(mesh->psoFlags, kHasNormal, 
-                "NORMAL", 2, Format::RGB32_FLOAT, sizeof(Math::Vector3));
-            addAttribute(mesh->psoFlags, kHasTangent, 
-                "TANGENT", 3, Format::RGBA32_FLOAT, sizeof(Math::Vector4));
-            
-            bool hasTangent = HasFlags(PSOFlags(mesh->psoFlags), kHasTangent);
-
-            InputLayoutHandle layout = m_Device->CreateInputLayout(attributes, hasTangent ? m_VS : m_VSNoTangent);
-
-            const auto& blendState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? hasBlend : noBlend;
-            const auto& depthState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? readDepth : readWriteDepth;
-            const auto& rasterState = HasFlags(PSOFlags(mesh->psoFlags), kBothSide) ? twoSided : defaultRaster;
-
-            auto desc = GraphicsPipelineDesc()
-                .SetInputLayout(layout)
-                .SetVertexShader(hasTangent ? m_VS : m_VSNoTangent)
-                .SetPixelShader(hasTangent ? m_PS : m_PSNoTangent)
-                .SetRenderState(RenderState{ blendState, depthState, rasterState })
-                .AddBindingLayout(m_CommonBindingLayout);
-                //.AddBindingLayout(m_CommonBindlessLayout);
-            auto buffer = m_Device->CreateBuffer(BufferDesc()
-                .SetDebugName(mesh->name + "MeshConstants")
-                .SetByteSize(sizeof(MeshConstants))
-                .SetIsConstantBuffer(true)
-                .SetIsVolatile(true));
-            mesh->psoIndex = m_RenderConfigs.size();
-
-            if(!m_PSOCache.contains(desc)){
-                m_PSOCache[desc] = m_Device->CreateGraphicsPipeline(desc, m_Framebuffer);
-            }
-            m_RenderConfigs.push_back({ desc, buffer });
+        for (auto& renderPass : m_RenderPasses) {
+            renderPass->OnResize(renderer, width, height);
         }
     }
 
 
 private:
-    bool m_Initialized = false;    
-    
-    // 管线状态缓存
-    std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> m_PSOCache;
-    struct RenderConfig
-    {
-        GraphicsPipelineDesc pipelineDesc;
-        BufferHandle meshCB;
-    };
-    std::vector<RenderConfig> m_RenderConfigs;
+    bool m_Initialized = false;
 
-    IDevice* m_Device = nullptr;
+    std::vector<std::shared_ptr<Model>> m_Models;
+    std::vector<std::unique_ptr<IRenderPass>> m_RenderPasses;
 
-    ShaderHandle m_VS;
-    ShaderHandle m_PS;
-    ShaderHandle m_VSNoTangent;
-    ShaderHandle m_PSNoTangent;
-
-    FramebufferHandle m_Framebuffer;
-    TextureHandle m_ColorTex;
-    TextureHandle m_DepthTex;
-    BufferHandle m_PassCB;
-    SamplerHandle m_Sampler;
-
-    BindingLayoutHandle m_CommonBindingLayout;
-    BindingLayoutHandle m_CommonBindlessLayout;
-
-    std::shared_ptr<Model> m_Model;
-
-    std::unique_ptr<Camera> m_Camera;
     std::unique_ptr<CameraController> m_CameraController;
 };
 

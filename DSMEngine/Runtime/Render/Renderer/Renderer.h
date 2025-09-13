@@ -6,6 +6,7 @@
 #include "Runtime/Graphics/GraphicsCommon.h"
 #include "Runtime/Graphics/Device.h"
 #include "Runtime/Core/Macro.h"
+#include "Runtime/Render/Camera/Camera.h"
 
 namespace DSM {
     class Window;
@@ -40,8 +41,9 @@ namespace DSM {
 
     struct IRenderPipeline
     {
+        virtual ~IRenderPipeline() = default;
         virtual void Render(Renderer& renderer, float deltaTime) = 0;
-        virtual void OnResize(uint32_t width, uint32_t height) = 0;
+        virtual void OnResize(Renderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
     struct RenderParameters
@@ -53,7 +55,7 @@ namespace DSM {
         bool startFullscreen = false;
         bool vsyncEnabled = false;
         uint32_t swapChainBufferCount = 3;
-        Format swapChainFormat = Format::SRGBA8_UNORM;
+        Format swapChainFormat = Format::RGBA8_UNORM;
         uint32_t swapChainSampleCount = 1;
         uint32_t swapChainSampleQuality = 0;
         uint32_t refreshRate = 0;
@@ -77,6 +79,8 @@ namespace DSM {
         void Render(float deltaTime);
         void OnEvent(Event& event);
 
+        void OnResize(uint32_t width, uint32_t height);
+
         [[nodiscard]] IDevice* GetDevice() const { return m_Internal->device; }
         [[nodiscard]] GraphicsAPI GetGraphicsAPI() const { return m_Internal->GetGraphicsAPI(); };
         [[nodiscard]] uint32_t GetFrameIndex() const { return m_Internal->frameIndex; }
@@ -87,6 +91,8 @@ namespace DSM {
         uint32_t GetBackBufferCount() { return m_Internal->GetBackBufferCount(); }
         IFramebuffer* GetCurrentFramebuffer() { return GetFramebuffer(GetCurrentBackBufferIndex()); }
         IFramebuffer* GetFramebuffer(uint32_t index);
+
+        Camera& GetCamera() noexcept { return m_Camera; }
 
     protected:
         void ResizeSwapChain(uint32_t width, uint32_t height) { m_Internal->ResizeSwapChain(width, height); }
@@ -137,7 +143,9 @@ namespace DSM {
             }
         };
         std::unique_ptr<IRendererInternal> m_Internal;
+
         std::unique_ptr<IRenderPipeline> m_RenderPipeline;
+        Camera m_Camera;
     };
 
 } // namespace DSM

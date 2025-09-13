@@ -6,6 +6,7 @@ target(targetName)
     add_deps("DSMEngine")
 
     add_files("**.cpp")
+    add_headerfiles("**.h")
 
     add_rules("Imguiini")
     add_rules("ShaderCopy")
