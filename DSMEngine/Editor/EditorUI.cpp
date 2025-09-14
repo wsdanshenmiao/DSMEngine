@@ -24,7 +24,5 @@ namespace DSM {
 
     void EditorUI::Render()
     {
-        static bool show = true;
-        ImGui::ShowDemoWindow(&show);
     }
 } // namespace DSM

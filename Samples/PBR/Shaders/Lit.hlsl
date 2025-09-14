@@ -11,19 +11,6 @@ struct MaterialConstants
     float pad1;
 };
 
-// 物体的表面属性
-struct Surface
-{
-    float3 position;
-    float depth;
-    float3 normal;
-    float roughness;
-    float3 color;
-    float alpha;
-    float3 viewDirection;
-    float metallic;
-};
-
 ConstantBuffer<MeshConstants> gMeshConstants : register(b0);
 ConstantBuffer<MaterialConstants> gMaterialConstants : register(b1);
 ConstantBuffer<PassConstants> gPassConstants : register(b2);
@@ -87,12 +74,29 @@ Varyings LitPassVS(Attributes i)
 float4 LitPassPS(Varyings i) : SV_TARGET0
 {
     float4 baseCol = gBaseColorTex.Sample(defaultSampler, i.uv);
+    baseCol *= gMaterialConstants.baseColor;
+    float roughness = gDiffuseRoughnessTex.Sample(defaultSampler, i.uv).a;
+    float metallic = gMetalnessTex.Sample(defaultSampler, i.uv).r;
+    float occlusion = gOcclusionTex.Sample(defaultSampler, i.uv).r;
+    float3 emissive = gEmissiveTex.Sample(defaultSampler, i.uv).rgb;
 
-    Light dirLight = GetDirectionalLight(0);
-    float lambert = saturate(dot(normalize(i.normal), normalize(dirLight.direction)));
+    // 获取视图空间的坐标
+    float4 posVS = mul(float4(i.posWS, 1), gPassConstants.view);
 
-    float3 color = baseCol.rgb;
-    color *= dirLight.color * dirLight.attenuation * lambert;
+    Surface surface;
+    surface.position = i.posWS;
+    surface.depth = -posVS.z;
+    surface.normal = normalize(i.normal);
+    surface.roughness = roughness * gMaterialConstants.roughnessFactor;
+    surface.roughness = max(0.05, surface.roughness);
+    surface.color = baseCol.rgb;
+    surface.alpha = baseCol.a;
+    surface.viewDir = normalize(gPassConstants.cameraPos - i.posWS);
+    surface.metallic = metallic * gMaterialConstants.metallicFactor;
 
-    return float4(color, baseCol.a);
+    float3 color = ShadeLighting(surface);
+    color *= occlusion;
+    color += emissive * gMaterialConstants.emissiveColor.rgb;
+    
+    return float4(color, surface.alpha);
 }

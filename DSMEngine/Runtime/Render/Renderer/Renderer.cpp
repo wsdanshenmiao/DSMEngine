@@ -77,6 +77,10 @@ namespace DSM{
             if(m_RenderPipeline != nullptr){
                 m_RenderPipeline->Render(*this, deltaTime);
             }
+            m_Internal->BeginWindowUI();
+            if(m_RenderPipeline != nullptr){
+                m_RenderPipeline->RenderUI(*this);
+            }
             m_Internal->RenderWindowUI();
             callback(afterRender);
 

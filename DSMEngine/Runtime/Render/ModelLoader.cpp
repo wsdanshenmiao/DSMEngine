@@ -47,7 +47,10 @@ namespace DSM::ModelLoader {
     MeshData ProcessMesh(aiMesh* mesh);
     void CreateMesh(Mesh& mesh, const std::span<MeshData>& meshDatas);
 
-	std::shared_ptr<Model> LoadModelFromGeometry(const std::string& name, const Geometry::GeometryMesh& geometryMesh)
+	std::shared_ptr<Model> LoadModelFromGeometry(
+		const std::string& name,
+		const Geometry::GeometryMesh& geometryMesh,
+		std::shared_ptr<Material> material)
 	{
 		if (geometryMesh.vertices.empty()){
 			return nullptr;
@@ -55,7 +58,12 @@ namespace DSM::ModelLoader {
 
 		auto model = std::make_shared<Model>();
 		model->name = name;
-		model->materials.emplace_back(std::make_shared<Material>());
+		if(material == nullptr){
+			model->materials.emplace_back(std::make_shared<Material>());
+		}
+		else{
+			model->materials.push_back(material);
+		}
 		auto& mesh = model->meshes.emplace_back(std::make_shared<Mesh>());
 		mesh->name = name;
 
@@ -73,7 +81,26 @@ namespace DSM::ModelLoader {
 		}
 
 		CreateMesh(*mesh, {&meshData, 1});
-		
+		model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc()
+			.SetByteSize(Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment)))
+			.SetIsConstantBuffer(true)
+			.SetDebugName("Model MaterialData" + name));
+
+		auto cmdList = s_GraphicsDevice->CreateCommandList(
+			CommandListParameters().SetDebugName("InitMaterialData"));
+		cmdList->Open();
+		cmdList->WriteBuffer(model->materialData, model->materials[0].get(), sizeof(Material));
+		cmdList->Close();
+		s_GraphicsDevice->ExecuteCommandList(cmdList);
+
+		mesh->subMeshes[mesh->name].textures = {
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kBlackTransparent2D),
+			TextureManager::GetDefaultTexture(TextureManager::kDefaultNormalTex)
+		};
 		return model;
 	}
 

@@ -158,7 +158,7 @@ namespace DSM{
         ImGui_ImplDX12_Init(&init_info);
     }
 
-    void RendererDX12::RenderWindowUI()
+    void RendererDX12::BeginWindowUI()
     {
         if(m_WindowUI == nullptr) 
             return;
@@ -166,6 +166,12 @@ namespace DSM{
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+    }
+
+    void RendererDX12::RenderWindowUI()
+    {
+        if(m_WindowUI == nullptr) 
+            return;
 
         auto fb = swapChainFramebuffers[GetCurrentBackBufferIndex()];
 

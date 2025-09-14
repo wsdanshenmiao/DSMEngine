@@ -22,7 +22,10 @@ namespace DSM{
         void Destroy();
 
         std::shared_ptr<Model> LoadModel(const std::string& filename);
-        std::shared_ptr<Model> LoadModelFromGeometry(const std::string& name, const Geometry::GeometryMesh& geometryMesh);
+        std::shared_ptr<Model> LoadModelFromGeometry(
+            const std::string& name, 
+            const Geometry::GeometryMesh& geometryMesh,
+            std::shared_ptr<Material> material = nullptr);
     }
 }
 

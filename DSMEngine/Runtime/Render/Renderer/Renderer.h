@@ -43,6 +43,7 @@ namespace DSM {
     {
         virtual ~IRenderPipeline() = default;
         virtual void Render(Renderer& renderer, float deltaTime) = 0;
+        virtual void RenderUI(Renderer& renderer) = 0;
         virtual void OnResize(Renderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
@@ -55,7 +56,7 @@ namespace DSM {
         bool startFullscreen = false;
         bool vsyncEnabled = false;
         uint32_t swapChainBufferCount = 3;
-        Format swapChainFormat = Format::RGBA8_UNORM;
+        Format swapChainFormat = Format::SRGBA8_UNORM;
         uint32_t swapChainSampleCount = 1;
         uint32_t swapChainSampleQuality = 0;
         uint32_t refreshRate = 0;
@@ -124,6 +125,7 @@ namespace DSM {
             virtual void ResizeSwapChain(uint32_t width, uint32_t height) = 0;
 
             virtual void InitWindowUI(WindowUI* windowUI) = 0;
+            virtual void BeginWindowUI() = 0;
             virtual void RenderWindowUI() = 0;
 
             virtual bool BeginFrame() = 0;

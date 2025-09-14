@@ -7,6 +7,8 @@
 #include "Passes/GeometryPass.h"
 #include "Passes/FinalPass.h"
 #include "Passes/LightingPass.h"
+#include "Runtime/Render/Geometry.h"
+#include <imgui.h>
 
 using namespace DSM;
 
@@ -21,6 +23,8 @@ public:
     void Initialize(DSM::Renderer& renderer)
     {
         auto model = ModelLoader::LoadModel("Models/Sponza/sponza.gltf");
+        // auto sphere = Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16);
+        // auto model = ModelLoader::LoadModelFromGeometry("Sphere", sphere);
         assert(model != nullptr);
         m_Models.push_back(model);
 
@@ -51,9 +55,46 @@ public:
         }
         m_CameraController->Update(deltaTime);
 
+        auto cmdList = renderer.GetDevice()->CreateCommandList();
+        cmdList->Open();
+
+        cmdList->Close();
+        renderer.GetDevice()->ExecuteCommandList(cmdList);
+
         for (auto& renderPass : m_RenderPasses) {
             renderPass->Render(renderer, deltaTime);
         }
+    }
+
+    void RenderUI(DSM::Renderer& renderer) override
+    {
+        static float baseColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        static float emissiveColor[3] = {0.0f, 0.0f, 0.0f};
+        static float metallicFactor = 0.5f;
+        static float roughnessFactor = 0.5f;
+        if (ImGui::Begin("Material Settings")) {
+            ImGui::ColorEdit4("Base Color", baseColor);
+            ImGui::ColorEdit3("Emissive Color", emissiveColor);
+            ImGui::SliderFloat("Metallic Factor", &metallicFactor, 0.0f, 1.0f);
+            ImGui::SliderFloat("Roughness Factor", &roughnessFactor, 0.0f, 1.0f);
+        }
+        ImGui::End();
+        Material material{};
+        material.baseColor = Math::Vector4{baseColor[0], baseColor[1], baseColor[2], baseColor[3]};
+        material.emissiveColor = Math::Vector3{emissiveColor[0], emissiveColor[1], emissiveColor[2]};
+        material.metallicFactor = metallicFactor;
+        material.roughnessFactor = roughnessFactor;
+
+        auto cmdList = renderer.GetDevice()->CreateCommandList();
+        cmdList->Open();
+        for (const auto& model : m_Models) {
+            auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
+            for (size_t i = 0; i < model->materials.size(); i++) {
+                cmdList->WriteBuffer(model->materialData, &material, sizeof(Material), i * matByteSize);
+            }
+        }
+        cmdList->Close();
+        renderer.GetDevice()->ExecuteCommandList(cmdList);
     }
 
     void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
