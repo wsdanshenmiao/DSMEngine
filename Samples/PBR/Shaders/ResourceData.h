@@ -9,6 +9,9 @@ using float3x3 = DSM::Math::Matrix3;
 using float4x4 = DSM::Math::Matrix4;
 #endif
 
+#define MAX_DIRECTIONAL_LIGHT_COUNT 4
+#define MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT 4
+
 struct MeshConstants
 {
     float4x4 world;
@@ -21,7 +24,6 @@ struct PassConstants
     float4x4 viewInv;
     float4x4 proj;
     float4x4 projInv;
-    float4x4 shadowTrans;
     float3 cameraPos;
     float deltaTime;
 };
@@ -31,6 +33,11 @@ struct DirectionalLightData
 {
     float4 color;
     float4 direction;
+};
+
+struct ShadowConstants
+{
+    float4x4 shadowViewProjs[MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT];
 };
 
 #endif

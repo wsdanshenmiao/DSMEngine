@@ -119,6 +119,7 @@ namespace DSM::D3D12 {
         uint32_t descriptorIndexSRVs = 0;
 
     private:
+        const Context& m_Context;
         DeviceResources& m_Resources;
         BindingSetDesc m_Desc;
     };

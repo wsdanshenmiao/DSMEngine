@@ -318,7 +318,6 @@ namespace DSM {
         GraphicsPipelineDesc& SetTessellationEvaluationShader(IShader* value) { DS = value; return *this; }
         GraphicsPipelineDesc& SetGeometryShader(IShader* value) { GS = value; return *this; }
         GraphicsPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
-        GraphicsPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         GraphicsPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
         GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
     

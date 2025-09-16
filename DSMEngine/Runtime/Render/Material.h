@@ -16,8 +16,8 @@ namespace DSM {
         Math::Vector4 baseColor = {1,1,1,1};
         Math::Vector3 emissiveColor = {0,0,0};
         float normalTexScale = 1;
-        float metallicFactor = 1;
-        float roughnessFactor = 1;
+        float metallicFactor = 0;
+        float roughnessFactor = 0.5;
     };
 }
 

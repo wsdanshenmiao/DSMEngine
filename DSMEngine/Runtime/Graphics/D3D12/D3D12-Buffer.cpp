@@ -10,11 +10,11 @@ namespace DSM::D3D12{
             return true;
         };
 
-        m_Desc = desc;
-
         // 常量缓冲区需要对齐
         if(desc.isConstantBuffer)
-            desc.byteSize = Math::Align(desc.byteSize, 255llu);
+            desc.byteSize = Math::Align(desc.byteSize, uint64_t(c_ConstantBufferOffsetSizeAlignment));
+
+        m_Desc = desc;
     
         if(desc.isVolatile) 
             return createSuccess();

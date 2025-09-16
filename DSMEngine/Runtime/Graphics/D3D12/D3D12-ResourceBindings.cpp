@@ -251,7 +251,7 @@ namespace DSM::D3D12 {
     }
 
     BindingSet::BindingSet(const Context &context, DeviceResources &deviceResources, BindingSetDesc desc, BindingLayout *layout)
-        : m_Resources(deviceResources), m_Desc(std::move(desc)), bindingLayout(layout)
+        : m_Context(context), m_Resources(deviceResources), m_Desc(std::move(desc)), bindingLayout(layout)
     {
         assert(bindingLayout != nullptr);
 
@@ -390,6 +390,9 @@ namespace DSM::D3D12 {
                         auto texture = Utility::CheckedCast<Texture*>(binding.resourceHandle);
                         assert(texture != nullptr);
                         texture->CreateSRV(handle.ptr, binding.format, binding.dimension, binding.subresources);
+                        // auto srv = texture->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor, 
+                        //     binding.format, binding.subresources, binding.dimension);
+                        // m_Context.device->CopyDescriptorsSimple(1, handle, D3D12_CPU_DESCRIPTOR_HANDLE(srv.integer), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                         resource = texture;
                         found = true;
                         break;
@@ -398,6 +401,9 @@ namespace DSM::D3D12 {
                         auto texture = Utility::CheckedCast<Texture*>(binding.resourceHandle);
                         assert(texture != nullptr);
                         texture->CreateUAV(handle.ptr, binding.format, binding.dimension, binding.subresources);
+                        // auto uav = texture->GetNativeView(ObjectTypes::D3D12_UnorderedAccessViewCpuDescriptor, 
+                        //     binding.format, binding.subresources, binding.dimension);
+                        // m_Context.device->CopyDescriptorsSimple(1, handle, D3D12_CPU_DESCRIPTOR_HANDLE(uav.integer), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                         resource = texture;
                         found = true;
                         hasUAVs = true;

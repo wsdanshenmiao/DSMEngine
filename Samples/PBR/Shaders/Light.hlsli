@@ -3,6 +3,7 @@
 
 #include "Surface.hlsli"
 #include "BRDF.hlsli"
+#include "Shadow.hlsli"
 
 struct Light
 {
@@ -25,12 +26,12 @@ int GetDirectionalLightCount()
 }
 
 
-Light GetDirectionalLight(int index)
+Light GetDirectionalLight(int index, Surface surface)
 {
     Light light;
     light.color = gDirLightData[index].color.rgb;
     light.direction = normalize(gDirLightData[index].direction.xyz);
-    light.attenuation = 1.0f;
+    light.attenuation = GetDirectionalShadowAttenuation(DirectionalShadowData(index), surface);
     return light;
 }
 
@@ -44,17 +45,19 @@ float3 ShadeLighting(Surface surface, Light light)
 
     float3 f0 = lerp(s_DielectricSpecular, surface.color, surface.metallic);
     float3 specular = SpecularBRDF(NoV, NoL, NoH, LoH, f0, surface.roughness);
-    float3 diffuse = DiffuseBurley(NoV, NoL, LoH, surface.roughness) * surface.color;
-    diffuse *= (1 - surface.metallic);
+    float3 diffuse = DiffuseBurley(NoV, NoL, LoH, surface.roughness);
+    float3 diffuseCol = surface.color * (1 - surface.metallic);
+    diffuse *= diffuseCol;
 
-    return NoL * light.color * (diffuse + specular);
+    float3 radians = NoL * light.color * (diffuse + specular);
+    return radians * light.attenuation;
 }
 
 float3 ShadeLighting(Surface surface)
 {
     float3 color = 0;
     for(int i = 0; i < GetDirectionalLightCount(); i++) {
-        Light dirLight = GetDirectionalLight(i);
+        Light dirLight = GetDirectionalLight(i, surface);
         color += ShadeLighting(surface, dirLight);
     }
     return color;

@@ -277,6 +277,7 @@ namespace DSM::ModelLoader {
 			offset += tangentsByteSize;
 		}
 
+		assert(indices.size() > 0);
 		cmdList->WriteBuffer(mesh.meshData, indices.data(), indexByteSize, offset);
 		mesh.indexBufferViews = IndexBufferBinding().
 			SetBuffer(mesh.meshData).SetOffset(offset).SetFormat(Format::R32_UINT);
@@ -334,6 +335,7 @@ namespace DSM::ModelLoader {
 			auto tryCreateTexture = [&](aiTextureType type) {
 				MaterialTex materialTex;
 				switch (type) {
+					case aiTextureType_DIFFUSE : 
 					case aiTextureType_BASE_COLOR: materialTex = kBaseColor; break;
 					case aiTextureType_DIFFUSE_ROUGHNESS: materialTex = kDiffuseRoughness; break;
 					case aiTextureType_METALNESS: materialTex = kMetalness; break;
@@ -344,7 +346,7 @@ namespace DSM::ModelLoader {
 				}
 				if (material->GetTextureCount(type) == 0) {
 					srcHandle[materialTex] = defaultTexture[materialTex];
-					return;
+					return false;
 				}
 				
 				material->GetTexture(type, 0, &aiPath);
@@ -371,9 +373,12 @@ namespace DSM::ModelLoader {
 
 					srcHandle[materialTex] = texHandle;
 				}
+				return true;
 			};
 			// 加载纹理
-			tryCreateTexture(aiTextureType_BASE_COLOR);
+			if (!tryCreateTexture(aiTextureType_BASE_COLOR)) {
+				tryCreateTexture(aiTextureType_DIFFUSE);
+			}
 			tryCreateTexture(aiTextureType_DIFFUSE_ROUGHNESS);
 			tryCreateTexture(aiTextureType_METALNESS);
 			tryCreateTexture(aiTextureType_AMBIENT_OCCLUSION);

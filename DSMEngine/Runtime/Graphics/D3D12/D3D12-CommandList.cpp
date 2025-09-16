@@ -321,6 +321,7 @@ namespace DSM::D3D12{
         if(m_EnableAutomaticBarriers){
             m_StateTracker.RequireTextureState(tex, subresources, ResourceStates::DepthWrite);
         }
+        CommitBarriers();
 
         Object nativeView = tex->GetNativeView(ObjectTypes::D3D12_DepthStencilViewDescriptor, Format::UNKNOWN, subresources);
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {nativeView.integer};
@@ -489,6 +490,9 @@ namespace DSM::D3D12{
         Buffer* buffer = Utility::CheckedCast<Buffer*>(b);
         const auto& desc = buffer->GetDesc();
 
+        if(desc.isConstantBuffer){
+            dataSize = Math::Align(dataSize, size_t(c_ConstantBufferOffsetSizeAlignment));
+        }
         auto upload = AllocateUploadBuffer(dataSize);
         memcpy(upload.mappedAddress, data, dataSize);
 
@@ -1299,7 +1303,8 @@ namespace DSM::D3D12{
         if (hasDepth) {
             DSV = m_Resources.depthStencilViewHeap.GetCpuHandle(framebuffer->DSV);
         }
-        m_CurrCmdList->cmdList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, hasDepth ? &DSV : nullptr);
+        m_CurrCmdList->cmdList->OMSetRenderTargets(
+            RTVs.size(), RTVs.size() == 0 ? nullptr : RTVs.data(), false, hasDepth ? &DSV : nullptr);
 
         m_Instance->refResources.push_back(framebuffer);
     }

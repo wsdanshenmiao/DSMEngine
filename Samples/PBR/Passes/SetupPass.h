@@ -19,43 +19,34 @@ namespace DSM {
             // 创建着色器
             ShaderCompileDesc vsDesc{};
             vsDesc.SetType(ShaderType::Vertex)
-                .SetMode(ShaderMode::SM_6_1)
-                .SetFilename("Shaders/Lit.hlsl")
+                .SetMode(ShaderMode::SM_6_6)
+                .SetFilename("Shaders/LitPass.hlsl")
                 .SetEnterPoint("LitPassVS");
             ShaderByteCode vsNoTangent{vsDesc};
             ShaderByteCode vs{vsDesc.AddDefine("USE_TANGENT", "1")};
 
             ShaderCompileDesc psDesc{};
             psDesc.SetType(ShaderType::Pixel)
-                .SetMode(ShaderMode::SM_6_1)
-                .SetFilename("Shaders/Lit.hlsl")
+                .SetMode(ShaderMode::SM_6_6)
+                .SetFilename("Shaders/LitPass.hlsl")
                 .SetEnterPoint("LitPassPS");
             ShaderByteCode psNoTangent{psDesc};
             ShaderByteCode ps{psDesc.AddDefine("USE_TANGENT", "1")};
 
+            auto createShader = [&](const ShaderByteCode& byteCode, const auto& name) {
+                return device->CreateShader(ShaderDesc()
+                    .SetEntryName(byteCode.GetDesc().enterPoint)
+                    .SetShaderType(byteCode.GetDesc().type)
+                    .SetDebugName(name), 
+                    byteCode.GetByteCode(), byteCode.GetByteCodeSize());
+            };
             auto& shaders = g_RenderResources.shaders;
-            shaders[(size_t)ShaderSlot::LitVS] = device->CreateShader(ShaderDesc()
-                .SetEntryName(vs.GetDesc().m_EnterPoint)
-                .SetShaderType(vs.GetDesc().m_Type)
-                .SetDebugName("LitPassVS"), 
-                vs.GetByteCode(), vs.GetByteCodeSize());
-            shaders[(size_t)ShaderSlot::LitVSNoTangent] = device->CreateShader(ShaderDesc()
-                .SetEntryName(vsNoTangent.GetDesc().m_EnterPoint)
-                .SetShaderType(vsNoTangent.GetDesc().m_Type)
-                .SetDebugName("LitPassVSNoTangent"), 
-                vsNoTangent.GetByteCode(), vsNoTangent.GetByteCodeSize());
-            shaders[(size_t)ShaderSlot::LitPS] = device->CreateShader(ShaderDesc()
-                .SetEntryName(ps.GetDesc().m_EnterPoint)
-                .SetShaderType(ps.GetDesc().m_Type)
-                .SetDebugName("LitPassPS"), 
-                ps.GetByteCode(), ps.GetByteCodeSize());
-            shaders[(size_t)ShaderSlot::LitPSNoTangent] = device->CreateShader(ShaderDesc()
-                .SetEntryName(psNoTangent.GetDesc().m_EnterPoint)
-                .SetShaderType(psNoTangent.GetDesc().m_Type)
-                .SetDebugName("LitPassPSNoTangent"), 
-                psNoTangent.GetByteCode(), psNoTangent.GetByteCodeSize());
+            shaders[(size_t)ShaderSlot::LitVS] = createShader(vs, "LitPassVS");
+            shaders[(size_t)ShaderSlot::LitVSNoTangent] = createShader(vsNoTangent, "LitPassVSNoTangent");
+            shaders[(size_t)ShaderSlot::LitPS] = createShader(ps, "LitPassPS");
+            shaders[(size_t)ShaderSlot::LitPSNoTangent] = createShader(psNoTangent, "LitPassPSNoTangent");
 
-            m_Sampler = renderer.GetDevice()->CreateSampler(SamplerDesc().SetAllAddressModes(SamplerAddressMode::Wrap));
+            sm_Sampler = renderer.GetDevice()->CreateSampler(SamplerDesc().SetAllAddressModes(SamplerAddressMode::Wrap));
         
 
             g_RenderResources.bindingLayoutDesc
@@ -66,7 +57,7 @@ namespace DSM {
                 .AddItem(BindingLayoutItem().Sampler(0));   // 默认采样器
 
             g_RenderResources.bindingSetDesc
-                .AddItem(BindingSetItem().Sampler(0, m_Sampler));
+                .AddItem(BindingSetItem().Sampler(0, sm_Sampler));
 
             const auto& bufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
             OnResize(renderer, bufferDesc.width, bufferDesc.height);
@@ -99,11 +90,12 @@ namespace DSM {
             }
         }
 
+    public:
+        inline static SamplerHandle sm_Sampler{};
+
     private:
         TextureHandle m_ColorTex;
         TextureHandle m_DepthTex;
-
-        SamplerHandle m_Sampler;
     };
 
 } // namespace DSM

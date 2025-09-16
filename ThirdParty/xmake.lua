@@ -38,5 +38,7 @@ target("ThirdParty")
     add_includedirs(path.join(thirdPartyDir, "DDSTextureLoader/"), {public = true})
 
 
-    
+    add_headerfiles("entt/single_include/**.hpp")
+    add_includedirs(path.join(thirdPartyDir, "entt/single_include"), {public = true})
+
 target_end()

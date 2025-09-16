@@ -25,6 +25,10 @@ namespace DSM {
         LitVSNoTangent,
         LitPS,
         LitPSNoTangent,
+        ShadowVS,
+        ShadowPS,
+        ShadowVSClip,
+        ShadowPSClip,
         Count
     };
 

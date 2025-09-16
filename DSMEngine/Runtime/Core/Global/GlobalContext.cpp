@@ -2,6 +2,7 @@
 #include "Runtime/Core/Window.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Core/Input/InputSystem.h"
+#include "Runtime/Framework/World.h"
 
 namespace DSM{
     GlobalContext g_GlobalContext{};
@@ -14,6 +15,7 @@ namespace DSM{
         RenderParameters renderParams{};
         renderParams.window = window.get();
         renderer = std::make_shared<Renderer>(renderParams);
+        world = std::make_shared<World>();
     }
 
     void GlobalContext::ShutdownContext()

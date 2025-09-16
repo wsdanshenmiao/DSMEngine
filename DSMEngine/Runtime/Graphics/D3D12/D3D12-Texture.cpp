@@ -158,7 +158,8 @@ namespace DSM::D3D12 {
         uint32_t descriptorIndex;
         switch (objType)
         {
-        case ObjectTypes::D3D12_ShaderResourceViewGpuDescripror:{
+        case ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor:
+        case ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor:{
             auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
 
             if (auto found = m_CustomSRVs.find(key); found == m_CustomSRVs.end()) {
@@ -173,10 +174,13 @@ namespace DSM::D3D12 {
                 descriptorIndex = found->second;
             }
 
-            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+            descriptor = objType == ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor ?
+                descriptorHeap.GetCpuHandle(descriptorIndex).ptr :
+                descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
             break;
         }
-        case ObjectTypes::D3D12_UnorderedAccessViewGpuDescripror:{
+        case ObjectTypes::D3D12_UnorderedAccessViewCpuDescriptor:
+        case ObjectTypes::D3D12_UnorderedAccessViewGpuDescriptor:{
             auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
 
             if (auto found = m_CustomUAVs.find(key); found == m_CustomUAVs.end()) {
@@ -191,7 +195,9 @@ namespace DSM::D3D12 {
                 descriptorIndex = found->second;
             }
 
-            descriptor = descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
+            descriptor = objType == ObjectTypes::D3D12_UnorderedAccessViewCpuDescriptor ?
+                descriptorHeap.GetCpuHandle(descriptorIndex).ptr :
+                descriptorHeap.GetGpuHandle(descriptorIndex).ptr;
             break;
         }
         case ObjectTypes::D3D12_RenderTargetViewDescriptor:{

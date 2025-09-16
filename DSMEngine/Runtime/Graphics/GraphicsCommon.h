@@ -36,11 +36,13 @@ namespace DSM {
         constexpr ObjectType D3D12_Resource                         = 0x00010004;
         constexpr ObjectType D3D12_RenderTargetViewDescriptor       = 0x00010005;
         constexpr ObjectType D3D12_DepthStencilViewDescriptor       = 0x00010006;
-        constexpr ObjectType D3D12_ShaderResourceViewGpuDescripror  = 0x00010007;
-        constexpr ObjectType D3D12_UnorderedAccessViewGpuDescripror = 0x00010008;
+        constexpr ObjectType D3D12_ShaderResourceViewGpuDescriptor  = 0x00010007;
+        constexpr ObjectType D3D12_UnorderedAccessViewGpuDescriptor = 0x00010008;
         constexpr ObjectType D3D12_RootSignature                    = 0x00010009;
         constexpr ObjectType D3D12_PipelineState                    = 0x0001000a;
         constexpr ObjectType D3D12_CommandAllocator                 = 0x0001000b;
+        constexpr ObjectType D3D12_ShaderResourceViewCpuDescriptor  = 0x0001000c;
+        constexpr ObjectType D3D12_UnorderedAccessViewCpuDescriptor = 0x0001000d;
     };
 
     

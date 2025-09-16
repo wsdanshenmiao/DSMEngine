@@ -47,7 +47,6 @@ namespace DSM {
             passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
             passCB.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
             passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
-            passCB.shadowTrans = Math::Matrix4::Identity;
             passCB.cameraPos = renderer.GetCamera().GetPosition();
             passCB.deltaTime = deltaTime;
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
@@ -56,7 +55,7 @@ namespace DSM {
                 for(const auto& mesh : model->meshes){
                     for(const auto& [name, submesh] : mesh->subMeshes){
                         MeshConstants meshCB{};
-                        meshCB.world = Math::Matrix4::Transpose(Math::Matrix4::GetScale(0.01, 0.01, 0.01));
+                        meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
                         meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
                         auto& meshBuffer = renderConfig[mesh->psoIndex].meshCB;
                         cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
@@ -65,7 +64,7 @@ namespace DSM {
                         auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
                         auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * submesh.materialIndex);
                         auto bindingDesc = g_RenderResources.bindingSetDesc;
-                        bindingDesc.AddItem(BindingSetItem().ConstantBuffer(0, renderConfig[mesh->psoIndex].meshCB))
+                        bindingDesc.AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
                             .AddItem(BindingSetItem().ConstantBuffer(1, model->materialData, matBufferRange))
                             .AddItem(BindingSetItem().ConstantBuffer(2, m_PassCB));
                         for(size_t i = 0; i < kNumTextures; ++i){

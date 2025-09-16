@@ -11,6 +11,7 @@ namespace DSM {
     {
     public:
 		const Math::Transform& GetTransform() const noexcept { return m_Transform; }
+        Math::Transform& GetTransform() noexcept { return m_Transform; }
 
         Math::Vector3 GetPosition() const noexcept { return m_Transform.GetPosition(); }
         

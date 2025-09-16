@@ -67,17 +67,17 @@ namespace DSM {
 
     struct ShaderCompileDesc
     {
-        ShaderType m_Type;
-        ShaderMode m_Mode;
-        std::string m_FileName;
-        std::string m_EnterPoint;
-        ShaderDefines m_Defines;
+        ShaderType type;
+        ShaderMode mode;
+        std::string fileName;
+        std::string enterPoint;
+        ShaderDefines defines;
 
-        ShaderCompileDesc& SetType(ShaderType type) { m_Type = type; return *this; }
-        ShaderCompileDesc& SetMode(ShaderMode mode) { m_Mode = mode; return *this; }
-        ShaderCompileDesc& SetFilename(const std::string& name) { m_FileName = name; return *this; }
-        ShaderCompileDesc& SetEnterPoint(const std::string& enterPoint) { m_EnterPoint = enterPoint; return *this; }
-        ShaderCompileDesc& AddDefine(const std::string& name, const std::string& val) { m_Defines.AddDefine(name, val); return *this; }
+        ShaderCompileDesc& SetType(ShaderType _type) { type = _type; return *this; }
+        ShaderCompileDesc& SetMode(ShaderMode _mode) { mode = _mode; return *this; }
+        ShaderCompileDesc& SetFilename(const std::string& name) { fileName = name; return *this; }
+        ShaderCompileDesc& SetEnterPoint(const std::string& _enterPoint) { enterPoint = _enterPoint; return *this; }
+        ShaderCompileDesc& AddDefine(const std::string& name, const std::string& val) { defines.AddDefine(name, val); return *this; }
     };
     
     class ShaderByteCode

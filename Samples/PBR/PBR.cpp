@@ -3,11 +3,14 @@
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Render/Camera/CameraController.h"
+#include "Runtime/Render/Geometry.h"
 #include "Passes/SetupPass.h"
 #include "Passes/GeometryPass.h"
 #include "Passes/FinalPass.h"
 #include "Passes/LightingPass.h"
-#include "Runtime/Render/Geometry.h"
+#include "Passes/ShadowPass.h"
+#include "Runtime/Framework/Object/GameObject.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
 #include <imgui.h>
 
 using namespace DSM;
@@ -22,11 +25,21 @@ public:
 
     void Initialize(DSM::Renderer& renderer)
     {
-        auto model = ModelLoader::LoadModel("Models/Sponza/sponza.gltf");
+        // auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
+        // lihuazou->transform.SetScale(5);
+        
+        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(15,15,5,5));
+        // plane->transform.Rotate({std::numbers::pi / 2, 0, 0});
+
+        auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(4,4,4,2));
+        cube->transform.SetPosition({0,2,0});
+
         // auto sphere = Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16);
         // auto model = ModelLoader::LoadModelFromGeometry("Sphere", sphere);
-        assert(model != nullptr);
-        m_Models.push_back(model);
+        
+        // m_Models.push_back(lihuazou);
+        m_Models.push_back(plane);
+        m_Models.push_back(cube);
 
         auto dirLight = Light{
             .lightType = LightType::Directional, 
@@ -36,11 +49,13 @@ public:
         g_RenderResources.lights.push_back(dirLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
+        m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
         m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer, m_Models));
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 
-        renderer.GetCamera().SetPosition(0, 0, -5);
+        renderer.GetCamera().SetPosition(8, 8, -8);
+        renderer.GetCamera().LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(&renderer.GetCamera());
     }
@@ -68,33 +83,16 @@ public:
 
     void RenderUI(DSM::Renderer& renderer) override
     {
-        static float baseColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-        static float emissiveColor[3] = {0.0f, 0.0f, 0.0f};
-        static float metallicFactor = 0.5f;
-        static float roughnessFactor = 0.5f;
-        if (ImGui::Begin("Material Settings")) {
-            ImGui::ColorEdit4("Base Color", baseColor);
-            ImGui::ColorEdit3("Emissive Color", emissiveColor);
-            ImGui::SliderFloat("Metallic Factor", &metallicFactor, 0.0f, 1.0f);
-            ImGui::SliderFloat("Roughness Factor", &roughnessFactor, 0.0f, 1.0f);
+        static float lightDir[3] = {-0.8, -1, 0.8};
+        static float lightColor[3] = {1.0f, 1.0f, 1.0f};
+        if (ImGui::Begin("Light Settings")) {
+            ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);
+            ImGui::ColorEdit3("Light Color", lightColor);
         }
         ImGui::End();
-        Material material{};
-        material.baseColor = Math::Vector4{baseColor[0], baseColor[1], baseColor[2], baseColor[3]};
-        material.emissiveColor = Math::Vector3{emissiveColor[0], emissiveColor[1], emissiveColor[2]};
-        material.metallicFactor = metallicFactor;
-        material.roughnessFactor = roughnessFactor;
 
-        auto cmdList = renderer.GetDevice()->CreateCommandList();
-        cmdList->Open();
-        for (const auto& model : m_Models) {
-            auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
-            for (size_t i = 0; i < model->materials.size(); i++) {
-                cmdList->WriteBuffer(model->materialData, &material, sizeof(Material), i * matByteSize);
-            }
-        }
-        cmdList->Close();
-        renderer.GetDevice()->ExecuteCommandList(cmdList);
+        g_RenderResources.lights[0].transform.LookTo({lightDir[0], lightDir[1], lightDir[2]});
+        g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
     }
 
     void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override

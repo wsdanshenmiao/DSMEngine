@@ -9,6 +9,7 @@ namespace DSM{
     class Renderer;
     class InputSystem;
     class LogSystem;
+    class World;
 
     struct GlobalContext
     {
@@ -16,6 +17,7 @@ namespace DSM{
         std::shared_ptr<LogSystem> loggerSystem;
         std::shared_ptr<Window> window;
         std::shared_ptr<Renderer> renderer;
+        std::shared_ptr<World> world;
 
         void CreateContext();
         void ShutdownContext();

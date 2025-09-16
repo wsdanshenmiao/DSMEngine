@@ -8,8 +8,6 @@ namespace DSM::D3D12{
 
     void DescriptorHeap::AllocateResource(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool shaderVisible)
     {
-        std::lock_guard lock{m_Mutex};
-
         m_Heap = nullptr;
         m_ShaderVisibleHeap = nullptr;
 

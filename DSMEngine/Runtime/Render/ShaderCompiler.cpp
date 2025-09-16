@@ -119,10 +119,10 @@ namespace DSM {
     ShaderByteCode::ShaderByteCode(const ShaderCompileDesc& shaderDesc)
         :m_Desc(shaderDesc)    
     {
-        std::wstring fileName = Utility::UTF8ToWString(shaderDesc.m_FileName);
-        std::wstring enterPoint = Utility::UTF8ToWString(shaderDesc.m_EnterPoint);
-        std::wstring target = GetComileTarget(shaderDesc.m_Type, shaderDesc.m_Mode);
-        auto defines = shaderDesc.m_Defines.Finish();
+        std::wstring fileName = Utility::UTF8ToWString(shaderDesc.fileName);
+        std::wstring enterPoint = Utility::UTF8ToWString(shaderDesc.enterPoint);
+        std::wstring target = GetComileTarget(shaderDesc.type, shaderDesc.mode);
+        auto defines = shaderDesc.defines.Finish();
         
         RefPtr<IDxcBlob> shaderByteCode = s_ShaderCompiler.CompilerShader(fileName, enterPoint, target, defines);
         m_ByteCode.resize(shaderByteCode->GetBufferSize());

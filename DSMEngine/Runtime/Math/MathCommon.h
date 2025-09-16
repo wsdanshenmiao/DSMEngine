@@ -86,6 +86,42 @@ namespace DSM::Math {
 #endif
     }
 
+    inline Matrix4 GetOrthographicMatrix(
+        float left, float right, 
+        float bottom, float top, 
+        float nearZ, float farZ)
+    {
+#if defined(DSM_PLATFORM_WINDOWS)
+        return Math::Matrix4{DirectX::XMMatrixOrthographicOffCenterLH(left, right, bottom, top, nearZ, farZ)};
+#else
+        float ReciprocalWidth = 1.0f / (right - left);
+        float ReciprocalHeight = 1.0f / (top - bottom);
+        float fRange = 1.0f / (farZ - nearZ);
+
+        Math::Matrix4 M;
+        M.Set(0, 0, ReciprocalWidth + ReciprocalWidth);
+        M.Set(0, 1, 0.0f);
+        M.Set(0, 2, 0.0f);
+        M.Set(0, 3, 0.0f);
+
+        M.Set(1, 0, 0.0f);
+        M.Set(1, 1, ReciprocalHeight + ReciprocalHeight);
+        M.Set(1, 2, 0.0f);
+        M.Set(1, 3, 0.0f);
+
+        M.Set(2, 0, 0.0f);
+        M.Set(2, 1, 0.0f);
+        M.Set(2, 2, fRange);
+        M.Set(2, 3, 0.0f);
+
+        M.Set(3, 0, -(left + right) * ReciprocalWidth);
+        M.Set(3, 1, -(top + bottom) * ReciprocalHeight);
+        M.Set(3, 2, -fRange * nearZ);
+        M.Set(3, 3, 1.0f);
+        return M;
+#endif
+    }
+
     inline Quaternion LookTo(const Vector3& pos, const Vector3& dir, const Vector3& up)
     {
 #if defined(DSM_PLATFORM_WINDOWS)
