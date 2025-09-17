@@ -11,6 +11,7 @@
 #include "Passes/ShadowPass.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/TransformComponent.h"
+#include "Runtime/Core/Input/InputSystem.h"
 #include <imgui.h>
 
 using namespace DSM;
@@ -25,27 +26,27 @@ public:
 
     void Initialize(DSM::Renderer& renderer)
     {
-        // auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
-        // lihuazou->transform.SetScale(5);
+        auto elena = ModelLoader::LoadModel("Models/Elena.obj");
+        elena->transform.SetScale(0.5);
         
-        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(15,15,5,5));
+        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(30,30,5,5));
         // plane->transform.Rotate({std::numbers::pi / 2, 0, 0});
 
-        auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(4,4,4,2));
-        cube->transform.SetPosition({0,2,0});
+        auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(6,4,4,2));
+        cube->transform.SetPosition({0,4,0});
 
         // auto sphere = Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16);
         // auto model = ModelLoader::LoadModelFromGeometry("Sphere", sphere);
         
-        // m_Models.push_back(lihuazou);
+        m_Models.push_back(elena);
         m_Models.push_back(plane);
-        m_Models.push_back(cube);
+        //m_Models.push_back(cube);
 
         auto dirLight = Light{
             .lightType = LightType::Directional, 
             .color = Math::Vector4{1,1,1,1}, 
             .range = 10.0f};
-        dirLight.transform.LookTo({-0.8, -1, 0.8});
+        dirLight.transform.LookTo({0.8, -1, 0.8});
         g_RenderResources.lights.push_back(dirLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
@@ -54,10 +55,11 @@ public:
         m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer, m_Models));
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 
-        renderer.GetCamera().SetPosition(8, 8, -8);
-        renderer.GetCamera().LookAt({0,0,0}, {0,1,0});
+        auto& camera = renderer.GetCamera();
+        camera.SetPosition(dirLight.transform.GetForwardAxis() * -10.0f);
+        camera.LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
-        m_CameraController->InitCamera(&renderer.GetCamera());
+        m_CameraController->InitCamera(&camera);
     }
 
 
@@ -68,6 +70,13 @@ public:
             Initialize(renderer);
             m_Initialized = true;
         }
+        // 按下 R 键重新编译着色器
+        if(g_GlobalContext.inputSystem->IsKeyPressed(KeyCode::R)){
+            auto setupPass= Utility::CheckedCast<SetupPass*>(m_RenderPasses[0].get());
+            setupPass->CreateShader(renderer);
+        }
+
+
         m_CameraController->Update(deltaTime);
 
         auto cmdList = renderer.GetDevice()->CreateCommandList();
@@ -83,7 +92,7 @@ public:
 
     void RenderUI(DSM::Renderer& renderer) override
     {
-        static float lightDir[3] = {-0.8, -1, 0.8};
+        static float lightDir[3] = {0.8, -1, 0.8};
         static float lightColor[3] = {1.0f, 1.0f, 1.0f};
         if (ImGui::Begin("Light Settings")) {
             ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);

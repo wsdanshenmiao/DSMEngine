@@ -91,6 +91,8 @@ namespace DSM {
         std::uint64_t GetByteCodeSize() const noexcept { return m_ByteCode.size(); }
         const ShaderCompileDesc& GetDesc() const noexcept { return m_Desc; }
 
+        bool IsValid() const noexcept { return !m_ByteCode.empty(); }
+
     private:
         const ShaderCompileDesc m_Desc;
         std::vector<std::uint8_t> m_ByteCode{};

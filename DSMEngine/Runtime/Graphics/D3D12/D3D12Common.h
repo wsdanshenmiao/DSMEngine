@@ -421,7 +421,6 @@ namespace DSM{
             }
         }
 
-
         static D3D12_BLEND_DESC ConvertBlendState(const BlendState& inState)
         {
             D3D12_BLEND_DESC outState{};

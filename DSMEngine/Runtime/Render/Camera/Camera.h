@@ -60,6 +60,7 @@ namespace DSM {
         }
 
         void ReverseZ(bool enable) { m_ReversedZ = enable; }
+        bool IsReversedZ() const { return m_ReversedZ; }
     
     protected:
         Math::Transform m_Transform{};

@@ -13,7 +13,7 @@ namespace DSM {
             g_RenderResources.bindingLayout = renderer.GetDevice()->CreateBindingLayout(g_RenderResources.bindingLayoutDesc);
 
             for(const auto& model : models){
-                GenerateRenderConfigs(renderer.GetDevice(), model);
+                GenerateRenderConfigs(renderer, model);
             }
         }
 
@@ -34,8 +34,9 @@ namespace DSM {
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
 
     private:
-        void GenerateRenderConfigs(IDevice* device, std::shared_ptr<Model> model)
+        void GenerateRenderConfigs(Renderer& renderer, std::shared_ptr<Model> model)
         {
+            auto device = renderer.GetDevice();
             // 创建渲染配置
             GraphicsPipelineHandle pipeline{};
             std::vector<VertexAttributeDesc> attributes{};
@@ -44,8 +45,12 @@ namespace DSM {
             BlendState hasBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{}.SetBlendEnable(true));
             BlendState noBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{});
 
-            DepthStencilState readWriteDepth = DepthStencilState{};
-            DepthStencilState readDepth = DepthStencilState{}.SetDepthWriteEnable(false);
+            auto reverseZ = renderer.GetCamera().IsReversedZ();
+            DepthStencilState readWriteDepth = DepthStencilState{}
+                .SetDepthFunc(reverseZ ? ComparisonFunc::Greater : ComparisonFunc::Less);
+            DepthStencilState readDepth = DepthStencilState{}
+                .SetDepthWriteEnable(false)
+                .SetDepthFunc(reverseZ ? ComparisonFunc::Greater : ComparisonFunc::Less);
 
             RasterState defaultRaster = RasterState{};
             RasterState twoSided = RasterState{}.SetCullMode(RasterCullMode::None);

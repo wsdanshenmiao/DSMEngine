@@ -38,6 +38,7 @@ namespace DSM {
         SamplerAddressMode addressW = SamplerAddressMode::Clamp;
 
         SamplerReductionType reductionType = SamplerReductionType::Standard;
+        ComparisonFunc comparisonFunc = ComparisonFunc::Less;
 
         SamplerDesc& SetBorderColor(const Color& color) { borderColor = color; return *this; }
         SamplerDesc& SetMaxAnisotropy(float value) { maxAnisotropy = value; return *this; }
@@ -51,6 +52,7 @@ namespace DSM {
         SamplerDesc& SetAddressW(SamplerAddressMode mode) { addressW = mode; return *this; }
         SamplerDesc& SetAllAddressModes(SamplerAddressMode mode) { addressU = addressV = addressW = mode; return *this; }
         SamplerDesc& SetReductionType(SamplerReductionType type) { reductionType = type; return *this; }
+        SamplerDesc& SetComparisonFunc(ComparisonFunc func) { comparisonFunc = func; return *this; }
     };
 
     class ISampler : public IResource

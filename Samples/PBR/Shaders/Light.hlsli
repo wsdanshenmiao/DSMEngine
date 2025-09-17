@@ -32,6 +32,7 @@ Light GetDirectionalLight(int index, Surface surface)
     light.color = gDirLightData[index].color.rgb;
     light.direction = normalize(gDirLightData[index].direction.xyz);
     light.attenuation = GetDirectionalShadowAttenuation(DirectionalShadowData(index), surface);
+    //light.attenuation = 1;
     return light;
 }
 

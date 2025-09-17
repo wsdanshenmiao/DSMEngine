@@ -42,6 +42,8 @@ namespace DSM {
 
         ShaderDesc& SetDebugName(const std::string& value) { debugName = value; return *this; }
         ShaderDesc& SetEntryName(const std::string& value) { entryName = value; return *this; }
+
+        bool operator==(const ShaderDesc& other) const = default;
     };
 
     struct IShader : public IResource

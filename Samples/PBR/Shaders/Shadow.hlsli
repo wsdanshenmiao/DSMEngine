@@ -26,9 +26,9 @@ float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface
     // 变换到 NDC 空间
     float4 posSS = mul(float4(surface.position, 1), viewProj);
     posSS /= posSS.w;
+    float2 uv = posSS.xy * float2(0.5, 0.5) + 0.5;
     // 变换到纹理空间
-    float3 posTS = (posSS * 0.5 + 0.5).xyz;
-    posTS.y *= -1;
+    float3 posTS = float3(uv, posSS.z);
 
     return SampleDirectionalShadow(posTS);
 }

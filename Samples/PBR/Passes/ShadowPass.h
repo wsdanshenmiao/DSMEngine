@@ -69,37 +69,6 @@ namespace DSM {
                 .SetReductionType(SamplerReductionType::Comparison)
                 .SetAllAddressModes(SamplerAddressMode::Clamp));
 
-            // 编译 ShadowPass 的着色器
-            auto vsDsec = ShaderCompileDesc()
-                .SetType(ShaderType::Vertex)
-                .SetMode(ShaderMode::SM_6_6)
-                .SetEnterPoint("ShadowPassVS")
-                .SetFilename("Shaders/ShadowPass.hlsl");
-            ShaderByteCode vs{vsDsec};
-            vsDsec.AddDefine("_SHADOWS_CLIP", "1");
-            ShaderByteCode vsClip{vsDsec};
-            auto psDesc = ShaderCompileDesc()
-                .SetType(ShaderType::Pixel)
-                .SetMode(ShaderMode::SM_6_6)
-                .SetEnterPoint("ShadowPassPS")
-                .SetFilename("Shaders/ShadowPass.hlsl");
-            ShaderByteCode ps{psDesc};
-            psDesc.AddDefine("_SHADOWS_CLIP", "1");
-            ShaderByteCode psClip{psDesc};
-            
-            auto& shaders = g_RenderResources.shaders;
-
-            auto createShader = [&device](const ShaderByteCode& byteCode, const std::string& debugName) {
-                return device->CreateShader(ShaderDesc()
-                    .SetShaderType(byteCode.GetDesc().type)
-                    .SetEntryName(byteCode.GetDesc().enterPoint)
-                    .SetDebugName(debugName),
-                    byteCode.GetByteCode(), byteCode.GetByteCodeSize());
-            };
-            shaders[size_t(ShaderSlot::ShadowVS)] = createShader(vs, "ShadowPassVS");
-            shaders[size_t(ShaderSlot::ShadowVSClip)] = createShader(vsClip, "ShadowPassVSClip");
-            shaders[size_t(ShaderSlot::ShadowPS)] = createShader(ps, "ShadowPassPS");
-            shaders[size_t(ShaderSlot::ShadowPSClip)] = createShader(psClip, "ShadowPassPSClip");
 
             std::array<VertexAttributeDesc, 2> vertexDescs = {
                 VertexAttributeDesc()
@@ -124,16 +93,16 @@ namespace DSM {
                 .AddItem(BindingLayoutItem().Sampler(0))
             );
 
+            auto& shaders = g_RenderResources.shaders;
             auto createPipeline = [&](IShader* vsHandle, IShader* psHandle, bool clip) {
-                auto pipelineDesc = GraphicsPipelineDesc()
+                auto& pipelineDesc = clip ? m_ShadowPipelineClipDesc : m_ShadowPipelineDesc;
+                pipelineDesc = GraphicsPipelineDesc()
                     .SetVertexShader(vsHandle)
                     .SetPixelShader(psHandle)
                     .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                     .SetRenderState(renderState)
                     .AddBindingLayout(bindingLayout);
                 g_RenderResources.psoCache[pipelineDesc] = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
-                auto& pipeline = clip ? m_ShadowPipelineClip : m_ShadowPipeline;
-                pipeline = g_RenderResources.psoCache[pipelineDesc];
             };
             createPipeline(shaders[size_t(ShaderSlot::ShadowVS)], shaders[size_t(ShaderSlot::ShadowPS)], false);
             createPipeline(shaders[size_t(ShaderSlot::ShadowVSClip)], shaders[size_t(ShaderSlot::ShadowPSClip)], true);
@@ -180,6 +149,7 @@ namespace DSM {
                 shadowConstants.shadowViewProjs[i] = m_DirectionalShadowMatrices[i];
             }
             m_CmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
+            m_CmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
 
             m_CmdList->Close();
             renderer.GetDevice()->ExecuteCommandList(m_CmdList);
@@ -200,13 +170,17 @@ namespace DSM {
                 Math::Matrix4 viewProj;
                 Math::Vector4 baseColor;
             } shadowCB{};
-            Camera lightCamera{};
             // TODO:后续根据场景物体的包围盒计算
             // 需要使用正交投影
             float len = 10;
             auto lightPos = -light.transform.GetForwardAxis() * len;
-            auto view = Math::Matrix4{Math::LookAt(lightPos, {0,0,0}, {0,1,0})};
-            auto proj = Math::GetOrthographicMatrix(-len, len, -len, len, 0.1f, len * len);
+            Math::Vector4 center{0,0,0,1};
+            auto view = Math::Matrix4{Math::LookAt(lightPos, Math::Vector3{center}, {0,1,0})};
+            center = center * view;
+            auto proj = Math::GetOrthographicMatrix(
+                center.Get(0) - len, center.Get(0) + len, 
+                center.Get(1) - len, center.Get(1) + len, 
+                center.Get(2) - len, center.Get(2) + len);
             shadowCB.viewProj = Math::Matrix4::Transpose(view * proj);
             m_DirectionalShadowMatrices[index] = shadowCB.viewProj;
 
@@ -224,13 +198,14 @@ namespace DSM {
                         m_CmdList->WriteBuffer(shadowConstantBuffer, &shadowCB, sizeof(ShadowPassCB));
 
                         MeshConstants meshCB{};
-                        meshCB.world = Math::Matrix4::Transpose(Math::Matrix4::Identity);
+                        meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
                         meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
                         cbDesc.SetByteSize(sizeof(MeshConstants)).SetDebugName("Mesh CB");
                         auto meshConstantBuffer = device->CreateBuffer(cbDesc);
                         m_CmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
 
-                        const auto& pipeline = alphaClip ? m_ShadowPipelineClip : m_ShadowPipeline;
+                        const auto& desc = alphaClip ? m_ShadowPipelineClipDesc : m_ShadowPipelineDesc;
+                        const auto& pipeline = g_RenderResources.psoCache[desc];
 
                         auto bindingSet = device->CreateBindingSet(BindingSetDesc()
                             .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
@@ -242,7 +217,7 @@ namespace DSM {
                         GraphicsState state{};
                         state.SetFramebuffer(m_ShadowFramebuffer)
                             .SetPipeline(pipeline)
-                            .SetViewport(ViewportState().AddViewportAndScissorRect(lightCamera.GetViewPort()))
+                            .SetViewport(ViewportState().AddViewportAndScissorRect(GetTileViewport(index, split, tileSize)))
                             .SetIndexBuffer(mesh->indexBufferViews)
                             .AddVertexBuffer(mesh->positionStream)
                             .AddVertexBuffer(mesh->uvStream)
@@ -280,8 +255,8 @@ namespace DSM {
 
         FramebufferHandle m_ShadowFramebuffer;
 
-        GraphicsPipelineHandle m_ShadowPipeline;
-        GraphicsPipelineHandle m_ShadowPipelineClip;
+        GraphicsPipelineDesc m_ShadowPipelineDesc;
+        GraphicsPipelineDesc m_ShadowPipelineClipDesc;
 
         std::vector<Light> m_DirectionalLights{};
 

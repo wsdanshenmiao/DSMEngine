@@ -39,8 +39,9 @@ namespace DSM {
             cmdList->Open();
 
             const auto& rendertarget = fb->GetDesc().colorAttachments[0];
+            float depth = float(!renderer.GetCamera().IsReversedZ());
             cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
-            cmdList->ClearDepthStencilTexture(fb->GetDesc().depthAttachment.texture, AllSubresources, true, 1, false, 0);
+            cmdList->ClearDepthStencilTexture(fb->GetDesc().depthAttachment.texture, AllSubresources, true, depth, false, 0);
             
             PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());

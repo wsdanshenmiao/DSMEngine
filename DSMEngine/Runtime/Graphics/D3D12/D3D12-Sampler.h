@@ -35,7 +35,7 @@ namespace DSM::D3D12 {
             } 
 
             desc.ComparisonFunc = m_Desc.reductionType == SamplerReductionType::Comparison ? 
-                D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
+                ConvertComparisonFunc(m_Desc.comparisonFunc) : D3D12_COMPARISON_FUNC_NEVER;
             desc.MaxAnisotropy = std::max(0u, (UINT)m_Desc.maxAnisotropy);
             desc.MaxLOD = D3D12_FLOAT32_MAX;
             desc.MinLOD = 0;

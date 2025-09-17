@@ -233,7 +233,7 @@ namespace DSM::ModelLoader {
 			mesh.psoFlags &= meshData.psoFlags;
 			positions.insert(positions.end(), meshData.positions.begin(), meshData.positions.end());
 			normals.insert(normals.end(), meshData.normals.begin(), meshData.normals.end());
-			uvs.insert(uvs.begin(), meshData.texcoords.begin(), meshData.texcoords.end());
+			uvs.insert(uvs.end(), meshData.texcoords.begin(), meshData.texcoords.end());
 			tangents.insert(tangents.end(), meshData.tangents.begin(), meshData.tangents.end());
 			indices.insert(indices.end(), meshData.indices.begin(), meshData.indices.end());
 		}
