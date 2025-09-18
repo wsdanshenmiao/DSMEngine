@@ -150,12 +150,13 @@ namespace DSM {
             // 将 ShadowMap 绑定到管线
             g_RenderResources.bindingLayoutDesc
                 .AddItem(BindingLayoutItem().Texture_SRV(7))
-                .AddItem(BindingLayoutItem().ConstantBuffer(4))
-                .AddItem(BindingLayoutItem().Sampler(1));
+                .AddItem(BindingLayoutItem().ConstantBuffer(4));
             g_RenderResources.bindingSetDesc
                 .AddItem(BindingSetItem().Texture_SRV(7, m_ShadowMap))
-                .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB))
-                .AddItem(BindingSetItem().Sampler(1, m_ShadowSampler));
+                .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB));
+
+            g_RenderResources.samplerBindingLayoutDesc.AddItem(BindingLayoutItem().Sampler(1));
+            g_RenderResources.samplerBindingSetDesc.AddItem(BindingSetItem().Sampler(1, m_ShadowSampler));
 
             m_CmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ShadowPass"));
         }
@@ -212,7 +213,7 @@ namespace DSM {
             // TODO:后续根据场景物体的包围盒计算
             // 需要使用正交投影
             Camera lightCamera{};
-            float len = 10;
+            float len = 20;
             auto lightPos = -light.transform.GetForwardAxis() * len;
             Math::Vector4 center{0,0,0,1};
             lightCamera.SetPosition(lightPos);

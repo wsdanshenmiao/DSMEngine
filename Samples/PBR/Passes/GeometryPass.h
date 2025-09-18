@@ -77,9 +77,10 @@ namespace DSM {
                         GraphicsState state{};
                         state.SetFramebuffer(fb)
                             .SetPipeline(g_RenderResources.psoCache[renderConfig[mesh->psoIndex].pipelineDesc])
-                            .AddBindingSet(bindingSet)
                             .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
-                            .SetIndexBuffer(mesh->indexBufferViews);
+                            .SetIndexBuffer(mesh->indexBufferViews)
+                            .AddBindingSet(bindingSet)
+                            .AddBindingSet(g_RenderResources.samplerBindingSet);
                         if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
                             state.AddVertexBuffer(mesh->positionStream);
                         }

@@ -288,6 +288,7 @@ namespace DSM::D3D12 {
 
     BindingSet::~BindingSet()
     {
+        // 释放所有的描述符
         m_Resources.shaderResourceViewHeap.ReleaseDescriptors(descriptorIndexSRVs, bindingLayout->descriptorTableSizeSRVs);
         m_Resources.samplerHeap.ReleaseDescriptors(descriptorIndexSamplers, bindingLayout->descriptorTableSizeSamplers);
     }
@@ -296,6 +297,7 @@ namespace DSM::D3D12 {
     {
         uint32_t rootParametersIndex = bindingLayout->rootParameterIndexSamplers;
         uint32_t numSamplers = bindingLayout->descriptorTableSizeSamplers;
+        // 分配后需要释放
         uint32_t descriptorTableBaseIndex = m_Resources.samplerHeap.AllocateDescriptors(numSamplers);
     
         hasSamplers = true;
@@ -333,6 +335,7 @@ namespace DSM::D3D12 {
     void BindingSet::CreateSRVDescriptors(const Context &context)
     {
         uint32_t numSRVs = bindingLayout->descriptorTableSizeSRVs;
+        // 分配后需要释放
         uint32_t descriptorTableBaseIndex = m_Resources.shaderResourceViewHeap.AllocateDescriptors(numSRVs);
 
         hasSRVs = true;

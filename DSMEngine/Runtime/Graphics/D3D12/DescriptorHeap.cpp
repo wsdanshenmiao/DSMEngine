@@ -132,6 +132,9 @@ namespace DSM::D3D12{
     {
         uint32_t preSize = m_Allocator.Capacity();
         uint32_t newSize = Math::NextPowerOf2(requireSize);
+        if(m_HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER){
+            assert(newSize <= 2048);
+        }
 
         bool shaderVisible = m_ShaderVisibleHeap != nullptr;
         if(shaderVisible){

@@ -1224,7 +1224,7 @@ namespace DSM::D3D12{
         auto preBaseIndex = descriptorTable->GetFirstDescriptorIndex();
         // 需要缩小
         if(newSize < preCapacity){
-            m_Resources.shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex, preCapacity - newSize);
+            m_Resources.shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex + newSize, preCapacity - newSize);
             descriptorTable->capacity = newSize;
             return;
         }

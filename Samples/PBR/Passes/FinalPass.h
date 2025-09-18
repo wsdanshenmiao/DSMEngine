@@ -10,7 +10,12 @@ namespace DSM {
     public:
         FinalPass(Renderer& renderer, std::span<std::shared_ptr<Model>> models)
         {
-            g_RenderResources.bindingLayout = renderer.GetDevice()->CreateBindingLayout(g_RenderResources.bindingLayoutDesc);
+            auto device = renderer.GetDevice();
+            g_RenderResources.bindingLayout = device->CreateBindingLayout(g_RenderResources.bindingLayoutDesc);
+
+            g_RenderResources.samplerBindingLayout = device->CreateBindingLayout(g_RenderResources.samplerBindingLayoutDesc);
+            g_RenderResources.samplerBindingSet = device->CreateBindingSet(
+                g_RenderResources.samplerBindingSetDesc, g_RenderResources.samplerBindingLayout);
 
             for(const auto& model : models){
                 GenerateRenderConfigs(renderer, model);
@@ -80,7 +85,8 @@ namespace DSM {
                         .SetVertexShader(hasTangent ? litVS : litVSNoTangent)
                         .SetPixelShader(ps)
                         .SetRenderState(renderState)
-                        .AddBindingLayout(g_RenderResources.bindingLayout);
+                        .AddBindingLayout(g_RenderResources.bindingLayout)
+                        .AddBindingLayout(g_RenderResources.samplerBindingLayout);
 
                     if(!g_RenderResources.psoCache.contains(desc)){
                         g_RenderResources.psoCache[desc] = device->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);

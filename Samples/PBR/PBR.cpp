@@ -30,24 +30,27 @@ public:
         auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
         lihuazou->transform.SetScale(4);
         
-        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(30,30,5,5));
+        // auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(30,30,5,5));
         // plane->transform.Rotate({std::numbers::pi / 2, 0, 0});
 
-        auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(6,4,4,2));
-        cube->transform.SetPosition({0,4,0});
+        // auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(6,4,4,2));
+        // cube->transform.SetPosition({0,4,0});
 
-        // auto sphere = Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16);
-        // auto model = ModelLoader::LoadModelFromGeometry("Sphere", sphere);
-        
+        // auto sphere = ModelLoader::LoadModelFromGeometry(
+        //     "Sphere", Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16));
+
+        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+
+        m_Models.push_back(sponza);
         m_Models.push_back(lihuazou);
-        m_Models.push_back(plane);
-        //m_Models.push_back(cube);
+        // m_Models.push_back(plane);
+        // m_Models.push_back(cube);
 
         auto dirLight = Light{
             .lightType = LightType::Directional, 
             .color = Math::Vector4{1,1,1,1}, 
             .range = 10.0f};
-        dirLight.transform.LookTo({0.8, -1, 0.8});
+        dirLight.transform.LookTo({-0.3, -1, 0.08});
         g_RenderResources.lights.push_back(dirLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
@@ -93,7 +96,7 @@ public:
 
     void RenderUI(DSM::Renderer& renderer) override
     {
-        static float lightDir[3] = {0.8, -1, 0.8};
+        static float lightDir[3] = {-0.3, -1, 0.08};
         static float lightColor[3] = {1.0f, 1.0f, 1.0f};
         if (ImGui::Begin("Light Settings")) {
             ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);
