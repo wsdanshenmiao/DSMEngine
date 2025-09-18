@@ -1,25 +1,33 @@
 #include "DSMEngine.h"
 #include "Runtime/Core/Window.h"
 #include "Runtime/Render/Renderer/Renderer.h"
-#include "Runtime/Core/Global/GlobalContext.h"
 #include "Runtime/Event/ApplicationEvent.h"
+#include "Runtime/Core/Input/InputSystem.h"
+#include "Runtime/Framework/World.h"
 
 namespace DSM {
 
     void DSMEngine::StartEngine()
     {
-        g_GlobalContext.CreateContext();
-        g_GlobalContext.window->SetEventCallback([this](Event& event){
+        sm_GlobalContext.loggerSystem = std::make_shared<LogSystem>();
+        sm_GlobalContext.window = std::make_shared<Window>(WindowProps{});
+        sm_GlobalContext.inputSystem = std::make_shared<InputSystem>(sm_GlobalContext.window.get());
+        RenderParameters renderParams{};
+        renderParams.window = sm_GlobalContext.window.get();
+        sm_GlobalContext.renderer = std::make_shared<Renderer>(renderParams);
+        sm_GlobalContext.world = std::make_shared<World>();
+
+        sm_GlobalContext.window->SetEventCallback([this](Event& event){
             EventDispatcher dispatcher{event};
             dispatcher.Dispatch<WindowCloseEvent>([this](auto& event) { m_Running = false; return true; });
 
-            g_GlobalContext.renderer->OnEvent(event);
+            DSMEngine::sm_GlobalContext.renderer->OnEvent(event);
         });
     }
 
     void DSMEngine::ShutDownEngine()
     {
-        g_GlobalContext.ShutdownContext();
+        DSMEngine::sm_GlobalContext = {};
     }
 
     void DSMEngine::Run()
@@ -35,7 +43,7 @@ namespace DSM {
     {
         float deltaTime = m_Timer.DeltaTime();
         CalculateFPS();
-        g_GlobalContext.window->Update();
+        DSMEngine::sm_GlobalContext.window->Update();
 
         Render(deltaTime);
     }
@@ -43,19 +51,19 @@ namespace DSM {
 
     void DSMEngine::SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline)
     {
-        g_GlobalContext.renderer->SetRenderPipeline(std::move(renderPipeline));
+        DSMEngine::sm_GlobalContext.renderer->SetRenderPipeline(std::move(renderPipeline));
     }
 
     void DSMEngine::Render(float deltaTime)
     {
-        g_GlobalContext.renderer->Render(deltaTime);
+        DSMEngine::sm_GlobalContext.renderer->Render(deltaTime);
     }
 
     void DSMEngine::CalculateFPS()
     {
         static int frameCnt = 0;
         static float timeElapsed = 0.0f;
-        static std::string originTitle = g_GlobalContext.window->GetTitle();
+        static std::string originTitle = DSMEngine::sm_GlobalContext.window->GetTitle();
 
         frameCnt++;
 
@@ -64,7 +72,7 @@ namespace DSM {
             float mspf = 1000.0f / fps;
 
             auto title = std::format("{}    FPS: {}    Frame Time: {} (ms)", originTitle, fps, mspf);
-            g_GlobalContext.window->SetTitle(title);
+            DSMEngine::sm_GlobalContext.window->SetTitle(title);
 
             // Reset for next average.
             frameCnt = 0;

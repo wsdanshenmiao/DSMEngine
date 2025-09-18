@@ -28,11 +28,12 @@ int GetDirectionalLightCount()
 
 Light GetDirectionalLight(int index, Surface surface)
 {
+    DirectionalShadowData shadowData;
+    shadowData.tileIndex = index;
     Light light;
     light.color = gDirLightData[index].color.rgb;
     light.direction = normalize(gDirLightData[index].direction.xyz);
-    light.attenuation = GetDirectionalShadowAttenuation(DirectionalShadowData(index), surface);
-    //light.attenuation = 1;
+    light.attenuation = GetDirectionalShadowAttenuation(shadowData, surface);
     return light;
 }
 

@@ -191,7 +191,7 @@ namespace DSM::D3D12{
         m_Context.stateTracker = std::make_unique<ResourceStateTracker>(m_Context.messageCallback);
 
         DWORD factoryFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG)// && 0
+#if defined(DEBUG) || defined(_DEBUG) && 0
         // 开启调试层
         RefPtr<ID3D12Debug> pDebug{};
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(pDebug.GetAddressOf())))) {

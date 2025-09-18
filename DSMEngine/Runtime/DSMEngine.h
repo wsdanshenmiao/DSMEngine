@@ -8,6 +8,20 @@
 
 namespace DSM {
     class IRenderPipeline;
+    class InputSystem;
+    class LogSystem;
+    class Window;
+    class Renderer;
+    class World;
+
+    struct EngineGlobalContext
+    {
+        std::shared_ptr<InputSystem> inputSystem;
+        std::shared_ptr<LogSystem> loggerSystem;
+        std::shared_ptr<Window> window;
+        std::shared_ptr<Renderer> renderer;
+        std::shared_ptr<World> world;
+    };
 
     class DSMEngine
     {
@@ -28,6 +42,9 @@ namespace DSM {
         void Render(float deltaTime);
 
         void CalculateFPS();
+
+    public:
+        inline static EngineGlobalContext sm_GlobalContext{};
 
     protected:
         bool m_Running = true;

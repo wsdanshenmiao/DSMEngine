@@ -65,9 +65,10 @@ namespace DSM {
 
             // ShadowMap 的采样器
             m_ShadowSampler = renderer.GetDevice()->CreateSampler(SamplerDesc()
-                .SetAllFilters(false)
-                .SetReductionType(SamplerReductionType::Comparison)
-                .SetAllAddressModes(SamplerAddressMode::Clamp));
+                .SetMipFilter(false)   // 点采样
+                .SetComparisonFunc(ComparisonFunc::LessOrEqual)
+                .SetAllAddressModes(SamplerAddressMode::Border)
+                .SetReductionType(SamplerReductionType::Comparison));
 
 
             std::array<VertexAttributeDesc, 2> vertexDescs = {
@@ -84,7 +85,7 @@ namespace DSM {
             };
 
             RenderState renderState{};
-            renderState.rasterState.SetSlopeScaleDepthBias(-1.5f).SetDepthBias(-100);
+            renderState.rasterState.SetSlopeScaleDepthBias(1.5f).SetDepthBias(100);
 
             auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
@@ -149,7 +150,6 @@ namespace DSM {
                 shadowConstants.shadowViewProjs[i] = m_DirectionalShadowMatrices[i];
             }
             m_CmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
-            m_CmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
 
             m_CmdList->Close();
             renderer.GetDevice()->ExecuteCommandList(m_CmdList);
@@ -172,15 +172,18 @@ namespace DSM {
             } shadowCB{};
             // TODO:后续根据场景物体的包围盒计算
             // 需要使用正交投影
+            Camera lightCamera{};
             float len = 10;
             auto lightPos = -light.transform.GetForwardAxis() * len;
             Math::Vector4 center{0,0,0,1};
-            auto view = Math::Matrix4{Math::LookAt(lightPos, Math::Vector3{center}, {0,1,0})};
+            lightCamera.SetPosition(lightPos);
+            lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
+            auto view = lightCamera.GetViewMatrix();
             center = center * view;
             auto proj = Math::GetOrthographicMatrix(
                 center.Get(0) - len, center.Get(0) + len, 
                 center.Get(1) - len, center.Get(1) + len, 
-                center.Get(2) - len, center.Get(2) + len);
+                center.Get(2) - 2 * len, center.Get(2) + 2 * len);
             shadowCB.viewProj = Math::Matrix4::Transpose(view * proj);
             m_DirectionalShadowMatrices[index] = shadowCB.viewProj;
 

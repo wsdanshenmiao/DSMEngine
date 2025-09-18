@@ -9,6 +9,10 @@ namespace DSM {
     {
         Math::Transform m_Transform;
     };
+
+    struct MeshComponent
+    {
+    };
 } // namespace DSM
 
 

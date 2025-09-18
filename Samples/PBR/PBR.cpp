@@ -12,6 +12,7 @@
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/TransformComponent.h"
 #include "Runtime/Core/Input/InputSystem.h"
+#include "Runtime/DSMEngine.h"
 #include <imgui.h>
 
 using namespace DSM;
@@ -26,8 +27,8 @@ public:
 
     void Initialize(DSM::Renderer& renderer)
     {
-        auto elena = ModelLoader::LoadModel("Models/Elena.obj");
-        elena->transform.SetScale(0.5);
+        auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
+        lihuazou->transform.SetScale(4);
         
         auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(30,30,5,5));
         // plane->transform.Rotate({std::numbers::pi / 2, 0, 0});
@@ -38,7 +39,7 @@ public:
         // auto sphere = Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16);
         // auto model = ModelLoader::LoadModelFromGeometry("Sphere", sphere);
         
-        m_Models.push_back(elena);
+        m_Models.push_back(lihuazou);
         m_Models.push_back(plane);
         //m_Models.push_back(cube);
 
@@ -71,7 +72,7 @@ public:
             m_Initialized = true;
         }
         // 按下 R 键重新编译着色器
-        if(g_GlobalContext.inputSystem->IsKeyPressed(KeyCode::R)){
+        if(DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::R)){
             auto setupPass= Utility::CheckedCast<SetupPass*>(m_RenderPasses[0].get());
             setupPass->CreateShader(renderer);
         }

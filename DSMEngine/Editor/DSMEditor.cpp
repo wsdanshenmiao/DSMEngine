@@ -3,7 +3,6 @@
 #include "Runtime/Core/Macro.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "EditorUI.h"
-#include "EditorContext.h"
 
 namespace DSM{
     DSMEditor::DSMEditor(DSMEngine* engine)
@@ -11,16 +10,18 @@ namespace DSM{
     {
         DSM_ASSERT(engine != nullptr, "Engine is nullptr!");
 
-        g_EditorContext.CreateContext(EditorContextDesc{ 
-            engine, g_GlobalContext.window, g_GlobalContext.renderer });
+        sm_EditorContext.engine = engine;
+        sm_EditorContext.window = DSMEngine::sm_GlobalContext.window;
+        sm_EditorContext.renderer = DSMEngine::sm_GlobalContext.renderer;
+        
         m_EditorUI = std::make_shared<EditorUI>(EditorUIDesc{ 
-            g_GlobalContext.renderer, g_GlobalContext.window });
+            DSMEngine::sm_GlobalContext.renderer, DSMEngine::sm_GlobalContext.window });
     }
 
     DSMEditor::~DSMEditor()
     {
         m_EditorUI.reset();
-        g_EditorContext.ShutdownContext();
+        sm_EditorContext = {};
         m_Engine = nullptr;
     }
 

@@ -16,8 +16,7 @@ ConstantBuffer<ShadowConstants> gShadowConstants : register(b4);
 
 float SampleDirectionalShadow(float3 posSS)
 {
-    float depth = posSS.z;
-    return gShadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, depth);
+    return gShadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, posSS.z).r;
 }
 
 float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface surface)
@@ -26,7 +25,7 @@ float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface
     // 变换到 NDC 空间
     float4 posSS = mul(float4(surface.position, 1), viewProj);
     posSS /= posSS.w;
-    float2 uv = posSS.xy * float2(0.5, 0.5) + 0.5;
+    float2 uv = posSS.xy * float2(0.5, -0.5) + 0.5;
     // 变换到纹理空间
     float3 posTS = float3(uv, posSS.z);
 

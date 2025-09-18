@@ -7,6 +7,15 @@
 namespace DSM {
     class DSMEngine;
     class EditorUI;
+    class Window;
+    class Renderer;
+
+    struct EditorContext
+    {
+        DSMEngine* engine{};
+        std::shared_ptr<Window> window{};
+        std::shared_ptr<Renderer> renderer{};
+    };
 
     class DSMEditor
     {
@@ -15,6 +24,9 @@ namespace DSM {
         ~DSMEditor();
 
         void Run();
+
+    public:
+        inline static EditorContext sm_EditorContext{};
 
     private:
         std::shared_ptr<EditorUI> m_EditorUI;
