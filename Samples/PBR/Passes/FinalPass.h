@@ -66,10 +66,31 @@ namespace DSM {
                 }
             };
 
-            auto litVS = g_RenderResources.shaders[(size_t)ShaderSlot::LitVS];
-            auto litVSNoTangent = g_RenderResources.shaders[(size_t)ShaderSlot::LitVSNoTangent];
-            auto litPS = g_RenderResources.shaders[(size_t)ShaderSlot::LitPS];
-            auto litPSNoTangent = g_RenderResources.shaders[(size_t)ShaderSlot::LitPSNoTangent];
+            const auto& shaders = g_RenderResources.shaders;
+            auto litVS = shaders[(size_t)ShaderSlot::LitVS];
+            auto litVSNoTangent = shaders[(size_t)ShaderSlot::LitVSNoTangent];
+
+            auto createPipeline = [&](bool hasTangent, const auto& layout, const auto& renderState) {
+                GraphicsPipelineDesc retDesc{};
+                for(size_t i = 0; i <= (size_t)ShaderSlot::LitPSPCF7 - (size_t)ShaderSlot::LitPS; ++i){
+                    ShaderHandle ps = hasTangent ? shaders[size_t(ShaderSlot::LitPS) + i] : 
+                        shaders[size_t(ShaderSlot::LitPSNoTangent) + i];
+                    auto desc = GraphicsPipelineDesc()
+                        .SetInputLayout(layout)
+                        .SetVertexShader(hasTangent ? litVS : litVSNoTangent)
+                        .SetPixelShader(ps)
+                        .SetRenderState(renderState)
+                        .AddBindingLayout(g_RenderResources.bindingLayout);
+
+                    if(!g_RenderResources.psoCache.contains(desc)){
+                        g_RenderResources.psoCache[desc] = device->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);
+                    }
+                    if(ShadowPass::sm_Setting.directionalSetting.filter == i){
+                        retDesc = desc;
+                    }
+                }
+                return retDesc;
+            };
 
             for(auto& mesh : model->meshes){
                 attributes.clear();
@@ -90,22 +111,14 @@ namespace DSM {
                 const auto& depthState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? readDepth : readWriteDepth;
                 const auto& rasterState = HasFlags(PSOFlags(mesh->psoFlags), kBothSide) ? twoSided : defaultRaster;
 
-                auto desc = GraphicsPipelineDesc()
-                    .SetInputLayout(layout)
-                    .SetVertexShader(hasTangent ? litVS : litVSNoTangent)
-                    .SetPixelShader(hasTangent ? litPS : litPSNoTangent)
-                    .SetRenderState(RenderState{ blendState, depthState, rasterState })
-                    .AddBindingLayout(g_RenderResources.bindingLayout);
+                auto desc = createPipeline(hasTangent, layout, RenderState{ blendState, depthState, rasterState });
+
                 auto buffer = device->CreateBuffer(BufferDesc()
                     .SetDebugName(mesh->name + "MeshConstants")
                     .SetByteSize(sizeof(MeshConstants))
                     .SetIsConstantBuffer(true)
                     .SetIsVolatile(true));
                 mesh->psoIndex = g_RenderResources.renderConfigs.size();
-
-                if(!g_RenderResources.psoCache.contains(desc)){
-                    g_RenderResources.psoCache[desc] = device->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);
-                }
                 g_RenderResources.renderConfigs.push_back({ desc, buffer });
             }
         }

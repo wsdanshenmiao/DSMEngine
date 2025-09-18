@@ -21,7 +21,7 @@ namespace DSM {
                 .SetAllAddressModes(SamplerAddressMode::Wrap)
                 .SetComparisonFunc(reverseZ ? ComparisonFunc::Greater : ComparisonFunc::Less));
             
-            CreateShader(renderer);
+            //CreateShader(renderer);
 
             g_RenderResources.bindingLayoutDesc
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(0)) // MeshConstants
@@ -93,7 +93,7 @@ namespace DSM {
                 .SetEnterPoint("ShadowPassVS")
                 .SetFilename("Shaders/ShadowPass.hlsl");
             ShaderByteCode shadowVS{shadowVSDesc};
-            shadowVSDesc.AddDefine("_SHADOWS_CLIP", "1");
+            shadowVSDesc.AddDefine("SHADOWS_CLIP", "1");
             ShaderByteCode shadowVSClip{shadowVSDesc};
             auto shadowPSDesc = ShaderCompileDesc()
                 .SetType(ShaderType::Pixel)
@@ -101,7 +101,7 @@ namespace DSM {
                 .SetEnterPoint("ShadowPassPS")
                 .SetFilename("Shaders/ShadowPass.hlsl");
             ShaderByteCode shadowPS{shadowPSDesc};
-            shadowPSDesc.AddDefine("_SHADOWS_CLIP", "1");
+            shadowPSDesc.AddDefine("SHADOWS_CLIP", "1");
             ShaderByteCode shadowPSClip{shadowPSDesc};
 
             if(!litVSNoTangent.IsValid() ||  !litVS.IsValid() ||

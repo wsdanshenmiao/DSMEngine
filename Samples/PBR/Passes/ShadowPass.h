@@ -21,7 +21,7 @@ namespace DSM {
         
         enum FilterMode
         {
-            _PCF2x2,
+            None,
             _PCF3x3,
             _PCF5x5,
             _PCF7x7
@@ -44,8 +44,9 @@ namespace DSM {
         ShadowPass(Renderer& renderer, 
             ShadowSetting shadowSetting, 
             std::span<std::shared_ptr<Model>> models)
-            : m_Setting(shadowSetting), m_Models(models.begin(), models.end())
+            : m_Models(models.begin(), models.end())
         {
+            sm_Setting = shadowSetting;
             auto device = renderer.GetDevice();
 
             m_ShadowCB = device->CreateBuffer(BufferDesc()
@@ -84,9 +85,6 @@ namespace DSM {
                     .SetElementStride(sizeof(Math::Vector2))
             };
 
-            RenderState renderState{};
-            renderState.rasterState.SetSlopeScaleDepthBias(1.5f).SetDepthBias(100);
-
             auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
@@ -94,19 +92,60 @@ namespace DSM {
                 .AddItem(BindingLayoutItem().Sampler(0))
             );
 
-            auto& shaders = g_RenderResources.shaders;
-            auto createPipeline = [&](IShader* vsHandle, IShader* psHandle, bool clip) {
-                auto& pipelineDesc = clip ? m_ShadowPipelineClipDesc : m_ShadowPipelineDesc;
-                pipelineDesc = GraphicsPipelineDesc()
+
+            // 编译 ShadowPass 的着色器
+            auto shadowVSDesc = ShaderCompileDesc()
+                .SetType(ShaderType::Vertex)
+                .SetMode(ShaderMode::SM_6_6)
+                .SetEnterPoint("ShadowPassVS")
+                .SetFilename("Shaders/ShadowPass.hlsl");
+            ShaderByteCode shadowVS{shadowVSDesc};
+            shadowVSDesc.AddDefine("SHADOWS_CLIP", "1");
+            ShaderByteCode shadowVSClip{shadowVSDesc};
+            auto shadowPSDesc = ShaderCompileDesc()
+                .SetType(ShaderType::Pixel)
+                .SetMode(ShaderMode::SM_6_6)
+                .SetEnterPoint("ShadowPassPS")
+                .SetFilename("Shaders/ShadowPass.hlsl");
+            ShaderByteCode shadowPS{shadowPSDesc};
+            shadowPSDesc.AddDefine("SHADOWS_CLIP", "1");
+            ShaderByteCode shadowPSClip{shadowPSDesc};
+
+            auto createShader = [&](const ShaderByteCode& byteCode, const auto& name) {
+                return device->CreateShader(ShaderDesc()
+                    .SetEntryName(byteCode.GetDesc().enterPoint)
+                    .SetShaderType(byteCode.GetDesc().type)
+                    .SetDebugName(name), 
+                    byteCode.GetByteCode(), byteCode.GetByteCodeSize());
+            };
+            auto& shaders = g_RenderResources.shaders;            
+            shaders[size_t(ShaderSlot::ShadowVS)] = createShader(shadowVS, "ShadowPassVS");
+            shaders[size_t(ShaderSlot::ShadowVSClip)] = createShader(shadowVSClip, "ShadowPassVSClip");
+            shaders[size_t(ShaderSlot::ShadowPS)] = createShader(shadowPS, "ShadowPassPS");
+            shaders[size_t(ShaderSlot::ShadowPSClip)] = createShader(shadowPSClip, "ShadowPassPSClip");
+
+            // 为不同的 PCF 选项创建 PSO
+            auto createPipeline = [&](IShader* vsHandle, IShader* psHandle, bool clip, const auto& renderState) {
+                auto pipelineDesc = GraphicsPipelineDesc()
                     .SetVertexShader(vsHandle)
                     .SetPixelShader(psHandle)
                     .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                     .SetRenderState(renderState)
                     .AddBindingLayout(bindingLayout);
                 g_RenderResources.psoCache[pipelineDesc] = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
+                return pipelineDesc;
             };
-            createPipeline(shaders[size_t(ShaderSlot::ShadowVS)], shaders[size_t(ShaderSlot::ShadowPS)], false);
-            createPipeline(shaders[size_t(ShaderSlot::ShadowVSClip)], shaders[size_t(ShaderSlot::ShadowPSClip)], true);
+            size_t count = (ShadowSetting::FilterMode::_PCF7x7 + 1);
+            for(size_t i = 0; i < 2 * count; ++i){
+                bool clip = i < count;
+                ShaderHandle vs = shaders[clip ? size_t(ShaderSlot::ShadowVSClip) : size_t(ShaderSlot::ShadowVS)];
+                ShaderHandle ps = shaders[clip ? size_t(ShaderSlot::ShadowPSClip) : size_t(ShaderSlot::ShadowPS)];
+                auto renderState = RenderState{};
+                float scale = (i % count) + 1;
+                renderState.rasterState.SetSlopeScaleDepthBias(1.5f * scale).SetDepthBias(100 * scale);
+                auto desc = createPipeline(vs, ps, clip, renderState);
+                m_ShadowPipelineDescs.push_back(desc);
+            }
 
             // 将 ShadowMap 绑定到管线
             g_RenderResources.bindingLayoutDesc
@@ -134,7 +173,7 @@ namespace DSM {
             size_t tiles = dirLightCount;
             // 拆分为多少块
             size_t split = tiles <= 1 ? 1 : (tiles <= 4 ? 2 : 4);
-            size_t tileSize = m_Setting.directionalSetting.size / split;
+            size_t tileSize = sm_Setting.directionalSetting.size / split;
 
             m_CmdList->Open();
 
@@ -207,7 +246,8 @@ namespace DSM {
                         auto meshConstantBuffer = device->CreateBuffer(cbDesc);
                         m_CmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
 
-                        const auto& desc = alphaClip ? m_ShadowPipelineClipDesc : m_ShadowPipelineDesc;
+                        size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
+                        const auto& desc = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
                         const auto& pipeline = g_RenderResources.psoCache[desc];
 
                         auto bindingSet = device->CreateBindingSet(BindingSetDesc()
@@ -244,11 +284,13 @@ namespace DSM {
             return Viewport(x, x + tileSize, y, y + tileSize, 0, 1);
         }
 
+
+    public:
+        inline static ShadowSetting sm_Setting;
+
     private:
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
         CommandListHandle m_CmdList;
-
-        ShadowSetting m_Setting;
 
         TextureHandle m_ShadowMap;
         SamplerHandle m_ShadowSampler;
@@ -258,8 +300,7 @@ namespace DSM {
 
         FramebufferHandle m_ShadowFramebuffer;
 
-        GraphicsPipelineDesc m_ShadowPipelineDesc;
-        GraphicsPipelineDesc m_ShadowPipelineClipDesc;
+        std::vector<GraphicsPipelineDesc> m_ShadowPipelineDescs;
 
         std::vector<Light> m_DirectionalLights{};
 

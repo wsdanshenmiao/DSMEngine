@@ -48,6 +48,11 @@ namespace DSM {
             }
             return result;
         }
+
+        const auto& GetDefines() const noexcept { return m_Defines; }
+
+        bool operator==(const ShaderDefines& other) const = default;
+
     private:
         std::map<std::wstring, std::wstring> m_Defines;
     };
@@ -78,6 +83,8 @@ namespace DSM {
         ShaderCompileDesc& SetFilename(const std::string& name) { fileName = name; return *this; }
         ShaderCompileDesc& SetEnterPoint(const std::string& _enterPoint) { enterPoint = _enterPoint; return *this; }
         ShaderCompileDesc& AddDefine(const std::string& name, const std::string& val) { defines.AddDefine(name, val); return *this; }
+    
+        bool operator==(const ShaderCompileDesc& other) const = default;
     };
     
     class ShaderByteCode
@@ -93,12 +100,44 @@ namespace DSM {
 
         bool IsValid() const noexcept { return !m_ByteCode.empty(); }
 
+        bool operator==(const ShaderByteCode& other) const = default;
+
     private:
         const ShaderCompileDesc m_Desc;
         std::vector<std::uint8_t> m_ByteCode{};
     };
 
 }
+
+template <>
+struct std::hash<DSM::ShaderDefines>
+{
+    std::size_t operator()(const DSM::ShaderDefines& d) const
+    {
+        std::size_t h = 0;
+        for (const auto& define : d.GetDefines()) {
+            h = DSM::Utility::HashCombine(h, define.first);
+            h = DSM::Utility::HashCombine(h, define.second);
+        }
+        return h;
+    }
+};
+
+template <>
+struct std::hash<DSM::ShaderCompileDesc>
+{
+    std::size_t operator()(const DSM::ShaderCompileDesc& desc) const
+    {
+        using namespace DSM::Utility;
+        std::size_t h = 0;
+        h = HashCombine(h, static_cast<std::underlying_type_t<DSM::ShaderType>>(desc.type));
+        h = HashCombine(h, static_cast<std::underlying_type_t<DSM::ShaderMode>>(desc.mode));
+        h = HashCombine(h, desc.fileName);
+        h = HashCombine(h, desc.enterPoint);
+        h = HashCombine(h, desc.defines);
+        return h;
+    }
+};
 
 
 #endif

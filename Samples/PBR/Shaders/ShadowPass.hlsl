@@ -39,7 +39,7 @@ void ShadowPassPS(Varyings input)
     float4 baseCol = gBaseColorTex.Sample(gDefaultSampler, input.uv);
     baseCol *= gMatBaseColor;
 
-#if defined(_SHADOWS_CLIP)
+#if defined(SHADOWS_CLIP)
     clip(baseCol.a - 0.1);
 #endif
 }

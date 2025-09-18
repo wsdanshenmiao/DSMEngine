@@ -71,11 +71,11 @@ public:
             Initialize(renderer);
             m_Initialized = true;
         }
-        // 按下 R 键重新编译着色器
-        if(DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::R)){
-            auto setupPass= Utility::CheckedCast<SetupPass*>(m_RenderPasses[0].get());
-            setupPass->CreateShader(renderer);
-        }
+        // // 按下 R 键重新编译着色器
+        // if(DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::R)){
+        //     auto setupPass= Utility::CheckedCast<SetupPass*>(m_RenderPasses[0].get());
+        //     setupPass->CreateShader(renderer);
+        // }
 
 
         m_CameraController->Update(deltaTime);
@@ -98,6 +98,27 @@ public:
         if (ImGui::Begin("Light Settings")) {
             ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);
             ImGui::ColorEdit3("Light Color", lightColor);
+
+            static const char* pcfMode[] = {
+                "None",
+                "3x PCF",
+                "5x PCF",
+                "7x PCF"
+            };
+            static int curr_scene_pcf_item = ShadowPass::sm_Setting.directionalSetting.filter;
+            if (ImGui::Combo("Scene PCF", &curr_scene_pcf_item, pcfMode, ARRAYSIZE(pcfMode))) {
+                auto& filter = ShadowPass::sm_Setting.directionalSetting.filter;
+                auto currMode = ShadowSetting::FilterMode(curr_scene_pcf_item);
+                if(filter != currMode){
+                    const auto& shaders = g_RenderResources.shaders;
+                    for(auto& config : g_RenderResources.renderConfigs){
+                        size_t baseIndex = config.pipelineDesc.PS == shaders[(size_t)ShaderSlot::LitPS + filter] ? 
+                            (size_t)ShaderSlot::LitPS : (size_t)ShaderSlot::LitPSNoTangent;
+                        config.pipelineDesc.PS = shaders[baseIndex + currMode];
+                    }
+                    filter = currMode;
+                }
+            }
         }
         ImGui::End();
 

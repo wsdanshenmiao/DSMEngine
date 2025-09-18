@@ -5,6 +5,7 @@
 #include "IRenderPass.h"
 #include "Runtime/Render/Model.h"
 #include "Shaders/ResourceData.h"
+#include "ShadowPass.h"
 
 namespace DSM {
     // 绘制所有模型
