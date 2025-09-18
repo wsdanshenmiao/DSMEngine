@@ -11,12 +11,14 @@ namespace DSM {
         FinalPass(Renderer& renderer, std::span<std::shared_ptr<Model>> models)
         {
             auto device = renderer.GetDevice();
-            g_RenderResources.bindingLayout = device->CreateBindingLayout(g_RenderResources.bindingLayoutDesc);
+            
+            // 为前面 Pass 收集的 Desc 创建 Layout 和 Set
+            for(size_t i = 0; i < (size_t)BindingLayoutSlot::Count; ++i) {
+                g_RenderResources.bindingLayouts[i] = device->CreateBindingLayout(g_RenderResources.bindingLayoutDescs[i]);
+            }
+            g_RenderResources.commonBindingSet = device->CreateBindingSet(g_RenderResources.commonBindingSetDesc, g_RenderResources.bindingLayouts[(size_t)BindingLayoutSlot::Common]);
 
-            g_RenderResources.samplerBindingLayout = device->CreateBindingLayout(g_RenderResources.samplerBindingLayoutDesc);
-            g_RenderResources.samplerBindingSet = device->CreateBindingSet(
-                g_RenderResources.samplerBindingSetDesc, g_RenderResources.samplerBindingLayout);
-
+            // 为所有模型生成渲染配置
             for(const auto& model : models){
                 GenerateRenderConfigs(renderer, model);
             }
@@ -84,9 +86,10 @@ namespace DSM {
                         .SetInputLayout(layout)
                         .SetVertexShader(hasTangent ? litVS : litVSNoTangent)
                         .SetPixelShader(ps)
-                        .SetRenderState(renderState)
-                        .AddBindingLayout(g_RenderResources.bindingLayout)
-                        .AddBindingLayout(g_RenderResources.samplerBindingLayout);
+                        .SetRenderState(renderState);
+                    for(size_t i = 0; i < (size_t)BindingLayoutSlot::Count; ++i) {
+                        desc.AddBindingLayout(g_RenderResources.bindingLayouts[i], i);
+                    }
 
                     if(!g_RenderResources.psoCache.contains(desc)){
                         g_RenderResources.psoCache[desc] = device->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);

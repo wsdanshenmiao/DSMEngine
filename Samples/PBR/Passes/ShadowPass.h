@@ -72,27 +72,6 @@ namespace DSM {
                 .SetReductionType(SamplerReductionType::Comparison));
 
 
-            std::array<VertexAttributeDesc, 2> vertexDescs = {
-                VertexAttributeDesc()
-                    .SetName("POSITION")
-                    .SetFormat(Format::RGBA32_FLOAT)
-                    .SetBufferIndex(0)
-                    .SetElementStride(sizeof(Math::Vector4)),
-                VertexAttributeDesc()
-                    .SetName("TEXCOORD")
-                    .SetFormat(Format::RG32_FLOAT)
-                    .SetBufferIndex(1)
-                    .SetElementStride(sizeof(Math::Vector2))
-            };
-
-            auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
-                .AddItem(BindingLayoutItem().Texture_SRV(0))
-                .AddItem(BindingLayoutItem().Sampler(0))
-            );
-
-
             // 编译 ShadowPass 的着色器
             auto shadowVSDesc = ShaderCompileDesc()
                 .SetType(ShaderType::Vertex)
@@ -124,6 +103,26 @@ namespace DSM {
             shaders[size_t(ShaderSlot::ShadowPS)] = createShader(shadowPS, "ShadowPassPS");
             shaders[size_t(ShaderSlot::ShadowPSClip)] = createShader(shadowPSClip, "ShadowPassPSClip");
 
+            auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
+                .AddItem(BindingLayoutItem().Texture_SRV(0))
+                .AddItem(BindingLayoutItem().Sampler(0))
+            );
+
+            std::array<VertexAttributeDesc, 2> vertexDescs = {
+                VertexAttributeDesc()
+                    .SetName("POSITION")
+                    .SetFormat(Format::RGBA32_FLOAT)
+                    .SetBufferIndex(0)
+                    .SetElementStride(sizeof(Math::Vector4)),
+                VertexAttributeDesc()
+                    .SetName("TEXCOORD")
+                    .SetFormat(Format::RG32_FLOAT)
+                    .SetBufferIndex(1)
+                    .SetElementStride(sizeof(Math::Vector2))
+            };
+
             // 为不同的 PCF 选项创建 PSO
             auto createPipeline = [&](IShader* vsHandle, IShader* psHandle, bool clip, const auto& renderState) {
                 auto pipelineDesc = GraphicsPipelineDesc()
@@ -131,7 +130,7 @@ namespace DSM {
                     .SetPixelShader(psHandle)
                     .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                     .SetRenderState(renderState)
-                    .AddBindingLayout(bindingLayout);
+                    .AddBindingLayout(bindingLayout, 0);
                 g_RenderResources.psoCache[pipelineDesc] = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
                 return pipelineDesc;
             };
@@ -148,15 +147,14 @@ namespace DSM {
             }
 
             // 将 ShadowMap 绑定到管线
-            g_RenderResources.bindingLayoutDesc
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
                 .AddItem(BindingLayoutItem().Texture_SRV(7))
+                .AddItem(BindingLayoutItem().Sampler(1))
                 .AddItem(BindingLayoutItem().ConstantBuffer(4));
-            g_RenderResources.bindingSetDesc
+            g_RenderResources.commonBindingSetDesc
                 .AddItem(BindingSetItem().Texture_SRV(7, m_ShadowMap))
+                .AddItem(BindingSetItem().Sampler(1, m_ShadowSampler))
                 .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB));
-
-            g_RenderResources.samplerBindingLayoutDesc.AddItem(BindingLayoutItem().Sampler(1));
-            g_RenderResources.samplerBindingSetDesc.AddItem(BindingSetItem().Sampler(1, m_ShadowSampler));
 
             m_CmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ShadowPass"));
         }
@@ -265,7 +263,7 @@ namespace DSM {
                             .SetIndexBuffer(mesh->indexBufferViews)
                             .AddVertexBuffer(mesh->positionStream)
                             .AddVertexBuffer(mesh->uvStream)
-                            .AddBindingSet(bindingSet);
+                            .AddBindingSet(bindingSet, 0);
 
                         m_CmdList->SetGraphicsState(state);
 

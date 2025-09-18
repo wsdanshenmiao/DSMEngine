@@ -38,6 +38,13 @@ namespace DSM {
         Count
     };
 
+    enum class BindingLayoutSlot : uint32_t
+    {
+        Common,
+        Local,
+        Count
+    };
+
     struct RenderResource
     {
         FramebufferHandle framebuffer;
@@ -49,17 +56,12 @@ namespace DSM {
         std::vector<Light> lights;
 
         // 每一个 Pass 根据其所提供的资源添加 Layout
-        BindingLayoutDesc bindingLayoutDesc;
-        // 在 Final Pass 构造时创建
-        BindingLayoutHandle bindingLayout;
-        // 采样器的 Layout
-        BindingLayoutHandle samplerBindingLayout;
-        BindingLayoutDesc samplerBindingLayoutDesc;
+        std::array<BindingLayoutDesc, (size_t)BindingLayoutSlot::Count> bindingLayoutDescs;
+        std::array<BindingLayoutHandle, (size_t)BindingLayoutSlot::Count> bindingLayouts;
 
         // 每一个 Pass 根据其所提供的资源添加 Binding Set
-        BindingSetDesc bindingSetDesc;
-        BindingSetDesc samplerBindingSetDesc;
-        BindingSetHandle samplerBindingSet; // 采样器的 BindingSet
+        BindingSetDesc commonBindingSetDesc;
+        BindingSetHandle commonBindingSet;
 
         RenderResource();
     };

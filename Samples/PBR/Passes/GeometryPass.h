@@ -20,6 +20,15 @@ namespace DSM {
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("PassConstants"));
+
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Local]
+                .AddItem(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0).SetSize(kNumTextures))   // 10 个用于 PBR 的纹理
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(0)) // MeshConstants
+                .AddItem(BindingLayoutItem().ConstantBuffer(1)); // MaterialData
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(2));    // PassConstants
+
+            g_RenderResources.commonBindingSetDesc.AddItem(BindingSetItem().ConstantBuffer(2, m_PassCB));
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
@@ -65,22 +74,21 @@ namespace DSM {
                         // 绑定资源
                         auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
                         auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * submesh.materialIndex);
-                        auto bindingDesc = g_RenderResources.bindingSetDesc;
+                        BindingSetDesc bindingDesc{};
                         bindingDesc.AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
-                            .AddItem(BindingSetItem().ConstantBuffer(1, model->materialData, matBufferRange))
-                            .AddItem(BindingSetItem().ConstantBuffer(2, m_PassCB));
+                            .AddItem(BindingSetItem().ConstantBuffer(1, model->materialData, matBufferRange));
                         for(size_t i = 0; i < kNumTextures; ++i){
                             bindingDesc.AddItem(BindingSetItem().Texture_SRV(i, submesh.textures[i]));
                         }
-                        auto bindingSet = device->CreateBindingSet(bindingDesc, g_RenderResources.bindingLayout);
+                        auto localBindingSet = device->CreateBindingSet(bindingDesc, g_RenderResources.bindingLayouts[(size_t)BindingLayoutSlot::Local]);
 
                         GraphicsState state{};
                         state.SetFramebuffer(fb)
                             .SetPipeline(g_RenderResources.psoCache[renderConfig[mesh->psoIndex].pipelineDesc])
                             .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
                             .SetIndexBuffer(mesh->indexBufferViews)
-                            .AddBindingSet(bindingSet)
-                            .AddBindingSet(g_RenderResources.samplerBindingSet);
+                            .AddBindingSet(localBindingSet, (uint32_t)BindingLayoutSlot::Local)
+                            .AddBindingSet(g_RenderResources.commonBindingSet, (uint32_t)BindingLayoutSlot::Common);
                         if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
                             state.AddVertexBuffer(mesh->positionStream);
                         }

@@ -28,7 +28,7 @@ public:
     void Initialize(DSM::Renderer& renderer)
     {
         auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
-        lihuazou->transform.SetScale(4);
+        lihuazou->transform.SetScale(2);
         
         // auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(30,30,5,5));
         // plane->transform.Rotate({std::numbers::pi / 2, 0, 0});

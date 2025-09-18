@@ -307,7 +307,15 @@ namespace DSM {
         GraphicsPipelineDesc& SetGeometryShader(IShader* value) { GS = value; return *this; }
         GraphicsPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
         GraphicsPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
-        GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
+        GraphicsPipelineDesc& AddBindingLayout(IBindingLayout* layout, uint32_t slot) 
+        { 
+            assert(slot < c_MaxBindingLayouts);
+            if(slot >= bindingLayouts.size()){
+                bindingLayouts.resize(slot + 1);
+            }
+            bindingLayouts[slot] = BindingLayoutHandle{layout};
+            return *this;
+        }
     
         constexpr bool operator==(const GraphicsPipelineDesc& other) const
         {
@@ -468,10 +476,17 @@ namespace DSM {
         GraphicsState& SetViewport(const ViewportState& value) { viewport = value; return *this; }
         GraphicsState& SetBlendColor(const Color& value) { blendConstantColor = value; return *this; }
         GraphicsState& SetDynamicStencilRefValue(uint8_t value) { dynamicStencilRefValue = value; return *this; }
-        GraphicsState& AddBindingSet(IBindingSet* value) { bindings.push_back(BindingSetHandle{value}); return *this; }
         GraphicsState& AddVertexBuffer(const VertexBufferBinding& value) { vertexBuffers.push_back(value); return *this; }
         GraphicsState& SetIndexBuffer(const IndexBufferBinding& value) { indexBuffer = value; return *this; }
         GraphicsState& SetIndirectParams(IBuffer* value) { indirectParams = value; return *this; }
+        GraphicsState& AddBindingSet(IBindingSet* value, uint32_t slot) 
+        {
+            assert(slot < c_MaxBindingLayouts);
+            if(slot >= bindings.size())
+                bindings.resize(slot + 1);
+            bindings[slot] = BindingSetHandle{value};
+            return *this;
+        }
     };
     
     struct ComputeState

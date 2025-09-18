@@ -123,6 +123,7 @@ namespace DSM {
     };
 
     // 绑定布局，描述资源的分布，对应 DX12 中的根签名
+    // BindingSet 的槽位需要与 BindingLayout 对应
     struct IBindingLayout : public IResource
     {
         [[nodiscard]] virtual const BindingLayoutDesc* GetDesc() const = 0;           // returns nullptr for bindless layouts
@@ -414,6 +415,7 @@ namespace DSM {
     };
 
     // 绑定集合，描述各个资源槽绑定的实际资源
+    // 注意设置 BindingSet 的槽位时需要与 BindingLayout 对应
     class IBindingSet : public IResource
     {
     public:

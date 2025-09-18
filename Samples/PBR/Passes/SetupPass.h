@@ -23,14 +23,8 @@ namespace DSM {
             
             //CreateShader(renderer);
 
-            g_RenderResources.bindingLayoutDesc
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(0)) // MeshConstants
-                .AddItem(BindingLayoutItem().ConstantBuffer(1)) // MaterialData
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(2)) // PassConstants
-                .AddItem(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0).SetSize(kNumTextures)); // 10 个用于 PBR 的纹理
-            
-            g_RenderResources.samplerBindingLayoutDesc.AddItem(BindingLayoutItem().Sampler(0));   // 默认采样器
-            g_RenderResources.samplerBindingSetDesc.AddItem(BindingSetItem().Sampler(0, sm_Sampler));
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common].AddItem(BindingLayoutItem().Sampler(0));   // 默认采样器
+            g_RenderResources.commonBindingSetDesc.AddItem(BindingSetItem().Sampler(0, sm_Sampler));
 
             const auto& bufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
             OnResize(renderer, bufferDesc.width, bufferDesc.height);
