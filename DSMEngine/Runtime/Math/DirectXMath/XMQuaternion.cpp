@@ -41,7 +41,7 @@ namespace DSM{
         }
     }
     
-    XMVector3 XMQuaternion::ToEulerAngles()
+    XMVector3 XMQuaternion::ToEulerAngles() const
     {
         float x = DirectX::XMVectorGetX(m_Vector);
         float y = DirectX::XMVectorGetY(m_Vector);

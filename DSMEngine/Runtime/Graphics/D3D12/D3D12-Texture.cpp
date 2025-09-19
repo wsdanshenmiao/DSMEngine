@@ -220,9 +220,9 @@ namespace DSM::D3D12 {
         case ObjectTypes::D3D12_DepthStencilViewDescriptor:{
             auto& descriptorHeap = m_Resources.depthStencilViewHeap;
 
-            if (auto found = m_CustomSRVs.find(key); found == m_CustomSRVs.end()) {
+            if (auto found = m_DepthStencilViews.find(key); found == m_DepthStencilViews.end()) {
                 descriptorIndex = descriptorHeap.AllocateDescriptor();
-                m_CustomSRVs[key] = descriptorIndex;
+                m_DepthStencilViews[key] = descriptorIndex;
 
                 const D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = descriptorHeap.GetCpuHandle(descriptorIndex);
                 CreateDSV(cpuHandle.ptr, subresources, isReadOnlyDSV);

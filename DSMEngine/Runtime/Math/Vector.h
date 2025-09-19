@@ -19,6 +19,7 @@ namespace DSM{
         constexpr Vector(std::initializer_list<T> initList);
         constexpr explicit Vector(const Vector<T, N - 1>& v) requires (N > 1);
         constexpr explicit Vector(const Vector<T, N - 1>& v, T val) requires (N > 1);
+        constexpr explicit Vector(const Vector<T, N + 1>& v);
 
         auto operator-() const noexcept;
         auto& operator+=(const Vector& other) noexcept;
@@ -34,6 +35,7 @@ namespace DSM{
 
         constexpr Scalar<T> Get(size_t index) const noexcept;
         constexpr void Set(size_t index, Scalar<T> val) noexcept;
+        constexpr void Set(size_t index, float val) noexcept;
 
         constexpr std::size_t Size() const noexcept;
         constexpr void Fill(const T& v) noexcept;
@@ -110,6 +112,12 @@ namespace DSM{
     {
         memcpy(m_Data.data(), v.m_Data.data(), (N - 1) * sizeof(T));
         m_Data[N - 1] = val;
+    }
+
+    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr Vector<T, N>::Vector(const Vector<T, N + 1> &v)
+    {
+        memcpy(m_Data.data(), v.m_Data.data(), N * sizeof(T));
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
@@ -202,6 +210,9 @@ namespace DSM{
 
     template <typename T, std::size_t N> requires std::is_arithmetic_v<T>
     constexpr void Vector<T, N>::Set(size_t index, Scalar<T> val) noexcept { m_Data[index] = val; }
+
+    template <typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr void Vector<T, N>::Set(size_t index, float val) noexcept { m_Data[index] = val; }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
     constexpr Scalar<T> Vector<T, N>::SqrMagnitude() const noexcept

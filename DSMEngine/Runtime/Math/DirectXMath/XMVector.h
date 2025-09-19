@@ -13,6 +13,7 @@ namespace DSM {
     class XMVector3
     {
         friend class XMMatrix3;
+        friend class XMQuaternion;
     public:
         inline XMVector3() noexcept : m_Vector(DirectX::XMVectorReplicate(0)) {}
         inline XMVector3(float s) noexcept : m_Vector(XMScalar{s}) {}
@@ -24,7 +25,7 @@ namespace DSM {
             memcpy(&tmp, initList.begin(), sizeof(float) * (std::min)(initList.size(), 3llu));
             m_Vector = DirectX::XMLoadFloat3(&tmp);
         }
-        inline XMVector3(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
+        inline explicit XMVector3(const XMVector4& v);
 
         inline XMVector3 operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
 
@@ -55,6 +56,8 @@ namespace DSM {
         
         inline bool operator==(const XMVector3& other) const noexcept { return DirectX::XMVector3Equal(m_Vector, other); }
 
+        friend XMVector3 operator*(const XMVector3& v, const XMMatrix3& m) noexcept;
+
         inline XMScalar Get(size_t index) const 
         {
             switch (index) {
@@ -77,6 +80,7 @@ namespace DSM {
                 throw std::out_of_range("Index out of range.");
             }
         }
+        inline void Set(size_t index, float val) { Set(index, XMScalar{val}); }
         
         std::size_t Size() const noexcept { return 3; }
         void Fill(float v) noexcept { m_Vector = DirectX::XMVectorReplicate(v); }
@@ -112,6 +116,7 @@ namespace DSM {
 
     private:
         inline XMVector3(const DirectX::XMFLOAT3& v) noexcept : m_Vector(DirectX::XMLoadFloat3(&v)) {}
+        inline XMVector3(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
 
     private:
         DirectX::XMVECTOR m_Vector{};
@@ -136,6 +141,7 @@ namespace DSM {
     class XMVector4
     {
         friend class XMMatrix4;
+        friend class XMQuaternion;
     public:
         inline XMVector4() noexcept : m_Vector(DirectX::XMVectorReplicate(0)) {}
         inline XMVector4(float s) noexcept : m_Vector(XMScalar{s}) {}
@@ -149,7 +155,6 @@ namespace DSM {
         }
         inline explicit XMVector4(const XMVector3& v) :m_Vector(DirectX::XMVectorSetW(v, 0)) {}
         inline explicit XMVector4(const XMVector3& v, float val) :m_Vector(DirectX::XMVectorSetW(v, val)) {}
-        inline XMVector4(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
 
         inline XMVector4 operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
 
@@ -179,6 +184,8 @@ namespace DSM {
         inline XMVector4& operator/=(float v) noexcept { return operator/=(XMScalar{v}); }
         
         inline bool operator==(const XMVector4& other) noexcept { return DirectX::XMVector4Equal(m_Vector, other); }
+
+        friend XMVector4 operator*(XMVector4 v, const XMMatrix4& m) noexcept;
 
         inline XMScalar Get(size_t index) const 
         {
@@ -239,6 +246,7 @@ namespace DSM {
 
     private:
         inline XMVector4(const DirectX::XMFLOAT4& v) noexcept : m_Vector(DirectX::XMLoadFloat4(&v)) {}
+        inline XMVector4(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
 
     private:
         DirectX::XMVECTOR m_Vector{};
@@ -259,6 +267,7 @@ namespace DSM {
     XMVector4 XMVector4::Project(XMVector4 v1, XMVector4 v2) noexcept { return (XMVector4::Dot(v1, v2) / v2.SqrMagnitude()) * v2; }
 
 
+    inline XMVector3::XMVector3(const XMVector4& v) : m_Vector(DirectX::XMVECTOR(v)) {}
 }
 
 template<>

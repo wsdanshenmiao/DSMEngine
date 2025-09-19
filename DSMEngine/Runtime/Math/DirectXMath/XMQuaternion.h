@@ -36,7 +36,7 @@ namespace DSM {
         void Set(size_t index, XMScalar val);
 
         // 四元数转欧拉角（Pitch, Yaw, Roll），返回XMVector3，单位为弧度
-        XMVector3 ToEulerAngles();
+        XMVector3 ToEulerAngles() const;
         
         inline XMQuaternion Normalized() const noexcept { XMQuaternion ret = *this; Normalize(ret); return ret; }
 

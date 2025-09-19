@@ -33,7 +33,8 @@ namespace DSM{
             if(bufferDesc.width == event.GetWidth() && bufferDesc.height == event.GetHeight())
                 return false;
 
-            OnResize(event.GetWidth(), event.GetHeight());
+            // 最小为1
+            OnResize(std::max(event.GetWidth(), 1u), std::max(event.GetHeight(), 1u));
             return true;
         });
     }

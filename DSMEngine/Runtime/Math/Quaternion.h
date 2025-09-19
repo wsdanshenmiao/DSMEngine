@@ -107,7 +107,7 @@ namespace DSM {
         inline Scalar<T> Get(size_t index) const noexcept { return m_Vector.Get(index); }
         inline void Set(size_t index, T val) noexcept { m_Vector.Set(index, val); }
         // 四元数转欧拉角（Pitch, Yaw, Roll），返回Vector<T, 3>，单位为弧度
-        Vector<T, 3> ToEulerAngles()
+        Vector<T, 3> ToEulerAngles() const
         {
             float w = m_Vector.Get(0);
             float x = m_Vector.Get(1);

@@ -16,7 +16,7 @@ namespace DSM {
         CameraController(CameraController&&) = default;
         CameraController& operator=(CameraController&&) = default;
 
-        virtual ~CameraController() {}
+        virtual ~CameraController() = default;
         
         void Update(float deltaTime);
 
