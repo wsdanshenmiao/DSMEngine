@@ -16,9 +16,11 @@ namespace DSM{
     {
         LightType lightType;
         Math::Vector4 color;
+        Math::Vector3 direction;
+        Math::Vector3 position;
         float range;
-        float spotAngle;
-        Math::Transform transform;
+        float innerAngle;
+        float outerAngle;
     };
     
 

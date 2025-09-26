@@ -14,18 +14,18 @@ namespace DSM {
     template<typename T> requires std::is_arithmetic_v<T>
     class Quaternion {
     public:
-        Quaternion() noexcept : m_Vector({1,0,0,0}) {}
+    Quaternion() noexcept : m_Vector({0,0,0,1}) {}
         Quaternion(Vector<T, 3> axis, T angle) noexcept 
         {
             Vector<T, 3>::Normalize(axis);
             T s = std::sin(angle * T(0.5));
             T c = std::cos(angle * T(0.5));
-            m_Vector.Set(0, c);                     // w
-            m_Vector.Set(1, axis.Get(0) * s);       // x
-            m_Vector.Set(2, axis.Get(1) * s);        // y
-            m_Vector.Set(3, axis.Get(2) * s);       // z
+            m_Vector.Set(0, axis.Get(0) * s);       // x
+            m_Vector.Set(1, axis.Get(1) * s);       // y
+            m_Vector.Set(2, axis.Get(2) * s);       // z
+            m_Vector.Set(3, c);                     // w
         }
-        Quaternion(T pitch, T yaw, T roll) noexcept : Quaternion(Vector<T, 3>{pitch, yaw, roll}) {}
+    Quaternion(T pitch, T yaw, T roll) noexcept : Quaternion(Vector<T, 3>{pitch, yaw, roll}) {}
         Quaternion(const Vector<T, 3>& v) noexcept
         {
             T pi2 = T(std::numbers::pi) * T(2);
@@ -33,15 +33,15 @@ namespace DSM {
             T cr = std::cos(roll * T(0.5)), sr = std::sin(roll * T(0.5));
             T cp = std::cos(pitch * T(0.5)), sp = std::sin(pitch * T(0.5));
             T cy = std::cos(yaw * T(0.5)), sy = std::sin(yaw * T(0.5));
-            m_Vector.Set(0, cr*cp*cy + sr*sp*sy);
-            m_Vector.Set(1, sr*cp*cy - cr*sp*sy);
-            m_Vector.Set(2, cr*sp*cy + sr*cp*sy);
-            m_Vector.Set(3, cr*cp*sy - sr*sp*cy);
+            m_Vector.Set(0, sr*cp*cy - cr*sp*sy); // x
+            m_Vector.Set(1, cr*sp*cy + sr*cp*sy); // y
+            m_Vector.Set(2, cr*cp*sy - sr*sp*cy); // z
+            m_Vector.Set(3, cr*cp*cy + sr*sp*sy); // w
         }
         explicit Quaternion(const Matrix<T, 3, 3>& m) noexcept : Quaternion(Matrix<T, 4, 4>(m)) {}
         explicit Quaternion(const Matrix<T, 4, 4>& m) noexcept
         {
-            T w, x, y, z;
+            T x, y, z, w;
             T m00 = m.Get(0, 0);
             T m01 = m.Get(0, 1);
             T m02 = m.Get(0, 2);
@@ -51,11 +51,9 @@ namespace DSM {
             T m20 = m.Get(2, 0);
             T m21 = m.Get(2, 1);
             T m22 = m.Get(2, 2);
-            
             // 计算迹
             const T epsilon = T(1e-6);
             T trace = m00 + m11 + m22;
-            
             if (trace > epsilon) {
                 T s = T(0.5) / std::sqrt(trace + 1);
                 w = T(0.25) / s;
@@ -66,53 +64,53 @@ namespace DSM {
             else {
                 if (m00 > m11 && m00 > m22) {
                     T s = T(0.5) / std::sqrt(1 + m00 - m11 - m22);
-                    w = (m21 - m12) * s;
                     x = T(0.25) / s;
                     y = (m01 + m10) * s;
                     z = (m02 + m20) * s;
+                    w = (m21 - m12) * s;
                 } 
                 else if (m11 > m22) {
                     T s = T(0.5) * std::sqrt(1 + m11 - m00 - m22);
-                    w = (m02 - m20) * s;
                     x = (m01 + m10) * s;
                     y = T(0.25) / s;
                     z = (m12 + m21) * s;
+                    w = (m02 - m20) * s;
                 } 
                 else {
                     T s = T(0.5) / std::sqrt(1 + m22 - m00 - m11);
-                    w = (m10 - m01) * s;
                     x = (m02 + m20) * s;
                     y = (m12 + m21) * s;
                     z = T(0.25) / s;
+                    w = (m10 - m01) * s;
                 }
             }
-            m_Vector = Vector<T, 4>{w, x, y, z};
+            m_Vector = Vector<T, 4>{x, y, z, w};
         }
 
-        Quaternion operator-() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),-m_Vector.Get(3)}); }
-        Quaternion operator~() const { return Quaternion(Vector<T, 4>{m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),-m_Vector.Get(3)}); }
+    Quaternion operator-() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),-m_Vector.Get(3)}); }
+    Quaternion operator~() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),m_Vector.Get(3)}); }
         Quaternion& operator*=(const Quaternion& other) noexcept 
         {
             auto a = m_Vector;
             auto b = other.m_Vector;
-            m_Vector.Set(0, a.Get(0)*b.Get(0) - a.Get(1)*b.Get(1) - a.Get(2)*b.Get(2) - a.Get(3)*b.Get(3));
-            m_Vector.Set(1, a.Get(0)*b.Get(1) + a.Get(1)*b.Get(0) + a.Get(2)*b.Get(3) - a.Get(3)*b.Get(2));
-            m_Vector.Set(2, a.Get(0)*b.Get(2) - a.Get(1)*b.Get(3) + a.Get(2)*b.Get(0) + a.Get(3)*b.Get(1));
-            m_Vector.Set(3, a.Get(0)*b.Get(3) + a.Get(1)*b.Get(2) - a.Get(2)*b.Get(1) + a.Get(3)*b.Get(0));
+            m_Vector.Set(0, a.Get(3)*b.Get(0) + a.Get(0)*b.Get(3) + a.Get(1)*b.Get(2) - a.Get(2)*b.Get(1)); // x
+            m_Vector.Set(1, a.Get(3)*b.Get(1) - a.Get(0)*b.Get(2) + a.Get(1)*b.Get(3) + a.Get(2)*b.Get(0)); // y
+            m_Vector.Set(2, a.Get(3)*b.Get(2) + a.Get(0)*b.Get(1) - a.Get(1)*b.Get(0) + a.Get(2)*b.Get(3)); // z
+            m_Vector.Set(3, a.Get(3)*b.Get(3) - a.Get(0)*b.Get(0) - a.Get(1)*b.Get(1) - a.Get(2)*b.Get(2)); // w
             return *this;
         }
 
-        inline bool operator==(const Quaternion& o) { return m_Vector == o.m_Vector; } 
+    inline bool operator==(const Quaternion& o) { return m_Vector == o.m_Vector; } 
 
-        inline Scalar<T> Get(size_t index) const noexcept { return m_Vector.Get(index); }
-        inline void Set(size_t index, T val) noexcept { m_Vector.Set(index, val); }
+    inline Scalar<T> Get(size_t index) const noexcept { return m_Vector.Get(index); }
+    inline void Set(size_t index, T val) noexcept { m_Vector.Set(index, val); }
         // 四元数转欧拉角（Pitch, Yaw, Roll），返回Vector<T, 3>，单位为弧度
         Vector<T, 3> ToEulerAngles() const
         {
-            float w = m_Vector.Get(0);
-            float x = m_Vector.Get(1);
-            float y = m_Vector.Get(2);
-            float z = m_Vector.Get(3);
+            float x = m_Vector.Get(0);
+            float y = m_Vector.Get(1);
+            float z = m_Vector.Get(2);
+            float w = m_Vector.Get(3);
 
             // pitch (X轴)
             float sinX = 2.0f * (w * x - y * z);
@@ -166,9 +164,9 @@ namespace DSM {
         }
 
     private:
-        explicit Quaternion(const DSM::Vector<T,4>& v) : m_Vector(v) {}
+    explicit Quaternion(const DSM::Vector<T,4>& v) : m_Vector(v) {}
 
-        Vector<T,4> m_Vector; // w,x,y,z
+    Vector<T,4> m_Vector; // x,y,z,w
     };
 
     template<typename T> requires std::is_arithmetic_v<T>
@@ -178,12 +176,12 @@ namespace DSM {
     {
         Quaternion<T>::Normalize(q);
         Quaternion<T> qv{};
-        qv.Set(0, 0);
-        qv.Set(1, vec.Get(0));
-        qv.Set(2, vec.Get(1));
-        qv.Set(3, vec.Get(2));
+        qv.Set(0, vec.Get(0));
+        qv.Set(1, vec.Get(1));
+        qv.Set(2, vec.Get(2));
+        qv.Set(3, 0);
         Quaternion<T> res = q * qv * (~q);
-        return Vector<T, 3>{res.Get(1),res.Get(2),res.Get(3)};
+        return Vector<T, 3>{res.Get(0),res.Get(1),res.Get(2)};
     }
 
     using Quaternionf = Quaternion<float>;
@@ -202,7 +200,7 @@ struct std::formatter<DSM::Quaternion<T>>
     template<typename Context>
     auto format(const DSM::Quaternion<T>& k, Context& ctx) const 
     {
-        return std::format_to(ctx.out(), "{}, {}, {}, {}/n", k.Get(0), k.Get(1), k.Get(2), k.Get(3));
+        return std::format_to(ctx.out(), "{}, {}, {}, {}\n", k.Get(0), k.Get(1), k.Get(2), k.Get(3));
     }
 };
 

@@ -175,6 +175,7 @@ namespace DSM {
             size_t tileSize = sm_Setting.directionalSetting.size / split;
 
             m_CmdList->Open();
+            m_CmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
 
             for(size_t i = 0; i < dirLightCount; ++i){
                 RenderDirectionalShadow(renderer, i, split, tileSize);
@@ -199,8 +200,6 @@ namespace DSM {
         void RenderDirectionalShadow(Renderer& renderer, size_t index, size_t split, size_t tileSize)
         {
             auto device = renderer.GetDevice();
-
-            m_CmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
             
             Light& light = m_DirectionalLights[index];
             struct ShadowPassCB
@@ -212,7 +211,7 @@ namespace DSM {
             // 需要使用正交投影
             Camera lightCamera{};
             float len = 20;
-            auto lightPos = -light.transform.GetForwardAxis() * len;
+            auto lightPos = -light.direction * len;
             Math::Vector4 center{0,0,0,1};
             lightCamera.SetPosition(lightPos);
             lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
@@ -223,7 +222,8 @@ namespace DSM {
                 center.Get(1) - len, center.Get(1) + len, 
                 center.Get(2) - 2 * len, center.Get(2) + 2 * len);
             shadowCB.viewProj = Math::Matrix4::Transpose(view * proj);
-            m_DirectionalShadowMatrices[index] = shadowCB.viewProj;
+            Math::Vector2 offset{float(index % split), float(index / split)};
+            m_DirectionalShadowMatrices[index] = ConvertToAtlasMatrix(shadowCB.viewProj, offset, 1.f / split);
 
             for(const auto& model : m_Models){
                 for(const auto& mesh : model->meshes){
@@ -281,6 +281,22 @@ namespace DSM {
             size_t x = (index % split) * tileSize;
             size_t y = (index / split) * tileSize;
             return Viewport(x, x + tileSize, y, y + tileSize, 0, 1);
+        }
+
+        Math::Matrix4 ConvertToAtlasMatrix(
+            const Math::Matrix4& m, 
+            Math::Vector2 offset, 
+            float scale) const
+        {
+            // 进行纹理坐标的转换后变换到对应 Tile
+            Math::Matrix4 atlasTransform{
+                Math::Vector4{scale * 0.5f, 0.f, 0.f, (offset.Get(0) + 0.5f) * scale},
+                Math::Vector4{0.f, scale * -0.5f, 0.f, (offset.Get(1) + 0.5f) * scale},
+                Math::Vector4{0.f, 0.f, 1.f, 0.f},
+                Math::Vector4{0.f, 0.f, 0.f, 1.f}
+            };
+
+            return atlasTransform * m;
         }
 
 

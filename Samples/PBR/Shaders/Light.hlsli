@@ -12,21 +12,22 @@ struct Light
     float attenuation;
 };
 
-cbuffer gLightData : register(b3)
-{
-    int dirLightCount;
-}
-
+ConstantBuffer<LightData> gLightData : register(b3);
 
 StructuredBuffer<DirectionalLightData> gDirLightData : register(t6);
 
-int GetDirectionalLightCount()
+uint GetDirectionalLightCount()
 {
-    return dirLightCount;
+    return gLightData.dirLightCount;
+}
+
+uint GetOtherLightCount()
+{
+    return gLightData.otherLightCount;
 }
 
 
-Light GetDirectionalLight(int index, Surface surface)
+Light GetDirectionalLight(uint index, Surface surface)
 {
     DirectionalShadowData shadowData;
     shadowData.tileIndex = index;
@@ -36,6 +37,16 @@ Light GetDirectionalLight(int index, Surface surface)
     light.attenuation = GetDirectionalShadowAttenuation(shadowData, surface);
     return light;
 }
+
+// Light GetOtherLight(uint index, Surface surface)
+// {
+//     OtherLightData otherLightData = gOtherLightData[index];
+//     Light light;
+//     light.color = otherLightData.color.rgb;
+//     light.direction = normalize(otherLightData.direction.xyz);
+//     light.attenuation = GetOtherLightAttenuation(index, surface);
+//     return light;
+// }
 
 float3 ShadeLighting(Surface surface, Light light)
 {
@@ -51,17 +62,21 @@ float3 ShadeLighting(Surface surface, Light light)
     float3 diffuseCol = surface.color * (1 - surface.metallic);
     diffuse *= diffuseCol;
 
-    float3 radians = NoL * light.color * (diffuse + specular);
-    return radians * light.attenuation;
+    float3 radians = saturate(NoL * light.attenuation) * light.color * (diffuse + specular);
+    return radians;
 }
 
 float3 ShadeLighting(Surface surface)
 {
     float3 color = 0;
-    for(int i = 0; i < GetDirectionalLightCount(); i++) {
+    for(uint i = 0; i < GetDirectionalLightCount(); i++) {
         Light dirLight = GetDirectionalLight(i, surface);
         color += ShadeLighting(surface, dirLight);
     }
+    // for(uint ii = 0; ii < GetOtherLightCount(); ++ii){
+    //     Light otherLight = GetOtherLight(ii, surface);
+    //     color += ShadeLighting(surface, otherLight);
+    // }
     return color;
 }
 

@@ -7,6 +7,7 @@ using float3 = DSM::Math::Vector3;
 using float4 = DSM::Math::Vector4;
 using float3x3 = DSM::Math::Matrix3;
 using float4x4 = DSM::Math::Matrix4;
+using uint = uint32_t;
 #endif
 
 #define MAX_DIRECTIONAL_LIGHT_COUNT 4
@@ -28,11 +29,24 @@ struct PassConstants
     float deltaTime;
 };
 
+struct LightData
+{
+    uint dirLightCount;
+    uint otherLightCount;
+};
 
 struct DirectionalLightData
 {
     float4 color;
     float4 direction;
+};
+
+struct OtherLightData
+{
+    float4 color;
+    float4 direction;
+    float4 positionAndRange;
+    float4 spotAngle;   // inner and outer angle
 };
 
 struct ShadowConstants

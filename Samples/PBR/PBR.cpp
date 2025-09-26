@@ -30,8 +30,8 @@ public:
         auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
         lihuazou->transform.SetScale(2);
         
-        // auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(30,30,5,5));
-        // plane->transform.Rotate({std::numbers::pi / 2, 0, 0});
+        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(50,50,2,2));
+        plane->transform.SetPosition({0,-1,0});
 
         // auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(6,4,4,2));
         // cube->transform.SetPosition({0,4,0});
@@ -43,14 +43,16 @@ public:
 
         m_Models.push_back(sponza);
         m_Models.push_back(lihuazou);
-        // m_Models.push_back(plane);
+        m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
         auto dirLight = Light{
             .lightType = LightType::Directional, 
             .color = Math::Vector4{1,1,1,1}, 
             .range = 10.0f};
-        dirLight.transform.LookTo({-0.3, -1, 0.08});
+        dirLight.direction = {-0.3, -1, 0.08};
+        g_RenderResources.lights.push_back(dirLight);
+        dirLight.direction.Set(0, 0.3);
         g_RenderResources.lights.push_back(dirLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
@@ -60,7 +62,7 @@ public:
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 
         auto& camera = renderer.GetCamera();
-        camera.SetPosition(dirLight.transform.GetForwardAxis() * -10.0f);
+        camera.SetPosition(dirLight.direction * -10.0f);
         camera.LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(&camera);
@@ -82,12 +84,6 @@ public:
 
 
         m_CameraController->Update(deltaTime);
-
-        auto cmdList = renderer.GetDevice()->CreateCommandList();
-        cmdList->Open();
-
-        cmdList->Close();
-        renderer.GetDevice()->ExecuteCommandList(cmdList);
 
         for (auto& renderPass : m_RenderPasses) {
             renderPass->Render(renderer, deltaTime);
@@ -125,7 +121,7 @@ public:
         }
         ImGui::End();
 
-        g_RenderResources.lights[0].transform.LookTo({lightDir[0], lightDir[1], lightDir[2]});
+        g_RenderResources.lights[0].direction = {lightDir[0], lightDir[1], lightDir[2]};
         g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
     }
 

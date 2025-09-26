@@ -98,7 +98,6 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
     float3 color = ShadeLighting(surface);
     color *= occlusion;
     color += emissive * gMaterialConstants.emissiveColor.rgb;
-    color += 0.05 * surface.color;
 
     return float4(color, surface.alpha);
 }

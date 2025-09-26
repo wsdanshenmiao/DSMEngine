@@ -9,11 +9,6 @@
 namespace DSM {
     class LightingPass : public IRenderPass
     {
-    private:
-        struct LightData
-        {
-            int dirLightCount;
-        };
     public:
         LightingPass(Renderer& renderer)
         {
@@ -80,7 +75,17 @@ namespace DSM {
         {
             DirectionalLightData data;
             data.color = light.color;
-            data.direction = -Math::Vector4(light.transform.GetForwardAxis());
+            data.direction = -Math::Vector4(light.direction);
+            return data;
+        }
+
+        OtherLightData CreatePointLightData(const Light& light)
+        {
+            OtherLightData data;
+            data.color = light.color;
+            data.direction = -Math::Vector4(light.direction);
+            data.positionAndRange = Math::Vector4{light.position, light.range};
+            data.spotAngle = Math::Vector4{light.innerAngle, light.outerAngle};
             return data;
         }
 

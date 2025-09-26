@@ -17,8 +17,6 @@ namespace DSM::Math {
             PadToMinimums();
         }
 
-
-
         Vector2 GetLongestAxis() const noexcept
         {
             int index = 0;
@@ -30,10 +28,10 @@ namespace DSM::Math {
             return Vector2{m_Min.Get(index), m_Max.Get(index)};
         }
 
-        const Vector3& GetMin() const noexcept { return m_Min; }
-        const Vector3& GetMax() const noexcept { return m_Max; }
-        const Vector3& GetCenter() const noexcept { return (m_Min + m_Max) * 0.5f; }
-        const Vector3& GetSize() const noexcept { return m_Max - m_Min; }
+        inline const Vector3& GetMin() const noexcept { return m_Min; }
+        inline const Vector3& GetMax() const noexcept { return m_Max; }
+        inline const Vector3& GetCenter() const noexcept { return (m_Min + m_Max) * 0.5f; }
+        inline const Vector3& GetSize() const noexcept { return m_Max - m_Min; }
 
         static AxisAlignedBox Union(AxisAlignedBox a, const AxisAlignedBox& b) noexcept
         {
@@ -58,6 +56,24 @@ namespace DSM::Math {
         Vector3 m_Min;
         Vector3 m_Max;
     };
+
+
+    class OrientedBox
+    {
+    public:
+        OrientedBox(const AxisAlignedBox& box, const Quaternion& orientation)
+            : m_Box(box), m_Orientation(orientation) {}
+        
+        inline Quaternion GetOrientation() const noexcept { return m_Orientation; }
+
+        inline Vector3 GetCenter() const noexcept { return m_Box.GetCenter(); }
+        inline Vector3 GetSize() const noexcept { return m_Box.GetSize(); }
+
+    private:
+        AxisAlignedBox m_Box;
+        Quaternion m_Orientation;
+    };
+
 }
 
 
