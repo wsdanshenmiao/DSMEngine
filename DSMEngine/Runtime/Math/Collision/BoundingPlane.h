@@ -14,7 +14,7 @@ namespace DSM::Math {
         BoundingPlane(const Vector3& normal, float d) noexcept
             : m_Plane(normal.Normalized(), d) {}
         BoundingPlane(const Vector3& normal, const Vector3& pointOnPlane) noexcept
-            : m_Plane(normal.Normalized(), Vector3::Dot(normal.Normalized(), pointOnPlane)) {}
+            : m_Plane(normal.Normalized(), -Vector3::Dot(normal.Normalized(), pointOnPlane)) {}
         BoundingPlane(float a, float b, float c, float d) noexcept
             : m_Plane({a, b, c, d}) {}
         explicit BoundingPlane(const Vector4& plane) noexcept
@@ -25,11 +25,11 @@ namespace DSM::Math {
         friend BoundingPlane operator*(const BoundingPlane& plane, const Transform& transform) noexcept;
 
         Vector3 GetNormal() const noexcept { return Vector3{m_Plane}; }
-        Vector3 GetPointOnPlane() const noexcept { return m_Plane.Get(3) * GetNormal(); }
+        Vector3 GetPointOnPlane() const noexcept { return m_Plane.Get(3) * -GetNormal(); }
 
         Scalar GetDistanceFromPoint(const Vector3& point) const noexcept
         {
-            return Vector3::Dot(GetNormal(), point) - m_Plane.Get(3);
+            return Vector3::Dot(GetNormal(), point) + m_Plane.Get(3);
         }
         Scalar GetDistanceFromPoint(const Vector4& point) const noexcept
         {
@@ -44,7 +44,7 @@ namespace DSM::Math {
     {
         // 无缩放
         Vector3 normal = transform.GetRotation() * plane.GetNormal();
-        float d = plane.m_Plane.Get(3) + Vector3::Dot(normal, transform.GetPosition());
+        float d = plane.m_Plane.Get(3) - Vector3::Dot(normal, transform.GetPosition());
         return BoundingPlane{normal, d};
     }
 

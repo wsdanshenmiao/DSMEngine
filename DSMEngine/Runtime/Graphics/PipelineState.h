@@ -640,7 +640,7 @@ struct std::hash<DSM::GraphicsPipelineDesc>
         size_t hash = 0;
         hash = HashCombine(hash, s.primType);
         hash = HashCombine(hash, s.patchControlPoints);
-        for(size_t i = 0; i < s.inputLayout->GetNumAttributes(); ++i){
+        for(size_t i = 0; s.inputLayout != nullptr && i < s.inputLayout->GetNumAttributes(); ++i){
             auto attr = s.inputLayout->GetAttributeDesc(i);
             if(attr != nullptr)
                 hash = HashCombine(hash, *attr);

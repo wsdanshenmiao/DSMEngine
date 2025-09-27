@@ -4,7 +4,7 @@
 
 #include "Runtime/Math/Collision/BoundingBox.h"
 #include "Runtime/Math/Collision/BoundingPlane.h"
-#include <DirectXCollision.h>
+
 namespace DSM::Math {
     class Frustum 
     {
@@ -164,12 +164,12 @@ namespace DSM::Math {
                 Vector3 boxMax = box.GetMax();
                 Vector3 normal = plane.GetNormal();
                 // 获取离平面最近的点
-                Vector3 nearCorner{
+                Vector3 farCorner{
                     normal.Get(0) > 0.f ? boxMin.Get(0) : boxMax.Get(0),
                     normal.Get(1) > 0.f ? boxMin.Get(1) : boxMax.Get(1),
                     normal.Get(2) > 0.f ? boxMin.Get(2) : boxMax.Get(2)
                 };
-                if(plane.GetDistanceFromPoint(nearCorner) > 0.f)
+                if(plane.GetDistanceFromPoint(farCorner) < 0.f)
                     return false;
             }
             return true;
@@ -179,6 +179,7 @@ namespace DSM::Math {
         {
             Vector3 boxSize = box.GetSize() * 0.5f;
             for(int i = 0; i < PlaneCount; i++) {
+                int outCount = 0;
                 auto plane = GetPlane(static_cast<PlaneID>(i));
                 // 检测八个顶点
                 for(int j = 0; j < CornerID::CornerCount; j++) {
@@ -189,8 +190,10 @@ namespace DSM::Math {
                     };
                     Vector3 corner = box.GetCenter() + box.GetOrientation() * dir;
                     if(plane.GetDistanceFromPoint(corner) > 0.f)
-                        return false;
+                        ++outCount;
                 }
+                if(outCount == CornerID::CornerCount)
+                    return false;
             }
             return true;
         }

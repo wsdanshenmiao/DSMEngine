@@ -9,6 +9,7 @@
 #include "Passes/FinalPass.h"
 #include "Passes/LightingPass.h"
 #include "Passes/ShadowPass.h"
+#include "Passes/SkyBoxPass.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/TransformComponent.h"
 #include "Runtime/Core/Input/InputSystem.h"
@@ -39,9 +40,8 @@ public:
         // auto sphere = ModelLoader::LoadModelFromGeometry(
         //     "Sphere", Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16));
 
-        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-
-        m_Models.push_back(sponza);
+        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        // m_Models.push_back(sponza);
         m_Models.push_back(lihuazou);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
@@ -59,6 +59,7 @@ public:
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
         m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer, m_Models));
+        m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 
         auto& camera = renderer.GetCamera();
