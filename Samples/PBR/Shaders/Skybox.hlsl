@@ -27,6 +27,7 @@ Varyings SkyboxVS(uint vertexID : SV_VertexID)
 {
     Varyings o;
 
+    // 获取裁剪空间坐标及视图方向
     float2 screenPos = float2(uint2(vertexID, vertexID << 1) & 2);
     float4 posCS = float4(screenPos * 2 - 1, 1, 1);
     o.posCS = posCS;
@@ -38,7 +39,6 @@ Varyings SkyboxVS(uint vertexID : SV_VertexID)
 
 float4 SkyboxPS(Varyings i) : SV_TARGET0
 {
-    float3 dir = normalize(i.viewDir);
-    float3 color = gSkyboxTex.Sample(gDefaultSampler, dir).rgb;
+    float3 color = gSkyboxTex.Sample(gDefaultSampler, normalize(i.viewDir)).rgb;
     return float4(color, 1);
 }
