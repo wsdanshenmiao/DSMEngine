@@ -77,7 +77,7 @@ namespace DSM {
                 .SetType(ShaderType::Vertex)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint("ShadowPassVS")
-                .SetFilename("Shaders/ShadowPass.hlsl");
+                .SetFilename("Shaders/Passes/ShadowPass.hlsl");
             ShaderByteCode shadowVS{shadowVSDesc};
             shadowVSDesc.AddDefine("SHADOWS_CLIP", "1");
             ShaderByteCode shadowVSClip{shadowVSDesc};
@@ -85,7 +85,7 @@ namespace DSM {
                 .SetType(ShaderType::Pixel)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint("ShadowPassPS")
-                .SetFilename("Shaders/ShadowPass.hlsl");
+                .SetFilename("Shaders/Passes/ShadowPass.hlsl");
             ShaderByteCode shadowPS{shadowPSDesc};
             shadowPSDesc.AddDefine("SHADOWS_CLIP", "1");
             ShaderByteCode shadowPSClip{shadowPSDesc};

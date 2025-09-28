@@ -48,6 +48,7 @@ namespace DSM {
     struct RenderResource
     {
         FramebufferHandle framebuffer;
+        TextureHandle normalTex;
 
         std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> psoCache;
         std::vector<RenderConfig> renderConfigs;

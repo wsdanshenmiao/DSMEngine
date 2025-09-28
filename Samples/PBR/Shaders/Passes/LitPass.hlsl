@@ -1,6 +1,6 @@
-#include "ResourceData.h"
-#include "Light.hlsli"
-#include "Common.hlsli"
+#include "../ResourceData.h"
+#include "../Light.hlsli"
+#include "../Common.hlsli"
 
 struct MaterialConstants
 {

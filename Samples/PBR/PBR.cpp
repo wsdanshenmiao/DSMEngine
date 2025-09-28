@@ -6,6 +6,7 @@
 #include "Runtime/Render/Geometry.h"
 #include "Passes/SetupPass.h"
 #include "Passes/GeometryPass.h"
+#include "Passes/LitPass.h"
 #include "Passes/FinalPass.h"
 #include "Passes/LightingPass.h"
 #include "Passes/ShadowPass.h"
@@ -59,6 +60,7 @@ public:
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
         m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer, m_Models));
+        m_RenderPasses.push_back(std::make_unique<LitPass>(renderer, m_Models));
         m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 

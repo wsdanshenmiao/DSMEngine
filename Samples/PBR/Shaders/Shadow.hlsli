@@ -2,7 +2,7 @@
 #define __SHADOW_HLSLI__
 
 #include "Common.hlsli"
-#include "ResourceData.h"
+#include "../ResourceData.h"
 #include "Surface.hlsli"
 
 #if defined(DIRECTIONAL_PCF3)

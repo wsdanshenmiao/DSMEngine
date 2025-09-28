@@ -13,7 +13,7 @@ namespace DSM {
             auto device = renderer.GetDevice();
 
             m_SkyboxCB = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sizeof(Math::Matrix4))
+                .SetByteSize(sizeof(SkyboxConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("SkyboxCB"));
@@ -54,7 +54,7 @@ namespace DSM {
                 .SetType(ShaderType::Vertex)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint("SkyboxVS")
-                .SetFilename("Shaders/Skybox.hlsl");
+                .SetFilename("Shaders/Passes/SkyboxPass.hlsl");
             ShaderByteCode vsByteCode{compileDesc};
             compileDesc.SetType(ShaderType::Pixel)
                 .SetEnterPoint("SkyboxPS");
@@ -71,11 +71,13 @@ namespace DSM {
                 .SetEntryName("SkyboxPS"),
                 psByteCode.GetByteCode(), psByteCode.GetByteCodeSize());
 
+            auto cmpFunc = renderer.GetCamera().IsReversedZ() ? 
+                ComparisonFunc::GreaterOrEqual : ComparisonFunc::LessOrEqual;
             m_PipelineDesc.AddBindingLayout(bindingLayout, 0)
                 .SetRenderState(RenderState()
                     .SetDepthStencilState(DepthStencilState()
                         .SetDepthWriteEnable(false)
-                        .SetDepthFunc(ComparisonFunc::LessOrEqual)))
+                        .SetDepthFunc(cmpFunc)))
                 .SetVertexShader(vs)
                 .SetPixelShader(ps);
             if(!g_RenderResources.psoCache.contains(m_PipelineDesc)){
@@ -92,8 +94,10 @@ namespace DSM {
 
             auto& fb = g_RenderResources.framebuffer;
 
-            Math::Matrix4 invViewProj = Math::Matrix4::InverseTranspose(renderer.GetCamera().GetViewProjMatrix());
-            cmdList->WriteBuffer(m_SkyboxCB, &invViewProj, sizeof(Math::Matrix4));
+            SkyboxConstants skyboxConstants{};
+            skyboxConstants.isReversedZ = renderer.GetCamera().IsReversedZ();
+            skyboxConstants.invViewProj = Math::Matrix4::InverseTranspose(renderer.GetCamera().GetViewProjMatrix());
+            cmdList->WriteBuffer(m_SkyboxCB, &skyboxConstants, sizeof(SkyboxConstants));
 
             GraphicsState graphicsState = GraphicsState()
                 .SetPipeline(g_RenderResources.psoCache.at(m_PipelineDesc))

@@ -97,7 +97,7 @@ namespace DSM {
             ShaderCompileDesc litVSDesc{};
             litVSDesc.SetType(ShaderType::Vertex)
                 .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/LitPass.hlsl")
+                .SetFilename("Shaders/Passes/LitPass.hlsl")
                 .SetEnterPoint("LitPassVS");
             ShaderByteCode litVSNoTangent{litVSDesc};
             ShaderByteCode litVS{litVSDesc.AddDefine("USE_TANGENT", "1")};
@@ -105,7 +105,7 @@ namespace DSM {
             ShaderCompileDesc litPSDesc{};
             litPSDesc.SetType(ShaderType::Pixel)
                 .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/LitPass.hlsl")
+                .SetFilename("Shaders/Passes/LitPass.hlsl")
                 .SetEnterPoint("LitPassPS");
             ShaderByteCode litPSNoTangent{litPSDesc};
             ShaderByteCode litPSNoTangentPCF3{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF3", "1")};

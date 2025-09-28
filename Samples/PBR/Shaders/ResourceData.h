@@ -29,6 +29,12 @@ struct PassConstants
     float deltaTime;
 };
 
+struct SkyboxConstants
+{
+    float4x4 invViewProj;
+    bool isReversedZ;
+};
+
 struct LightData
 {
     uint dirLightCount;

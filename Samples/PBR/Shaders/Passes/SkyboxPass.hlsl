@@ -1,10 +1,8 @@
-#include "Common.hlsli"
+#include "../Common.hlsli"
+#include "../ResourceData.h"
 
 
-cbuffer SkyboxConstants : register(b0)
-{
-    float4x4 gInvViewProj;
-};
+ConstantBuffer<SkyboxConstants> gSkyboxConstants : register(b0);
 
 TextureCube<float3> gSkyboxTex : register(t0);
 
@@ -29,9 +27,9 @@ Varyings SkyboxVS(uint vertexID : SV_VertexID)
 
     // 获取裁剪空间坐标及视图方向
     float2 screenPos = float2(uint2(vertexID, vertexID << 1) & 2);
-    float4 posCS = float4(screenPos * 2 - 1, 1, 1);
+    float4 posCS = float4(screenPos * 2 - 1, gSkyboxConstants.isReversedZ ? 0 : 1, 1);
     o.posCS = posCS;
-    float4 posVS = mul(posCS, gInvViewProj);
+    float4 posVS = mul(posCS, gSkyboxConstants.invViewProj);
     o.viewDir = posVS.xyz;
 
     return o;
