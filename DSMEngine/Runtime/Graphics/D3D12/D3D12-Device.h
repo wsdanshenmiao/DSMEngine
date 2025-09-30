@@ -102,16 +102,18 @@ namespace DSM::D3D12 {
         bool resolved = false;
         float time = 0.f;
 
-        TimerQuery(DeviceResources& resources)
+        TimerQuery(std::shared_ptr<DeviceResources> resources)
             : m_Resources(resources) { }
 
         ~TimerQuery() override
         {
-            m_Resources.timerQueries.Release(beginQueryIndex / 2);
+            if(auto resources = m_Resources.lock()){
+                resources->timerQueries.Release(beginQueryIndex / 2);
+            }
         }
 
     private:
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
     };
 
     class Device final : public IDevice
@@ -234,7 +236,7 @@ namespace DSM::D3D12 {
     private:
         const DeviceDesc m_Desc;
         Context m_Context;
-        DeviceResources m_Resources;
+        std::shared_ptr<DeviceResources> m_Resources;
 
         std::array<std::unique_ptr<CommandQueue>, (size_t)CommandQueueType::Count> m_CommandQueues;
 

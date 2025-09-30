@@ -12,7 +12,7 @@ namespace DSM::D3D12{
     class Buffer : public IBuffer
     {
     public:
-        Buffer(const Context& context, DeviceResources& resources)
+        Buffer(const Context& context, std::shared_ptr<DeviceResources> resources)
             : m_Context(context), m_Resources(resources) { }
         ~Buffer() override { Destroy(); };
 
@@ -48,7 +48,7 @@ namespace DSM::D3D12{
     private:
         BufferDesc m_Desc;
         const Context& m_Context;
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
         D3D12_GPU_VIRTUAL_ADDRESS m_GpuVA{};
 
         uint32_t m_ClearUAV = c_InvalidDescriptorIndex;

@@ -2,7 +2,7 @@
 #include "D3D12-Device.h"
 
 namespace DSM::D3D12 {
-    Texture::Texture(const Context &context, DeviceResources &resources)
+    Texture::Texture(const Context &context, std::shared_ptr<DeviceResources> resources)
         :m_Context(context), m_Resources(resources) {}
 
     bool Texture::Create(TextureDesc desc)
@@ -18,7 +18,13 @@ namespace DSM::D3D12 {
         if(desc.isUAV){
             m_ClearMipLevelUAVs.resize(desc.mipLevels, c_InvalidDescriptorIndex);
         }
-        planeCount = m_Resources.GetFormatPlaneCount(resourceDesc.Format);
+
+        auto resources = m_Resources.lock();
+        if(resources == nullptr){
+            m_Context.Error("Device is removed.");
+            return false;
+        }
+        planeCount = resources->GetFormatPlaneCount(resourceDesc.Format);
 
         D3D12_HEAP_PROPERTIES heapProp{};
         D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
@@ -108,19 +114,19 @@ namespace DSM::D3D12 {
 
     void Texture::Destroy()
     {
+
         m_Context.stateTracker->UnregisterTexture(this);
-        // 销毁时归还所有描述符
-        for(const auto& [bindingKey, index] : m_RenderTargetViews){
-            m_Resources.renderTargetViewHeap.ReleaseDescriptor(index);
-        }
-        for(const auto& [bindingKey, index] : m_DepthStencilViews){
-            m_Resources.depthStencilViewHeap.ReleaseDescriptor(index);
-        }
-        for(const auto& [bindingKey, index] : m_CustomSRVs){
-            m_Resources.shaderResourceViewHeap.ReleaseDescriptor(index);
-        }
-        for(const auto& [bindingKey, index] : m_CustomUAVs){
-            m_Resources.shaderResourceViewHeap.ReleaseDescriptor(index);
+        if(auto resources = m_Resources.lock()){
+            auto releaseDescriptor = [&](const auto& views, auto& heap) {
+                for(const auto& [bindingKey, index] : views){
+                    heap.ReleaseDescriptor(index);
+                }
+            };
+            // 销毁时归还所有描述符
+            releaseDescriptor(m_RenderTargetViews, resources->renderTargetViewHeap);
+            releaseDescriptor(m_DepthStencilViews, resources->depthStencilViewHeap);
+            releaseDescriptor(m_CustomSRVs, resources->shaderResourceViewHeap);
+            releaseDescriptor(m_CustomUAVs, resources->shaderResourceViewHeap);
         }
 
         resource = nullptr;
@@ -152,6 +158,10 @@ namespace DSM::D3D12 {
         TextureDimension dimension, 
         bool isReadOnlyDSV)
     {
+        auto resources = m_Resources.lock();
+        if(resources == nullptr) 
+            return nullptr;
+
         uint64_t descriptor{};
         subresources = subresources.Resolve(m_Desc, false);
         TextureBindingKey key = TextureBindingKey(subresources, format);
@@ -160,7 +170,7 @@ namespace DSM::D3D12 {
         {
         case ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor:
         case ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor:{
-            auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
+            auto& descriptorHeap = resources->shaderResourceViewHeap;
 
             if (auto found = m_CustomSRVs.find(key); found == m_CustomSRVs.end()) {
                 descriptorIndex = descriptorHeap.AllocateDescriptor();
@@ -181,7 +191,7 @@ namespace DSM::D3D12 {
         }
         case ObjectTypes::D3D12_UnorderedAccessViewCpuDescriptor:
         case ObjectTypes::D3D12_UnorderedAccessViewGpuDescriptor:{
-            auto& descriptorHeap = m_Resources.shaderResourceViewHeap;
+            auto& descriptorHeap = resources->shaderResourceViewHeap;
 
             if (auto found = m_CustomUAVs.find(key); found == m_CustomUAVs.end()) {
                 descriptorIndex = descriptorHeap.AllocateDescriptor();
@@ -201,7 +211,7 @@ namespace DSM::D3D12 {
             break;
         }
         case ObjectTypes::D3D12_RenderTargetViewDescriptor:{
-            auto& descriptorHeap = m_Resources.renderTargetViewHeap;
+            auto& descriptorHeap = resources->renderTargetViewHeap;
 
             if (auto found = m_RenderTargetViews.find(key); found == m_RenderTargetViews.end()) {
                 descriptorIndex = descriptorHeap.AllocateDescriptor();
@@ -218,7 +228,7 @@ namespace DSM::D3D12 {
             break;
         }
         case ObjectTypes::D3D12_DepthStencilViewDescriptor:{
-            auto& descriptorHeap = m_Resources.depthStencilViewHeap;
+            auto& descriptorHeap = resources->depthStencilViewHeap;
 
             if (auto found = m_DepthStencilViews.find(key); found == m_DepthStencilViews.end()) {
                 descriptorIndex = descriptorHeap.AllocateDescriptor();
@@ -520,13 +530,14 @@ namespace DSM::D3D12 {
         }
 
         uint32_t descriptorIndex = m_ClearMipLevelUAVs[mipLevel];
-        if(descriptorIndex == c_InvalidDescriptorIndex){
-            descriptorIndex = m_Resources.shaderResourceViewHeap.AllocateDescriptor();
+        if(auto resources = m_Resources.lock(); 
+            resources != nullptr && descriptorIndex == c_InvalidDescriptorIndex){
+            descriptorIndex = resources->shaderResourceViewHeap.AllocateDescriptor();
             assert(descriptorIndex != c_InvalidDescriptorIndex);
-            auto handle = m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
+            auto handle = resources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
             TextureSubresourceSet subresources{mipLevel, 1, 0, TextureSubresourceSet::AllArraySlices};
             CreateUAV(handle.ptr, Format::UNKNOWN, TextureDimension::Unknown, subresources);
-            m_Resources.shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndex);
+            resources->shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndex);
             m_ClearMipLevelUAVs[mipLevel] = descriptorIndex;
         }
 

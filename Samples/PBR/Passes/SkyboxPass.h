@@ -84,13 +84,19 @@ namespace DSM {
                 auto pso = device->CreateGraphicsPipeline(m_PipelineDesc, g_RenderResources.framebuffer);
                 g_RenderResources.psoCache.insert(std::make_pair(m_PipelineDesc, pso));
             }
+
+            sm_TimerQuery = device->CreateTimerQuery();
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
         {
-            auto cmdList = renderer.GetDevice()->CreateCommandList(
-                CommandListParameters().SetDebugName("Skybox Pass"));
+            // auto cmdList = renderer.GetDevice()->CreateCommandList(
+            //     CommandListParameters().SetDebugName("Skybox Pass"));
+            auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
+
+            // 开始计时
+            cmdList->BeginTimerQuery(sm_TimerQuery);
 
             auto& fb = g_RenderResources.framebuffer;
 
@@ -110,12 +116,17 @@ namespace DSM {
 
             cmdList->Draw(DrawArguments().SetVertexCount(3));
 
+            // 结束计时
+            cmdList->EndTimerQuery(sm_TimerQuery);
+
             cmdList->Close();
             renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
     
-    
+    public:
+        inline static TimerQueryHandle sm_TimerQuery{};
+
     private:
         TextureHandle m_SkyboxTexture;
         BufferHandle m_SkyboxCB;

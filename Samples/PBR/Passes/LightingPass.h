@@ -30,6 +30,7 @@ namespace DSM {
                 .AddItem(BindingSetItem().StructuredBuffer_SRV(6, m_DirLightDataBuffer));
 
             CreateShader(renderer);
+            sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
         void Render(Renderer& renderer, float deltaTime) override
@@ -55,14 +56,19 @@ namespace DSM {
                 }
             }
 
-            auto cmdList = renderer.GetDevice()->CreateCommandList(
-                CommandListParameters().SetDebugName("LightingPassCmdList"));
+            // auto cmdList = renderer.GetDevice()->CreateCommandList(
+            //     CommandListParameters().SetDebugName("LightingPassCmdList"));
+            auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
+
+            cmdList->BeginTimerQuery(sm_TimerQuery);
 
             LightData lightData;
             lightData.dirLightCount = static_cast<int>(std::min(dirLightData.size(), sm_MaxDirLightCount));
             cmdList->WriteBuffer(m_LightDataBuffer, &lightData, sizeof(lightData));
             cmdList->WriteBuffer(m_DirLightDataBuffer, dirLightData.data(), lightData.dirLightCount * sizeof(DirectionalLightData));
+
+            cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
             renderer.GetDevice()->ExecuteCommandList(cmdList);
@@ -135,6 +141,9 @@ namespace DSM {
             shaders[(size_t)ShaderSlot::LitPSNoTangentPCF5] = createShader(litPSNoTangentPCF5, "LitPassPSNoTangentPCF5");
             shaders[(size_t)ShaderSlot::LitPSNoTangentPCF7] = createShader(litPSNoTangentPCF7, "LitPassPSNoTangentPCF7");
         }
+
+    public:
+        inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
         static constexpr size_t sm_MaxDirLightCount = 4;

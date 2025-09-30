@@ -103,11 +103,13 @@ namespace DSM {
             shaders[size_t(ShaderSlot::ShadowPS)] = createShader(shadowPS, "ShadowPassPS");
             shaders[size_t(ShaderSlot::ShadowPSClip)] = createShader(shadowPSClip, "ShadowPassPSClip");
 
-            auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
+            m_ShadowBindingLayouts[0] = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
+                .AddItem(BindingLayoutItem().Sampler(0))
+            );
+            m_ShadowBindingLayouts[1] = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
                 .AddItem(BindingLayoutItem().Texture_SRV(0))
-                .AddItem(BindingLayoutItem().Sampler(0))
             );
 
             std::array<VertexAttributeDesc, 2> vertexDescs = {
@@ -130,9 +132,11 @@ namespace DSM {
                     .SetPixelShader(psHandle)
                     .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                     .SetRenderState(renderState)
-                    .AddBindingLayout(bindingLayout, 0);
-                g_RenderResources.psoCache[pipelineDesc] = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
-                return pipelineDesc;
+                    .AddBindingLayout(m_ShadowBindingLayouts[0], 0)
+                    .AddBindingLayout(m_ShadowBindingLayouts[1], 1);
+                auto pso = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
+                g_RenderResources.psoCache[pipelineDesc] = pso;
+                return pso;
             };
             size_t count = (ShadowSetting::FilterMode::_PCF7x7 + 1);
             for(size_t i = 0; i < 2 * count; ++i){
@@ -142,8 +146,8 @@ namespace DSM {
                 auto renderState = RenderState{};
                 float scale = (i % count) + 1;
                 renderState.rasterState.SetSlopeScaleDepthBias(1.5f * scale).SetDepthBias(100 * scale);
-                auto desc = createPipeline(vs, ps, clip, renderState);
-                m_ShadowPipelineDescs.push_back(desc);
+                auto pso = createPipeline(vs, ps, clip, renderState);
+                m_ShadowPipelineDescs.push_back(pso);
             }
 
             // 将 ShadowMap 绑定到管线
@@ -156,7 +160,7 @@ namespace DSM {
                 .AddItem(BindingSetItem().Sampler(1, m_ShadowSampler))
                 .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB));
 
-            m_CmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ShadowPass"));
+            sm_TimerQuery = device->CreateTimerQuery();
         }
 
         void Render(Renderer& renderer, float deltaTime) override
@@ -174,30 +178,39 @@ namespace DSM {
             size_t split = tiles <= 1 ? 1 : (tiles <= 4 ? 2 : 4);
             size_t tileSize = sm_Setting.directionalSetting.size / split;
 
-            m_CmdList->Open();
-            m_CmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
+            // auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ShadowPass"));
+            auto& cmdList = g_RenderResources.cmdList;
+            cmdList->Open();
+
+            // 开始计时
+            cmdList->BeginTimerQuery(sm_TimerQuery);
+
+            cmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
 
             for(size_t i = 0; i < dirLightCount; ++i){
-                RenderDirectionalShadow(renderer, i, split, tileSize);
+                RenderDirectionalShadow(renderer, cmdList, i, split, tileSize);
             }
             // 转换为着色器资源以供后续 Pass 使用
-            m_CmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
+            cmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
 
             // 写入阴影变换矩阵
             ShadowConstants shadowConstants{};
             for(size_t i = 0; i < dirLightCount; ++i){
                 shadowConstants.shadowViewProjs[i] = m_DirectionalShadowMatrices[i];
             }
-            m_CmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
+            cmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
 
-            m_CmdList->Close();
-            renderer.GetDevice()->ExecuteCommandList(m_CmdList);
+            // 结束计时
+            cmdList->EndTimerQuery(sm_TimerQuery);
+
+            cmdList->Close();
+            renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override{}
 
 
     private:
-        void RenderDirectionalShadow(Renderer& renderer, size_t index, size_t split, size_t tileSize)
+        void RenderDirectionalShadow(Renderer& renderer, CommandListHandle& cmdList, size_t index, size_t split, size_t tileSize)
         {
             auto device = renderer.GetDevice();
             
@@ -226,35 +239,49 @@ namespace DSM {
             m_DirectionalShadowMatrices[index] = ConvertToAtlasMatrix(shadowCB.viewProj, offset, 1.f / split);
 
             for(const auto& model : m_Models){
+                auto bufferSize = Math::Align(sizeof(ShadowPassCB), size_t(c_ConstantBufferOffsetSizeAlignment));
+                BufferHandle shadowConstantsBuffer = device->CreateBuffer(BufferDesc()
+                    .SetByteSize(bufferSize * model->materials.size())
+                    .SetIsConstantBuffer(true)
+                    .SetIsVolatile(true)
+                    .SetDebugName("Shadow Pass CB"));
+                std::vector<bool> writtenMaterials(model->materials.size(), false);
+                
+                MeshConstants meshCB{};
+                meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
+                meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
+                auto meshConstantBuffer = device->CreateBuffer(BufferDesc()
+                    .SetByteSize(sizeof(MeshConstants))
+                    .SetIsConstantBuffer(true)
+                    .SetIsVolatile(true)
+                    .SetDebugName("Mesh CB"));
+                cmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
+
+                // 减少 BindingSet 的复杂度
+                auto commonBindingSet = device->CreateBindingSet(BindingSetDesc()
+                            .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
+                            .AddItem(BindingSetItem().Sampler(0, SetupPass::sm_Sampler)),
+                            m_ShadowBindingLayouts[0]);
+
                 for(const auto& mesh : model->meshes){
                     bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
                     for(const auto& [name, submesh] : mesh->subMeshes){
-                        auto cbDesc = BufferDesc()
-                            .SetByteSize(sizeof(ShadowPassCB))
-                            .SetIsConstantBuffer(true)
-                            .SetIsVolatile(true)
-                            .SetDebugName("Shadow Pass CB");
-                        auto shadowConstantBuffer = device->CreateBuffer(cbDesc);
-                        shadowCB.baseColor = model->materials[submesh.materialIndex]->baseColor;
-                        m_CmdList->WriteBuffer(shadowConstantBuffer, &shadowCB, sizeof(ShadowPassCB));
-
-                        MeshConstants meshCB{};
-                        meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
-                        meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
-                        cbDesc.SetByteSize(sizeof(MeshConstants)).SetDebugName("Mesh CB");
-                        auto meshConstantBuffer = device->CreateBuffer(cbDesc);
-                        m_CmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
+                        auto bufferOffset = bufferSize * submesh.materialIndex;
+                        // 避免重复写入
+                        if(!writtenMaterials[submesh.materialIndex]){
+                            shadowCB.baseColor = model->materials[submesh.materialIndex]->baseColor;
+                            cmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(ShadowPassCB), bufferOffset);
+                            writtenMaterials[submesh.materialIndex] = true;
+                        }
 
                         size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
-                        const auto& desc = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
-                        const auto& pipeline = g_RenderResources.psoCache[desc];
+                        const auto& pipeline = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
 
                         auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                            .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
-                            .AddItem(BindingSetItem().ConstantBuffer(1, shadowConstantBuffer))
+                            .AddItem(BindingSetItem().ConstantBuffer(1, shadowConstantsBuffer, 
+                                BufferRange{}.SetByteOffset(bufferOffset).SetByteSize(bufferSize)))
                             .AddItem(BindingSetItem().Texture_SRV(0, submesh.textures[kBaseColor]))
-                            .AddItem(BindingSetItem().Sampler(0, SetupPass::sm_Sampler))
-                            , pipeline->GetDesc().bindingLayouts[0]);
+                            , m_ShadowBindingLayouts[1]);
 
                         GraphicsState state{};
                         state.SetFramebuffer(m_ShadowFramebuffer)
@@ -263,11 +290,12 @@ namespace DSM {
                             .SetIndexBuffer(mesh->indexBufferViews)
                             .AddVertexBuffer(mesh->positionStream)
                             .AddVertexBuffer(mesh->uvStream)
-                            .AddBindingSet(bindingSet, 0);
+                            .AddBindingSet(commonBindingSet, 0)
+                            .AddBindingSet(bindingSet, 1);
 
-                        m_CmdList->SetGraphicsState(state);
+                        cmdList->SetGraphicsState(state);
 
-                        m_CmdList->DrawIndexed(DrawArguments()
+                        cmdList->DrawIndexed(DrawArguments()
                             .SetVertexCount(submesh.indexCount)
                             .SetStartIndexLocation(submesh.indexOffset)
                             .SetStartVertexLocation(submesh.vertexOffset));
@@ -302,10 +330,10 @@ namespace DSM {
 
     public:
         inline static ShadowSetting sm_Setting;
+        inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
-        CommandListHandle m_CmdList;
 
         TextureHandle m_ShadowMap;
         SamplerHandle m_ShadowSampler;
@@ -315,7 +343,8 @@ namespace DSM {
 
         FramebufferHandle m_ShadowFramebuffer;
 
-        std::vector<GraphicsPipelineDesc> m_ShadowPipelineDescs;
+        std::vector<GraphicsPipelineHandle> m_ShadowPipelineDescs;
+        std::array<BindingLayoutHandle, 2> m_ShadowBindingLayouts;
 
         std::vector<Light> m_DirectionalLights{};
 

@@ -29,6 +29,8 @@ namespace DSM {
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(2));    // PassConstants
 
             g_RenderResources.commonBindingSetDesc.AddItem(BindingSetItem().ConstantBuffer(2, m_PassCB));
+
+            sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
@@ -44,15 +46,17 @@ namespace DSM {
             float width = (float)fb->GetFramebufferInfo().width;
             float height = (float)fb->GetFramebufferInfo().height;
 
-            auto cmdList = device->CreateCommandList(
-                CommandListParameters().SetDebugName("LitPassCmdList"));
+            // auto cmdList = device->CreateCommandList(
+            //     CommandListParameters().SetDebugName("LitPassCmdList"));
+            auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
 
+            cmdList->BeginTimerQuery(sm_TimerQuery);
+
+            // 使用了 PreZ Pass 无需清除深度
             const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-            float depth = float(!renderer.GetCamera().IsReversedZ());
             cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
-            cmdList->ClearDepthStencilTexture(fb->GetDesc().depthAttachment.texture, AllSubresources, true, depth, false, 0);
-            
+
             PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());
             passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
@@ -64,13 +68,13 @@ namespace DSM {
 
             for(const auto& model : m_Models) {
                 for(const auto& mesh : model->meshes){
-                    for(const auto& [name, submesh] : mesh->subMeshes){
-                        MeshConstants meshCB{};
-                        meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
-                        meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
-                        auto& meshBuffer = renderConfig[mesh->psoIndex].meshCB;
-                        cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
+                    MeshConstants meshCB{};
+                    meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
+                    meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
+                    auto& meshBuffer = renderConfig[mesh->psoIndex].meshCB;
+                    cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
 
+                    for(const auto& [name, submesh] : mesh->subMeshes){
                         // 绑定资源
                         auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
                         auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * submesh.materialIndex);
@@ -113,14 +117,21 @@ namespace DSM {
                 }
             }
 
+            cmdList->EndTimerQuery(sm_TimerQuery);
+
             cmdList->Close();
             device->ExecuteCommandList(cmdList);
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
+
+    public:
+        inline static TimerQueryHandle sm_TimerQuery{};
+        
+
     private:
-        std::vector<std::shared_ptr<Model>> m_Models;
-        BufferHandle m_PassCB;
+        std::vector<std::shared_ptr<Model>> m_Models{};
+        BufferHandle m_PassCB{};
     };
 
 } // namespace DSM

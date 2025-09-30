@@ -16,6 +16,7 @@
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/DSMEngine.h"
 #include <imgui.h>
+#include <print>
 
 using namespace DSM;
 
@@ -41,8 +42,8 @@ public:
         // auto sphere = ModelLoader::LoadModelFromGeometry(
         //     "Sphere", Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16));
 
-        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        // m_Models.push_back(sponza);
+        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        m_Models.push_back(sponza);
         m_Models.push_back(lihuazou);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
@@ -54,7 +55,7 @@ public:
         dirLight.direction = {-0.3, -1, 0.08};
         g_RenderResources.lights.push_back(dirLight);
         dirLight.direction.Set(0, 0.3);
-        g_RenderResources.lights.push_back(dirLight);
+        //g_RenderResources.lights.push_back(dirLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
@@ -85,12 +86,36 @@ public:
         //     setupPass->CreateShader(renderer);
         // }
 
-
         m_CameraController->Update(deltaTime);
 
+        std::vector<float> renderPassTimes;
+        CpuTimer timer{};
+        timer.Reset();
+        timer.Start();
         for (auto& renderPass : m_RenderPasses) {
             renderPass->Render(renderer, deltaTime);
+            timer.Tick();
+            renderPassTimes.push_back(timer.DeltaTime() * 1000.f);
         }
+        timer.Tick();
+
+        auto infoTimer = [&]() {
+            DSM_INFO("Frame {}:", renderer.GetFrameIndex());
+            DSM_INFO("Shadow Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(ShadowPass::sm_TimerQuery) * 1000.f);
+            DSM_INFO("Lighting Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(LightingPass::sm_TimerQuery) * 1000.f);
+            DSM_INFO("Geometry Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(GeometryPass::sm_TimerQuery) * 1000.f);
+            DSM_INFO("Lit Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(LitPass::sm_TimerQuery) * 1000.f);
+            DSM_INFO("Skybox Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(SkyboxPass::sm_TimerQuery) * 1000.f);
+            DSM_INFO("Final Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(FinalPass::sm_TimerQuery) * 1000.f);
+            for(size_t i = 0; i < renderPassTimes.size(); i++) {
+                DSM_INFO("Render Pass {} Time: {} ms", i, renderPassTimes[i]);
+            }
+            DSM_INFO("Cpu Time: {} ms", timer.DeltaTime() * 1000.f);
+            DSM_INFO("---------------------------------------------------");
+        };
+        //infoTimer();
+        timer.Stop();
+
     }
 
     void RenderUI(DSM::Renderer& renderer) override

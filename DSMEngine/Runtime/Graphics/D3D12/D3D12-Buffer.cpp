@@ -120,7 +120,9 @@ namespace DSM::D3D12{
                 m_Desc.debugName, resource->GetGPUVirtualAddress()));
         }
         if(m_ClearUAV != c_InvalidDescriptorIndex){
-            m_Resources.shaderResourceViewHeap.ReleaseDescriptor(m_ClearUAV);
+            if(auto resource = m_Resources.lock()){
+                resource->shaderResourceViewHeap.ReleaseDescriptor(m_ClearUAV);
+            }
             m_ClearUAV = c_InvalidDescriptorIndex;
         }
 
@@ -244,10 +246,12 @@ namespace DSM::D3D12{
         assert(m_Desc.canHaveUAVs);
         if(m_ClearUAV != c_InvalidDescriptorIndex) return m_ClearUAV;
 
-        m_ClearUAV = m_Resources.shaderResourceViewHeap.AllocateDescriptor();
-        auto cpuHandle = m_Resources.shaderResourceViewHeap.GetCpuHandle(m_ClearUAV);
-        CreateUAV(cpuHandle.ptr, Format::R32_UINT, EntireBuffer, ResourceType::TypedBuffer_UAV);
-        m_Resources.shaderResourceViewHeap.CopyToShaderVisibleHeap(m_ClearUAV);
+        if(auto resources = m_Resources.lock()){
+            m_ClearUAV = resources->shaderResourceViewHeap.AllocateDescriptor();
+            auto cpuHandle = resources->shaderResourceViewHeap.GetCpuHandle(m_ClearUAV);
+            CreateUAV(cpuHandle.ptr, Format::R32_UINT, EntireBuffer, ResourceType::TypedBuffer_UAV);
+            resources->shaderResourceViewHeap.CopyToShaderVisibleHeap(m_ClearUAV);
+        }
         return m_ClearUAV;
     }
 

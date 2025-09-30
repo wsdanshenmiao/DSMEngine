@@ -370,7 +370,15 @@ namespace DSM {
         BindingLayoutVector bindingLayouts;
 
         ComputePipelineDesc& SetComputeShader(IShader* value) { CS = value; return *this; }
-        ComputePipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
+        ComputePipelineDesc& AddBindingLayout(IBindingLayout* layout, uint32_t slot) 
+        { 
+            assert(slot < c_MaxBindingLayouts);
+            if(slot >= bindingLayouts.size()){
+                bindingLayouts.resize(slot + 1);
+            }
+            bindingLayouts[slot] = BindingLayoutHandle{layout};
+            return *this;
+        }
     };
 
     // 计算管线
@@ -401,7 +409,15 @@ namespace DSM {
         MeshletPipelineDesc& SetPixelShader(IShader* value) { PS = value; return *this; }
         MeshletPipelineDesc& SetFragmentShader(IShader* value) { PS = value; return *this; }
         MeshletPipelineDesc& SetRenderState(const RenderState& value) { renderState = value; return *this; }
-        MeshletPipelineDesc& AddBindingLayout(IBindingLayout* layout) { bindingLayouts.push_back(BindingLayoutHandle{layout}); return *this; }
+        MeshletPipelineDesc& AddBindingLayout(IBindingLayout* layout, uint32_t slot) 
+        { 
+            assert(slot < c_MaxBindingLayouts);
+            if(slot >= bindingLayouts.size()){
+                bindingLayouts.resize(slot + 1);
+            }
+            bindingLayouts[slot] = BindingLayoutHandle{layout};
+            return *this;
+        }
     };
 
     // 网格着色器

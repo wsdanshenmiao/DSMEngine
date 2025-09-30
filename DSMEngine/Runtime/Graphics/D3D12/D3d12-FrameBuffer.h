@@ -9,17 +9,21 @@ namespace DSM::D3D12
     class Framebuffer : public IFramebuffer
     {
     public:
-        Framebuffer(DeviceResources& resources, FramebufferDesc desc)
+        Framebuffer(std::shared_ptr<DeviceResources> resources, FramebufferDesc desc)
             : m_Resources(resources), m_Desc(std::move(desc)), m_Info(m_Desc) {}
 
         ~Framebuffer()
         {
+            auto resource = m_Resources.lock();
+            if(!resource) 
+                return;
+            
             // 释放描述符
             for(const auto& rtv : RTVs){
-                m_Resources.renderTargetViewHeap.ReleaseDescriptor(rtv);
+                resource->renderTargetViewHeap.ReleaseDescriptor(rtv);
             }
             if(m_Desc.depthAttachment.Valid()){
-                m_Resources.depthStencilViewHeap.ReleaseDescriptor(DSV);
+                resource->depthStencilViewHeap.ReleaseDescriptor(DSV);
             }
         }
 
@@ -35,7 +39,7 @@ namespace DSM::D3D12
         uint32_t rtHeight;
 
     private:
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
         const FramebufferDesc m_Desc;
         FramebufferInfo m_Info;
     };

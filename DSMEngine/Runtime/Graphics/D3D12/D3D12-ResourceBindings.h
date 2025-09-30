@@ -60,7 +60,7 @@ namespace DSM::D3D12 {
     class RootSignature : public IRootSignature
     {
     public:
-        RootSignature(DeviceResources& deviceResources)
+        RootSignature(std::shared_ptr<DeviceResources> deviceResources)
             : m_Resources(deviceResources) {}
         ~RootSignature() override;
         
@@ -75,14 +75,14 @@ namespace DSM::D3D12 {
         uint32_t rootConstantsIndex;
         
     private:
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
     };
 
     class BindingSet : public IBindingSet
     {
     public:
         BindingSet(const Context& context ,
-            DeviceResources& deviceResources,
+            std::shared_ptr<DeviceResources> deviceResources,
             BindingSetDesc desc,
             BindingLayout* layout);
         ~BindingSet() override;
@@ -120,7 +120,7 @@ namespace DSM::D3D12 {
 
     private:
         const Context& m_Context;
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
         BindingSetDesc m_Desc;
     };
 
@@ -128,7 +128,7 @@ namespace DSM::D3D12 {
     class DescriptorTable : public IDescriptorTable
     {
     public:
-        DescriptorTable(DeviceResources& resources);
+        DescriptorTable(std::shared_ptr<DeviceResources> resources);
         ~DescriptorTable() override;
 
         const BindingSetDesc* GetDesc() const override { return nullptr; }
@@ -141,7 +141,7 @@ namespace DSM::D3D12 {
         uint32_t firstDescriptor = 0;
 
     private:
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
     };
 
 } // namespace DSM 

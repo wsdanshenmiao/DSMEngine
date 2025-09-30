@@ -185,7 +185,7 @@ namespace DSM::D3D12{
     //////////////////////////////////////////////////////////////////////////
 
     Device::Device(DeviceDesc desc)
-        :m_Desc(std::move(desc)), m_Resources(m_Context, m_Desc) {
+        :m_Desc(std::move(desc)), m_Resources(std::make_shared<DeviceResources>(m_Context, m_Desc)) {
         m_Context.messageCallback = desc.errorCB;
         m_Context.logBufferLifetime = desc.logBufferLifetime;
         m_Context.stateTracker = std::make_unique<ResourceStateTracker>(m_Context.messageCallback);
@@ -277,13 +277,13 @@ namespace DSM::D3D12{
             errorMsg("Failed to create graphics command queue.", 0);
         }
         
-        m_Resources.shaderResourceViewHeap.AllocateResource(
+        m_Resources->shaderResourceViewHeap.AllocateResource(
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, m_Desc.shaderResourceViewHeapSize, true);
-        m_Resources.depthStencilViewHeap.AllocateResource(
+        m_Resources->depthStencilViewHeap.AllocateResource(
             D3D12_DESCRIPTOR_HEAP_TYPE_DSV, m_Desc.depthStencilViewHeapSize, false);
-        m_Resources.renderTargetViewHeap.AllocateResource(
+        m_Resources->renderTargetViewHeap.AllocateResource(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV, m_Desc.renderTargetViewHeapSize, false);
-        m_Resources.samplerHeap.AllocateResource(
+        m_Resources->samplerHeap.AllocateResource(
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, m_Desc.samplerHeapSize, true);
         
 
@@ -343,6 +343,8 @@ namespace DSM::D3D12{
         if (m_FenceEvent) {
             CloseHandle(m_FenceEvent);
             m_FenceEvent = nullptr;
+            m_Context.logBufferLifetime = false;
+            m_Context.timerQueryResolveBuffer = nullptr;
         }
     }
 
@@ -819,18 +821,19 @@ namespace DSM::D3D12{
 
     TimerQueryHandle Device::CreateTimerQuery()
     {
-        if (!m_Context.timerQueryHeap)
-        {
+        if (m_Context.timerQueryHeap == nullptr) {
             std::lock_guard lockGuard(m_Mutex);
 
-            if (!m_Context.timerQueryHeap)
-            {
+            // 若为空则创建时间查询堆
+            if (m_Context.timerQueryHeap == nullptr) {
                 D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
                 queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-                queryHeapDesc.Count = uint32_t(m_Resources.timerQueries.GetCapacity()) * 2; // Use 2 D3D12 queries per 1 TimerQuery
+                // 每个 TimerQuery 使用两个查询槽位,一个为开始，一个为结束
+                queryHeapDesc.Count = uint32_t(m_Resources->timerQueries.GetCapacity()) * 2;
                 m_Context.device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&m_Context.timerQueryHeap));
 
                 BufferDesc qbDesc;
+                // 每个查询 8 个字节
                 qbDesc.byteSize = queryHeapDesc.Count * 8;
                 qbDesc.cpuAccess = CpuAccessMode::Read;
 
@@ -839,7 +842,7 @@ namespace DSM::D3D12{
             }
         }
 
-        int queryIndex = m_Resources.timerQueries.Allocate();
+        int queryIndex = m_Resources->timerQueries.Allocate();
 
         if (queryIndex < 0)
             return nullptr;
@@ -875,14 +878,13 @@ namespace DSM::D3D12{
     {
         TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
 
-        if (!query->resolved)
-        {
-            if (query->fence)
-            {
+        if (!query->resolved) {
+            if (query->fence) {
                 WaitForFence(query->fence, query->fenceCounter, m_FenceEvent);
                 query->fence = nullptr;
             }
 
+            // 获取 GPU 的频率
             uint64_t frequency;
             GetQueue(CommandQueueType::Graphics)->GetCommandQueue()->GetTimestampFrequency(&frequency);
 
@@ -952,7 +954,7 @@ namespace DSM::D3D12{
                 ObjectTypes::D3D12_RenderTargetViewDescriptor, 
                 rt.format, rt.subresources, texDesc.dimension, rt.isReadOnly);
             
-            uint32_t index = m_Resources.renderTargetViewHeap.GetOffsetOfCpuHandle(rtv.integer);
+            uint32_t index = m_Resources->renderTargetViewHeap.GetOffsetOfCpuHandle(rtv.integer);
             framebuffer->RTVs.push_back(index);
         }
 
@@ -966,7 +968,7 @@ namespace DSM::D3D12{
                 ObjectTypes::D3D12_DepthStencilViewDescriptor, 
                 ds.format, ds.subresources, texDesc.dimension, ds.isReadOnly);
             
-            framebuffer->DSV = m_Resources.depthStencilViewHeap.GetOffsetOfCpuHandle(dsv.integer);
+            framebuffer->DSV = m_Resources->depthStencilViewHeap.GetOffsetOfCpuHandle(dsv.integer);
         }
 
         return FramebufferHandle{framebuffer};
@@ -1224,29 +1226,29 @@ namespace DSM::D3D12{
         auto preBaseIndex = descriptorTable->GetFirstDescriptorIndex();
         // 需要缩小
         if(newSize < preCapacity){
-            m_Resources.shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex + newSize, preCapacity - newSize);
+            m_Resources->shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex + newSize, preCapacity - newSize);
             descriptorTable->capacity = newSize;
             return;
         }
 
         // 需要扩大
-        descriptorTable->firstDescriptor = m_Resources.shaderResourceViewHeap.AllocateDescriptors(newSize);
+        descriptorTable->firstDescriptor = m_Resources->shaderResourceViewHeap.AllocateDescriptors(newSize);
         descriptorTable->capacity = newSize;
         if(preCapacity > 0){
             if(keepContents){   // 拷贝旧资源
                 m_Context.device->CopyDescriptorsSimple(
                     preCapacity, 
-                    m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorTable->firstDescriptor),
-                    m_Resources.shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
+                    m_Resources->shaderResourceViewHeap.GetCpuHandle(descriptorTable->firstDescriptor),
+                    m_Resources->shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 m_Context.device->CopyDescriptorsSimple(
                     preCapacity, 
-                    m_Resources.shaderResourceViewHeap.GetCpuHandleShaderVisible(descriptorTable->firstDescriptor),
-                    m_Resources.shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
+                    m_Resources->shaderResourceViewHeap.GetCpuHandleShaderVisible(descriptorTable->firstDescriptor),
+                    m_Resources->shaderResourceViewHeap.GetCpuHandle(preBaseIndex),
                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
             }
             // 释放旧资源
-            m_Resources.shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex, preCapacity);
+            m_Resources->shaderResourceViewHeap.ReleaseDescriptors(preBaseIndex, preCapacity);
         }
     }
 
@@ -1257,7 +1259,7 @@ namespace DSM::D3D12{
             item.slot > descriptorTable->GetCapacity()) return false;
 
         uint32_t descriptorIndex = descriptorTable->GetFirstDescriptorIndex() + item.slot;
-        auto cpuHandle = m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
+        auto cpuHandle = m_Resources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
 
         switch (item.type) {
         case ResourceType::None:{
@@ -1306,7 +1308,7 @@ namespace DSM::D3D12{
             return false;
         }
 
-        m_Resources.shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndex);
+        m_Resources->shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndex);
         return true;
     }
 
@@ -1537,13 +1539,13 @@ namespace DSM::D3D12{
     {
         switch (heapType) {
         case DescriptorHeapType::ShaderResourceView:
-            return &m_Resources.shaderResourceViewHeap;
+            return &m_Resources->shaderResourceViewHeap;
         case DescriptorHeapType::RenderTargetView:
-            return &m_Resources.renderTargetViewHeap;
+            return &m_Resources->renderTargetViewHeap;
         case DescriptorHeapType::DepthStencilView:
-            return &m_Resources.depthStencilViewHeap;
+            return &m_Resources->depthStencilViewHeap;
         case DescriptorHeapType::Sampler:
-            return &m_Resources.samplerHeap;
+            return &m_Resources->samplerHeap;
         default:
             return nullptr;
         }
@@ -1558,13 +1560,13 @@ namespace DSM::D3D12{
         hash = Utility::HashCombine(hash, allowInputLayout);
 
         RefPtr<RootSignature> rootSig = nullptr;
-        if(auto it = m_Resources.rootsigCache.find(hash); it != m_Resources.rootsigCache.end()) {
+        if(auto it = m_Resources->rootsigCache.find(hash); it != m_Resources->rootsigCache.end()) {
             rootSig = it->second;
         }
         else{
             rootSig = Utility::CheckedCast<RootSignature*>(BuildRootSignature(pipelineLayouts, allowInputLayout, false).Get());
             rootSig->hash = hash;
-            m_Resources.rootsigCache[hash] = rootSig.Get();
+            m_Resources->rootsigCache[hash] = rootSig.Get();
         }
 
         return rootSig;

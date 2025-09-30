@@ -11,7 +11,7 @@ namespace DSM::D3D12{
     class Texture : public ITexture
     {
     public:
-        Texture(const Context& context, DeviceResources& resources);
+        Texture(const Context& context, std::shared_ptr<DeviceResources> resources);
         ~Texture() override { Destroy(); }
 
         bool Create(TextureDesc desc);
@@ -48,7 +48,7 @@ namespace DSM::D3D12{
 
         const Context& m_Context;
         TextureDesc m_Desc;
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
 
         // 储存子资源对应的描述符索引
         TextureBindingHashMap m_RenderTargetViews{};

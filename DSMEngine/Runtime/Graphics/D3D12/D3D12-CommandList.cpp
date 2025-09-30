@@ -143,7 +143,7 @@ namespace DSM::D3D12{
 
 
 
-    CommandList::CommandList(Device& device, DeviceResources &resources, CommandListParameters desc)
+    CommandList::CommandList(Device& device, std::shared_ptr<DeviceResources> resources, CommandListParameters desc)
         :m_Device(device), 
         m_Resources(resources), 
         m_Desc(std::move(desc)),
@@ -238,10 +238,12 @@ namespace DSM::D3D12{
                 uint32_t mipLevel = subresources.baseArraySlice + i;
                 uint32_t descriptorIndex = texture->GetClearMipLevelUAV(mipLevel);
                 
-                m_CurrCmdList->cmdList->ClearUnorderedAccessViewFloat(
-                    m_Resources.shaderResourceViewHeap.GetGpuHandle(descriptorIndex),
-                    m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex),
-                    texture->resource.Get(), &clearColor.r, 0 ,nullptr);
+                if(auto resources = m_Resources.lock()) {
+                    m_CurrCmdList->cmdList->ClearUnorderedAccessViewFloat(
+                        resources->shaderResourceViewHeap.GetGpuHandle(descriptorIndex),
+                        resources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex),
+                        texture->resource.Get(), &clearColor.r, 0 ,nullptr);
+                }
             }
         }
     }
@@ -286,10 +288,12 @@ namespace DSM::D3D12{
                 uint32_t mipLevel = subresources.baseArraySlice + i;
                 uint32_t descriptorIndex = texture->GetClearMipLevelUAV(mipLevel);
                 
-                m_CurrCmdList->cmdList->ClearUnorderedAccessViewUint(
-                    m_Resources.shaderResourceViewHeap.GetGpuHandle(descriptorIndex),
-                    m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex),
-                    texture->resource.Get(), clearValues, 0 ,nullptr);
+                if(auto resources = m_Resources.lock()){
+                    m_CurrCmdList->cmdList->ClearUnorderedAccessViewUint(
+                        resources->shaderResourceViewHeap.GetGpuHandle(descriptorIndex),
+                        resources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex),
+                        texture->resource.Get(), clearValues, 0 ,nullptr);
+                }
             }
         }
     }
@@ -517,6 +521,11 @@ namespace DSM::D3D12{
     void CommandList::ClearBufferUInt(IBuffer *b, uint32_t clearValue)
     {
         Buffer* buffer = Utility::CheckedCast<Buffer*>(b);
+        assert(buffer != nullptr);
+        
+        auto resources = m_Resources.lock();
+        if(resources == nullptr)
+            return;
 
         if(!buffer->GetDesc().canHaveUAVs){
             std::string msg = std::format("Cannot clear buffer {}, buffer has desc with canHaveUavs = false", 
@@ -537,8 +546,8 @@ namespace DSM::D3D12{
 
         uint32_t clearValues[4] = { clearValue, clearValue, clearValue, clearValue};
         m_CurrCmdList->cmdList->ClearUnorderedAccessViewUint(
-            m_Resources.shaderResourceViewHeap.GetGpuHandle(descriptorIndex),
-            m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex),
+            resources->shaderResourceViewHeap.GetGpuHandle(descriptorIndex),
+            resources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex),
             buffer->resource, clearValues, 0, nullptr);
     }
 
@@ -929,9 +938,13 @@ namespace DSM::D3D12{
 
     bool CommandList::CommitDescriptorHeaps()
     {
+        auto resources = m_Resources.lock();
+        if(resources == nullptr) 
+            return false;
+        
         // 由于描述符堆扩展后原来的描述符句柄会失效，因此需要重新绑定
-        auto heapSRV = m_Resources.shaderResourceViewHeap.GetShaderVisibleHeap();
-        auto heapSampler = m_Resources.samplerHeap.GetShaderVisibleHeap();
+        auto heapSRV = resources->shaderResourceViewHeap.GetShaderVisibleHeap();
+        auto heapSampler = resources->samplerHeap.GetShaderVisibleHeap();
 
         if(m_CurrSRVHeap == heapSRV && m_CurrSamplerHeap == heapSampler) return false;
 
@@ -1145,6 +1158,10 @@ namespace DSM::D3D12{
         const RootSignature *rootSignature,
         bool isGraphics)
     {
+        auto resources = m_Resources.lock();
+        if(resources == nullptr) 
+            return;
+
         if(updateIndirectParams && m_EnableAutomaticBarriers){
             m_StateTracker.RequireBufferState(indirectParams, ResourceStates::IndirectArgument);
             m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(indirectParams));
@@ -1220,11 +1237,11 @@ namespace DSM::D3D12{
                 if (updateBinding) {
                     if (bindingSet->hasSamplers) {
                         setDescriptorTable( rootIndexOffset + bindingSet->bindingLayout->rootParameterIndexSamplers,
-                            m_Resources.samplerHeap.GetGpuHandle(bindingSet->descriptorIndexSamplers));
+                            resources->samplerHeap.GetGpuHandle(bindingSet->descriptorIndexSamplers));
                     }
                     if (bindingSet->hasSRVs) {
                         setDescriptorTable(rootIndexOffset + bindingSet->bindingLayout->rootParameterIndexSRVs,
-                            m_Resources.shaderResourceViewHeap.GetGpuHandle(bindingSet->descriptorIndexSRVs));
+                            resources->shaderResourceViewHeap.GetGpuHandle(bindingSet->descriptorIndexSRVs));
                     }
                     if(bindingSet->GetDesc()->trackLiveness){
                         m_Instance->refResources.push_back(bindingSet);
@@ -1237,7 +1254,7 @@ namespace DSM::D3D12{
             }
             else if(rootIndexOffset != c_InvalidRootParameterIndex){  // DecriptorTable
                 DescriptorTable* table = Utility::CheckedCast<DescriptorTable*>(binding.Get());
-                auto gpuHandle = m_Resources.shaderResourceViewHeap.GetGpuHandle(table->firstDescriptor);
+                auto gpuHandle = resources->shaderResourceViewHeap.GetGpuHandle(table->firstDescriptor);
                 setDescriptorTable(rootIndexOffset, gpuHandle);
             }
         }
@@ -1290,18 +1307,22 @@ namespace DSM::D3D12{
 
     void CommandList::UpdateFramebuffer(Framebuffer *framebuffer)
     {
+        auto resources = m_Resources.lock();
+        if(resources == nullptr) 
+            return;
+        
         if(m_EnableAutomaticBarriers){
             SetResourceStatesForFramebuffer(framebuffer);
         }
         std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> RTVs(framebuffer->RTVs.size());
         for(int i = 0; i < framebuffer->RTVs.size(); ++i){
-            RTVs[i] = m_Resources.renderTargetViewHeap.GetCpuHandle(framebuffer->RTVs[i]);
+            RTVs[i] = resources->renderTargetViewHeap.GetCpuHandle(framebuffer->RTVs[i]);
         }
 
         bool hasDepth = framebuffer->GetDesc().depthAttachment.Valid();
         D3D12_CPU_DESCRIPTOR_HANDLE DSV;
         if (hasDepth) {
-            DSV = m_Resources.depthStencilViewHeap.GetCpuHandle(framebuffer->DSV);
+            DSV = resources->depthStencilViewHeap.GetCpuHandle(framebuffer->DSV);
         }
         m_CurrCmdList->cmdList->OMSetRenderTargets(
             RTVs.size(), RTVs.size() == 0 ? nullptr : RTVs.data(), false, hasDepth ? &DSV : nullptr);

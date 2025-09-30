@@ -15,7 +15,7 @@ namespace DSM {
             IDevice* device = renderer.GetDevice();
 
             m_PassCB = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sizeof(Math::Matrix4))
+                .SetByteSize(sizeof(Math::Matrix4) * 2)
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("GeometryPassConstants"));
@@ -71,6 +71,8 @@ namespace DSM {
                 .AddBindingLayout(bindingLayout, 0),
                 m_Framebuffer);
             g_RenderResources.psoCache[m_Pipeline->GetDesc()] = m_Pipeline;
+
+            sm_TimerQuery = device->CreateTimerQuery();
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
@@ -80,11 +82,25 @@ namespace DSM {
             uint32_t width = m_Framebuffer->GetFramebufferInfo().width;
             uint32_t height = m_Framebuffer->GetFramebufferInfo().height;
 
-            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("GeometryPassCmdList"));
+            // auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("GeometryPassCmdList"));
+            auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
 
-            Math::Matrix4 viewProj = Math::Matrix4::Transpose(renderer.GetCamera().GetViewProjMatrix());
-            cmdList->WriteBuffer(m_PassCB, &viewProj, sizeof(viewProj));
+            // 开始计时
+            cmdList->BeginTimerQuery(sm_TimerQuery);
+
+            const auto& depthTex = g_RenderResources.framebuffer->GetDesc().depthAttachment;
+            float depth = float(!renderer.GetCamera().IsReversedZ());
+            cmdList->ClearDepthStencilTexture(depthTex.texture, AllSubresources, true, depth, false, 0);
+            cmdList->ClearTextureFloat(m_Framebuffer->GetDesc().colorAttachments[0].texture, AllSubresources, {});
+
+            std::array<Math::Matrix4, 2> viewProj = {
+                Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix()),
+                Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix())
+            };
+            cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
+
+            // 渲染深度
             for(const auto& model : m_Models){
                 for(const auto& mesh : model->meshes){
                     MeshConstants meshCB{};
@@ -92,12 +108,12 @@ namespace DSM {
                     meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
                     auto& meshBuffer = g_RenderResources.renderConfigs[mesh->psoIndex].meshCB;
                     cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
-                    for(const auto& [name, submesh] : mesh->subMeshes){
-                        auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                            .AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
-                            .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
-                        m_Pipeline->GetDesc().bindingLayouts[0]);
+                    auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+                        .AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
+                        .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
+                    m_Pipeline->GetDesc().bindingLayouts[0]);
 
+                    for(const auto& [name, submesh] : mesh->subMeshes){
                         GraphicsState state = GraphicsState()
                             .SetFramebuffer(m_Framebuffer)
                             .SetPipeline(m_Pipeline)
@@ -124,6 +140,9 @@ namespace DSM {
                 }
             }
 
+            // 结束计时
+            cmdList->EndTimerQuery(sm_TimerQuery);
+            
             cmdList->Close();
             device->ExecuteCommandList(cmdList);
         }
@@ -133,7 +152,8 @@ namespace DSM {
             IDevice* device = renderer.GetDevice();
             // Resize normal texture
             // 法线纹理
-            g_RenderResources.normalTex = device->CreateTexture(TextureDesc()
+            auto slot = (size_t)CommonTextureSlot::Normal;
+            g_RenderResources.commonTextures[slot] = device->CreateTexture(TextureDesc()
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetFormat(Format::RG32_FLOAT)
@@ -141,9 +161,12 @@ namespace DSM {
                 .SetClearValue({})
                 .SetDebugName("NormalTexture"));
             m_Framebuffer = device->CreateFramebuffer(FramebufferDesc()
-                .AddColorAttachment(g_RenderResources.normalTex)
+                .AddColorAttachment(g_RenderResources.commonTextures[slot])
                 .SetDepthAttachment(g_RenderResources.framebuffer->GetDesc().depthAttachment.texture));
         }
+
+    public:
+        inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
         BufferHandle m_PassCB{};

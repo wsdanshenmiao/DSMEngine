@@ -22,17 +22,24 @@ namespace DSM {
             for(const auto& model : models){
                 GenerateRenderConfigs(renderer, model);
             }
+
+            sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
         void Render(Renderer& renderer, float deltaTime) override
         {
-            auto cmdList = renderer.GetDevice()->CreateCommandList(
-                CommandListParameters().SetDebugName("FinalPassCmdList"));
+            // auto cmdList = renderer.GetDevice()->CreateCommandList(
+            //     CommandListParameters().SetDebugName("FinalPassCmdList"));
+            auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
+
+            cmdList->BeginTimerQuery(sm_TimerQuery);
 
             auto backTexture = renderer.GetCurrentBackBuffer();
             cmdList->CopyTexture(backTexture, {}, g_RenderResources.framebuffer->GetDesc().colorAttachments[0].texture, {});
 
+            cmdList->EndTimerQuery(sm_TimerQuery);
+            
             cmdList->Close();
             renderer.GetDevice()->ExecuteCommandList(cmdList);
             renderer.GetDevice()->RunGarbageCollection();
@@ -53,11 +60,9 @@ namespace DSM {
             BlendState noBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{});
 
             auto reverseZ = renderer.GetCamera().IsReversedZ();
-            DepthStencilState readWriteDepth = DepthStencilState{}
-                .SetDepthFunc(reverseZ ? ComparisonFunc::Greater : ComparisonFunc::Less);
             DepthStencilState readDepth = DepthStencilState{}
                 .SetDepthWriteEnable(false)
-                .SetDepthFunc(reverseZ ? ComparisonFunc::Greater : ComparisonFunc::Less);
+                .SetDepthFunc(reverseZ ? ComparisonFunc::GreaterOrEqual : ComparisonFunc::LessOrEqual);
 
             RasterState defaultRaster = RasterState{};
             RasterState twoSided = RasterState{}.SetCullMode(RasterCullMode::None);
@@ -117,7 +122,7 @@ namespace DSM {
                 InputLayoutHandle layout = device->CreateInputLayout(attributes, hasTangent ? litVS : litVSNoTangent);
 
                 const auto& blendState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? hasBlend : noBlend;
-                const auto& depthState = HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) ? readDepth : readWriteDepth;
+                const auto& depthState = readDepth;
                 const auto& rasterState = HasFlags(PSOFlags(mesh->psoFlags), kBothSide) ? twoSided : defaultRaster;
 
                 auto desc = createPipeline(hasTangent, layout, RenderState{ blendState, depthState, rasterState });
@@ -131,6 +136,10 @@ namespace DSM {
                 g_RenderResources.renderConfigs.push_back({ desc, buffer });
             }
         }
+
+
+    public:
+        inline static TimerQueryHandle sm_TimerQuery{};
     };
 
 } // namespace DSM

@@ -45,10 +45,21 @@ namespace DSM {
         Count
     };
 
+    enum class CommonTextureSlot : uint32_t
+    {
+        Color = 0,
+        Depth,
+        Normal, //  视图空间下的法线
+        Noise,
+        SSAO,
+        Count
+    };
+
     struct RenderResource
     {
         FramebufferHandle framebuffer;
-        TextureHandle normalTex;
+
+        std::array<TextureHandle, (size_t)CommonTextureSlot::Count> commonTextures;
 
         std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> psoCache;
         std::vector<RenderConfig> renderConfigs;
@@ -63,6 +74,8 @@ namespace DSM {
         // 每一个 Pass 根据其所提供的资源添加 Binding Set
         BindingSetDesc commonBindingSetDesc;
         BindingSetHandle commonBindingSet;
+
+        CommandListHandle cmdList;
 
         RenderResource();
     };

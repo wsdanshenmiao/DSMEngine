@@ -244,16 +244,19 @@ namespace DSM::D3D12 {
     
     RootSignature::~RootSignature()
     {
-        if(auto it = m_Resources.rootsigCache.find(hash); 
-            it != m_Resources.rootsigCache.end()) {
-            m_Resources.rootsigCache.erase(it);
+        if(auto resource = m_Resources.lock()){
+            if(auto it = resource->rootsigCache.find(hash); 
+                it != resource->rootsigCache.end()) {
+                resource->rootsigCache.erase(it);
+            }
         }
     }
 
-    BindingSet::BindingSet(const Context &context, DeviceResources &deviceResources, BindingSetDesc desc, BindingLayout *layout)
+    BindingSet::BindingSet(const Context &context, std::shared_ptr<DeviceResources> deviceResources, BindingSetDesc desc, BindingLayout *layout)
         : m_Context(context), m_Resources(deviceResources), m_Desc(std::move(desc)), bindingLayout(layout)
     {
         assert(bindingLayout != nullptr);
+        assert(!m_Resources.expired());
 
         // 处理绑定布局中的所有易变的常量常量缓冲区
         for(const auto& [index, descriptor] : bindingLayout->rootParametersVolatileCBs) {
@@ -289,16 +292,22 @@ namespace DSM::D3D12 {
     BindingSet::~BindingSet()
     {
         // 释放所有的描述符
-        m_Resources.shaderResourceViewHeap.ReleaseDescriptors(descriptorIndexSRVs, bindingLayout->descriptorTableSizeSRVs);
-        m_Resources.samplerHeap.ReleaseDescriptors(descriptorIndexSamplers, bindingLayout->descriptorTableSizeSamplers);
+        if(auto resources = m_Resources.lock()){
+            resources->shaderResourceViewHeap.ReleaseDescriptors(descriptorIndexSRVs, bindingLayout->descriptorTableSizeSRVs);
+            resources->samplerHeap.ReleaseDescriptors(descriptorIndexSamplers, bindingLayout->descriptorTableSizeSamplers);
+        }
     }
 
     void BindingSet::CreateSamplerDescriptors(const Context &context)
     {
+        auto globalResources = m_Resources.lock();
+        if(globalResources == nullptr)
+            return;
+
         uint32_t rootParametersIndex = bindingLayout->rootParameterIndexSamplers;
         uint32_t numSamplers = bindingLayout->descriptorTableSizeSamplers;
         // 分配后需要释放
-        uint32_t descriptorTableBaseIndex = m_Resources.samplerHeap.AllocateDescriptors(numSamplers);
+        uint32_t descriptorTableBaseIndex = globalResources->samplerHeap.AllocateDescriptors(numSamplers);
     
         hasSamplers = true;
         descriptorIndexSamplers = descriptorTableBaseIndex;
@@ -309,7 +318,7 @@ namespace DSM::D3D12 {
             for(uint32_t i = 0; i < range.NumDescriptors; ++i){
                 uint32_t slot = range.BaseShaderRegister + i;
                 auto descriptorIndex = descriptorTableBaseIndex + range.OffsetInDescriptorsFromTableStart + i;
-                D3D12_CPU_DESCRIPTOR_HANDLE handle = m_Resources.samplerHeap.GetCpuHandle(descriptorIndex);
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = globalResources->samplerHeap.GetCpuHandle(descriptorIndex);
 
                 auto it = std::find_if(m_Desc.bindings.begin(), m_Desc.bindings.end(),
                     [slot](const BindingSetItem& binding) {
@@ -329,14 +338,18 @@ namespace DSM::D3D12 {
             }
         }
         // 将描述符拷贝到可见堆，随后绑定到命令列表
-        m_Resources.samplerHeap.CopyToShaderVisibleHeap(descriptorTableBaseIndex, numSamplers);
+        globalResources->samplerHeap.CopyToShaderVisibleHeap(descriptorTableBaseIndex, numSamplers);
     }
 
     void BindingSet::CreateSRVDescriptors(const Context &context)
     {
+        auto globalResources = m_Resources.lock();
+        if(globalResources == nullptr)
+            return;
+
         uint32_t numSRVs = bindingLayout->descriptorTableSizeSRVs;
         // 分配后需要释放
-        uint32_t descriptorTableBaseIndex = m_Resources.shaderResourceViewHeap.AllocateDescriptors(numSRVs);
+        uint32_t descriptorTableBaseIndex = globalResources->shaderResourceViewHeap.AllocateDescriptors(numSRVs);
 
         hasSRVs = true;
         descriptorIndexSRVs = descriptorTableBaseIndex;
@@ -345,7 +358,7 @@ namespace DSM::D3D12 {
             for(uint32_t i = 0; i < range.NumDescriptors; ++i){
                 uint32_t slot = range.BaseShaderRegister + i;
                 auto descriptorIndex = descriptorTableBaseIndex + range.OffsetInDescriptorsFromTableStart + i;
-                D3D12_CPU_DESCRIPTOR_HANDLE handle = m_Resources.shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = globalResources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
 
                 bool found = false;
                 IResource* resource{};
@@ -392,10 +405,10 @@ namespace DSM::D3D12 {
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, ResourceType::Texture_SRV)) {
                         auto texture = Utility::CheckedCast<Texture*>(binding.resourceHandle);
                         assert(texture != nullptr);
-                        texture->CreateSRV(handle.ptr, binding.format, binding.dimension, binding.subresources);
-                        // auto srv = texture->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor, 
-                        //     binding.format, binding.subresources, binding.dimension);
-                        // m_Context.device->CopyDescriptorsSimple(1, handle, D3D12_CPU_DESCRIPTOR_HANDLE(srv.integer), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                        // texture->CreateSRV(handle.ptr, binding.format, binding.dimension, binding.subresources);
+                        auto srv = texture->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor, 
+                            binding.format, binding.subresources, binding.dimension);
+                        m_Context.device->CopyDescriptorsSimple(1, handle, D3D12_CPU_DESCRIPTOR_HANDLE(srv.integer), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                         resource = texture;
                         found = true;
                         break;
@@ -403,10 +416,10 @@ namespace DSM::D3D12 {
                     else if(checkType(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, ResourceType::Texture_UAV)) {
                         auto texture = Utility::CheckedCast<Texture*>(binding.resourceHandle);
                         assert(texture != nullptr);
-                        texture->CreateUAV(handle.ptr, binding.format, binding.dimension, binding.subresources);
-                        // auto uav = texture->GetNativeView(ObjectTypes::D3D12_UnorderedAccessViewCpuDescriptor, 
-                        //     binding.format, binding.subresources, binding.dimension);
-                        // m_Context.device->CopyDescriptorsSimple(1, handle, D3D12_CPU_DESCRIPTOR_HANDLE(uav.integer), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                        // texture->CreateUAV(handle.ptr, binding.format, binding.dimension, binding.subresources);
+                        auto uav = texture->GetNativeView(ObjectTypes::D3D12_UnorderedAccessViewCpuDescriptor, 
+                            binding.format, binding.subresources, binding.dimension);
+                        m_Context.device->CopyDescriptorsSimple(1, handle, D3D12_CPU_DESCRIPTOR_HANDLE(uav.integer), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                         resource = texture;
                         found = true;
                         hasUAVs = true;
@@ -455,18 +468,19 @@ namespace DSM::D3D12 {
                 }
             }
         }
-        
-        m_Resources.shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorTableBaseIndex, numSRVs);
+
+        globalResources->shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorTableBaseIndex, numSRVs);
     }
 
 
-    
-    DescriptorTable::DescriptorTable(DeviceResources &resources)
+
+    DescriptorTable::DescriptorTable(std::shared_ptr<DeviceResources> resources)
         : m_Resources(resources) {}
 
     DescriptorTable::~DescriptorTable()
     {
-        m_Resources.shaderResourceViewHeap.ReleaseDescriptors(firstDescriptor, capacity);
+        if(auto resources = m_Resources.lock())
+            resources->shaderResourceViewHeap.ReleaseDescriptors(firstDescriptor, capacity);
     }
 
 } // namespace DSM::D3D12

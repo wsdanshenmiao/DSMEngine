@@ -91,7 +91,7 @@ namespace DSM::D3D12 {
     class CommandList : public ICommandList
     {
     public:
-        CommandList(Device& device, DeviceResources& resources, CommandListParameters desc);
+        CommandList(Device& device, std::shared_ptr<DeviceResources> resources, CommandListParameters desc);
 
         Object GetNativeObject(ObjectType type) override;
 
@@ -198,7 +198,7 @@ namespace DSM::D3D12 {
         };
             
         Device& m_Device;
-        DeviceResources& m_Resources;
+        std::weak_ptr<DeviceResources> m_Resources;
         ResourceStateTracker& m_StateTracker;
 
         // Command list
