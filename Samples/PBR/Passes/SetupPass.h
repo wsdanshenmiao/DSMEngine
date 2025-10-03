@@ -19,10 +19,7 @@ namespace DSM {
 
             g_RenderResources.cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Global Command List"));
 
-            bool reverseZ = renderer.GetCamera().IsReversedZ();
-            sm_Sampler = renderer.GetDevice()->CreateSampler(SamplerDesc()
-                .SetAllAddressModes(SamplerAddressMode::Wrap)
-                .SetComparisonFunc(reverseZ ? ComparisonFunc::Greater : ComparisonFunc::Less));
+            CreateSamplers(renderer);
 
             auto& noiseTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Noise];
             noiseTex = device->CreateTexture(TextureDesc()
@@ -47,7 +44,8 @@ namespace DSM {
             //CreateShader(renderer);
 
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common].AddItem(BindingLayoutItem().Sampler(0));   // 默认采样器
-            g_RenderResources.commonBindingSetDesc.AddItem(BindingSetItem().Sampler(0, sm_Sampler));
+            g_RenderResources.commonBindingSetDesc.AddItem(
+                BindingSetItem().Sampler(0, GetCommonSampler(SamplerSlot::AnisoWrap)));
 
             const auto& bufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
             OnResize(renderer, bufferDesc.width, bufferDesc.height);
@@ -183,8 +181,43 @@ namespace DSM {
             }
         }
 
-    public:
-        inline static SamplerHandle sm_Sampler{};
+        void CreateSamplers(Renderer& renderer) 
+        {
+            auto device = renderer.GetDevice();
+            bool reverseZ = renderer.GetCamera().IsReversedZ();
+            auto& samplers = g_RenderResources.commonSamplers;
+
+            samplers[uint8_t(SamplerSlot::PointClamp)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Clamp)
+                .SetAllFilters(false));
+            samplers[uint8_t(SamplerSlot::LinearClamp)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Clamp)
+                .SetAllFilters(true));
+            samplers[uint8_t(SamplerSlot::AnisoClamp)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Clamp)
+                .SetMaxAnisotropy(4));
+            samplers[uint8_t(SamplerSlot::PointWarp)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Wrap)
+                .SetAllFilters(false));
+            samplers[uint8_t(SamplerSlot::LinearWrap)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Wrap)
+                .SetAllFilters(true));
+            samplers[uint8_t(SamplerSlot::AnisoWrap)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Wrap)
+                .SetMaxAnisotropy(4));
+            samplers[uint8_t(SamplerSlot::PointBorder)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Border)
+                .SetAllFilters(false));
+            samplers[uint8_t(SamplerSlot::LinearBorder)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Border)
+                .SetAllFilters(false));
+            samplers[uint8_t(SamplerSlot::Shadow)] = device->CreateSampler(SamplerDesc()
+                .SetAllAddressModes(SamplerAddressMode::Border)
+                .SetAllFilters(false)   // 点采样
+                .SetComparisonFunc(ComparisonFunc::LessOrEqual)
+                .SetReductionType(SamplerReductionType::Comparison));
+        }
+
     };
 
 } // namespace DSM

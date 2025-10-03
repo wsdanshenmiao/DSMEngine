@@ -47,7 +47,7 @@ namespace DSM {
             m_BindingSet = device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem().ConstantBuffer(0, m_SkyboxCB))
                 .AddItem(BindingSetItem().Texture_SRV(0, m_SkyboxTexture))
-                .AddItem(BindingSetItem().Sampler(0, SetupPass::sm_Sampler)), bindingLayout);
+                .AddItem(BindingSetItem().Sampler(0, GetCommonSampler(SamplerSlot::AnisoWrap))), bindingLayout);
 
             // 编译 Shader
             ShaderCompileDesc compileDesc = ShaderCompileDesc()

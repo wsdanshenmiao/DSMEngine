@@ -37,6 +37,6 @@ Varyings SkyboxVS(uint vertexID : SV_VertexID)
 
 float4 SkyboxPS(Varyings i) : SV_TARGET0
 {
-    float3 color = gSkyboxTex.Sample(gDefaultSampler, normalize(i.viewDir)).rgb;
+    float3 color = gSkyboxTex.Sample(gAnisoWrapSampler, normalize(i.viewDir)).rgb;
     return float4(color, 1);
 }

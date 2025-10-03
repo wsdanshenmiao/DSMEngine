@@ -36,7 +36,7 @@ Varyings ShadowPassVS(Attributes input)
 
 void ShadowPassPS(Varyings input)
 {
-    float4 baseCol = gBaseColorTex.Sample(gDefaultSampler, input.uv);
+    float4 baseCol = gBaseColorTex.Sample(gAnisoWrapSampler, input.uv);
     baseCol *= gMatBaseColor;
 
 #if defined(SHADOWS_CLIP)

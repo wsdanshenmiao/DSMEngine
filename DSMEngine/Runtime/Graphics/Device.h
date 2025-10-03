@@ -87,9 +87,10 @@ namespace DSM{
 
         virtual IMessageCallback* GetMessageCallback() = 0;
 
-        uint64_t ExecuteCommandList(ICommandList* commandList, CommandQueueType executionQueue = CommandQueueType::Graphics)
+        uint64_t ExecuteCommandList(ICommandList* commandList)
         {
-            return ExecuteCommandLists({&commandList, 1}, executionQueue);
+            
+            return ExecuteCommandLists({&commandList, 1}, commandList->GetDesc().queueType);
         }
     };
     using DeviceHandle = RefPtr<IDevice>;

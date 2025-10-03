@@ -24,6 +24,8 @@ Texture2D<float> gOcclusionTex : register(t3);
 Texture2D<float3> gEmissiveTex : register(t4);
 Texture2D<float3> gNormalTex : register(t5);
 
+Texture2D<float> gSSAOTex : register(t8);
+
 struct Attributes
 {
     float3 posOS : POSITION;
@@ -71,12 +73,12 @@ Varyings LitPassVS(Attributes i)
 
 float4 LitPassPS(Varyings i) : SV_TARGET0
 {
-    float4 baseCol = gBaseColorTex.Sample(gDefaultSampler, i.uv);
+    float4 baseCol = gBaseColorTex.Sample(gAnisoWrapSampler, i.uv);
     baseCol *= gMaterialConstants.baseColor;
-    float roughness = gDiffuseRoughnessTex.Sample(gDefaultSampler, i.uv).g;
-    float metallic = gMetalnessTex.Sample(gDefaultSampler, i.uv).b;
-    float occlusion = gOcclusionTex.Sample(gDefaultSampler, i.uv).r;
-    float3 emissive = gEmissiveTex.Sample(gDefaultSampler, i.uv).rgb;
+    float roughness = gDiffuseRoughnessTex.Sample(gAnisoWrapSampler, i.uv).g;
+    float metallic = gMetalnessTex.Sample(gAnisoWrapSampler, i.uv).b;
+    float occlusion = gOcclusionTex.Sample(gAnisoWrapSampler, i.uv).r;
+    float3 emissive = gEmissiveTex.Sample(gAnisoWrapSampler, i.uv).rgb;
 
     // 获取视图空间的坐标
     float4 posVS = mul(float4(i.posWS, 1), gPassConstants.view);
@@ -96,7 +98,9 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
     surface.metallic = metallic * gMaterialConstants.metallicFactor;
 
     float3 color = ShadeLighting(surface);
-    color *= occlusion;
+
+    float ssao = gSSAOTex[i.posCS.xy];
+    color *= occlusion * ssao;
     color += emissive * gMaterialConstants.emissiveColor.rgb;
 
     return float4(color, surface.alpha);

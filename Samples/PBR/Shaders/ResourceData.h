@@ -35,6 +35,16 @@ struct SkyboxConstants
     bool isReversedZ;
 };
 
+struct SSAOConstants
+{
+    float4x4 proj;
+    float4x4 projInv;
+    float sampleCount;
+    float occlusionRadius;
+    float ssaoThreshold;
+    float pad1;
+};
+
 struct LightData
 {
     uint dirLightCount;

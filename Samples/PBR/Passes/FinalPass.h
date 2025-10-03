@@ -16,14 +16,15 @@ namespace DSM {
             for(size_t i = 0; i < (size_t)BindingLayoutSlot::Count; ++i) {
                 g_RenderResources.bindingLayouts[i] = device->CreateBindingLayout(g_RenderResources.bindingLayoutDescs[i]);
             }
-            g_RenderResources.commonBindingSet = device->CreateBindingSet(g_RenderResources.commonBindingSetDesc, g_RenderResources.bindingLayouts[(size_t)BindingLayoutSlot::Common]);
-
             // 为所有模型生成渲染配置
             for(const auto& model : models){
                 GenerateRenderConfigs(renderer, model);
             }
 
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
+
+            auto& fbDesc = g_RenderResources.framebuffer->GetFramebufferInfo();
+            OnResize(renderer, fbDesc.width, fbDesc.height);
         }
 
         void Render(Renderer& renderer, float deltaTime) override
@@ -45,7 +46,11 @@ namespace DSM {
             renderer.GetDevice()->RunGarbageCollection();
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
+        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override 
+        {
+            g_RenderResources.commonBindingSet = renderer.GetDevice()->CreateBindingSet(
+                g_RenderResources.commonBindingSetDesc, g_RenderResources.bindingLayouts[(size_t)BindingLayoutSlot::Common]);
+        }
 
     private:
         void GenerateRenderConfigs(Renderer& renderer, std::shared_ptr<Model> model)

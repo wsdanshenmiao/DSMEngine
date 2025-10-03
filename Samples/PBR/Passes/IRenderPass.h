@@ -55,11 +55,26 @@ namespace DSM {
         Count
     };
 
+    enum class SamplerSlot : uint8_t
+    {
+        PointWarp = 0,
+        LinearWrap,
+        AnisoWrap,
+        PointClamp,
+        LinearClamp,
+        AnisoClamp,
+        PointBorder,
+        LinearBorder,
+        Shadow,
+        Count
+    };
+
     struct RenderResource
     {
         FramebufferHandle framebuffer;
 
         std::array<TextureHandle, (size_t)CommonTextureSlot::Count> commonTextures;
+        std::array<SamplerHandle, (size_t)SamplerSlot::Count> commonSamplers;
 
         std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> psoCache;
         std::vector<RenderConfig> renderConfigs;
@@ -81,6 +96,21 @@ namespace DSM {
     };
 
     extern RenderResource g_RenderResources;
+
+    inline SamplerHandle GetCommonSampler(SamplerSlot slot)
+    {
+        return g_RenderResources.commonSamplers[static_cast<size_t>(slot)];
+    }
+
+    inline BindingLayoutHandle GetBindingLayout(BindingLayoutSlot slot)
+    {
+        return g_RenderResources.bindingLayouts[static_cast<size_t>(slot)];
+    }
+
+    inline TextureHandle GetCommonTexture(CommonTextureSlot slot)
+    {
+        return g_RenderResources.commonTextures[static_cast<size_t>(slot)];
+    }
 
 } // namespace DSM
 

@@ -64,14 +64,6 @@ namespace DSM {
 
             m_ShadowFramebuffer = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(m_ShadowMap));
 
-            // ShadowMap 的采样器
-            m_ShadowSampler = renderer.GetDevice()->CreateSampler(SamplerDesc()
-                .SetMipFilter(false)   // 点采样
-                .SetComparisonFunc(ComparisonFunc::LessOrEqual)
-                .SetAllAddressModes(SamplerAddressMode::Border)
-                .SetReductionType(SamplerReductionType::Comparison));
-
-
             // 编译 ShadowPass 的着色器
             auto shadowVSDesc = ShaderCompileDesc()
                 .SetType(ShaderType::Vertex)
@@ -157,7 +149,7 @@ namespace DSM {
                 .AddItem(BindingLayoutItem().ConstantBuffer(4));
             g_RenderResources.commonBindingSetDesc
                 .AddItem(BindingSetItem().Texture_SRV(7, m_ShadowMap))
-                .AddItem(BindingSetItem().Sampler(1, m_ShadowSampler))
+                .AddItem(BindingSetItem().Sampler(1, GetCommonSampler(SamplerSlot::Shadow)))
                 .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB));
 
             sm_TimerQuery = device->CreateTimerQuery();
@@ -260,7 +252,7 @@ namespace DSM {
                 // 减少 BindingSet 的复杂度
                 auto commonBindingSet = device->CreateBindingSet(BindingSetDesc()
                             .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
-                            .AddItem(BindingSetItem().Sampler(0, SetupPass::sm_Sampler)),
+                            .AddItem(BindingSetItem().Sampler(0, GetCommonSampler(SamplerSlot::AnisoWrap))),
                             m_ShadowBindingLayouts[0]);
 
                 for(const auto& mesh : model->meshes){
@@ -336,7 +328,6 @@ namespace DSM {
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
 
         TextureHandle m_ShadowMap;
-        SamplerHandle m_ShadowSampler;
 
         BufferHandle m_ShadowCB;
         std::array<Math::Matrix4, sm_MaxShadowedDirectionalLightCount> m_DirectionalShadowMatrices{};

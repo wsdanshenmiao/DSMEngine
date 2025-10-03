@@ -11,6 +11,7 @@
 #include "Passes/LightingPass.h"
 #include "Passes/ShadowPass.h"
 #include "Passes/SkyBoxPass.h"
+#include "Passes/SSAO.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/TransformComponent.h"
 #include "Runtime/Core/Input/InputSystem.h"
@@ -32,9 +33,10 @@ public:
     {
         auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
         lihuazou->transform.SetScale(2);
+        m_Models.push_back(lihuazou);
         
         auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(50,50,2,2));
-        plane->transform.SetPosition({0,-1,0});
+        // plane->transform.SetPosition({0,-1,0});
 
         // auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(6,4,4,2));
         // cube->transform.SetPosition({0,4,0});
@@ -42,9 +44,12 @@ public:
         // auto sphere = ModelLoader::LoadModelFromGeometry(
         //     "Sphere", Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16));
 
+        // auto house = ModelLoader::LoadModel("Models/house.obj");
+        // house->transform.SetScale(0.01f);
+        // m_Models.push_back(house);
+
         auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
         m_Models.push_back(sponza);
-        m_Models.push_back(lihuazou);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
@@ -55,18 +60,19 @@ public:
         dirLight.direction = {-0.3, -1, 0.08};
         g_RenderResources.lights.push_back(dirLight);
         dirLight.direction.Set(0, 0.3);
-        //g_RenderResources.lights.push_back(dirLight);
+        g_RenderResources.lights.push_back(dirLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
         m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer, m_Models));
+        m_RenderPasses.push_back(std::make_unique<SSAO>(renderer));
         m_RenderPasses.push_back(std::make_unique<LitPass>(renderer, m_Models));
         m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 
         auto& camera = renderer.GetCamera();
-        camera.SetPosition(dirLight.direction * -10.0f);
+        camera.SetPosition(dirLight.direction * -5.0f);
         camera.LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(&camera);
@@ -145,6 +151,13 @@ public:
                     }
                     filter = currMode;
                 }
+            }
+
+            ImGui::Checkbox("Enable SSAO", &SSAO::sm_Enable);
+            if(SSAO::sm_Enable){
+                ImGui::SliderFloat("Occlusion Radius", &SSAO::sm_OcclusionRadius, 0.1f, 2.0f);
+                ImGui::SliderInt("Sample Count", (int*)&SSAO::sm_SampleCount, 1, 14);
+                ImGui::SliderFloat("SSAO Threshold", &SSAO::sm_OcclusionThreshold, 0.001f, 0.5f);
             }
         }
         ImGui::End();

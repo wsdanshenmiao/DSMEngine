@@ -37,13 +37,21 @@ namespace DSM {
             RefPtr<IDxcIncludeHandler> includeHandler{};
             AssertShaderCompiler(m_DxcUtils->CreateDefaultIncludeHandler(includeHandler.GetAddressOf()));
 
+            std::array<const wchar_t*, 5> args = {
+                L"-Zi",          // 调试信息
+                L"-Qembed_debug", // 嵌入调试信息到 DXIL
+                L"-Od",          // 禁用优化
+                L"-WX",          // 警告视为错误
+                L"-Ges",         // 启用严格模式
+            };
+
             RefPtr<IDxcCompilerArgs> compilerArgs{};
             AssertShaderCompiler(m_DxcUtils->BuildArguments(
                 fileName.c_str(),
                 entryPoint.c_str(),
                 target.c_str(),
-                nullptr,
-                0,
+                args.size() == 0 ? nullptr : args.data(),
+                args.size(),
                 defines.size() == 0 ? nullptr : defines.data(),
                 defines.size(),
                 compilerArgs.GetAddressOf()));

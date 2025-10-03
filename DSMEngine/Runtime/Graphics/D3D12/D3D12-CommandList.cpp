@@ -754,8 +754,8 @@ namespace DSM::D3D12{
         const bool updatePipeline = currStateInvalid || m_CurrComputeState.pipeline != state.pipeline;
         const bool updateRootSig = currStateInvalid || m_CurrComputeState.pipeline == nullptr ||
             Utility::CheckedCast<ComputePipeline*>(m_CurrComputeState.pipeline)->rootSignature != pso->rootSignature;
-        const bool updateIndirectParams = currStateInvalid || state.indirectParams == nullptr ||
-            m_CurrComputeState.indirectParams != state.indirectParams;
+        const bool updateIndirectParams = (currStateInvalid || m_CurrComputeState.indirectParams != state.indirectParams)
+            && state.indirectParams != nullptr;
         
         uint32_t bindingUpdateMask = 0;
         if(CommitDescriptorHeaps() || currStateInvalid || updateRootSig){
@@ -819,8 +819,8 @@ namespace DSM::D3D12{
         const bool updateFramebuffer = currStateInvalid || m_CurrMeshletState.framebuffer != state.framebuffer;
         const bool updateRootSig = currStateInvalid || m_CurrMeshletState.pipeline == nullptr || 
             Utility::CheckedCast<MeshletPipeline*>(m_CurrMeshletState.pipeline)->rootSignature != pso->rootSignature;
-        const bool updateIndirectParams = currStateInvalid || state.indirectParams == nullptr ||
-            m_CurrMeshletState.indirectParams != state.indirectParams;
+        const bool updateIndirectParams = (currStateInvalid || m_CurrMeshletState.indirectParams != state.indirectParams)
+            && state.indirectParams != nullptr;
         const bool updateBlendFactor = currStateInvalid || m_CurrMeshletState.blendConstantColor != state.blendConstantColor;
         const bool updateViewport = currStateInvalid || m_CurrMeshletState.viewport != state.viewport;
 
@@ -1033,7 +1033,7 @@ namespace DSM::D3D12{
         
         auto setTexState = [this] (const BindingSetItem& binding, ResourceStates state){
             auto tex = Utility::CheckedCast<Texture*>(binding.resourceHandle);
-            m_StateTracker.RequireTextureState(tex, binding.subresources, ResourceStates::ShaderResource);
+            m_StateTracker.RequireTextureState(tex, binding.subresources, state);
         };
         auto setBufferState = [this] (const auto& binding, ResourceStates state){
             auto buffer = Utility::CheckedCast<Buffer*>(binding.resourceHandle);
@@ -1041,8 +1041,7 @@ namespace DSM::D3D12{
         };
 
         for(const auto& binding : bindingSet->GetDesc()->bindings){
-            switch (binding.type)
-            {
+            switch (binding.type) {
             case ResourceType::Texture_SRV:
                 setTexState(binding, ResourceStates::ShaderResource); break;
             case ResourceType::Texture_UAV:
@@ -1056,7 +1055,10 @@ namespace DSM::D3D12{
             case ResourceType::StructuredBuffer_UAV:
                 setBufferState(binding, ResourceStates::UnorderedAccess); break;
             case ResourceType::ConstantBuffer:
-                setBufferState(binding, ResourceStates::ConstantBuffer); break;
+                if(m_Desc.queueType == CommandQueueType::Graphics) {
+                    setBufferState(binding, ResourceStates::ConstantBuffer);
+                    break;
+                }
             case ResourceType::RayTracingAccelStruct:
                 // TODO:后续支持 RayTracing 后添加
                 break;
@@ -1078,6 +1080,12 @@ namespace DSM::D3D12{
 
     void CommandList::CommitBarriers()
     {
+        constexpr D3D12_RESOURCE_STATES validComputeQueueResourceStates = 
+            ( D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+            | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
+            | D3D12_RESOURCE_STATE_COPY_DEST
+            | D3D12_RESOURCE_STATE_COPY_SOURCE );
+
         const auto& texBarrier = m_StateTracker.GetTextureBarriers();
         const auto& bufferBarrier = m_StateTracker.GetBufferBarriers();
         size_t barrierCount = texBarrier.size() + bufferBarrier.size();
@@ -1090,6 +1098,10 @@ namespace DSM::D3D12{
             D3D12_RESOURCE_BARRIER d3dBarrier{};
             const D3D12_RESOURCE_STATES beforeState = ConvertResourceStates(barrier.stateBefore);
             const D3D12_RESOURCE_STATES afterState = ConvertResourceStates(barrier.stateAfter);
+            if(m_Desc.queueType == CommandQueueType::Compute){
+                assert((beforeState & validComputeQueueResourceStates) == beforeState && 
+                    (afterState & validComputeQueueResourceStates) == afterState);
+            }
 
             auto texture = Utility::CheckedCast<Texture*>(barrier.texture);
             const auto& desc = texture->GetDesc();
@@ -1121,6 +1133,10 @@ namespace DSM::D3D12{
             D3D12_RESOURCE_BARRIER d3dbarrier{};
             const D3D12_RESOURCE_STATES beforeState = ConvertResourceStates(barrier.stateBefore);
             const D3D12_RESOURCE_STATES afterState = ConvertResourceStates(barrier.stateAfter);
+            if(m_Desc.queueType == CommandQueueType::Compute){
+                assert((beforeState & validComputeQueueResourceStates) == beforeState && 
+                    (afterState & validComputeQueueResourceStates) == afterState);
+            }
 
             Buffer* buffer = Utility::CheckedCast<Buffer*>(barrier.buffer);
             if(auto state = beforeState | afterState; beforeState != afterState && 
@@ -1248,7 +1264,9 @@ namespace DSM::D3D12{
                     }
                 }
 
-                if (m_EnableAutomaticBarriers && (updateBinding || bindingSet->hasUAVs)) {
+                if (m_EnableAutomaticBarriers && 
+                    (updateBinding || bindingSet->hasUAVs) && 
+                    m_Desc.queueType == CommandQueueType::Graphics) {
                     SetResourceStatesForBindingSet(bindingSet);
                 }
             }
