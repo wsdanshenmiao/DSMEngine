@@ -37,5 +37,5 @@ Varyings GeometryPassVS(Attributes input)
 float2 GeometryPassPS(Varyings input) : SV_TARGET0
 {
     // 压缩法线
-    return EncodeNormal(normalize(input.normal));
+    return EncodeFloat3ToFloat2(normalize(input.normal));
 }

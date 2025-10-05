@@ -41,11 +41,10 @@ namespace DSM {
             cmdList->Close();
             device->ExecuteCommandList(cmdList);
 
-            //CreateShader(renderer);
-
-            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common].AddItem(BindingLayoutItem().Sampler(0));   // 默认采样器
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common].AddItem(
+                BindingLayoutItem::Sampler(uint32_t(SamplerSlot::AnisoWrap)));   // 默认采样器
             g_RenderResources.commonBindingSetDesc.AddItem(
-                BindingSetItem().Sampler(0, GetCommonSampler(SamplerSlot::AnisoWrap)));
+                BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap)));
 
             const auto& bufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
             OnResize(renderer, bufferDesc.width, bufferDesc.height);
@@ -75,6 +74,9 @@ namespace DSM {
                 .SetDebugName("DepthTex"));
             g_RenderResources.framebuffer = renderer.GetDevice()->CreateFramebuffer(FramebufferDesc()
                 .AddColorAttachment(colorTex).SetDepthAttachment(depthTex));
+
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
+                .AddItem(BindingLayoutItem::Texture_SRV(8));
 
             for(auto& [desc, pipeline] : g_RenderResources.psoCache){
                 pipeline = renderer.GetDevice()->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);
@@ -196,7 +198,7 @@ namespace DSM {
             samplers[uint8_t(SamplerSlot::AnisoClamp)] = device->CreateSampler(SamplerDesc()
                 .SetAllAddressModes(SamplerAddressMode::Clamp)
                 .SetMaxAnisotropy(4));
-            samplers[uint8_t(SamplerSlot::PointWarp)] = device->CreateSampler(SamplerDesc()
+            samplers[uint8_t(SamplerSlot::PointWrap)] = device->CreateSampler(SamplerDesc()
                 .SetAllAddressModes(SamplerAddressMode::Wrap)
                 .SetAllFilters(false));
             samplers[uint8_t(SamplerSlot::LinearWrap)] = device->CreateSampler(SamplerDesc()
@@ -210,7 +212,7 @@ namespace DSM {
                 .SetAllFilters(false));
             samplers[uint8_t(SamplerSlot::LinearBorder)] = device->CreateSampler(SamplerDesc()
                 .SetAllAddressModes(SamplerAddressMode::Border)
-                .SetAllFilters(false));
+                .SetAllFilters(true));
             samplers[uint8_t(SamplerSlot::Shadow)] = device->CreateSampler(SamplerDesc()
                 .SetAllAddressModes(SamplerAddressMode::Border)
                 .SetAllFilters(false)   // 点采样

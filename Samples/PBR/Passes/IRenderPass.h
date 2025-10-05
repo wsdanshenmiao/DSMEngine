@@ -57,7 +57,7 @@ namespace DSM {
 
     enum class SamplerSlot : uint8_t
     {
-        PointWarp = 0,
+        PointWrap = 0,
         LinearWrap,
         AnisoWrap,
         PointClamp,

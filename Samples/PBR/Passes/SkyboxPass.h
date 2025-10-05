@@ -43,11 +43,12 @@ namespace DSM {
             auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
                 .AddItem(BindingLayoutItem().Texture_SRV(0))
-                .AddItem(BindingLayoutItem().Sampler(0)));
+                .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::AnisoWrap))));
             m_BindingSet = device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem().ConstantBuffer(0, m_SkyboxCB))
                 .AddItem(BindingSetItem().Texture_SRV(0, m_SkyboxTexture))
-                .AddItem(BindingSetItem().Sampler(0, GetCommonSampler(SamplerSlot::AnisoWrap))), bindingLayout);
+                .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))), 
+                bindingLayout);
 
             // 编译 Shader
             ShaderCompileDesc compileDesc = ShaderCompileDesc()

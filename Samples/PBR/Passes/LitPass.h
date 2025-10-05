@@ -64,6 +64,9 @@ namespace DSM {
             passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
             passCB.cameraPos = renderer.GetCamera().GetPosition();
             passCB.deltaTime = deltaTime;
+            passCB.renderTargetSize = Math::Vector2{ width, height };
+            passCB.nearFarZ = Math::Vector2{ renderer.GetCamera().GetNearZ(), renderer.GetCamera().GetFarZ() };
+
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
 
             for(const auto& model : m_Models) {

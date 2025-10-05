@@ -23,10 +23,15 @@ namespace DSM {
         std::shared_ptr<World> world;
     };
 
+    struct EngineParameters
+    {
+        bool enableDebugLayer = true;
+    };
+
     class DSMEngine
     {
     public:
-        void StartEngine();
+        void StartEngine(const EngineParameters& params);
         void ShutDownEngine();
 
         void Run();

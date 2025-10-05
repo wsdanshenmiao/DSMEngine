@@ -48,8 +48,8 @@ public:
         // house->transform.SetScale(0.01f);
         // m_Models.push_back(house);
 
-        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        m_Models.push_back(sponza);
+        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        // m_Models.push_back(sponza);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
@@ -110,6 +110,7 @@ public:
             DSM_INFO("Shadow Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(ShadowPass::sm_TimerQuery) * 1000.f);
             DSM_INFO("Lighting Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(LightingPass::sm_TimerQuery) * 1000.f);
             DSM_INFO("Geometry Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(GeometryPass::sm_TimerQuery) * 1000.f);
+            DSM_INFO("SSAO Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(SSAO::sm_TimerQuery) * 1000.f);
             DSM_INFO("Lit Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(LitPass::sm_TimerQuery) * 1000.f);
             DSM_INFO("Skybox Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(SkyboxPass::sm_TimerQuery) * 1000.f);
             DSM_INFO("Final Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(FinalPass::sm_TimerQuery) * 1000.f);
@@ -153,11 +154,15 @@ public:
                 }
             }
 
-            ImGui::Checkbox("Enable SSAO", &SSAO::sm_Enable);
-            if(SSAO::sm_Enable){
-                ImGui::SliderFloat("Occlusion Radius", &SSAO::sm_OcclusionRadius, 0.1f, 2.0f);
-                ImGui::SliderInt("Sample Count", (int*)&SSAO::sm_SampleCount, 1, 14);
-                ImGui::SliderFloat("SSAO Threshold", &SSAO::sm_OcclusionThreshold, 0.001f, 0.5f);
+            ImGui::Checkbox("Enable SSAO", &SSAO::sm_Settings.enable);
+            if(SSAO::sm_Settings.enable){
+                ImGui::SliderFloat("Occlusion Radius", &SSAO::sm_Settings.occlusionRadius, 0.1f, 2.0f);
+                ImGui::SliderInt("Sample Count", (int*)&SSAO::sm_Settings.sampleCount, 1, 14);
+                ImGui::SliderFloat("SSAO Threshold", &SSAO::sm_Settings.occlusionThreshold, 0.001f, 0.5f);
+                ImGui::SliderFloat("SSAO Fade", &SSAO::sm_Settings.fadeEnd, 1.f, 5.0f);
+                ImGui::SliderInt("SSAO Contrast", (int*)&SSAO::sm_Settings.contrast, 1, 5);
+                ImGui::SliderInt("SSAO Blur Radius", (int*)&SSAO::sm_Settings.blurRadius, 0, 5);
+                ImGui::SliderInt("SSAO Blur Count", (int*)&SSAO::sm_Settings.blurCount, 1, 5);
             }
         }
         ImGui::End();
@@ -186,7 +191,9 @@ private:
 int main()
 {
     DSM::DSMEngine engine;
-    engine.StartEngine();
+    DSM::EngineParameters params{};
+    params.enableDebugLayer = true;
+    engine.StartEngine(params);
     engine.SetRenderPipeline(std::make_unique<RenderPipeline>());
 
     DSM::DSMEditor editor(&engine);

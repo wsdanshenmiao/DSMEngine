@@ -3,6 +3,7 @@
 
 
 #if defined(__cplusplus)
+using float2 = DSM::Math::Vector2;
 using float3 = DSM::Math::Vector3;
 using float4 = DSM::Math::Vector4;
 using float3x3 = DSM::Math::Matrix3;
@@ -25,6 +26,8 @@ struct PassConstants
     float4x4 viewInv;
     float4x4 proj;
     float4x4 projInv;
+    float2 renderTargetSize;
+    float2 nearFarZ;
     float3 cameraPos;
     float deltaTime;
 };
@@ -42,7 +45,17 @@ struct SSAOConstants
     float sampleCount;
     float occlusionRadius;
     float ssaoThreshold;
-    float pad1;
+    float fadeEnd;
+    uint contrast;
+    float3 pad;
+};
+
+struct SSAOBlurConstants
+{
+    float4x4 proj;
+    float blurRadius;
+    bool isHorizontal;
+    float2 pad;
 };
 
 struct LightData

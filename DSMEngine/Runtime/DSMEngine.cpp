@@ -7,13 +7,14 @@
 
 namespace DSM {
 
-    void DSMEngine::StartEngine()
+    void DSMEngine::StartEngine(const EngineParameters& params)
     {
         sm_GlobalContext.loggerSystem = std::make_shared<LogSystem>();
         sm_GlobalContext.window = std::make_shared<Window>(WindowProps{});
         sm_GlobalContext.inputSystem = std::make_shared<InputSystem>(sm_GlobalContext.window.get());
         RenderParameters renderParams{};
         renderParams.window = sm_GlobalContext.window.get();
+        renderParams.enableDebugLayer = params.enableDebugLayer;
         sm_GlobalContext.renderer = std::make_shared<Renderer>(renderParams);
         sm_GlobalContext.world = std::make_shared<World>();
 

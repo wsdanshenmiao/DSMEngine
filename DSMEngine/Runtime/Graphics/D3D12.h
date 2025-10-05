@@ -103,6 +103,8 @@ namespace DSM::D3D12{
         // and D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED
         bool enableHeapDirectlyIndexed = false;
 
+        bool enableDebugLayer = true;
+
         // 使用 IMessageCallback 来记录 Buffer 的生命周期
         bool logBufferLifetime = false;
     };

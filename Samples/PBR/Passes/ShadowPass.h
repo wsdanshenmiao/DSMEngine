@@ -97,7 +97,7 @@ namespace DSM {
 
             m_ShadowBindingLayouts[0] = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
-                .AddItem(BindingLayoutItem().Sampler(0))
+                .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::AnisoWrap)))
             );
             m_ShadowBindingLayouts[1] = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
@@ -145,11 +145,11 @@ namespace DSM {
             // 将 ShadowMap 绑定到管线
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
                 .AddItem(BindingLayoutItem().Texture_SRV(7))
-                .AddItem(BindingLayoutItem().Sampler(1))
+                .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::Shadow)))
                 .AddItem(BindingLayoutItem().ConstantBuffer(4));
             g_RenderResources.commonBindingSetDesc
                 .AddItem(BindingSetItem().Texture_SRV(7, m_ShadowMap))
-                .AddItem(BindingSetItem().Sampler(1, GetCommonSampler(SamplerSlot::Shadow)))
+                .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::Shadow), GetCommonSampler(SamplerSlot::Shadow)))
                 .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB));
 
             sm_TimerQuery = device->CreateTimerQuery();
@@ -252,7 +252,7 @@ namespace DSM {
                 // 减少 BindingSet 的复杂度
                 auto commonBindingSet = device->CreateBindingSet(BindingSetDesc()
                             .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
-                            .AddItem(BindingSetItem().Sampler(0, GetCommonSampler(SamplerSlot::AnisoWrap))),
+                            .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))),
                             m_ShadowBindingLayouts[0]);
 
                 for(const auto& mesh : model->meshes){

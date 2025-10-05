@@ -51,6 +51,7 @@ namespace DSM {
     {
         GraphicsAPI api = GraphicsAPI::D3D12;
         bool logBufferLifetime = false;
+        bool enableDebugLayer = true;
         bool allowModeSwitch = false;
         bool enableDebugRuntime = false;
         bool startFullscreen = false;

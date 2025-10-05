@@ -186,41 +186,43 @@ namespace DSM::D3D12{
 
     Device::Device(DeviceDesc desc)
         :m_Desc(std::move(desc)), m_Resources(std::make_shared<DeviceResources>(m_Context, m_Desc)) {
-        m_Context.messageCallback = desc.errorCB;
-        m_Context.logBufferLifetime = desc.logBufferLifetime;
+        m_Context.messageCallback = m_Desc.errorCB;
+        m_Context.logBufferLifetime = m_Desc.logBufferLifetime;
         m_Context.stateTracker = std::make_unique<ResourceStateTracker>(m_Context.messageCallback);
 
         DWORD factoryFlags = 0;
-#if defined(DEBUG) || defined(_DEBUG)// && 0
-        // 开启调试层
-        RefPtr<ID3D12Debug> pDebug{};
-        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(pDebug.GetAddressOf())))) {
-            pDebug->EnableDebugLayer();
-            RefPtr<ID3D12Debug1> pDebug1{};
-            if (SUCCEEDED(pDebug->QueryInterface(IID_PPV_ARGS(pDebug1.GetAddressOf())))) {
-                pDebug1->SetEnableGPUBasedValidation(true);
+
+        if(m_Desc.enableDebugLayer){
+            // 开启调试层
+            RefPtr<ID3D12Debug> pDebug{};
+            if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(pDebug.GetAddressOf())))) {
+                pDebug->EnableDebugLayer();
+                RefPtr<ID3D12Debug1> pDebug1{};
+                if (SUCCEEDED(pDebug->QueryInterface(IID_PPV_ARGS(pDebug1.GetAddressOf())))) {
+                    pDebug1->SetEnableGPUBasedValidation(true);
+                }
+            }
+            else {
+                m_Context.messageCallback->Message(MessageSeverity::Warning, "Failed to get D3D12 debug interface");
+            }
+
+            RefPtr<IDXGIInfoQueue> dxgiInfoQueue;
+            if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgiInfoQueue.GetAddressOf())))) {
+                factoryFlags = DXGI_CREATE_FACTORY_DEBUG;
+
+                dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
+                dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
+
+                DXGI_INFO_QUEUE_MESSAGE_ID hide[] = {
+                    80 /* IDXGISwapChain::GetContainingOutput: The swapchain's adapter does not control the output on which the swapchain's window resides. */,
+                };
+                DXGI_INFO_QUEUE_FILTER filter = {};
+                filter.DenyList.NumIDs = _countof(hide);
+                filter.DenyList.pIDList = hide;
+                dxgiInfoQueue->AddStorageFilterEntries(DXGI_DEBUG_DXGI, &filter);
             }
         }
-        else {
-            m_Context.messageCallback->Message(MessageSeverity::Warning, "Failed to get D3D12 debug interface");
-        }
 
-        RefPtr<IDXGIInfoQueue> dxgiInfoQueue;
-        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgiInfoQueue.GetAddressOf())))) {
-            factoryFlags = DXGI_CREATE_FACTORY_DEBUG;
-
-            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
-            dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
-
-            DXGI_INFO_QUEUE_MESSAGE_ID hide[] = {
-                80 /* IDXGISwapChain::GetContainingOutput: The swapchain's adapter does not control the output on which the swapchain's window resides. */,
-            };
-            DXGI_INFO_QUEUE_FILTER filter = {};
-            filter.DenyList.NumIDs = _countof(hide);
-            filter.DenyList.pIDList = hide;
-            dxgiInfoQueue->AddStorageFilterEntries(DXGI_DEBUG_DXGI, &filter);
-        }
-#endif
         auto errorMsg = [this](const std::string& msg, HRESULT hr){
             std::string error = std::format("{}.Error msg: {}.", msg, Utility::GetHRErrorMessage(hr));
             m_Context.Error(error);
@@ -877,6 +879,8 @@ namespace DSM::D3D12{
     float Device::GetTimerQueryTime(ITimerQuery *_query)
     {
         TimerQuery* query = Utility::CheckedCast<TimerQuery*>(_query);
+        if (query == nullptr)
+            return 0;
 
         if (!query->resolved) {
             if (query->fence) {

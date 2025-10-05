@@ -1278,7 +1278,7 @@ namespace DSM::D3D12{
         }
 
         auto& volatileBuffers = isGraphics ? m_GraphicsVolatileBuffers : m_ComputeVolatileBuffers;
-        volatileBuffers = newVolatileBuffers;
+        volatileBuffers = std::move(newVolatileBuffers);
     }
 
 

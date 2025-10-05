@@ -25,7 +25,8 @@ namespace DSM{
         desc.callback = desc.callback == nullptr ? &m_Callback : desc.callback;
         DeviceDesc deviceDesc{};
         deviceDesc.errorCB = desc.callback;
-        deviceDesc.logBufferLifetime = true;
+        deviceDesc.logBufferLifetime = desc.logBufferLifetime;
+        deviceDesc.enableDebugLayer = desc.enableDebugLayer;
         device = CreateDevice(deviceDesc);
 
         TextureManager::Init(device);

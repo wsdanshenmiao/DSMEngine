@@ -13,8 +13,8 @@ namespace DSM{
     struct WindowProps
     {
         std::string m_Title = "DSMEngine";
-        uint32_t m_Width = 1280;
-        uint32_t m_Height = 720;
+        uint32_t m_Width = 1600;
+        uint32_t m_Height = 1024;
     };
 
     class Window
