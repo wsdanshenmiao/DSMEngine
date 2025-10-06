@@ -48,8 +48,8 @@ public:
         // house->transform.SetScale(0.01f);
         // m_Models.push_back(house);
 
-        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        // m_Models.push_back(sponza);
+        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        m_Models.push_back(sponza);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 

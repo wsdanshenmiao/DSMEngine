@@ -101,7 +101,6 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
 
     float2 uv = i.posCS.xy / gPassConstants.renderTargetSize;
     float ssao = gSSAOTex.Sample(gAnisoWrapSampler, uv).r;
-    return float4(ssao.rrr, 1);
     color *= occlusion * ssao;
     color += emissive * gMaterialConstants.emissiveColor.rgb;
 
