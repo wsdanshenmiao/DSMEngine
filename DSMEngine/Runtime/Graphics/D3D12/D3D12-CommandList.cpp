@@ -492,6 +492,8 @@ namespace DSM::D3D12{
     void CommandList::WriteBuffer(IBuffer *b, const void *data, size_t dataSize, uint64_t destOffsetBytes)
     {
         Buffer* buffer = Utility::CheckedCast<Buffer*>(b);
+        if(buffer == nullptr || data == nullptr || dataSize == 0) 
+            return;
         const auto& desc = buffer->GetDesc();
 
         if(desc.isConstantBuffer){

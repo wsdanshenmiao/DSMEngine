@@ -23,12 +23,12 @@ namespace DSM {
 
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Local]
                 .AddItem(BindingLayoutItem().SetType(ResourceType::Texture_SRV).SetSlot(0).SetSize(kNumTextures))   // 10 个用于 PBR 的纹理
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(0)) // MeshConstants
-                .AddItem(BindingLayoutItem().ConstantBuffer(1)); // MaterialData
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(LitPassBindingLayout::Constants::MeshConstants))
+                .AddItem(BindingLayoutItem().ConstantBuffer(LitPassBindingLayout::Constants::MaterialConstants));
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(2));    // PassConstants
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(LitPassBindingLayout::Constants::PassConstants));
 
-            g_RenderResources.commonBindingSetDesc.AddItem(BindingSetItem().ConstantBuffer(2, m_PassCB));
+            g_RenderResources.commonBindingSetDesc.AddItem(BindingSetItem().ConstantBuffer(LitPassBindingLayout::Constants::PassConstants, m_PassCB));
 
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }

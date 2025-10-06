@@ -12,8 +12,8 @@ namespace DSM {
         float occlusionThreshold = 0.05f;
         float fadeEnd = 2; // SSAO 衰减结束距离
         uint32_t contrast = 2; // SSAO 的对比度
-        uint32_t blurRadius = 3; // 模糊半径
-        uint32_t blurCount = 2; // 模糊次数
+        uint32_t blurRadius = 5; // 模糊半径
+        uint32_t blurCount = 3; // 模糊次数
         bool enable = true;
     };
 
@@ -142,7 +142,8 @@ namespace DSM {
             auto device = renderer.GetDevice();
 
             // 需要先移除先前的绑定
-            std::erase(g_RenderResources.commonBindingSetDesc.bindings, BindingSetItem::Texture_SRV(8, m_SSAOTex));
+            auto binding = BindingSetItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO, m_SSAOTex);
+            std::erase(g_RenderResources.commonBindingSetDesc.bindings, binding);
 
             // 降分辨率生成
             auto texDesc = TextureDesc()
@@ -157,7 +158,7 @@ namespace DSM {
             m_TmpTexture = device->CreateTexture(texDesc);
 
             g_RenderResources.commonBindingSetDesc
-                .AddItem(BindingSetItem::Texture_SRV(8, m_SSAOTex));
+                .AddItem(BindingSetItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO, m_SSAOTex));
 
             auto& depthTex = g_RenderResources.framebuffer->GetDesc().depthAttachment.texture;
             auto& normalTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Normal];

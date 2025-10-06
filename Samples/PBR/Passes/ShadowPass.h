@@ -144,13 +144,13 @@ namespace DSM {
 
             // 将 ShadowMap 绑定到管线
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-                .AddItem(BindingLayoutItem().Texture_SRV(7))
+                .AddItem(BindingLayoutItem().Texture_SRV(LitPassBindingLayout::ShaderResource::ShadowMap))
                 .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::Shadow)))
-                .AddItem(BindingLayoutItem().ConstantBuffer(4));
+                .AddItem(BindingLayoutItem().ConstantBuffer(LitPassBindingLayout::Constants::ShadowConstants));
             g_RenderResources.commonBindingSetDesc
-                .AddItem(BindingSetItem().Texture_SRV(7, m_ShadowMap))
+                .AddItem(BindingSetItem().Texture_SRV(LitPassBindingLayout::ShaderResource::ShadowMap, m_ShadowMap))
                 .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::Shadow), GetCommonSampler(SamplerSlot::Shadow)))
-                .AddItem(BindingSetItem().ConstantBuffer(4, m_ShadowCB));
+                .AddItem(BindingSetItem().ConstantBuffer(LitPassBindingLayout::Constants::ShadowConstants, m_ShadowCB));
 
             sm_TimerQuery = device->CreateTimerQuery();
         }

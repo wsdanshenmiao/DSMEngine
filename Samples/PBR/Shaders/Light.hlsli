@@ -15,6 +15,7 @@ struct Light
 ConstantBuffer<LightData> gLightData : register(b3);
 
 StructuredBuffer<DirectionalLightData> gDirLightData : register(t6);
+StructuredBuffer<OtherLightData> gOtherLightData : register(t7);
 
 uint GetDirectionalLightCount()
 {
@@ -26,6 +27,25 @@ uint GetOtherLightCount()
     return gLightData.otherLightCount;
 }
 
+// 计算光源的平方衰减
+float GetSquareFalloffAttenuation(float3 posToLight, float invRange)
+{
+    float distSqr = dot(posToLight, posToLight);
+    float factor = distSqr * invRange * invRange;
+    float smoothFactor = max(1 - factor * factor, 0);
+    return smoothFactor * smoothFactor / max(distSqr, 1e-4);
+}
+
+float GetSpotAngleAttenuation(float3 l, float3 lightDir, float innerAngle, float outerAngle)
+{
+    float cosOuter = cos(outerAngle);
+    float spotScale = 1.0 / max(cos(innerAngle) - cosOuter, 1e-4);
+    float spotOffset = -cosOuter * spotScale;
+
+    float cd = dot(lightDir, l);
+    float attenuation = saturate(cd * spotScale + spotOffset);
+    return attenuation * attenuation;
+}
 
 Light GetDirectionalLight(uint index, Surface surface)
 {
@@ -38,15 +58,21 @@ Light GetDirectionalLight(uint index, Surface surface)
     return light;
 }
 
-// Light GetOtherLight(uint index, Surface surface)
-// {
-//     OtherLightData otherLightData = gOtherLightData[index];
-//     Light light;
-//     light.color = otherLightData.color.rgb;
-//     light.direction = normalize(otherLightData.direction.xyz);
-//     light.attenuation = GetOtherLightAttenuation(index, surface);
-//     return light;
-// }
+Light GetOtherLight(uint index, Surface surface)
+{
+    OtherLightData lightData = gOtherLightData[index];
+    float3 pos = lightData.positionAndRange.xyz;
+    float invRange = lightData.positionAndRange.w;
+    float2 spotAngle = lightData.spotAngle.xy;
+    Light light;
+    light.color = lightData.color.rgb;
+    float3 posToLight = pos - surface.position;
+    float3 l = normalize(posToLight);
+    light.direction = l;
+    light.attenuation = GetSquareFalloffAttenuation(posToLight, invRange);
+    light.attenuation *= GetSpotAngleAttenuation(l, lightData.direction.xyz, spotAngle.x, spotAngle.y);
+    return light;
+}
 
 float3 ShadeLighting(Surface surface, Light light)
 {
@@ -73,10 +99,10 @@ float3 ShadeLighting(Surface surface)
         Light dirLight = GetDirectionalLight(i, surface);
         color += ShadeLighting(surface, dirLight);
     }
-    // for(uint ii = 0; ii < GetOtherLightCount(); ++ii){
-    //     Light otherLight = GetOtherLight(ii, surface);
-    //     color += ShadeLighting(surface, otherLight);
-    // }
+    for(uint ii = 0; ii < GetOtherLightCount(); ++ii){
+        Light otherLight = GetOtherLight(ii, surface);
+        color += ShadeLighting(surface, otherLight);
+    }
     return color;
 }
 

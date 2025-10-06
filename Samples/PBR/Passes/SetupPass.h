@@ -46,6 +46,10 @@ namespace DSM {
             g_RenderResources.commonBindingSetDesc.AddItem(
                 BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap)));
 
+            // SSAO
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
+                .AddItem(BindingLayoutItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO));
+
             const auto& bufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
             OnResize(renderer, bufferDesc.width, bufferDesc.height);
         }
@@ -74,9 +78,6 @@ namespace DSM {
                 .SetDebugName("DepthTex"));
             g_RenderResources.framebuffer = renderer.GetDevice()->CreateFramebuffer(FramebufferDesc()
                 .AddColorAttachment(colorTex).SetDepthAttachment(depthTex));
-
-            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-                .AddItem(BindingLayoutItem::Texture_SRV(8));
 
             for(auto& [desc, pipeline] : g_RenderResources.psoCache){
                 pipeline = renderer.GetDevice()->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);

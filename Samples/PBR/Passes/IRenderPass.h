@@ -19,6 +19,33 @@ namespace DSM {
         BufferHandle meshCB;
     };
 
+    namespace LitPassBindingLayout{
+        namespace Constants{
+            enum Slot{
+                MeshConstants = 0,
+                MaterialConstants,
+                PassConstants,
+                LightData,
+                ShadowConstants
+            };
+        }
+        namespace ShaderResource{
+            enum Slot{
+                Albedo = 0,
+                Roughness,
+                Metallic,
+                Occlusion,
+                Emissive,
+                Normal,
+                DirectionalLights,
+                OtherLights,
+                ShadowMap,
+                SSAO
+            };
+        }
+        
+    }
+
     enum class ShaderSlot : uint32_t
     {
         LitVS,

@@ -48,19 +48,25 @@ public:
         // house->transform.SetScale(0.01f);
         // m_Models.push_back(house);
 
-        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        m_Models.push_back(sponza);
+        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        // m_Models.push_back(sponza);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
         auto dirLight = Light{
             .lightType = LightType::Directional, 
-            .color = Math::Vector4{1,1,1,1}, 
-            .range = 10.0f};
+            .color = Math::Vector4{1,1,1,1}};
         dirLight.direction = {-0.3, -1, 0.08};
         g_RenderResources.lights.push_back(dirLight);
-        dirLight.direction.Set(0, 0.3);
-        g_RenderResources.lights.push_back(dirLight);
+        // auto pointLight = Light()
+        //     .SetType(LightType::Spot)
+        //     .SetColor(Math::Vector4{1.0f,1.0f,1.0f,1})
+        //     .SetDirection({0,-1,0})
+        //     .SetInnerAngle((float)std::cos(std::numbers::pi / 6))   //30度
+        //     .SetOuterAngle((float)std::cos(std::numbers::pi / 3))   //60度
+        //     .SetPosition({1,2,0})
+        //     .SetRange(2.5);
+        // g_RenderResources.lights.push_back(pointLight);
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
@@ -72,7 +78,7 @@ public:
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer, m_Models));
 
         auto& camera = renderer.GetCamera();
-        camera.SetPosition(dirLight.direction * -5.0f);
+        camera.SetPosition({0, 3, 5});
         camera.LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(&camera);
@@ -167,8 +173,10 @@ public:
         }
         ImGui::End();
 
-        g_RenderResources.lights[0].direction = {lightDir[0], lightDir[1], lightDir[2]};
-        g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
+        if(g_RenderResources.lights[0].lightType == LightType::Directional){
+            g_RenderResources.lights[0].direction = {lightDir[0], lightDir[1], lightDir[2]};
+            g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
+        }
     }
 
     void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override

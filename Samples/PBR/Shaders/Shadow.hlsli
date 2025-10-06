@@ -20,7 +20,7 @@ struct DirectionalShadowData
     int tileIndex;
 };
 
-Texture2D<float> gShadowMap : register(t7);
+Texture2D<float> gShadowMap : register(t8);
 
 ConstantBuffer<ShadowConstants> gShadowConstants : register(b4);
 

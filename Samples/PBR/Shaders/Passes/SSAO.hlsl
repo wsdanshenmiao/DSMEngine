@@ -38,7 +38,7 @@ void SSAOCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     float3 normal = DecodeFloat2ToFloat3(gNormalTex.SampleLevel(gLinearBorderSampler, uv, 0));
 
     // 获取随机向量
-    float4 noise = gNoiseTex.SampleLevel(gPointWrapSampler, uv, 0);
+    float4 noise = gNoiseTex.SampleLevel(gPointWrapSampler, uv * 4, 0);
     noise.xyz = normalize(noise.xyz * 2 - 1);
 
     // 获取视图空间的坐标

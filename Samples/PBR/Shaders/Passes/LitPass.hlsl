@@ -24,7 +24,7 @@ Texture2D<float> gOcclusionTex : register(t3);
 Texture2D<float3> gEmissiveTex : register(t4);
 Texture2D<float3> gNormalTex : register(t5);
 
-Texture2D<float> gSSAOTex : register(t8);
+Texture2D<float> gSSAOTex : register(t9);
 
 struct Attributes
 {

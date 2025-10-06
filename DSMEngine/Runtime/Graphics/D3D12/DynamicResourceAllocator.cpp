@@ -37,6 +37,9 @@ namespace DSM::D3D12 {
     
     DynamicResourceLocation DynamicResourceAllocator::Allocate(uint64_t bufferSize, uint32_t alignment)
     {
+        if(bufferSize == 0) 
+            return DynamicResourceLocation{};
+        
         std::optional<DynamicResourceLocation> ret{};
 
         std::lock_guard lock(m_Mutex);
