@@ -1,9 +1,6 @@
 [submodule "ThirdParty/spdlog"]
 	path = ThirdParty/spdlog
 	url = git@github.com:gabime/spdlog.git
-[submodule "ThirdParty/imgui"]
-	path = ThirdParty/imgui
-	url = git@github.com:ocornut/imgui.git
 [submodule "ThirdParty/glfw"]
 	path = ThirdParty/glfw
 	url = git@github.com:glfw/glfw.git
@@ -16,3 +13,6 @@
 [submodule "ThirdParty/entt"]
 	path = ThirdParty/entt
 	url = https://github.com/skypjack/entt.git
+[submodule "ThirdParty/imgui"]
+	path = ThirdParty/imgui
+	url = https://github.com/ocornut/imgui.git

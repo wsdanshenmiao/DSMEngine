@@ -163,12 +163,12 @@ namespace DSM {
         }
 
     public:
-        inline static TimerQueryHandle sm_TimerQuery{};
-
-    private:
         static constexpr size_t sm_MaxDirLightCount = 4;
         static constexpr size_t sm_MaxOtherLightCount = 120;
 
+        inline static TimerQueryHandle sm_TimerQuery{};
+
+    private:
         BufferHandle m_LightDataBuffer;
         BufferHandle m_DirLightDataBuffer;
         BufferHandle m_OtherLightDataBuffer;

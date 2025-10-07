@@ -48,25 +48,83 @@ public:
         // house->transform.SetScale(0.01f);
         // m_Models.push_back(house);
 
-        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        // m_Models.push_back(sponza);
+        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        m_Models.push_back(sponza);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
-        auto dirLight = Light{
-            .lightType = LightType::Directional, 
-            .color = Math::Vector4{1,1,1,1}};
-        dirLight.direction = {-0.3, -1, 0.08};
-        g_RenderResources.lights.push_back(dirLight);
-        // auto pointLight = Light()
-        //     .SetType(LightType::Spot)
-        //     .SetColor(Math::Vector4{1.0f,1.0f,1.0f,1})
-        //     .SetDirection({0,-1,0})
-        //     .SetInnerAngle((float)std::cos(std::numbers::pi / 6))   //30度
-        //     .SetOuterAngle((float)std::cos(std::numbers::pi / 3))   //60度
-        //     .SetPosition({1,2,0})
-        //     .SetRange(2.5);
-        // g_RenderResources.lights.push_back(pointLight);
+
+        auto randUint = [](){
+            return rand(); // [0, RAND_MAX]
+        };
+        auto randFloat = [randUint]() -> float {
+            return randUint() * (1.0f / RAND_MAX); // convert [0, RAND_MAX] to [0, 1]
+        };
+        auto randVecUniform = [randFloat]() {
+            return Math::Vector3{randFloat(), randFloat(), randFloat()};
+        };
+        auto randGaussian = [randFloat]() {
+            // polar box-muller
+            static bool gaussianPair = true;
+            static float y2;
+
+            if (gaussianPair) {
+                gaussianPair = false;
+
+                float x1, x2, w;
+                do {
+                    x1 = 2 * randFloat() - 1;
+                    x2 = 2 * randFloat() - 1;
+                    w = x1 * x1 + x2 * x2;
+                } while (w >= 1);
+
+                w = sqrtf(-2 * logf(w) / w);
+                y2 = x2 * w;
+                return x1 * w;
+            }
+            else {
+                gaussianPair = true;
+                return y2;
+            }
+        };
+        auto randVecGaussian = [randGaussian]() -> Math::Vector3{
+            return Math::Vector3{randGaussian(), randGaussian(), randGaussian()}.Normalized();
+        };
+
+        const float pi = 3.14159265359f;
+        Math::Vector3 posScale{40, 15, 10};
+        Math::Vector3 posBias{-4, 2, 0};
+        for (uint32_t n = 0; n < LightingPass::sm_MaxOtherLightCount; n++)
+        {
+            Math::Vector3 pos = randVecUniform() * posScale + posBias;
+            float lightRadius = randFloat() * 800.0f + 200.0f;
+
+            Math::Vector3 color = randVecUniform();
+            float colorScale = randFloat() * .3f + .3f;
+            color = color * colorScale;
+
+            uint32_t type;
+            // force types to match 32-bit boundaries for the BIT_MASK_SORTED case
+            if (n < 32 * 2)
+                type = 1;
+            else
+                type = 2;
+
+            Math::Vector3 coneDir = randVecGaussian();
+            float coneInner = (randFloat() * .2f + .025f) * pi;
+            float coneOuter = coneInner + randFloat() * .1f * pi;
+            
+            Light light{};
+            light.SetType(LightType(type))
+                .SetPosition(pos)
+                .SetRange(lightRadius)
+                .SetColor(Math::Vector4{color})
+                .SetDirection(coneDir)
+                .SetInnerAngle(coneInner)
+                .SetOuterAngle(coneOuter);
+            
+            g_RenderResources.lights.push_back(std::move(light));
+        }
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}, m_Models));
@@ -169,11 +227,22 @@ public:
                 ImGui::SliderInt("SSAO Contrast", (int*)&SSAO::sm_Settings.contrast, 1, 5);
                 ImGui::SliderInt("SSAO Blur Radius", (int*)&SSAO::sm_Settings.blurRadius, 0, 5);
                 ImGui::SliderInt("SSAO Blur Count", (int*)&SSAO::sm_Settings.blurCount, 1, 5);
+
+                if(ImGui::Begin("SSAO Preview")) {
+                    ImVec2 windowSize = ImGui::GetWindowSize();
+                    float aspect = windowSize.x / windowSize.y;
+                    float smaller = std::min((windowSize.x - 20) / aspect, windowSize.y - 36);
+                    auto ssaoTex = GetCommonTexture(CommonTextureSlot::SSAO);
+                    auto gpuHandle = ssaoTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
+                    ImGui::Image(ImTextureRef{gpuHandle}, ImVec2(smaller * aspect, smaller));
+                }
+                ImGui::End();
             }
         }
         ImGui::End();
 
-        if(g_RenderResources.lights[0].lightType == LightType::Directional){
+        if(auto lights = g_RenderResources.lights; !lights.empty() && 
+           lights[0].lightType == LightType::Directional){
             g_RenderResources.lights[0].direction = {lightDir[0], lightDir[1], lightDir[2]};
             g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
         }

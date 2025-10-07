@@ -4,6 +4,7 @@
 
 #include "Runtime/Math/Collision/BoundingBox.h"
 #include "Runtime/Math/Collision/BoundingPlane.h"
+#include "Runtime/Math/Collision/BoundingSphere.h"
 
 namespace DSM::Math {
     class Frustum 
@@ -136,17 +137,17 @@ namespace DSM::Math {
             Transform transform{Transform{m_Origin, {1,1,1,1}, m_Orientation}};
             switch (id) {
             case NearPlane:
-                return BoundingPlane{Vector3{0.0f, 0.0f, -1.0f}, m_NearPlane} * transform; break;
+                return BoundingPlane{Vector3{0.0f, 0.0f, 1.0f}, -m_NearPlane} * transform; break;
             case FarPlane:
-                return BoundingPlane{Vector3{0.0f, 0.0f, 1.0f}, -m_FarPlane} * transform; break;
+                return BoundingPlane{Vector3{0.0f, 0.0f, -1.0f}, m_FarPlane} * transform; break;
             case RightPlane:
-                return BoundingPlane{Vector3{1.0f, 0.0f, -m_RightSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{-1.0f, 0.0f, m_RightSlope}, 0.0f} * transform; break;
             case LeftPlane:
-                return BoundingPlane{Vector3{-1.0f, 0.0f, m_LeftSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{1.0f, 0.0f, -m_LeftSlope}, 0.0f} * transform; break;
             case TopPlane:
-                return BoundingPlane{Vector3{0.0f, 1.0f, -m_TopSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{0.0f, -1.0f, m_TopSlope}, 0.0f} * transform; break;
             case BottomPlane:
-                return BoundingPlane{Vector3{0.0f, -1.0f, m_BottomSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{0.0f, 1.0f, -m_BottomSlope}, 0.0f} * transform; break;
             default:
                 assert(!"Invalid frustum plane ID");
                 break;
@@ -164,12 +165,12 @@ namespace DSM::Math {
                 Vector3 boxMax = box.GetMax();
                 Vector3 normal = plane.GetNormal();
                 // 获取离平面最近的点
-                Vector3 farCorner{
-                    normal.Get(0) > 0.f ? boxMin.Get(0) : boxMax.Get(0),
-                    normal.Get(1) > 0.f ? boxMin.Get(1) : boxMax.Get(1),
-                    normal.Get(2) > 0.f ? boxMin.Get(2) : boxMax.Get(2)
+                Vector3 nearCorner{
+                    normal.Get(0) < 0.f ? boxMin.Get(0) : boxMax.Get(0),
+                    normal.Get(1) < 0.f ? boxMin.Get(1) : boxMax.Get(1),
+                    normal.Get(2) < 0.f ? boxMin.Get(2) : boxMax.Get(2)
                 };
-                if(plane.GetDistanceFromPoint(farCorner) < 0.f)
+                if(plane.GetDistanceFromPoint(nearCorner) < 0.f)
                     return false;
             }
             return true;
@@ -189,7 +190,7 @@ namespace DSM::Math {
                         (j & 4) ? 1.f : -1.f
                     };
                     Vector3 corner = box.GetCenter() + box.GetOrientation() * dir;
-                    if(plane.GetDistanceFromPoint(corner) > 0.f)
+                    if(plane.GetDistanceFromPoint(corner) < 0.f)
                         ++outCount;
                 }
                 if(outCount == CornerID::CornerCount)
@@ -197,6 +198,30 @@ namespace DSM::Math {
             }
             return true;
         }
+
+        bool Intersects(const BoundingSphere& sphere) const noexcept
+        {
+            float radius = sphere.GetRadius();
+            for(int i = 0; i < PlaneCount; i++) {
+                auto plane = GetPlane(static_cast<PlaneID>(i));
+                if(plane.GetDistanceFromPoint(sphere.GetCenter()) + radius < 0)
+                    return false;
+            }
+            return true;
+        }
+
+        Frustum& operator*(const Transform& transform) noexcept
+        {
+            m_Origin += transform.GetPosition();
+            m_Orientation = m_Orientation * transform.GetRotation();
+            Vector3 scale = transform.GetScale();
+            float scaleF = std::max(scale.Get(0), std::max(scale.Get(1), scale.Get(2)));
+            m_NearPlane *= scaleF;
+            m_FarPlane *= scaleF;
+            return *this;
+        }
+
+
 
     private:
         Vector3 m_Origin;
