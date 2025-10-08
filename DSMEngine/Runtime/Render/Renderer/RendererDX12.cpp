@@ -17,7 +17,7 @@
 using namespace DSM::D3D12;
 
 namespace DSM{
-    static DescriptorHeapHandle s_DescriptorHeap = nullptr;
+    static IDescriptorHeap* s_DescriptorHeap = nullptr;
 
     RendererDX12::RendererDX12(const RenderParameters& renderDesc)
     {
@@ -102,6 +102,7 @@ namespace DSM{
             ImGui_ImplGlfw_Shutdown();
             ImGui::DestroyContext();
         }
+        s_DescriptorHeap = nullptr;
         
         // 需要等待GPU处理完所有事件，否则交换链的资源无法正常释放
         device->WaitForIdle();
@@ -132,18 +133,17 @@ namespace DSM{
     void RendererDX12::InitWindowUI(WindowUI *windowUI)
     {
         m_WindowUI = windowUI;
-        
-        if(s_DescriptorHeap == nullptr){
-            D3D12::IDevice* backDevice = Utility::CheckedCast<D3D12::IDevice*>(device.Get());
-            s_DescriptorHeap = backDevice->CreateDescriptorHeap(D3D12::DescriptorHeapType::ShaderResourceView, 64, true);
-        }
+
+        D3D12::IDevice* backDevice = Utility::CheckedCast<D3D12::IDevice*>(device.Get());
+        s_DescriptorHeap = backDevice->GetDescriptorHeap(DescriptorHeapType::ShaderResourceView);
+
         ImGui_ImplDX12_InitInfo init_info{};
         init_info.Device = device->GetNativeObject(ObjectTypes::D3D12_Device);
         init_info.CommandQueue = device->GetNativeQueue(ObjectTypes::D3D12_CommandQueue, CommandQueueType::Graphics);
         init_info.NumFramesInFlight = GetBackBufferCount();
-        init_info.RTVFormat = ConvertFormat(desc.swapChainFormat);
+        init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
         init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
-        init_info.SrvDescriptorHeap = s_DescriptorHeap->GetHeap();
+        init_info.SrvDescriptorHeap = s_DescriptorHeap->GetShaderVisibleHeap();
         init_info.SrvDescriptorAllocFn = [](auto, auto cpu_handle, auto gpu_handle) { 
             if (s_DescriptorHeap != nullptr) {
                 uint32_t index = s_DescriptorHeap->AllocateDescriptor();
@@ -174,6 +174,14 @@ namespace DSM{
         if(m_WindowUI == nullptr) 
             return;
 
+        auto backDevice = Utility::CheckedCast<D3D12::IDevice*>(device.Get());
+        // 由于描述符堆会会重新创建
+        if(s_DescriptorHeap != backDevice->GetDescriptorHeap(DescriptorHeapType::ShaderResourceView)){
+            // 重新创建 Imgui 的后端
+            ImGui_ImplDX12_Shutdown();
+            InitWindowUI(m_WindowUI);
+        }
+
         auto fb = swapChainFramebuffers[GetCurrentBackBufferIndex()];
 
         auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ImGui Command List"));
@@ -184,7 +192,7 @@ namespace DSM{
         for(const auto& rt : fb->GetDesc().colorAttachments){
             if(rt.texture == nullptr) continue;
             cmdList->SetTextureState(rt.texture, rt.subresources, ResourceStates::RenderTarget);    
-            auto rtv = rt.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor, rt.format, rt.subresources);
+            auto rtv = rt.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor, Format::RGBA8_UNORM, rt.subresources);
             RTVs.push_back(D3D12_CPU_DESCRIPTOR_HANDLE{rtv.integer});
         }
         cmdList->CommitBarriers();
@@ -211,6 +219,13 @@ namespace DSM{
 
         cmdList->Close();
         device->ExecuteCommandList(cmdList);
+
+        if(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable){
+            GLFWwindow* currentContext = glfwGetCurrentContext();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            glfwMakeContextCurrent(currentContext);
+        }
     }
 
     void RendererDX12::ResizeSwapChain(uint32_t width, uint32_t height)

@@ -191,6 +191,39 @@ public:
 
     void RenderUI(DSM::Renderer& renderer) override
     {
+        // static bool dockSpaceOpen = true;
+        // static bool optFullscreen = true;
+        // static ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None;
+
+        // ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
+        // if(optFullscreen){            
+        //     // 设置主窗口
+        //     ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+        //     ImGui::SetNextWindowPos(mainViewport->WorkPos);
+        //     ImGui::SetNextWindowSize(mainViewport->WorkSize);
+        //     ImGui::SetNextWindowViewport(mainViewport->ID);
+        //     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        //     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        //     windowFlags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        //     windowFlags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+        // }
+
+        // if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode)
+		// 	windowFlags |= ImGuiWindowFlags_NoBackground;
+
+        // ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+		// ImGui::Begin("DockSpace Demo", &dockSpaceOpen, windowFlags);
+		// ImGui::PopStyleVar();
+
+        // if(optFullscreen){
+        //     ImGui::PopStyleVar(2);
+        // }
+
+        // if(HasFlags(ImGuiConfigFlags_(ImGui::GetIO().ConfigFlags), ImGuiConfigFlags_DockingEnable)) {
+        //     ImGuiID dockspaceID = ImGui::GetID("MyDockSpace");
+		// 	ImGui::DockSpace(dockspaceID, ImVec2(0.0f, 0.0f), dockspaceFlags);
+        // }
+
         static float lightDir[3] = {-0.3, -1, 0.08};
         static float lightColor[3] = {1.0f, 1.0f, 1.0f};
         if (ImGui::Begin("Light Settings")) {
@@ -240,6 +273,8 @@ public:
             }
         }
         ImGui::End();
+
+        // ImGui::End();
 
         if(auto lights = g_RenderResources.lights; !lights.empty() && 
            lights[0].lightType == LightType::Directional){
