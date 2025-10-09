@@ -48,11 +48,19 @@ public:
         // house->transform.SetScale(0.01f);
         // m_Models.push_back(house);
 
+        CpuTimer timer{};
+        timer.Reset();
         auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        timer.Tick();
+        DSM_INFO("Load Sponza Model Time: {} ms", timer.DeltaTime() * 1000.f);
         m_Models.push_back(sponza);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
+        g_RenderResources.lights.push_back(Light{}
+            .SetType(LightType::Directional)
+            .SetDirection(Math::Vector3{-0.3f, -1.0f, -0.2f}.Normalized())
+            .SetColor({1,1,1,1}));
 
         auto randUint = [](){
             return rand(); // [0, RAND_MAX]
@@ -191,38 +199,67 @@ public:
 
     void RenderUI(DSM::Renderer& renderer) override
     {
-        // static bool dockSpaceOpen = true;
-        // static bool optFullscreen = true;
-        // static ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None;
+        static bool dockspaceOpen = true;
+        static bool opt_fullscreen = true;
+        static bool opt_padding = false;
+        static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
 
-        // ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
-        // if(optFullscreen){            
-        //     // 设置主窗口
-        //     ImGuiViewport* mainViewport = ImGui::GetMainViewport();
-        //     ImGui::SetNextWindowPos(mainViewport->WorkPos);
-        //     ImGui::SetNextWindowSize(mainViewport->WorkSize);
-        //     ImGui::SetNextWindowViewport(mainViewport->ID);
-        //     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-        //     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        //     windowFlags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-        //     windowFlags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
-        // }
+        // We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
+        // because it would be confusing to have two docking targets within each others.
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+        if (opt_fullscreen) {
+            const ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(viewport->WorkPos);
+            ImGui::SetNextWindowSize(viewport->WorkSize);
+            ImGui::SetNextWindowViewport(viewport->ID);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+            window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+            window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+        }
+        else {
+            dockspace_flags &= ~ImGuiDockNodeFlags_PassthruCentralNode;
+        }
 
-        // if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode)
-		// 	windowFlags |= ImGuiWindowFlags_NoBackground;
+        // When using ImGuiDockNodeFlags_PassthruCentralNode, DockSpace() will render our background
+        // and handle the pass-thru hole, so we ask Begin() to not render a background.
+        if (dockspace_flags & ImGuiDockNodeFlags_PassthruCentralNode)
+            window_flags |= ImGuiWindowFlags_NoBackground;
 
-        // ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-		// ImGui::Begin("DockSpace Demo", &dockSpaceOpen, windowFlags);
-		// ImGui::PopStyleVar();
+        // Important: note that we proceed even if Begin() returns false (aka window is collapsed).
+        // This is because we want to keep our DockSpace() active. If a DockSpace() is inactive,
+        // all active windows docked into it will lose their parent and become undocked.
+        // We cannot preserve the docking relationship between an active window and an inactive docking, otherwise
+        // any change of dockspace/settings would lead to windows being stuck in limbo and never being visible.
+        if (!opt_padding)
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::Begin("DockSpace Demo", &dockspaceOpen, window_flags);
+        if (!opt_padding)
+            ImGui::PopStyleVar();
 
-        // if(optFullscreen){
-        //     ImGui::PopStyleVar(2);
-        // }
+        if (opt_fullscreen)
+            ImGui::PopStyleVar(2);
 
-        // if(HasFlags(ImGuiConfigFlags_(ImGui::GetIO().ConfigFlags), ImGuiConfigFlags_DockingEnable)) {
-        //     ImGuiID dockspaceID = ImGui::GetID("MyDockSpace");
-		// 	ImGui::DockSpace(dockspaceID, ImVec2(0.0f, 0.0f), dockspaceFlags);
-        // }
+        // Submit the DockSpace
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
+            ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+            ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+        }
+
+        // 开启菜单栏
+        if (ImGui::BeginMenuBar()) {
+            if (ImGui::BeginMenu("Options")) {
+                if (ImGui::MenuItem("Exit", "", (dockspace_flags & ImGuiDockNodeFlags_NoDockingOverCentralNode) != 0))  {
+                    DSMEditor::sm_EditorContext.engine->Close();
+                }
+                ImGui::EndMenu();
+            }
+            
+            ImGui::EndMenuBar();
+        }
+
+        ImGui::End();
 
         static float lightDir[3] = {-0.3, -1, 0.08};
         static float lightColor[3] = {1.0f, 1.0f, 1.0f};
@@ -265,6 +302,7 @@ public:
                     ImVec2 windowSize = ImGui::GetWindowSize();
                     float aspect = windowSize.x / windowSize.y;
                     float smaller = std::min((windowSize.x - 20) / aspect, windowSize.y - 36);
+                    
                     auto ssaoTex = GetCommonTexture(CommonTextureSlot::SSAO);
                     auto gpuHandle = ssaoTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
                     ImGui::Image(ImTextureRef{gpuHandle}, ImVec2(smaller * aspect, smaller));
@@ -273,8 +311,6 @@ public:
             }
         }
         ImGui::End();
-
-        // ImGui::End();
 
         if(auto lights = g_RenderResources.lights; !lights.empty() && 
            lights[0].lightType == LightType::Directional){

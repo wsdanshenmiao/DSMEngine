@@ -35,6 +35,7 @@ namespace DSM {
         void ShutDownEngine();
 
         void Run();
+        void Close() { m_Running = false; }
         void Update();
 
         void SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline);

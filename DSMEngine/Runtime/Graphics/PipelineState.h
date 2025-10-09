@@ -455,7 +455,7 @@ namespace DSM {
     {
         IBuffer* buffer = nullptr;
         Format format = Format::UNKNOWN;
-        uint32_t offset = 0;
+        uint64_t offset = 0;
 
         bool operator ==(const IndexBufferBinding& b) const
         {
@@ -467,7 +467,7 @@ namespace DSM {
 
         IndexBufferBinding& SetBuffer(IBuffer* value) { buffer = value; return *this; }
         IndexBufferBinding& SetFormat(Format value) { format = value; return *this; }
-        IndexBufferBinding& SetOffset(uint32_t value) { offset = value; return *this; }
+        IndexBufferBinding& SetOffset(uint64_t value) { offset = value; return *this; }
     };
 
     

@@ -10,11 +10,320 @@
 #include "Runtime/Graphics/Device.h"
 #include "TextureManager.h"
 #include <filesystem>
+#include <fstream>
 
 
 
 namespace DSM::ModelLoader {
-	
+
+	static DeviceHandle s_GraphicsDevice;
+	static const std::string s_ModelCacheDir = std::filesystem::current_path().string() + "\\Assets\\Models\\";
+	static std::array<TextureHandle, kNumTextures> s_CommonTextures;
+
+	struct ModelFileHeader
+	{
+		uint64_t dataSize{};
+		uint32_t modelNameSize{};
+		size_t meshCount{};
+		size_t materialCount{};
+	};
+
+	struct MeshFileHeader
+	{
+		uint64_t dataSize{};
+		uint32_t nameSize{};
+		uint32_t positionSlot{};
+		uint64_t positionOffset{};
+		uint32_t normalSlot{};
+		uint64_t normalOffset{};
+		uint32_t texcoordSlot{};
+		uint64_t texcoordOffset{};
+		uint32_t tangentSlot{};
+		uint64_t tangentOffset{};
+		Format indexFormat{};
+		uint64_t indexOffset{};
+		uint16_t psoFlags{};
+		uint32_t submeshCount{};
+	};
+
+	struct SubmeshFileHeader
+	{
+		uint32_t nameSize{};
+		uint32_t indexCount;
+		uint32_t indexOffset;
+		uint32_t vertexOffset;
+		uint16_t materialIndex;
+		std::array<uint32_t, kNumTextures> texFilenameSizes{};
+	};
+
+	bool SaveModelToFile(const Model& model, const std::string& filename)
+	{
+		std::filesystem::path modelPath = s_ModelCacheDir + filename;
+		if (!std::filesystem::exists(modelPath.parent_path())) {
+			std::filesystem::create_directories(modelPath.parent_path());
+		}
+		std::ofstream ofs(modelPath, std::ios::binary);
+		if (!ofs.is_open()) {
+			return false;
+		}
+
+		// Write model data
+		ModelFileHeader modelHeader{};
+		modelHeader.modelNameSize = model.name.size();
+		modelHeader.meshCount = model.meshes.size();
+		modelHeader.materialCount = model.materials.size();
+		modelHeader.dataSize = modelHeader.modelNameSize + sizeof(ModelFileHeader);
+
+		struct SubmeshData{
+			std::string name{};
+			SubmeshFileHeader header{};
+			std::array<std::string, kNumTextures> texFilename{};
+		};
+		struct MeshData{
+			std::string name{};
+			MeshFileHeader header{};
+			BufferHandle meshDataBuffer{};
+			std::vector<SubmeshData> submeshDataArray{};
+		};
+		std::vector<MeshData> meshDataArray(model.meshes.size());
+		for(size_t i = 0; i < model.meshes.size(); i++) {
+			const Mesh& mesh = *model.meshes[i];
+			MeshData& meshData = meshDataArray[i];
+			meshData.name = mesh.name;
+			meshData.header.dataSize = mesh.meshData->GetDesc().byteSize + mesh.name.size();
+			meshData.header.nameSize = mesh.name.size();
+			meshData.header.positionSlot = mesh.positionStream.slot;
+			meshData.header.positionOffset = mesh.positionStream.offset;
+			meshData.header.normalSlot = mesh.normalStream.slot;
+			meshData.header.normalOffset = mesh.normalStream.offset;
+			meshData.header.texcoordSlot = mesh.uvStream.slot;
+			meshData.header.texcoordOffset = mesh.uvStream.offset;
+			meshData.header.tangentSlot = mesh.tangentStream.slot;
+			meshData.header.tangentOffset = mesh.tangentStream.offset;
+			meshData.header.indexFormat = mesh.indexBufferViews.format;
+			meshData.header.indexOffset = mesh.indexBufferViews.offset;
+			meshData.header.psoFlags = mesh.psoFlags;
+			meshData.header.submeshCount = mesh.subMeshes.size();
+			meshData.meshDataBuffer = mesh.meshData;
+
+			for(const auto& [submeshName, submesh] : mesh.subMeshes) {
+				SubmeshFileHeader submeshHeader{};
+				submeshHeader.nameSize = submeshName.size();
+				submeshHeader.indexCount = submesh.indexCount;
+				submeshHeader.indexOffset = submesh.indexOffset;
+				submeshHeader.vertexOffset = submesh.vertexOffset;
+				submeshHeader.materialIndex = submesh.materialIndex;
+				SubmeshData submeshData{};
+				uint32_t filenameSize = 0;
+				for(int j = 0; j < kNumTextures; j++) {
+					submeshData.texFilename[j] = submesh.textures[j]->GetDesc().debugName;
+					submeshHeader.texFilenameSizes[j] = submeshData.texFilename[j].size();
+					filenameSize += submeshData.texFilename[j].size();
+				}
+				submeshData.name = submeshName;
+				submeshData.header = submeshHeader;
+				meshData.header.dataSize += sizeof(SubmeshFileHeader) + submeshHeader.nameSize + filenameSize;
+				meshData.submeshDataArray.push_back(submeshData);
+			}
+
+			modelHeader.dataSize += sizeof(MeshFileHeader) + meshData.header.dataSize;
+		}
+
+		modelHeader.dataSize += model.materials.size() * sizeof(Material);
+
+		// Model data layout:
+		// [
+		// 	ModelFileHeader,
+		// 	model name,
+		// 	[ 
+		// 		MeshFileHeader, 
+		// 		mesh name, 
+		//		[ SubmeshFileHeader, submesh name ] ...
+		// 		mesh data
+		// 	] ...
+		// 	[ MaterialData ] * materialCount
+		// ]
+		auto cmdList = s_GraphicsDevice->CreateCommandList(
+			CommandListParameters().SetDebugName("Model Save Command List" + model.name));
+
+		std::vector<char> modelData(modelHeader.dataSize);
+		uint64_t offset = 0;
+		auto addData = [&modelData, &offset](const void* data, size_t size) {
+			memcpy(modelData.data() + offset, data, size);
+			offset += size;
+		};
+		addData(&modelHeader, sizeof(ModelFileHeader));
+		addData(model.name.data(), model.name.size());
+
+		// 保存每一个 Mesh 的数据
+		for(const MeshData& meshData : meshDataArray) {
+			addData(&meshData.header, sizeof(MeshFileHeader));
+			addData(meshData.name.data(), meshData.name.size());
+			for (const auto& submeshData : meshData.submeshDataArray) {
+				addData(&submeshData.header, sizeof(SubmeshFileHeader));
+				addData(submeshData.name.data(), submeshData.name.size());
+				for(int i = 0; i < kNumTextures; i++) {
+					addData(submeshData.texFilename[i].data(), submeshData.texFilename[i].size());
+				}
+			}
+
+			// 回读 Mesh 数据
+			auto bufferDesc = meshData.meshDataBuffer->GetDesc();
+			bufferDesc.SetCpuAccess(CpuAccessMode::Read)
+				.SetDebugName("Read back texture " + bufferDesc.debugName);
+			BufferHandle readBackMeshDataBuffer = s_GraphicsDevice->CreateBuffer(bufferDesc);
+			cmdList->Open();
+			cmdList->CopyBuffer(readBackMeshDataBuffer, 0, meshData.meshDataBuffer, 0, bufferDesc.byteSize);
+			cmdList->Close();
+			auto fenceVal = s_GraphicsDevice->ExecuteCommandList(cmdList);
+			s_GraphicsDevice->QueueWaitForCommandList(CommandQueueType::Graphics, CommandQueueType::Graphics, fenceVal);
+
+			void* mappedData = s_GraphicsDevice->MapBuffer(readBackMeshDataBuffer, CpuAccessMode::Read);
+			addData(mappedData, bufferDesc.byteSize);
+			s_GraphicsDevice->UnmapBuffer(readBackMeshDataBuffer);
+		}
+
+		std::vector<Material> materials(model.materials.size());
+		for (size_t i = 0; i < model.materials.size(); ++i) {
+			materials[i] = *model.materials[i];
+		}
+		addData(materials.data(), materials.size() * sizeof(Material));
+
+		ofs.write(modelData.data(), modelData.size());
+		ofs.close();
+
+		return true;
+	}
+
+	std::shared_ptr<Model> LoadModelFromFile(const std::string& filename)
+	{
+		std::filesystem::path modelPath = s_ModelCacheDir + filename;
+		std::ifstream ifs(modelPath, std::ios::binary);
+		if (!ifs.is_open()) {
+			return nullptr;
+		}
+
+		std::shared_ptr<Model> model = std::make_shared<Model>();
+
+		auto cmdList = s_GraphicsDevice->CreateCommandList(
+			CommandListParameters().SetDebugName("Model Load Command List" + model->name));
+		cmdList->Open();
+
+		// Read model data
+		ModelFileHeader modelHeader{};
+		ifs.read(reinterpret_cast<char*>(&modelHeader), sizeof(ModelFileHeader));
+		std::vector<char> modelData(modelHeader.dataSize);
+		ifs.read(modelData.data(), modelData.size());
+		uint64_t offset = 0;
+		auto copyData = [&modelData, &offset](void* dest, size_t size) {
+			memcpy(dest, modelData.data() + offset, size);
+			offset += size;
+		};
+		
+		auto getData = [&modelData, &offset] <typename T> () {
+			const T* dataPtr = reinterpret_cast<const T*>(modelData.data() + offset);
+			offset += sizeof(T);
+			return dataPtr;
+		};
+		model->name.resize(modelHeader.modelNameSize);
+		copyData(model->name.data(), model->name.size());
+
+		std::map<std::string_view, TextureHandle> uniqueTextureNames{};
+
+		model->meshes.reserve(modelHeader.meshCount);
+		model->materials.reserve(modelHeader.materialCount);
+		// Read mesh data
+		for (size_t i = 0; i < modelHeader.meshCount; ++i) {
+			const MeshFileHeader* meshHeader = getData.operator()<MeshFileHeader>();
+
+			uint64_t meshBeginOffset = offset;
+			
+			std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+			mesh->name.resize(meshHeader->nameSize);
+			copyData(mesh->name.data(), mesh->name.size());
+
+			for (size_t j = 0; j < meshHeader->submeshCount; ++j) {
+				const SubmeshFileHeader* submeshHeader = getData.operator()<SubmeshFileHeader>();
+				
+				Mesh::SubMesh submesh{};
+				submesh.indexCount = submeshHeader->indexCount;
+				submesh.indexOffset = submeshHeader->indexOffset;
+				submesh.materialIndex = submeshHeader->materialIndex;
+				submesh.vertexOffset = submesh.vertexOffset;
+
+				std::string submeshName{};
+				submeshName.resize(submeshHeader->nameSize);
+				copyData(submeshName.data(), submeshName.size());
+				submesh.textures.resize(kNumTextures);
+				for(int k = 0; k < kNumTextures; k++){
+					std::string_view textureName = std::string_view(modelData.data() + offset, submeshHeader->texFilenameSizes[k]);
+					offset += submeshHeader->texFilenameSizes[k];
+
+					if(s_CommonTextures[k]->GetDesc().debugName == textureName){
+						submesh.textures[k] = s_CommonTextures[k];
+					}
+					else if(!uniqueTextureNames.contains(textureName)){
+						submesh.textures[k] = TextureManager::LoadTextureFromFile(std::string(textureName));
+						uniqueTextureNames[textureName] = submesh.textures[k];
+					}
+					else {
+						submesh.textures[k] = uniqueTextureNames[textureName];
+					}
+				}
+				mesh->subMeshes.emplace(submeshName, std::move(submesh));
+			}
+
+			auto bufferSize = meshBeginOffset + meshHeader->dataSize - offset;
+			mesh->meshData = s_GraphicsDevice->CreateBuffer(BufferDesc()
+				.SetByteSize(bufferSize)
+				.SetDebugName("Mesh Data " + mesh->name));
+			cmdList->WriteBuffer(mesh->meshData, modelData.data() + offset, bufferSize);
+			offset += bufferSize;
+
+			mesh->psoFlags = meshHeader->psoFlags;
+			auto addVertexBufferBinding = [&mesh](auto& binding, PSOFlags flag, uint32_t slot, uint64_t offset) {
+				if(HasFlags(PSOFlags(mesh->psoFlags), flag)){
+					binding = VertexBufferBinding{mesh->meshData, slot, offset};
+				}
+			};
+			addVertexBufferBinding(mesh->positionStream, kHasPosition, meshHeader->positionSlot, meshHeader->positionOffset);
+			addVertexBufferBinding(mesh->normalStream, kHasNormal, meshHeader->normalSlot, meshHeader->normalOffset);
+			addVertexBufferBinding(mesh->uvStream, kHasUV, meshHeader->texcoordSlot, meshHeader->texcoordOffset);
+			addVertexBufferBinding(mesh->tangentStream, kHasTangent, meshHeader->tangentSlot, meshHeader->tangentOffset);
+
+			mesh->indexBufferViews = IndexBufferBinding{mesh->meshData, meshHeader->indexFormat, meshHeader->indexOffset};
+
+			model->meshes.push_back(mesh);
+		}
+
+		// Read material data
+		for(size_t i = 0; i < modelHeader.materialCount; ++i){
+			std::shared_ptr<Material> material = std::make_shared<Material>();
+			copyData(material.get(), sizeof(Material));
+			model->materials.push_back(material);
+		}
+
+		if (model->materials.size() > 0) {
+			auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
+			std::vector<uint8_t> materialData(matByteSize * model->materials.size());
+			for (std::size_t i = 0; i < model->materials.size(); i++) {
+				memcpy(materialData.data() + i * matByteSize, model->materials[i].get(), sizeof(Material));
+			}
+			model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc().
+				SetByteSize(materialData.size()).
+				SetIsConstantBuffer(true).
+				SetDebugName("Model MaterialData" + model->name));
+			cmdList->WriteBuffer(model->materialData, materialData.data(), materialData.size());
+		}
+
+		cmdList->Close();
+		s_GraphicsDevice->ExecuteCommandList(cmdList);
+
+		ifs.close();
+
+		return model;
+	}
+
 	struct MeshData
 	{
 		std::string name{};
@@ -29,16 +338,24 @@ namespace DSM::ModelLoader {
 	};
 
 
-	static DeviceHandle s_GraphicsDevice;
     void Init(IDevice *device)
     {
         s_GraphicsDevice = device;
+		s_CommonTextures = {
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+			TextureManager::GetDefaultTexture(TextureManager::kBlackTransparent2D),
+			TextureManager::GetDefaultTexture(TextureManager::kDefaultNormalTex)
+		};
     }
 
 
     void Destroy()
 	{
 		s_GraphicsDevice = nullptr;
+		s_CommonTextures.fill(nullptr);
 	}
 
 	
@@ -107,28 +424,34 @@ namespace DSM::ModelLoader {
     std::shared_ptr<Model> LoadModel(const std::string &filename)
     {
 		auto model = std::make_shared<Model>();
-		
-		Assimp::Importer importer;
-		const aiScene* pScene = importer.ReadFile(
-			filename,
-			aiProcess_ConvertToLeftHanded |     // 转为左手系
-			aiProcess_GenBoundingBoxes |        // 获取碰撞盒
-			aiProcess_Triangulate |             // 将多边形拆分
-			aiProcess_ImproveCacheLocality |    // 改善缓存局部性
-			aiProcess_SortByPType);             // 按图元顶点数排序用于移除非三角形图元
 
-		if (nullptr == pScene || !pScene->HasMeshes()) {
-			std::string warning = "[Warning]: Failed to load \"";
-			warning += filename;
-			warning += "\"\n";
-			OutputDebugStringA(warning.c_str());
-			return nullptr;
+		if(std::filesystem::exists(s_ModelCacheDir + filename)) {
+			model = LoadModelFromFile(filename);
 		}
+		else {
+			Assimp::Importer importer;
+			const aiScene* pScene = importer.ReadFile(
+				filename,
+				aiProcess_ConvertToLeftHanded |     // 转为左手系
+				aiProcess_GenBoundingBoxes |        // 获取碰撞盒
+				aiProcess_Triangulate |             // 将多边形拆分
+				aiProcess_ImproveCacheLocality |    // 改善缓存局部性
+				aiProcess_SortByPType);             // 按图元顶点数排序用于移除非三角形图元
 
-		model->name = pScene->mRootNode->mName.C_Str();
+			if (nullptr == pScene || !pScene->HasMeshes()) {
+				std::string warning = "[Warning]: Failed to load \"";
+				warning += filename;
+				warning += "\"\n";
+				OutputDebugStringA(warning.c_str());
+				return nullptr;
+			}
+			model->name = pScene->mRootNode->mName.C_Str();
 
-		ProcessNode(*model, pScene->mRootNode, pScene);
-		ProcessMaterial(*model, filename, pScene);
+			ProcessNode(*model, pScene->mRootNode, pScene);
+			ProcessMaterial(*model, filename, pScene);
+
+			SaveModelToFile(*model, filename);
+		}
 
 		return model;
 	}
@@ -293,7 +616,8 @@ namespace DSM::ModelLoader {
 		const aiScene* scene)
 	{
 		std::vector<std::vector<TextureHandle>> matTextures(scene->mNumMaterials, std::vector<TextureHandle>(kNumTextures));
-		
+		std::map<std::string, TextureHandle> uniqueTextures{};
+
 		model.materials.resize(scene->mNumMaterials);
 		for (UINT i = 0; i < scene->mNumMaterials; ++i) {
 			auto& modelMaterial = model.materials[i];
@@ -321,15 +645,6 @@ namespace DSM::ModelLoader {
 			std::filesystem::path texFilename;
 			std::string texName;
 
-			TextureHandle defaultTexture[kNumTextures] = {
-				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-				TextureManager::GetDefaultTexture(TextureManager::kBlackTransparent2D),
-				TextureManager::GetDefaultTexture(TextureManager::kDefaultNormalTex)
-			};
-
 			auto& srcHandle = matTextures[i];
 
 			auto tryCreateTexture = [&](aiTextureType type) {
@@ -345,7 +660,7 @@ namespace DSM::ModelLoader {
 					default: materialTex = kBaseColor; break;
 				}
 				if (material->GetTextureCount(type) == 0) {
-					srcHandle[materialTex] = defaultTexture[materialTex];
+					srcHandle[materialTex] = s_CommonTextures[materialTex];
 					return false;
 				}
 				
@@ -369,8 +684,12 @@ namespace DSM::ModelLoader {
 				else {	// 纹理通过文件名索引
 					texFilename = filename;
 					texFilename = texFilename.parent_path() / aiPath.C_Str();
-					texHandle = TextureManager::LoadTextureFromFile(texFilename.string());
-
+					if(uniqueTextures.contains(filename)){
+						texHandle = uniqueTextures[filename];
+					}
+					else{
+						texHandle = TextureManager::LoadTextureFromFile(texFilename.string());
+					}
 					srcHandle[materialTex] = texHandle;
 				}
 				return true;
