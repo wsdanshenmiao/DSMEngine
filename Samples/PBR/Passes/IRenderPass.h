@@ -4,6 +4,7 @@
 
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "../Light.h"
+#include "Runtime/Framework/World.h"
 
 namespace DSM {
 

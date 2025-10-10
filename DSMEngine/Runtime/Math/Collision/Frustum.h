@@ -210,7 +210,7 @@ namespace DSM::Math {
             return true;
         }
 
-        Frustum& operator*(const Transform& transform) noexcept
+        Frustum& operator*=(const Transform& transform) noexcept
         {
             m_Origin += transform.GetPosition();
             m_Orientation = m_Orientation * transform.GetRotation();
@@ -234,6 +234,8 @@ namespace DSM::Math {
         float m_NearPlane;
         float m_FarPlane;
     };
+
+    inline Frustum operator*(Frustum frustum, const Transform& transform) noexcept { return frustum *= transform; }
 } // namespace DSM::Math
 
 

@@ -79,6 +79,9 @@ namespace DSM {
         std::unordered_map<ITexture*, std::unique_ptr<TesxtureState>> m_TextureStates{};
         std::unordered_map<IBuffer*, std::unique_ptr<BufferState>> m_BufferStates{};
 
+        std::vector<ITexture*> m_KeepInitialStatesTextures{};
+        std::vector<IBuffer*> m_KeepInitialStatesBuffers{};
+
         std::vector<TextureBarrier> m_TextureBarriers{};
         std::vector<BufferBarrier> m_BufferBarriers{};
     };

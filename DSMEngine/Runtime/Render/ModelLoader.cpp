@@ -8,6 +8,7 @@
 #include "Runtime/Math/MathCommon.h"
 #include "Runtime/Graphics/CommandList.h"
 #include "Runtime/Graphics/Device.h"
+#include "Runtime/Math/Collision/BoundingBox.h"
 #include "TextureManager.h"
 #include <filesystem>
 #include <fstream>
@@ -22,28 +23,30 @@ namespace DSM::ModelLoader {
 
 	struct ModelFileHeader
 	{
+		Math::AxisAlignedBox boundingBox{};
 		uint64_t dataSize{};
-		uint32_t modelNameSize{};
 		size_t meshCount{};
 		size_t materialCount{};
+		uint32_t modelNameSize{};
 	};
 
 	struct MeshFileHeader
 	{
+		Math::AxisAlignedBox boundingBox{};
 		uint64_t dataSize{};
+		uint64_t positionOffset{};
+		uint64_t normalOffset{};
+		uint64_t texcoordOffset{};
+		uint64_t tangentOffset{};
+		uint64_t indexOffset{};
 		uint32_t nameSize{};
 		uint32_t positionSlot{};
-		uint64_t positionOffset{};
 		uint32_t normalSlot{};
-		uint64_t normalOffset{};
 		uint32_t texcoordSlot{};
-		uint64_t texcoordOffset{};
 		uint32_t tangentSlot{};
-		uint64_t tangentOffset{};
-		Format indexFormat{};
-		uint64_t indexOffset{};
-		uint16_t psoFlags{};
 		uint32_t submeshCount{};
+		uint16_t psoFlags{};
+		Format indexFormat{};
 	};
 
 	struct SubmeshFileHeader
@@ -69,6 +72,7 @@ namespace DSM::ModelLoader {
 
 		// Write model data
 		ModelFileHeader modelHeader{};
+		modelHeader.boundingBox = model.boundingBox;
 		modelHeader.modelNameSize = model.name.size();
 		modelHeader.meshCount = model.meshes.size();
 		modelHeader.materialCount = model.materials.size();
@@ -104,6 +108,7 @@ namespace DSM::ModelLoader {
 			meshData.header.indexOffset = mesh.indexBufferViews.offset;
 			meshData.header.psoFlags = mesh.psoFlags;
 			meshData.header.submeshCount = mesh.subMeshes.size();
+			meshData.header.boundingBox = mesh.boundingBox;
 			meshData.meshDataBuffer = mesh.meshData;
 
 			for(const auto& [submeshName, submesh] : mesh.subMeshes) {
@@ -227,6 +232,7 @@ namespace DSM::ModelLoader {
 		};
 		model->name.resize(modelHeader.modelNameSize);
 		copyData(model->name.data(), model->name.size());
+		model->boundingBox = modelHeader.boundingBox;
 
 		std::map<std::string_view, TextureHandle> uniqueTextureNames{};
 
@@ -241,6 +247,7 @@ namespace DSM::ModelLoader {
 			std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
 			mesh->name.resize(meshHeader->nameSize);
 			copyData(mesh->name.data(), mesh->name.size());
+			mesh->boundingBox = meshHeader->boundingBox;
 
 			for (size_t j = 0; j < meshHeader->submeshCount; ++j) {
 				const SubmeshFileHeader* submeshHeader = getData.operator()<SubmeshFileHeader>();
@@ -333,6 +340,7 @@ namespace DSM::ModelLoader {
 		std::vector<Math::Vector4> tangents{};
 		std::vector<Math::Vector3> bitangents{};
 		std::vector<uint32_t> indices{};
+		Math::AxisAlignedBox boundingBox{};
 		uint32_t materialIndex = 0;
 		uint16_t psoFlags = 0;
 	};
@@ -389,13 +397,23 @@ namespace DSM::ModelLoader {
 		meshData.name = name;
 		meshData.materialIndex = 0;
 		meshData.psoFlags |= kHasPosition | kHasNormal | kHasTangent | kHasUV;
+		Math::Vector3 minVertex = geometryMesh.vertices[0].position;
+		Math::Vector3 maxVertex = geometryMesh.vertices[0].position;
 		for (const auto& vertex : geometryMesh.vertices) {
 			meshData.positions.push_back(vertex.position);
 			meshData.normals.push_back(vertex.normal);
 			meshData.texcoords.push_back(vertex.texCoord);
 			meshData.tangents.push_back(vertex.tangent);
 			meshData.bitangents.push_back(vertex.biTangent);
+			
+			minVertex.Set(0, std::min(minVertex.Get(0), vertex.position.Get(0)));
+			minVertex.Set(1, std::min(minVertex.Get(1), vertex.position.Get(1)));
+			minVertex.Set(2, std::min(minVertex.Get(2), vertex.position.Get(2)));
+			maxVertex.Set(0, std::max(maxVertex.Get(0), vertex.position.Get(0)));
+			maxVertex.Set(1, std::max(maxVertex.Get(1), vertex.position.Get(1)));
+			maxVertex.Set(2, std::max(maxVertex.Get(2), vertex.position.Get(2)));
 		}
+		meshData.boundingBox = Math::AxisAlignedBox(minVertex, maxVertex);
 
 		CreateMesh(*mesh, {&meshData, 1});
 		model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc()
@@ -418,6 +436,9 @@ namespace DSM::ModelLoader {
 			TextureManager::GetDefaultTexture(TextureManager::kBlackTransparent2D),
 			TextureManager::GetDefaultTexture(TextureManager::kDefaultNormalTex)
 		};
+
+		model->boundingBox = mesh->boundingBox;
+
 		return model;
 	}
 
@@ -449,6 +470,12 @@ namespace DSM::ModelLoader {
 
 			ProcessNode(*model, pScene->mRootNode, pScene);
 			ProcessMaterial(*model, filename, pScene);
+
+			Math::AxisAlignedBox boundingBox{};
+			for (const auto& mesh : model->meshes) {
+				boundingBox = Math::AxisAlignedBox::Union(boundingBox, mesh->boundingBox);
+			}
+			model->boundingBox = boundingBox;
 
 			SaveModelToFile(*model, filename);
 		}
@@ -521,6 +548,11 @@ namespace DSM::ModelLoader {
 			memcpy(meshData.indices.data() + i * numIndex, mesh->mFaces[i].mIndices, sizeof(uint32_t) * numIndex);
 		}
 
+		const auto& aabb = mesh->mAABB;
+		Math::Vector3 boxMin{aabb.mMin.x, aabb.mMin.y, aabb.mMin.z};
+		Math::Vector3 boxMax{aabb.mMax.x, aabb.mMax.y, aabb.mMax.z};
+		meshData.boundingBox = Math::AxisAlignedBox{boxMin, boxMax};
+
 		meshData.materialIndex = mesh->mMaterialIndex;
 
 		return meshData;
@@ -559,6 +591,8 @@ namespace DSM::ModelLoader {
 			uvs.insert(uvs.end(), meshData.texcoords.begin(), meshData.texcoords.end());
 			tangents.insert(tangents.end(), meshData.tangents.begin(), meshData.tangents.end());
 			indices.insert(indices.end(), meshData.indices.begin(), meshData.indices.end());
+
+			mesh.boundingBox = Math::AxisAlignedBox::Union(mesh.boundingBox, meshData.boundingBox);
 		}
 
 		std::uint32_t posByteSize = positions.size() * sizeof(Math::Vector3);

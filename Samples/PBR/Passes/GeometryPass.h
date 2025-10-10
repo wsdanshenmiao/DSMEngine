@@ -9,9 +9,8 @@ namespace DSM {
     // 在该 Pass 中进行着色
     class GeometryPass : public IRenderPass {
     public:
-        GeometryPass(Renderer& renderer, std::span<std::shared_ptr<Model>> models)
+        GeometryPass(Renderer& renderer)
         {
-            m_Models.assign_range(models);
             IDevice* device = renderer.GetDevice();
 
             m_PassCB = device->CreateBuffer(BufferDesc()
@@ -20,9 +19,9 @@ namespace DSM {
                 .SetIsVolatile(true)
                 .SetDebugName("GeometryPassConstants"));
 
-            auto fb = g_RenderResources.framebuffer;
+            const Viewport& viewport = renderer.GetCamera().GetViewPort();
             // 创建法线法线纹理等资源
-            OnResize(renderer, fb->GetFramebufferInfo().width, fb->GetFramebufferInfo().height);
+            OnResize(renderer, (uint32_t)viewport.Width(), (uint32_t)viewport.Height());
 
             // 编译 Shader
             ShaderCompileDesc compileDesc = ShaderCompileDesc()
@@ -79,9 +78,6 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            uint32_t width = m_Framebuffer->GetFramebufferInfo().width;
-            uint32_t height = m_Framebuffer->GetFramebufferInfo().height;
-
             // auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("GeometryPassCmdList"));
             auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
@@ -101,10 +97,12 @@ namespace DSM {
             cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
 
             // 渲染深度
-            for(const auto& model : m_Models){
-                for(const auto& mesh : model->meshes){
+            auto view = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
+            for(const auto& obj : view){
+                const auto& model = view.get<Model>(obj);
+                for(const auto& mesh : model.meshes){
                     MeshConstants meshCB{};
-                    meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
+                    meshCB.world = Math::Matrix4::Transpose(model.transform.GetLocalToWorld());
                     meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
                     auto& meshBuffer = g_RenderResources.renderConfigs[mesh->psoIndex].meshCB;
                     cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
@@ -118,7 +116,7 @@ namespace DSM {
                             .SetFramebuffer(m_Framebuffer)
                             .SetPipeline(m_Pipeline)
                             .SetViewport(ViewportState().
-                                AddViewportAndScissorRect({float(width), float(height)}))
+                                AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                             .SetIndexBuffer(mesh->indexBufferViews)
                             .AddBindingSet(bindingSet, 0);
                         if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
@@ -172,8 +170,6 @@ namespace DSM {
         BufferHandle m_PassCB{};
         FramebufferHandle m_Framebuffer{};
         GraphicsPipelineHandle m_Pipeline;
-
-        std::vector<std::shared_ptr<Model>> m_Models;
     };
 } // namespace DSM
 

@@ -2,7 +2,7 @@
 #ifndef __BOUNDING_BOX_H__
 #define __BOUNDING_BOX_H__
 
-#include "Runtime/Math/MathCommon.h"
+#include "Runtime/Math/Transform.h"
 
 namespace DSM::Math {
     class AxisAlignedBox
@@ -30,8 +30,8 @@ namespace DSM::Math {
 
         inline const Vector3& GetMin() const noexcept { return m_Min; }
         inline const Vector3& GetMax() const noexcept { return m_Max; }
-        inline const Vector3& GetCenter() const noexcept { return (m_Min + m_Max) * 0.5f; }
-        inline const Vector3& GetSize() const noexcept { return m_Max - m_Min; }
+        inline Vector3 GetCenter() const noexcept { return (m_Min + m_Max) * 0.5f; }
+        inline Vector3 GetSize() const noexcept { return m_Max - m_Min; }
 
         static AxisAlignedBox Union(AxisAlignedBox a, const AxisAlignedBox& b) noexcept
         {
@@ -39,6 +39,23 @@ namespace DSM::Math {
             a.m_Max = Vector3::Max(a.m_Max, b.m_Max);
             a.PadToMinimums();
             return a;
+        }
+
+        AxisAlignedBox& operator*=(const Transform& transform) noexcept
+        {
+            auto center = GetCenter();
+            auto extents = GetSize() * 0.5f;
+            Matrix4 world = transform.GetLocalToWorld();
+            Matrix3 absWorld{
+                Vector3::Abs(Vector3{world.Get(0)}),
+                Vector3::Abs(Vector3{world.Get(1)}),
+                Vector3::Abs(Vector3{world.Get(2)})
+            };
+            center = Vector3{Vector4{center, 1.0f} * world};
+            extents = extents * absWorld;
+            m_Min = center - extents;
+            m_Max = center + extents;
+            return *this;
         }
 
     private:
@@ -56,6 +73,8 @@ namespace DSM::Math {
         Vector3 m_Min;
         Vector3 m_Max;
     };
+
+    inline AxisAlignedBox operator*(AxisAlignedBox box, const Transform& transform) noexcept { return box *= transform; }
 
 
     class OrientedBox

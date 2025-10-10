@@ -44,6 +44,10 @@ namespace DSM{
         if(!m_BufferStates.contains(buffer)){
             m_BufferStates[buffer] = std::make_unique<BufferState>();
             m_BufferStates[buffer]->state = buffer->GetDesc().initialState;
+            // 单独处理需要保持初始状态的 Buffer
+            if(const auto& desc = buffer->GetDesc(); desc.keepInitialState && !desc.isVolatile){
+                m_KeepInitialStatesBuffers.push_back(buffer);
+            }
         }
     }
 
@@ -53,6 +57,10 @@ namespace DSM{
         if(!m_TextureStates.contains(texture)){
             m_TextureStates[texture] = std::make_unique<TesxtureState>();
             m_TextureStates[texture]->state = texture->GetDesc().initialState;
+            // 单独处理需要保持初始状态的 Texture
+            if(const auto& desc = texture->GetDesc(); desc.keepInitialState){
+                m_KeepInitialStatesTextures.push_back(texture);
+            }
         }
     }
 
@@ -61,6 +69,9 @@ namespace DSM{
         assert(buffer != nullptr);
         if(m_BufferStates.contains(buffer)){
             m_BufferStates.erase(buffer);
+            if(const auto& desc = buffer->GetDesc(); desc.keepInitialState && !desc.isVolatile){
+                std::erase(m_KeepInitialStatesBuffers, buffer);
+            }
         }
     }
 
@@ -69,6 +80,9 @@ namespace DSM{
         assert(texture != nullptr);
         if(m_TextureStates.contains(texture)){
             m_TextureStates.erase(texture);
+            if(const auto& desc = texture->GetDesc(); desc.keepInitialState){
+                std::erase(m_KeepInitialStatesTextures, texture);
+            }
         }
     }
 
@@ -223,21 +237,16 @@ namespace DSM{
     }
 
     void ResourceStateTracker::KeepTextureInitialStates()
-    {        
-        for(auto& [tex, state] : m_TextureStates){
-            if(auto& desc = tex->GetDesc(); desc.keepInitialState){
-                RequireTextureState(tex, AllSubresources, desc.initialState);
-            }
+    {
+        for(auto& texture : m_KeepInitialStatesTextures){
+            RequireTextureState(texture, AllSubresources, texture->GetDesc().initialState);
         }
     }
 
     void ResourceStateTracker::KeepBufferInitialStates()
     {
-        for(auto& [buffer, state] : m_BufferStates){
-            if(auto& desc = buffer->GetDesc(); 
-                desc.keepInitialState && !desc.isVolatile){
-                RequireBufferState(buffer, desc.initialState);
-            }
+        for(auto& buffer : m_KeepInitialStatesBuffers){
+            RequireBufferState(buffer, buffer->GetDesc().initialState);
         }
     }
 }

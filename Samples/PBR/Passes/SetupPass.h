@@ -50,8 +50,8 @@ namespace DSM {
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
                 .AddItem(BindingLayoutItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO));
 
-            const auto& bufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
-            OnResize(renderer, bufferDesc.width, bufferDesc.height);
+            const auto& viewport = renderer.GetCamera().GetViewPort();
+            OnResize(renderer, (uint32_t)viewport.Width(), (uint32_t)viewport.Height());
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override {}
@@ -76,11 +76,14 @@ namespace DSM {
                 .SetInitialState(ResourceStates::DepthWrite)
                 .SetIsRenderTarget(true)    // 深度纹理也需要设置
                 .SetDebugName("DepthTex"));
+            auto preFramebuffer = g_RenderResources.framebuffer;
             g_RenderResources.framebuffer = renderer.GetDevice()->CreateFramebuffer(FramebufferDesc()
                 .AddColorAttachment(colorTex).SetDepthAttachment(depthTex));
 
             for(auto& [desc, pipeline] : g_RenderResources.psoCache){
-                pipeline = renderer.GetDevice()->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);
+                if(pipeline->GetFramebufferInfo() == preFramebuffer->GetFramebufferInfo()){
+                    pipeline = renderer.GetDevice()->CreateGraphicsPipeline(desc, g_RenderResources.framebuffer);
+                }
             }
         }
 

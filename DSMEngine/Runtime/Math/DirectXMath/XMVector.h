@@ -92,6 +92,7 @@ namespace DSM {
 
         inline operator DirectX::XMVECTOR() const noexcept { return m_Vector; }
 
+        static inline XMVector3 Abs(XMVector3 v) noexcept { return DirectX::XMVectorAbs(v); }
         static inline void Normalize(XMVector3& v) noexcept { DirectX::XMVector3Normalize(v.m_Vector); }
         static inline XMScalar Distance(const XMVector3& v1, const XMVector3& v2) noexcept;
         static inline XMVector3 Zero() noexcept { return XMVector3{}; }
@@ -222,6 +223,7 @@ namespace DSM {
 
         inline operator DirectX::XMVECTOR() const noexcept { return m_Vector; }
 
+        static inline XMVector4 Abs(XMVector4 v) noexcept { return DirectX::XMVectorAbs(v); }
         static inline void Normalize(XMVector4& v) noexcept { DirectX::XMVector4Normalize(v.m_Vector); }
         static inline XMScalar Distance(XMVector4 v1, XMVector4 v2) noexcept;
         static inline XMVector4 Zero() noexcept { return XMVector4{}; }

@@ -6,7 +6,7 @@
 #include <string>
 #include "Runtime/Graphics/PipelineState.h"
 #include "Runtime/Graphics/ResourceBindings.h"
-
+#include "Runtime/Math/Collision/BoundingBox.h"
 
 namespace DSM {
 
@@ -33,6 +33,8 @@ namespace DSM {
 		IndexBufferBinding indexBufferViews;
 		uint16_t psoFlags;
 		uint16_t psoIndex;
+
+		Math::AxisAlignedBox boundingBox;
 
 		// 每次绘制需要使用的数据
 		struct SubMesh

@@ -45,6 +45,7 @@ namespace DSM {
         float deltaTime = m_Timer.DeltaTime();
         CalculateFPS();
         DSMEngine::sm_GlobalContext.window->Update();
+        DSMEngine::sm_GlobalContext.world->Update(deltaTime);
 
         Render(deltaTime);
     }

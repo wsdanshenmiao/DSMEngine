@@ -109,9 +109,7 @@ namespace DSM {
             GraphicsState graphicsState = GraphicsState()
                 .SetPipeline(g_RenderResources.psoCache.at(m_PipelineDesc))
                 .SetFramebuffer(fb)
-                .SetViewport(ViewportState().AddViewportAndScissorRect(Viewport(
-                    (float)fb->GetFramebufferInfo().width, 
-                    (float)fb->GetFramebufferInfo().height)))
+                .SetViewport(ViewportState().AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                 .AddBindingSet(m_BindingSet, 0);
             cmdList->SetGraphicsState(graphicsState);
 

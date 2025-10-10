@@ -7,6 +7,7 @@
 #include "Runtime/Render/ShaderCompiler.h"
 #include "Runtime/Render/Model.h"
 #include "Shaders/ResourceData.h"
+#include "Runtime/Math/Collision/BoundingSphere.h"
 
 namespace DSM {
     struct ShadowSetting
@@ -41,10 +42,7 @@ namespace DSM {
     class ShadowPass : public IRenderPass
     {
     public:
-        ShadowPass(Renderer& renderer, 
-            ShadowSetting shadowSetting, 
-            std::span<std::shared_ptr<Model>> models)
-            : m_Models(models.begin(), models.end())
+        ShadowPass(Renderer& renderer, ShadowSetting shadowSetting)
         {
             sm_Setting = shadowSetting;
             auto device = renderer.GetDevice();
@@ -212,35 +210,52 @@ namespace DSM {
                 Math::Matrix4 viewProj;
                 Math::Vector4 baseColor;
             } shadowCB{};
-            // TODO:后续根据场景物体的包围盒计算
-            // 需要使用正交投影
+
+            auto view = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
+            // 计算所有模型的包围盒
+            Math::AxisAlignedBox boundingBox{};
+            for (const auto& obj : view) {
+                const auto& model = view.get<Model>(obj);
+                auto transBox = model.boundingBox * model.transform;
+                boundingBox = Math::AxisAlignedBox::Union(boundingBox, transBox);
+            }
+            Math::BoundingSphere boundingSphere{boundingBox};
+
             Camera lightCamera{};
-            float len = 20;
-            auto lightPos = -light.direction * len;
-            Math::Vector4 center{0,0,0,1};
+            float radius = boundingSphere.GetRadius();
+            auto lightPos = -light.direction * 2 * radius;
+            Math::Vector4 center{boundingSphere.GetCenter(), 1};
             lightCamera.SetPosition(lightPos);
             lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
-            auto view = lightCamera.GetViewMatrix();
-            center = center * view;
-            auto proj = Math::GetOrthographicMatrix(
-                center.Get(0) - len, center.Get(0) + len, 
-                center.Get(1) - len, center.Get(1) + len, 
-                center.Get(2) - 2 * len, center.Get(2) + 2 * len);
-            shadowCB.viewProj = Math::Matrix4::Transpose(view * proj);
+
+            auto viewMatrix = lightCamera.GetViewMatrix();
+            center = center * viewMatrix;
+
+            // 需要使用正交投影
+            float l = center.Get(0) - radius;
+            float b = center.Get(1) - radius;
+            float n = center.Get(2) - radius;
+            float r = center.Get(0) + radius;
+            float t = center.Get(1) + radius;
+            float f = center.Get(2) + radius;
+            
+            Math::Matrix4 proj = Math::GetOrthographicMatrix(l, r, b, t, n, f);
+            shadowCB.viewProj = Math::Matrix4::Transpose(viewMatrix * proj);
             Math::Vector2 offset{float(index % split), float(index / split)};
             m_DirectionalShadowMatrices[index] = ConvertToAtlasMatrix(shadowCB.viewProj, offset, 1.f / split);
 
-            for(const auto& model : m_Models){
+            for(const auto& obj : view) {
+                const auto& model = view.get<Model>(obj);
                 auto bufferSize = Math::Align(sizeof(ShadowPassCB), size_t(c_ConstantBufferOffsetSizeAlignment));
                 BufferHandle shadowConstantsBuffer = device->CreateBuffer(BufferDesc()
-                    .SetByteSize(bufferSize * model->materials.size())
+                    .SetByteSize(bufferSize * model.materials.size())
                     .SetIsConstantBuffer(true)
                     .SetIsVolatile(true)
                     .SetDebugName("Shadow Pass CB"));
-                std::vector<bool> writtenMaterials(model->materials.size(), false);
-                
+                std::vector<bool> writtenMaterials(model.materials.size(), false);
+
                 MeshConstants meshCB{};
-                meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
+                meshCB.world = Math::Matrix4::Transpose(model.transform.GetLocalToWorld());
                 meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
                 auto meshConstantBuffer = device->CreateBuffer(BufferDesc()
                     .SetByteSize(sizeof(MeshConstants))
@@ -255,13 +270,13 @@ namespace DSM {
                             .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))),
                             m_ShadowBindingLayouts[0]);
 
-                for(const auto& mesh : model->meshes){
+                for(const auto& mesh : model.meshes){
                     bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
                     for(const auto& [name, submesh] : mesh->subMeshes){
                         auto bufferOffset = bufferSize * submesh.materialIndex;
                         // 避免重复写入
                         if(!writtenMaterials[submesh.materialIndex]){
-                            shadowCB.baseColor = model->materials[submesh.materialIndex]->baseColor;
+                            shadowCB.baseColor = model.materials[submesh.materialIndex]->baseColor;
                             cmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(ShadowPassCB), bufferOffset);
                             writtenMaterials[submesh.materialIndex] = true;
                         }
@@ -338,8 +353,6 @@ namespace DSM {
         std::array<BindingLayoutHandle, 2> m_ShadowBindingLayouts;
 
         std::vector<Light> m_DirectionalLights{};
-
-        std::vector<std::shared_ptr<Model>> m_Models;
     };
 } // namespace DSM
 

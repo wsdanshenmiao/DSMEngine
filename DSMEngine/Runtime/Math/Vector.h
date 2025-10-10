@@ -45,6 +45,7 @@ namespace DSM{
         // 检测该向量是否接近零向量，避免边缘情况
         constexpr bool NearZero() const;
 
+        static constexpr Vector Abs(Vector v) noexcept;
         static constexpr void Normalize(Vector& v) noexcept;
         static constexpr Scalar<T> Distance(const Vector& v1, const Vector& v2) noexcept;
         static constexpr Vector Zero() noexcept;
@@ -248,8 +249,18 @@ namespace DSM{
         return true;
     }
 
-    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
-    constexpr void Vector<T, N>::Normalize(Vector& v) noexcept
+    template <typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr Vector<T, N> Vector<T, N>::Abs(Vector v) noexcept
+    {
+        for(size_t i = 0; i < N; ++i){
+            v[i] = std::abs(v[i]);
+        }
+        return v;
+    }
+
+    template <typename T, std::size_t N>
+        requires std::is_arithmetic_v<T>
+    constexpr void Vector<T, N>::Normalize(Vector &v) noexcept
     {
         float magnitude = v.Magnitude();
         if (magnitude <= 1e-6f) return;

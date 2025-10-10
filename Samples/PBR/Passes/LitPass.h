@@ -12,9 +12,8 @@ namespace DSM {
     class LitPass : public IRenderPass
     {
     public:
-        LitPass(Renderer& renderer, std::span<std::shared_ptr<Model>> models)
+        LitPass(Renderer& renderer)
         {
-            m_Models.assign_range(models);
             m_PassCB = renderer.GetDevice()->CreateBuffer(BufferDesc()
                 .SetByteSize(sizeof(PassConstants))
                 .SetIsConstantBuffer(true)
@@ -69,10 +68,12 @@ namespace DSM {
 
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
 
-            for(const auto& model : m_Models) {
-                for(const auto& mesh : model->meshes){
+            auto view = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
+            for(const auto& obj : view) {
+                const auto& model = view.get<Model>(obj);
+                for(const auto& mesh : model.meshes){
                     MeshConstants meshCB{};
-                    meshCB.world = Math::Matrix4::Transpose(model->transform.GetLocalToWorld());
+                    meshCB.world = Math::Matrix4::Transpose(model.transform.GetLocalToWorld());
                     meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
                     auto& meshBuffer = renderConfig[mesh->psoIndex].meshCB;
                     cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
@@ -83,7 +84,7 @@ namespace DSM {
                         auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * submesh.materialIndex);
                         BindingSetDesc bindingDesc{};
                         bindingDesc.AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
-                            .AddItem(BindingSetItem().ConstantBuffer(1, model->materialData, matBufferRange));
+                            .AddItem(BindingSetItem().ConstantBuffer(1, model.materialData, matBufferRange));
                         for(size_t i = 0; i < kNumTextures; ++i){
                             bindingDesc.AddItem(BindingSetItem().Texture_SRV(i, submesh.textures[i]));
                         }
@@ -92,7 +93,7 @@ namespace DSM {
                         GraphicsState state{};
                         state.SetFramebuffer(fb)
                             .SetPipeline(g_RenderResources.psoCache[renderConfig[mesh->psoIndex].pipelineDesc])
-                            .SetViewport(ViewportState{}.AddViewportAndScissorRect(Viewport{width, height}))
+                            .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                             .SetIndexBuffer(mesh->indexBufferViews)
                             .AddBindingSet(localBindingSet, (uint32_t)BindingLayoutSlot::Local)
                             .AddBindingSet(g_RenderResources.commonBindingSet, (uint32_t)BindingLayoutSlot::Common);
@@ -133,7 +134,6 @@ namespace DSM {
         
 
     private:
-        std::vector<std::shared_ptr<Model>> m_Models{};
         BufferHandle m_PassCB{};
     };
 

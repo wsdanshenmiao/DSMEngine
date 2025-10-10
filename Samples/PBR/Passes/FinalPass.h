@@ -8,7 +8,7 @@ namespace DSM {
     class FinalPass : public IRenderPass
     {
     public:
-        FinalPass(Renderer& renderer, std::span<std::shared_ptr<Model>> models)
+        FinalPass(Renderer& renderer)
         {
             auto device = renderer.GetDevice();
             
@@ -16,15 +16,16 @@ namespace DSM {
             for(size_t i = 0; i < (size_t)BindingLayoutSlot::Count; ++i) {
                 g_RenderResources.bindingLayouts[i] = device->CreateBindingLayout(g_RenderResources.bindingLayoutDescs[i]);
             }
-            // 为所有模型生成渲染配置
-            for(const auto& model : models){
+            auto objs = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
+            for(const auto& obj : objs){
+                auto& model = objs.get<Model>(obj);
                 GenerateRenderConfigs(renderer, model);
             }
 
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
 
-            auto& fbDesc = g_RenderResources.framebuffer->GetFramebufferInfo();
-            OnResize(renderer, fbDesc.width, fbDesc.height);
+            const Viewport& viewport = renderer.GetCamera().GetViewPort();
+            OnResize(renderer, (uint32_t)viewport.Width(), (uint32_t)viewport.Height());
         }
 
         void Render(Renderer& renderer, float deltaTime) override
@@ -36,8 +37,10 @@ namespace DSM {
 
             cmdList->BeginTimerQuery(sm_TimerQuery);
 
-            auto backTexture = renderer.GetCurrentBackBuffer();
-            cmdList->CopyTexture(backTexture, {}, g_RenderResources.framebuffer->GetDesc().colorAttachments[0].texture, {});
+            ITexture* backTexture = renderer.GetCurrentBackBuffer();
+            TextureHandle colorTex = GetCommonTexture(CommonTextureSlot::Color);
+            cmdList->CopyTexture(backTexture, {}, colorTex, {});
+            cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::ShaderResource);
 
             cmdList->EndTimerQuery(sm_TimerQuery);
             
@@ -53,7 +56,7 @@ namespace DSM {
         }
 
     private:
-        void GenerateRenderConfigs(Renderer& renderer, std::shared_ptr<Model> model)
+        void GenerateRenderConfigs(Renderer& renderer, const Model& model)
         {
             auto device = renderer.GetDevice();
             // 创建渲染配置
@@ -111,7 +114,7 @@ namespace DSM {
                 return retDesc;
             };
 
-            for(auto& mesh : model->meshes){
+            for(auto& mesh : model.meshes){
                 attributes.clear();
                 addAttribute(mesh->psoFlags, kHasPosition, 
                     "POSITION", 0, Format::RGB32_FLOAT, sizeof(Math::Vector3));

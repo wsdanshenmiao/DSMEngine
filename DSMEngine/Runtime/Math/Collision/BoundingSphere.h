@@ -2,7 +2,8 @@
 #ifndef __BOUNDING_SPHERE_H__
 #define __BOUNDING_SPHERE_H__
 
-#include "Runtime/Math/MathCommon.h"
+
+#include "BoundingBox.h"
 
 namespace DSM::Math {
     class BoundingSphere
@@ -15,9 +16,27 @@ namespace DSM::Math {
             : m_Sphere(sphere) {}
         BoundingSphere(float x, float y, float z, float radius)
             : m_Sphere({x, y, z, std::max(radius, 0.0f)}) {}
+        BoundingSphere(const AxisAlignedBox& boundingBox)
+        {
+            Vector3 center = boundingBox.GetCenter();
+            Vector3 size = boundingBox.GetSize() * 0.5f;
+            float radius = size.Magnitude();
+            m_Sphere = Vector4(center, radius);
+        }
 
         Vector3 GetCenter() const noexcept { return Vector3{ m_Sphere }; }
         Scalar GetRadius() const noexcept { return m_Sphere.Get(3); }
+
+        BoundingSphere& operator*=(const Transform& transform) noexcept
+        {
+            auto center = GetCenter() + transform.GetPosition();
+            float radius = GetRadius();
+            auto scale = transform.GetScale();
+            float scaleMax = std::max({scale.Get(0), scale.Get(1), scale.Get(2)});
+            radius *= scaleMax;
+            m_Sphere = Vector4(center, radius);
+            return *this;
+        }
 
         static BoundingSphere Union(BoundingSphere lfs, const BoundingSphere& rhs) noexcept
         {
@@ -33,6 +52,8 @@ namespace DSM::Math {
     private:
         Vector4 m_Sphere{}; // (x, y, z, radius)
     };
+
+    inline BoundingSphere operator*(BoundingSphere sphere, const Transform& transform) noexcept { return sphere *= transform; }
 } // namespace DSM::Math
 
 
