@@ -3,7 +3,7 @@
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
-#include "Runtime/Framework/World.h"
+#include "Runtime/Framework/Scene.h"
 
 namespace DSM {
 
@@ -16,7 +16,7 @@ namespace DSM {
         renderParams.window = sm_GlobalContext.window.get();
         renderParams.enableDebugLayer = params.enableDebugLayer;
         sm_GlobalContext.renderer = std::make_shared<Renderer>(renderParams);
-        sm_GlobalContext.world = std::make_shared<World>();
+        sm_GlobalContext.scene = std::make_shared<Scene>();
 
         sm_GlobalContext.window->SetEventCallback([this](Event& event){
             EventDispatcher dispatcher{event};
@@ -45,7 +45,7 @@ namespace DSM {
         float deltaTime = m_Timer.DeltaTime();
         CalculateFPS();
         DSMEngine::sm_GlobalContext.window->Update();
-        DSMEngine::sm_GlobalContext.world->Update(deltaTime);
+        DSMEngine::sm_GlobalContext.scene->Update(deltaTime);
 
         Render(deltaTime);
     }

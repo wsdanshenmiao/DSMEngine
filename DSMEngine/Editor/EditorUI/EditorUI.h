@@ -4,6 +4,7 @@
 
 #include <memory>
 #include "Runtime/Render/WindowUI.h"
+#include "Editor/EditorUI/SceneHierarchyPanel.h"
 
 namespace DSM {
     class Window;
@@ -21,6 +22,9 @@ namespace DSM {
         EditorUI(const EditorUIDesc& desc);
 
         void Render() override;
+
+    private:
+        std::unique_ptr<SceneHierarchyPanel> m_SceneHierarchyPanel;
     };
     
 } // namespace DSM 

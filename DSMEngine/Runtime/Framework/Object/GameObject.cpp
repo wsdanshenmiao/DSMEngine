@@ -1,8 +1,8 @@
 #include "GameObject.h"
 
 namespace DSM {
-    GameObject::GameObject(entt::entity handle, GUID id, World *world)
-        : m_Handle(handle), m_ID(id), m_World(world)
+    GameObject::GameObject(ObjectID handle, Scene *world)
+        : m_Handle(handle), m_World(world)
     {
 
     }

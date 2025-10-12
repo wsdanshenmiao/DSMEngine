@@ -97,12 +97,11 @@ namespace DSM {
             cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
 
             // 渲染深度
-            auto view = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
-            for(const auto& obj : view){
-                const auto& model = view.get<Model>(obj);
+            auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
+            for(const auto& [entity, model, transform] : view.each()){
                 for(const auto& mesh : model.meshes){
                     MeshConstants meshCB{};
-                    meshCB.world = Math::Matrix4::Transpose(model.transform.GetLocalToWorld());
+                    meshCB.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
                     meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
                     auto& meshBuffer = g_RenderResources.renderConfigs[mesh->psoIndex].meshCB;
                     cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));

@@ -1,11 +1,13 @@
 #include "EditorUI.h"
 #include "Runtime/Core/Window.h"
 #include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Framework/Scene.h"
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 
 namespace DSM {
     EditorUI::EditorUI(const EditorUIDesc& desc)
+        : m_SceneHierarchyPanel(std::make_unique<SceneHierarchyPanel>())
     {
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
@@ -29,9 +31,13 @@ namespace DSM {
 
         // 根据不同的图形 API 初始化不同的 ImGui 后端
         desc.renderer->InitWindowUI(this);
+
+        m_SceneHierarchyPanel->SetScene(DSMEngine::sm_GlobalContext.scene);
     }
 
     void EditorUI::Render()
     {
+        DSMEngine::sm_GlobalContext.scene->OnGUI();
+        m_SceneHierarchyPanel->OnGUI();
     }
 } // namespace DSM

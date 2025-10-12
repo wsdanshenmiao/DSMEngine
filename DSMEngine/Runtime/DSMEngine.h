@@ -12,7 +12,7 @@ namespace DSM {
     class LogSystem;
     class Window;
     class Renderer;
-    class World;
+    class Scene;
 
     struct EngineGlobalContext
     {
@@ -20,7 +20,7 @@ namespace DSM {
         std::shared_ptr<LogSystem> loggerSystem;
         std::shared_ptr<Window> window;
         std::shared_ptr<Renderer> renderer;
-        std::shared_ptr<World> world;
+        std::shared_ptr<Scene> scene;
     };
 
     struct EngineParameters

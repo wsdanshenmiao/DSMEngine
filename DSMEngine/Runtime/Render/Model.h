@@ -21,8 +21,6 @@ namespace DSM {
         std::vector<std::shared_ptr<Material>> materials{};
         BufferHandle materialData{};
         Math::AxisAlignedBox boundingBox{};
-
-        Math::Transform transform{};
     };
 
 }

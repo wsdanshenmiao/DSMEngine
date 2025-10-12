@@ -211,12 +211,11 @@ namespace DSM {
                 Math::Vector4 baseColor;
             } shadowCB{};
 
-            auto view = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
+            auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
             // 计算所有模型的包围盒
             Math::AxisAlignedBox boundingBox{};
-            for (const auto& obj : view) {
-                const auto& model = view.get<Model>(obj);
-                auto transBox = model.boundingBox * model.transform;
+            for (const auto& [entity, model, transform] : view.each()) {
+                auto transBox = model.boundingBox * transform;
                 boundingBox = Math::AxisAlignedBox::Union(boundingBox, transBox);
             }
             Math::BoundingSphere boundingSphere{boundingBox};
@@ -225,7 +224,7 @@ namespace DSM {
             float radius = boundingSphere.GetRadius();
             auto lightPos = -light.direction * 2 * radius;
             Math::Vector4 center{boundingSphere.GetCenter(), 1};
-            lightCamera.SetPosition(lightPos);
+            lightCamera.SetPosition(Math::Vector3{center} + lightPos);
             lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
 
             auto viewMatrix = lightCamera.GetViewMatrix();
@@ -244,8 +243,7 @@ namespace DSM {
             Math::Vector2 offset{float(index % split), float(index / split)};
             m_DirectionalShadowMatrices[index] = ConvertToAtlasMatrix(shadowCB.viewProj, offset, 1.f / split);
 
-            for(const auto& obj : view) {
-                const auto& model = view.get<Model>(obj);
+            for(const auto& [entity, model, transform] : view.each()) {
                 auto bufferSize = Math::Align(sizeof(ShadowPassCB), size_t(c_ConstantBufferOffsetSizeAlignment));
                 BufferHandle shadowConstantsBuffer = device->CreateBuffer(BufferDesc()
                     .SetByteSize(bufferSize * model.materials.size())
@@ -255,7 +253,7 @@ namespace DSM {
                 std::vector<bool> writtenMaterials(model.materials.size(), false);
 
                 MeshConstants meshCB{};
-                meshCB.world = Math::Matrix4::Transpose(model.transform.GetLocalToWorld());
+                meshCB.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
                 meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
                 auto meshConstantBuffer = device->CreateBuffer(BufferDesc()
                     .SetByteSize(sizeof(MeshConstants))

@@ -2,7 +2,7 @@
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Core/Macro.h"
 #include "Runtime/Render/Renderer/Renderer.h"
-#include "EditorUI.h"
+#include "Editor/EditorUI/EditorUI.h"
 
 namespace DSM{
     DSMEditor::DSMEditor(DSMEngine* engine)

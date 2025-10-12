@@ -16,7 +16,7 @@ namespace DSM {
             for(size_t i = 0; i < (size_t)BindingLayoutSlot::Count; ++i) {
                 g_RenderResources.bindingLayouts[i] = device->CreateBindingLayout(g_RenderResources.bindingLayoutDescs[i]);
             }
-            auto objs = DSMEngine::sm_GlobalContext.world->GetAllObjectsWithComponents<Model>();
+            auto objs = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model>();
             for(const auto& obj : objs){
                 auto& model = objs.get<Model>(obj);
                 GenerateRenderConfigs(renderer, model);
