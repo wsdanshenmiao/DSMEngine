@@ -110,7 +110,7 @@ namespace DSM {
                         .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
                     m_Pipeline->GetDesc().bindingLayouts[0]);
 
-                    for(const auto& [name, submesh] : mesh->subMeshes){
+                    for(const auto& submesh : mesh->subMeshes){
                         GraphicsState state = GraphicsState()
                             .SetFramebuffer(m_Framebuffer)
                             .SetPipeline(m_Pipeline)

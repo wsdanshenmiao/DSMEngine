@@ -354,7 +354,7 @@ namespace DSM::D3D12{
     {
         switch (type) {
         case ObjectTypes::D3D12_Device:
-            return Object(m_Context.device);
+            return Object(m_Context.device.Get());
         case ObjectTypes::D3D12_CommandQueue:
             return Object(GetQueue(CommandQueueType::Graphics)->GetCommandQueue());
         default:

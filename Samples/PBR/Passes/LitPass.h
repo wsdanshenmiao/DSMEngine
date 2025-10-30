@@ -77,7 +77,7 @@ namespace DSM {
                     auto& meshBuffer = renderConfig[mesh->psoIndex].meshCB;
                     cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
 
-                    for(const auto& [name, submesh] : mesh->subMeshes){
+                    for(const auto& submesh : mesh->subMeshes){
                         // 绑定资源
                         auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
                         auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * submesh.materialIndex);

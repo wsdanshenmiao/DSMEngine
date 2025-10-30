@@ -8,6 +8,7 @@
 #include "Runtime/Render/Model.h"
 #include "Shaders/ResourceData.h"
 #include "Runtime/Math/Collision/BoundingSphere.h"
+#include "Runtime/Math/Collision/Frustum.h"
 
 namespace DSM {
     struct ShadowSetting
@@ -230,14 +231,26 @@ namespace DSM {
             auto viewMatrix = lightCamera.GetViewMatrix();
             center = center * viewMatrix;
 
+            // 获取相机的视锥体
+            const auto& camera = renderer.GetCamera();
+            Math::Frustum cameraFrustum{camera.GetProjMatrix()};
+            // 变换到世界空间
+            cameraFrustum *= Math::Matrix4::Inverse(camera.GetViewMatrix());
+            // 变换到光照空间
+            cameraFrustum *= viewMatrix;
+            auto frustumCorners = cameraFrustum.GetCorners();
+            Math::AxisAlignedBox cameraBounds{std::span{frustumCorners}};
+            Math::Vector3 lightCameraMin = cameraBounds.GetMin();
+            Math::Vector3 lightCameraMax = cameraBounds.GetMax();
+
             // 需要使用正交投影
-            float l = center.Get(0) - radius;
-            float b = center.Get(1) - radius;
-            float n = center.Get(2) - radius;
-            float r = center.Get(0) + radius;
-            float t = center.Get(1) + radius;
-            float f = center.Get(2) + radius;
-            
+            float l = std::max(center.Get(0) - radius, lightCameraMin.Get(0));
+            float b = std::max(center.Get(1) - radius, lightCameraMin.Get(1));
+            float n = std::max(center.Get(2) - radius, lightCameraMin.Get(2));
+            float r = std::min(center.Get(0) + radius, lightCameraMax.Get(0));
+            float t = std::min(center.Get(1) + radius, lightCameraMax.Get(1));
+            float f = std::min(center.Get(2) + radius, lightCameraMax.Get(2));
+
             Math::Matrix4 proj = Math::GetOrthographicMatrix(l, r, b, t, n, f);
             shadowCB.viewProj = Math::Matrix4::Transpose(viewMatrix * proj);
             Math::Vector2 offset{float(index % split), float(index / split)};
@@ -270,7 +283,7 @@ namespace DSM {
 
                 for(const auto& mesh : model.meshes){
                     bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
-                    for(const auto& [name, submesh] : mesh->subMeshes){
+                    for(const auto& submesh : mesh->subMeshes){
                         auto bufferOffset = bufferSize * submesh.materialIndex;
                         // 避免重复写入
                         if(!writtenMaterials[submesh.materialIndex]){

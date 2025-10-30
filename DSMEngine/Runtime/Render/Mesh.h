@@ -39,6 +39,7 @@ namespace DSM {
 		// 每次绘制需要使用的数据
 		struct SubMesh
 		{
+			std::string name;
 			uint32_t indexCount;
 			uint32_t indexOffset;
 			uint32_t vertexOffset;
@@ -46,7 +47,7 @@ namespace DSM {
 			// 使用的纹理在描述符堆中的偏移
 			std::vector<TextureHandle> textures;
 		};
-		std::map<std::string, SubMesh> subMeshes;
+		std::vector<SubMesh> subMeshes;
 
 		BufferHandle meshData{};
 	};

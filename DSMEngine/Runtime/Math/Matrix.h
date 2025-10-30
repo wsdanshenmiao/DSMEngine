@@ -16,6 +16,7 @@ namespace DSM {
 		using RowType = Vector<T, Col>;
 		using ColType = Vector<T, Row>;
 		using LowerType = Matrix<T, Row - 1, Col - 1>;
+		using UpperType = Matrix<T, Row + 1, Col + 1>;
 
         constexpr Matrix() = default;
         constexpr Matrix(const RowType& x, const RowType& y, const RowType& z) requires (Row == 3)
@@ -29,6 +30,7 @@ namespace DSM {
         constexpr Matrix(const LowerType& m) requires (Row > 1 && Col > 1)
 			:Matrix(m, Vector<T, Col - 1>{}) {}
         constexpr Matrix(const LowerType& m, const Vector<T, Col - 1>& w) requires (Row > 1 && Col > 1);
+		explicit constexpr Matrix(const UpperType& m);
 
         auto& operator*=(Scalar<T> s) noexcept;
         inline auto& operator*=(T s) noexcept { return operator*=(Scalar<T>(s)); }
@@ -117,6 +119,14 @@ namespace DSM {
 		}
 		m_Matrix[Row - 1] = RowType{w};
 		m_Matrix[Row -1].Set(Col - 1, 1);
+	}
+
+	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>
+	constexpr Matrix<T, Row, Col>::Matrix(const UpperType& m)
+	{
+		for(size_t i = 0; i < Row; ++i){
+			m_Matrix[i] = RowType{m.Get(i)};
+		}
 	}
 
 	template <typename T, std::size_t Row, std::size_t Col> requires std::is_arithmetic_v<T>

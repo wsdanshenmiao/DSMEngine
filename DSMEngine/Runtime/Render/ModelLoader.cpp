@@ -20,6 +20,8 @@ namespace DSM::ModelLoader {
 	static DeviceHandle s_GraphicsDevice;
 	static const std::string s_ModelCacheDir = std::filesystem::current_path().string() + "\\Assets\\Models\\";
 	static std::array<TextureHandle, kNumTextures> s_CommonTextures;
+	// 缓存下来的模型，防止重复加载
+	static std::unordered_map<std::string, std::shared_ptr<Model>> s_LoadedModels;
 
 	struct ModelFileHeader
 	{
@@ -111,9 +113,9 @@ namespace DSM::ModelLoader {
 			meshData.header.boundingBox = mesh.boundingBox;
 			meshData.meshDataBuffer = mesh.meshData;
 
-			for(const auto& [submeshName, submesh] : mesh.subMeshes) {
+			for(const auto& submesh : mesh.subMeshes) {
 				SubmeshFileHeader submeshHeader{};
-				submeshHeader.nameSize = submeshName.size();
+				submeshHeader.nameSize = submesh.name.size();
 				submeshHeader.indexCount = submesh.indexCount;
 				submeshHeader.indexOffset = submesh.indexOffset;
 				submeshHeader.vertexOffset = submesh.vertexOffset;
@@ -125,7 +127,7 @@ namespace DSM::ModelLoader {
 					submeshHeader.texFilenameSizes[j] = submeshData.texFilename[j].size();
 					filenameSize += submeshData.texFilename[j].size();
 				}
-				submeshData.name = submeshName;
+				submeshData.name = submesh.name;
 				submeshData.header = submeshHeader;
 				meshData.header.dataSize += sizeof(SubmeshFileHeader) + submeshHeader.nameSize + filenameSize;
 				meshData.submeshDataArray.push_back(submeshData);
@@ -261,6 +263,7 @@ namespace DSM::ModelLoader {
 				std::string submeshName{};
 				submeshName.resize(submeshHeader->nameSize);
 				copyData(submeshName.data(), submeshName.size());
+				submesh.name = submeshName;
 				submesh.textures.resize(kNumTextures);
 				for(int k = 0; k < kNumTextures; k++){
 					std::string_view textureName = std::string_view(modelData.data() + offset, submeshHeader->texFilenameSizes[k]);
@@ -277,7 +280,7 @@ namespace DSM::ModelLoader {
 						submesh.textures[k] = uniqueTextureNames[textureName];
 					}
 				}
-				mesh->subMeshes.emplace(submeshName, std::move(submesh));
+				mesh->subMeshes.push_back(std::move(submesh));
 			}
 
 			auto bufferSize = meshBeginOffset + meshHeader->dataSize - offset;
@@ -428,7 +431,7 @@ namespace DSM::ModelLoader {
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
 
-		mesh->subMeshes[mesh->name].textures = {
+		mesh->subMeshes[0].textures = {
 			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
 			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
 			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
@@ -444,10 +447,13 @@ namespace DSM::ModelLoader {
 
     std::shared_ptr<Model> LoadModel(const std::string &filename)
     {
-		auto model = std::make_shared<Model>();
-
-		if(std::filesystem::exists(s_ModelCacheDir + filename)) {
+		std::shared_ptr<Model> model = nullptr;
+		if(s_LoadedModels.contains(filename)){
+			model = s_LoadedModels[filename];
+		}
+		else if(std::filesystem::exists(s_ModelCacheDir + filename)) {
 			model = LoadModelFromFile(filename);
+			s_LoadedModels[filename] = model;
 		}
 		else {
 			Assimp::Importer importer;
@@ -466,6 +472,7 @@ namespace DSM::ModelLoader {
 				OutputDebugStringA(warning.c_str());
 				return nullptr;
 			}
+			model = std::make_shared<Model>();
 			model->name = pScene->mRootNode->mName.C_Str();
 
 			ProcessNode(*model, pScene->mRootNode, pScene);
@@ -478,6 +485,7 @@ namespace DSM::ModelLoader {
 			model->boundingBox = boundingBox;
 
 			SaveModelToFile(*model, filename);
+			s_LoadedModels[filename] = model;
 		}
 
 		return model;
@@ -577,7 +585,8 @@ namespace DSM::ModelLoader {
 			submesh.indexCount = indexCount;
 			submesh.indexOffset = preIndexCount;
 			submesh.vertexOffset = preVertexCount;
-			mesh.subMeshes.insert(std::make_pair(meshData.name, std::move(submesh)));
+			submesh.name = meshData.name;
+			mesh.subMeshes.push_back(std::move(submesh));
 
 			preIndexCount += indexCount;
 			preVertexCount += meshData.positions.size();
@@ -742,7 +751,7 @@ namespace DSM::ModelLoader {
 		for (auto& mesh : model.meshes) {
 			int psoFlags = 0;
 			std::uint32_t num = 1;
-			for (auto& [name, submesh] : mesh->subMeshes) {
+			for (auto& submesh : mesh->subMeshes) {
 				submesh.textures = matTextures[submesh.materialIndex];
 				auto& material = scene->mMaterials[submesh.materialIndex];
 				if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {

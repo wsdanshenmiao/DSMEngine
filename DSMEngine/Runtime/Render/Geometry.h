@@ -32,6 +32,8 @@ namespace DSM {
 				return m_Indices16;
 			}
 
+			bool operator==(const GeometryMesh& rhs) const noexcept = default;
+
 		private:
 			std::vector<std::uint16_t> m_Indices16;
 		};

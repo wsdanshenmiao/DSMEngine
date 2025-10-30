@@ -131,6 +131,15 @@ namespace DSM::Math {
             corner = m_Orientation * corner;
             return corner + m_Origin;
         }
+        std::array<Vector3, CornerCount> GetCorners() const
+        {
+            std::array<Vector3, CornerCount> corners;
+            for (size_t i = 0; i < corners.size(); i++)
+            {
+                corners[i] = GetCorner(static_cast<CornerID>(i));
+            }
+            return corners;
+        }
 
         BoundingPlane GetPlane( PlaneID id ) const
         {
@@ -155,7 +164,15 @@ namespace DSM::Math {
 
             return BoundingPlane{};
         }
-
+        std::array<BoundingPlane, PlaneCount> GetPlanes() const
+        {
+            std::array<BoundingPlane, PlaneCount> planes;
+            for (size_t i = 0; i < PlaneCount; i++)
+            {
+                planes[i] = GetPlane(static_cast<PlaneID>(i));
+            }
+            return planes;
+        }
 
         bool Intersects(const AxisAlignedBox& box) const noexcept
         {
@@ -204,20 +221,28 @@ namespace DSM::Math {
             float radius = sphere.GetRadius();
             for(int i = 0; i < PlaneCount; i++) {
                 auto plane = GetPlane(static_cast<PlaneID>(i));
-                if(plane.GetDistanceFromPoint(sphere.GetCenter()) + radius < 0)
+                if(plane.GetDistanceFromPoint(sphere.GetCenter()) + radius < 0.f)
                     return false;
             }
             return true;
         }
 
-        Frustum& operator*=(const Transform& transform) noexcept
+        Frustum& operator*=(const Transform& transform) noexcept { return operator*=(transform.GetLocalToWorld()); }
+
+        Frustum& operator*=(const Matrix4& viewMat) noexcept
         {
-            m_Origin += transform.GetPosition();
-            m_Orientation = m_Orientation * transform.GetRotation();
-            Vector3 scale = transform.GetScale();
-            float scaleF = std::max(scale.Get(0), std::max(scale.Get(1), scale.Get(2)));
+            m_Origin = Vector3{Vector4{m_Origin, 1.0f} * viewMat};
+            m_Orientation = m_Orientation * Quaternion{viewMat};
+
+            Vector3 dX = Vector3::Dot(Vector3{viewMat.Get(0)}, Vector3{viewMat.Get(0)});
+            Vector3 dY = Vector3::Dot(Vector3{viewMat.Get(1)}, Vector3{viewMat.Get(1)});
+            Vector3 dZ = Vector3::Dot(Vector3{viewMat.Get(2)}, Vector3{viewMat.Get(2)});
+
+            Vector3 d = Vector3::Max(dX, Vector3::Max(dY, dZ));
+            float scaleF = std::sqrt(d.Get(0));
             m_NearPlane *= scaleF;
             m_FarPlane *= scaleF;
+
             return *this;
         }
 
@@ -236,6 +261,9 @@ namespace DSM::Math {
     };
 
     inline Frustum operator*(Frustum frustum, const Transform& transform) noexcept { return frustum *= transform; }
+    inline Frustum operator*(Frustum frustum, const Matrix4& matrix) noexcept { return frustum *= matrix; }
+
+
 } // namespace DSM::Math
 
 

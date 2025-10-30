@@ -2,6 +2,7 @@
 #ifndef __BOUNDING_BOX_H__
 #define __BOUNDING_BOX_H__
 
+#include <span>
 #include "Runtime/Math/Transform.h"
 
 namespace DSM::Math {
@@ -15,6 +16,22 @@ namespace DSM::Math {
             m_Min = Vector3::Min(min, max);
             m_Max = Vector3::Max(min, max);
             PadToMinimums();
+        }
+        AxisAlignedBox(std::span<Vector3> points)
+        {
+            if(points.empty()){
+                m_Min = Vector3(std::numeric_limits<float>::max());
+                m_Max = Vector3(std::numeric_limits<float>::lowest());
+            }
+            else{
+                m_Min = m_Max = points[0];
+                for (size_t i = 1; i < points.size(); i++)
+                {
+                    m_Min = Vector3::Min(m_Min, points[i]);
+                    m_Max = Vector3::Max(m_Max, points[i]);
+                }
+                PadToMinimums();
+            }
         }
 
         Vector2 GetLongestAxis() const noexcept

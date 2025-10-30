@@ -5,6 +5,7 @@
 
 #include <dxgi1_6.h>
 #include "Renderer.h"
+#include <Runtime/Graphics/D3D12.h>
 
 namespace DSM{
     class RendererDX12 : public Renderer::IRendererInternal
@@ -39,6 +40,10 @@ namespace DSM{
         DXGI_SWAP_CHAIN_DESC1 m_SwapChainDesc{};
         DXGI_SWAP_CHAIN_FULLSCREEN_DESC m_FullScreenDesc{};
         RefPtr<IDXGISwapChain3> m_SwapChain;
+
+        RefPtr<ID3D12Fence> m_FrameFence;
+        std::vector<HANDLE> m_FrameFenceEvents{};
+
         std::vector<TextureHandle> m_SwapChainBuffers{};
         
         DefaultMessageCallback m_Callback{};

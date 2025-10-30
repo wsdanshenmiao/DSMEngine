@@ -139,7 +139,6 @@ namespace DSM {
     {
         // 处理事件
         glfwPollEvents();
-        glfwSwapBuffers(m_Window);
     }
 
     void Window::SetTitle(const std::string &title)

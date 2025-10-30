@@ -91,6 +91,14 @@ namespace DSM{
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to convert swapchain.");
 
         CreateRenderTarget();
+
+        ID3D12Device* device12 = device->GetNativeObject(ObjectTypes::D3D12_Device);
+        hr = device12->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_FrameFence));
+        DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to create frame fence.");
+
+        for(UINT bufferIndex = 0; bufferIndex < m_SwapChainDesc.BufferCount; bufferIndex++) {
+            m_FrameFenceEvents.push_back( CreateEvent(nullptr, false, true, nullptr) );
+        }
     }
 
     RendererDX12::~RendererDX12()
@@ -108,6 +116,8 @@ namespace DSM{
         device->WaitForIdle();
         device->RunGarbageCollection();
         m_SwapChainBuffers.clear();
+
+        m_FrameFence = nullptr;
     }
 
     ITexture *RendererDX12::GetCurrentBackBuffer() 
@@ -249,6 +259,10 @@ namespace DSM{
 
     bool RendererDX12::BeginFrame()
     {
+        
+        auto bufferIndex = m_SwapChain->GetCurrentBackBufferIndex();
+        WaitForSingleObject(m_FrameFenceEvents[bufferIndex], INFINITE);
+        
         return true;
     }
     void RendererDX12::Present()
@@ -259,6 +273,11 @@ namespace DSM{
 
         auto hr = m_SwapChain->Present(desc.vsyncEnabled ? 1 : 0, presentFlags);
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to present.");
+
+        auto bufferIndex = GetCurrentBackBufferIndex();
+        ID3D12CommandQueue* graphicsQueue = device->GetNativeObject(ObjectTypes::D3D12_CommandQueue);
+        m_FrameFence->SetEventOnCompletion(frameIndex, m_FrameFenceEvents[bufferIndex]);
+        graphicsQueue->Signal(m_FrameFence, frameIndex);
     }
     
     void RendererDX12::CreateRenderTarget()

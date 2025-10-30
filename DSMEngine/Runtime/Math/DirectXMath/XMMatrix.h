@@ -6,6 +6,8 @@
 #include <array>
 
 namespace DSM {
+    class XMMatrix4;
+
     XMVector3 operator*(const XMVector3&, const XMMatrix3&) noexcept;
 
     // 行主序的矩阵
@@ -14,7 +16,8 @@ namespace DSM {
     public:
         inline XMMatrix3() noexcept = default;
         inline XMMatrix3(XMVector3 x, XMVector3 y, XMVector3 z) noexcept : m_Matrix({x,y,z}){}
-        inline XMMatrix3(XMQuaternion q) noexcept :XMMatrix3(DirectX::XMMatrixRotationQuaternion(q)) {}
+        inline XMMatrix3(XMQuaternion q) noexcept : XMMatrix3(DirectX::XMMatrixRotationQuaternion(q)) {}
+        explicit XMMatrix3(XMMatrix4 m) noexcept;
 
 		inline XMMatrix3& operator+=(const XMMatrix3& other) noexcept { for(size_t i = 3; i--; m_Matrix[i] += other.Get(i)); return *this; }
 		inline XMMatrix3& operator-=(const XMMatrix3& other) noexcept { for(size_t i = 3; i--; m_Matrix[i] -= other.Get(i)); return *this; }
@@ -148,6 +151,13 @@ namespace DSM {
     
     inline XMVector4 operator*(XMVector4 v, const XMMatrix4& m) noexcept { return DirectX::XMVector4Transform(v, m); }
 
+
+    inline XMMatrix3::XMMatrix3(XMMatrix4 m) noexcept
+    {
+        m_Matrix[0] = XMVector3{m.Get(0)};
+        m_Matrix[1] = XMVector3{m.Get(1)};
+        m_Matrix[2] = XMVector3{m.Get(2)};
+    }
 
 
 
