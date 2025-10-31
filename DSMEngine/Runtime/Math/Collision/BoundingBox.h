@@ -34,15 +34,43 @@ namespace DSM::Math {
             }
         }
 
-        Vector2 GetLongestAxis() const noexcept
+        Vector2 operator[](size_t index) const
         {
-            int index = 0;
-            for(int i = 1; i < 3; i++) {
+            return Vector2{m_Min.Get(index), m_Max.Get(index)};
+        }
+
+        bool Hit(const Vector3& origin, const Vector3& dir, const Vector2& tRange, Vector2& time) const
+        {
+            float tMin = tRange.Get(0);
+            float tMax = tRange.Get(1);
+            for (int axis = 0; axis < 3; axis++) {
+                const Vector2& ax = Vector2{m_Min.Get(axis), m_Max.Get(axis)};
+                const float adinv = 1.0f / dir.Get(axis);
+
+                auto t0 = (ax.Get(0) - origin.Get(axis)) * adinv;
+                auto t1 = (ax.Get(1) - origin.Get(axis)) * adinv;
+                if(t0 > t1) 
+                    std::swap(t0, t1);
+
+                tMin = std::max(tMin, t0);
+                tMax = std::min(tMax, t1);
+
+                if (tMax <= tMin)
+                    return false;
+            }
+            time = Vector2{tMin, tMax};
+            return true;
+        }
+
+        size_t GetLongestAxis() const
+        {
+            size_t index = 0;
+            for(size_t i = 1; i < 3; i++) {
                 if(m_Max.Get(i) - m_Min.Get(i) > m_Max.Get(index) - m_Min.Get(index)) {
                     index = i;
                 }
             }
-            return Vector2{m_Min.Get(index), m_Max.Get(index)};
+            return index;
         }
 
         inline const Vector3& GetMin() const noexcept { return m_Min; }

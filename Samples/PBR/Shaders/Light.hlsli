@@ -49,12 +49,12 @@ float GetSpotAngleAttenuation(float3 l, float3 lightDir, float innerAngle, float
 
 Light GetDirectionalLight(uint index, Surface surface)
 {
-    DirectionalShadowData shadowData;
-    shadowData.tileIndex = index;
+    DirectionalShadowData dirShadowData;
+    dirShadowData.tileIndex = gShadowConstants.cascadeCount * (GetDirectionalLightCount() - 1) + index;
     Light light;
     light.color = gDirLightData[index].color.rgb;
     light.direction = normalize(gDirLightData[index].direction.xyz);
-    light.attenuation = GetDirectionalShadowAttenuation(shadowData, surface);
+    light.attenuation = GetDirectionalShadowAttenuation(dirShadowData, surface);
     return light;
 }
 

@@ -13,6 +13,7 @@ using uint = uint32_t;
 
 #define MAX_DIRECTIONAL_LIGHT_COUNT 4
 #define MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT 4
+#define MAX_CASCADES_PER_LIGHT 4
 
 struct MeshConstants
 {
@@ -80,7 +81,13 @@ struct OtherLightData
 
 struct ShadowConstants
 {
-    float4x4 shadowViewProjs[MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT];
+    float4x4 shadowViewProjs[MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT * MAX_CASCADES_PER_LIGHT];
+    // 级联到远平面的距离
+    float4 cascadeFarPlaneDist;
+    float recMaxDistance;
+    float recDistanceFade;
+    uint cascadeCount;
+    float pad;
 };
 
 #endif

@@ -44,7 +44,7 @@ namespace DSM{
         m_Internal->device->WaitForIdle();
 
         m_Camera.SetViewPort(Viewport{float(width), float(height)});
-        m_Camera.SetFrustum(std::numbers::pi * 0.5f, float(width) / float(height), 0.1f, 1000.f);
+        m_Camera.SetFrustum(std::numbers::pi * 0.5f, float(width) / float(height), 0.1f, 50.f);
 
         // 由于交换链改变大小时所有额外的 Buffer 引用都需要释放
         m_Internal->ResizeFramebuffer(width, height);

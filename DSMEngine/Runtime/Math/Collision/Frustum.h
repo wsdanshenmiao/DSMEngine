@@ -102,6 +102,11 @@ namespace DSM::Math {
             , m_NearPlane(nearPlane)
             , m_FarPlane(farPlane) {}
 
+        float GetNearPlane() const noexcept { return m_NearPlane; }
+        float GetFarPlane() const noexcept { return m_FarPlane; }
+        float SetNearPlane(float nearPlane) noexcept { return m_NearPlane = nearPlane; }
+        float SetFarPlane(float farPlane) noexcept { return m_FarPlane = farPlane; }
+
         Vector3 GetCorner( CornerID id ) const
         {
             Vector3 corner{};
@@ -131,6 +136,7 @@ namespace DSM::Math {
             corner = m_Orientation * corner;
             return corner + m_Origin;
         }
+
         std::array<Vector3, CornerCount> GetCorners() const
         {
             std::array<Vector3, CornerCount> corners;
@@ -164,6 +170,7 @@ namespace DSM::Math {
 
             return BoundingPlane{};
         }
+
         std::array<BoundingPlane, PlaneCount> GetPlanes() const
         {
             std::array<BoundingPlane, PlaneCount> planes;

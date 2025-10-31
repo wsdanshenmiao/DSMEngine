@@ -88,7 +88,7 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
 
     Surface surface;
     surface.position = i.posWS;
-    surface.depth = -posVS.z;
+    surface.depth = posVS.z;
     surface.normal = normalize(i.normal);
     surface.roughness = perceptualRoughness * perceptualRoughness;
     surface.roughness = max(0.05, surface.roughness);

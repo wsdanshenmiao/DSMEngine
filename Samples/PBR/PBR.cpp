@@ -51,8 +51,6 @@ public:
         // house->transform.SetScale(0.01f);
         // m_Models.push_back(house);
 
-        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        // m_Models.push_back(sponza);
         m_Models.push_back(plane);
         // m_Models.push_back(cube);
 
@@ -64,9 +62,12 @@ public:
         std::shared_ptr<GameObject> planeObj = globalContext.scene->GetObjectByID(
             globalContext.scene->CreateObject("Plane")).lock();
         planeObj->AddComponent<Model>(*plane);
-        // std::shared_ptr<GameObject> sponzaObj = globalContext.scene->GetObjectByID(
-        //     globalContext.scene->CreateObject("Sponza")).lock();
-        // sponzaObj->AddComponent<Model>(*sponza);
+        
+        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        m_Models.push_back(sponza);
+        std::shared_ptr<GameObject> sponzaObj = globalContext.scene->GetObjectByID(
+            globalContext.scene->CreateObject("Sponza")).lock();
+        sponzaObj->AddComponent<Model>(*sponza);
 
         CreateLight();
 

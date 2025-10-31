@@ -3,9 +3,7 @@
 #define __SCENEHIERARCHYPANEL_H__
 
 #include <memory>
-#include <imgui.h>
-#include "Runtime/Framework/Object/GameObject.h"
-#include "Runtime/Math/MathCommon.h"
+#include "Editor/EditorUI/ComponentDrawer.h"
 
 namespace DSM {
     class Scene;
@@ -15,6 +13,8 @@ namespace DSM {
     class SceneHierarchyPanel
     {
     public:
+        SceneHierarchyPanel() : m_ComponentDrawerManager(std::make_unique<ComponentDrawerManager>()) {}
+    
         void SetScene(std::shared_ptr<Scene> scene);
 
         void OnGUI();
@@ -29,10 +29,9 @@ namespace DSM {
         template<typename T, typename UIFunc>
         void DrawComponent(const std::string& name, std::shared_ptr<GameObject> object, UIFunc func);
 
-        static void DrawVec3Control(const std::string& label, Math::Vector3& values, float resetValue = 0.0f, float columnWidth = 100.0f);
-
     private:
         std::shared_ptr<Scene> m_Scene;
+        std::unique_ptr<ComponentDrawerManager> m_ComponentDrawerManager;
         std::weak_ptr<GameObject> m_SelectedObject;
     };
     

@@ -20,9 +20,38 @@ struct DirectionalShadowData
     int tileIndex;
 };
 
+struct ShadowData
+{
+    float strength;
+    uint cascadeIndex;
+};
+
 Texture2D<float> gShadowMap : register(t8);
 
 ConstantBuffer<ShadowConstants> gShadowConstants : register(b4);
+
+float FadedShadowStrength (float dist, float scale, float fade)
+{
+    return saturate((1 - dist * scale) * fade);
+}
+
+ShadowData GetShadowData(Surface surface)
+{
+    ShadowData data;
+    // 阴影边界处的过渡
+    data.strength = FadedShadowStrength(surface.depth, gShadowConstants.recMaxDistance, gShadowConstants.recDistanceFade);
+    
+    // 根据表面到视锥体的距离选择级联
+    uint cascadeIndex = 0;
+    for(; cascadeIndex < gShadowConstants.cascadeCount; ++cascadeIndex) {
+        if(surface.depth < gShadowConstants.cascadeFarPlaneDist[cascadeIndex]) {
+            break;
+        }
+    }
+    data.cascadeIndex = cascadeIndex;
+    
+    return data;
+}
 
 float SampleDirectionalShadow(float3 posSS)
 {
@@ -40,11 +69,17 @@ float SampleDirectionalShadow(float3 posSS)
 
 float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface surface)
 {
-    float4x4 viewProj = gShadowConstants.shadowViewProjs[directional.tileIndex];
+    ShadowData shadowData = GetShadowData(surface);
+    if(shadowData.strength <= 0)
+        return 1.0;
+
+    uint matrixIndex = directional.tileIndex + shadowData.cascadeIndex;
+    float4x4 viewProj = gShadowConstants.shadowViewProjs[matrixIndex];
     // 变换到 NDC 空间
     float4 posTS = mul(float4(surface.position, 1), viewProj);
 
-    return SampleDirectionalShadow(posTS.xyz);
+    float shadow = SampleDirectionalShadow(posTS.xyz);
+    return lerp(1.0, shadow, shadowData.strength);
 }
 
 

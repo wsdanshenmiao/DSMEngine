@@ -28,6 +28,15 @@ namespace DSM::Math {
     using Matrix3 = XMMatrix3;
     using Matrix4 = XMMatrix4;
 
+    inline float operator-(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) - float(rhs); }
+    inline float operator-(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) - float(rhs); }
+    inline float operator+(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) + float(rhs); }
+    inline float operator+(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) + float(rhs); }
+    inline float operator*(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) * float(rhs); }
+    inline float operator*(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) * float(rhs); }
+    inline float operator/(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) / float(rhs); }
+    inline float operator/(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) / float(rhs); }
+
     inline std::partial_ordering operator<=>(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) <=> float(rhs); }
     inline std::partial_ordering operator<=>(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) <=> float(rhs); }
 
