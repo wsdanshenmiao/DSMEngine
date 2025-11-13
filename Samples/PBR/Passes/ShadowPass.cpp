@@ -143,7 +143,15 @@ namespace DSM {
         }
         Math::BoundingSphere boundingSphere{boundingBox};
 
-        // auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ShadowPass"));
+        auto& camera = renderer.GetCamera();
+        auto cameraSphereDir = camera.GetPosition() - boundingSphere.GetCenter();
+        auto cameraLen = Math::Vector3::Dot(camera.GetLookAxis(), cameraSphereDir);
+        cameraLen = boundingSphere.GetRadius() - cameraLen;
+        if(cameraLen > camera.GetNearZ()){
+            cameraLen = std::min(float(cameraLen), camera.GetFarZ());
+            camera.SetFrustum(camera.GetFovY(), camera.GetAspectRatio(), camera.GetNearZ(), cameraLen);
+        }
+
         auto& cmdList = g_RenderResources.cmdList;
         cmdList->Open();
 
@@ -158,7 +166,6 @@ namespace DSM {
         // 转换为着色器资源以供后续 Pass 使用
         cmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
 
-        const auto& camera = renderer.GetCamera();
         float zRange = camera.GetFarZ() - camera.GetNearZ();
         Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;
         uint32_t cascadeCount = sm_Setting.directionalSetting.cascadeCount;
@@ -207,6 +214,9 @@ namespace DSM {
         Math::Matrix4 cameraInvView = Math::Matrix4::Inverse(camera.GetViewMatrix());
         Math::Frustum cameraFrustum{camera.GetProjMatrix()};
 
+        // 变换到世界空间
+        cameraFrustum *= cameraInvView;
+
         size_t cascadeCount = sm_Setting.directionalSetting.cascadeCount;
         size_t tileOffset = index * cascadeCount;
         Math::Vector3 ratios = sm_Setting.directionalSetting.cascadeRatio;
@@ -220,21 +230,28 @@ namespace DSM {
                 nearPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(i - 1);
             }
             float farPlane = cascadeFrustum.GetFarPlane();
-            if(i != cascadeCount -1){
+            if(i != cascadeCount - 1){
                 farPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(i);
             }
 
             cascadeFrustum.SetNearPlane(nearPlane);
             cascadeFrustum.SetFarPlane(farPlane);
             
-            // 变换到世界空间
-            cascadeFrustum *= cameraInvView;
             // 将视锥体变换到光照空间
             cascadeFrustum *= lightView;
             auto frustumCorners = cascadeFrustum.GetCorners();
             Math::AxisAlignedBox cameraBounds{std::span{frustumCorners}};
             Math::Vector3 lightCameraMin = cameraBounds.GetMin();
             Math::Vector3 lightCameraMax = cameraBounds.GetMax();
+            
+            Math::Vector3 worldUnitsPerTexelVec = (lightCameraMax - lightCameraMin) / float(tileSize);
+            lightCameraMin /= worldUnitsPerTexelVec;
+            lightCameraMin = Math::Vector3::Floor(lightCameraMin);
+            lightCameraMin *= worldUnitsPerTexelVec;
+
+            lightCameraMax /= worldUnitsPerTexelVec;
+            lightCameraMax = Math::Vector3::Floor(lightCameraMax);
+            lightCameraMax *= worldUnitsPerTexelVec;
 
             size_t tileIndex = tileOffset + i;
 

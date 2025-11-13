@@ -37,37 +37,29 @@ public:
 
         auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
         m_Models.push_back(lihuazou);
-        
-        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(50,50,2,2));
-        // plane->transform.SetPosition({0,-1,0});
-
-        // auto cube = ModelLoader::LoadModelFromGeometry("Cube", Geometry::GeometryGenerator::CreateBox(6,4,4,2));
-        // cube->transform.SetPosition({0,4,0});
-
-        // auto sphere = ModelLoader::LoadModelFromGeometry(
-        //     "Sphere", Geometry::GeometryGenerator::CreateSphere(100.0f, 16, 16));
-
-        // auto house = ModelLoader::LoadModel("Models/house.obj");
-        // house->transform.SetScale(0.01f);
-        // m_Models.push_back(house);
-
-        m_Models.push_back(plane);
-        // m_Models.push_back(cube);
-
-        
         std::shared_ptr<GameObject> lihuazouObj = globalContext.scene->GetObjectByID(
             globalContext.scene->CreateObject("Lihuazou")).lock();
         lihuazouObj->AddComponent<Model>(*lihuazou);
         lihuazouObj->GetComponent<Math::Transform>()->SetScale(2);
+        
+        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(50,50,2,2));
+        m_Models.push_back(plane);
         std::shared_ptr<GameObject> planeObj = globalContext.scene->GetObjectByID(
             globalContext.scene->CreateObject("Plane")).lock();
         planeObj->AddComponent<Model>(*plane);
         
-        auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        m_Models.push_back(sponza);
-        std::shared_ptr<GameObject> sponzaObj = globalContext.scene->GetObjectByID(
-            globalContext.scene->CreateObject("Sponza")).lock();
-        sponzaObj->AddComponent<Model>(*sponza);
+        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        // m_Models.push_back(sponza);
+        // std::shared_ptr<GameObject> sponzaObj = globalContext.scene->GetObjectByID(
+        //     globalContext.scene->CreateObject("Sponza")).lock();
+        // sponzaObj->AddComponent<Model>(*sponza);
+
+        // auto powerplant = ModelLoader::LoadModel("Models/powerplant/powerplant.gltf");
+        // m_Models.push_back(powerplant);
+        // std::shared_ptr<GameObject> powerplantObj = globalContext.scene->GetObjectByID(
+        //     globalContext.scene->CreateObject("Powerplant")).lock();
+        // powerplantObj->AddComponent<Model>(*powerplant);
+        // powerplantObj->GetComponent<Math::Transform>()->SetScale(0.5f);
 
         CreateLight();
 
@@ -279,7 +271,7 @@ private:
     {
         g_RenderResources.lights.push_back(Light{}
             .SetType(LightType::Directional)
-            .SetDirection(Math::Vector3{-0.3f, -1.0f, -0.2f}.Normalized())
+            .SetDirection(Math::Vector3{-0.5f, -0.8f, -0.5f}.Normalized())
             .SetColor({1,1,1,1}));
 
         auto randUint = [](){

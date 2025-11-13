@@ -28,4 +28,4 @@ includes("rules.lua")
 includes("ThirdParty")
 includes("DSMEngine")
 
-includes("Samples/**")
+includes("Samples/PBR")

@@ -2,9 +2,10 @@
 #ifndef __IRENDERPASS_H__
 #define __IRENDERPASS_H__
 
-#include "Runtime/Render/Renderer/Renderer.h"
 #include "../Light.h"
+#include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Framework/Scene.h"
+#include "Runtime/Math/Collision/BVH.h"
 
 namespace DSM {
 
@@ -119,6 +120,8 @@ namespace DSM {
         BindingSetHandle commonBindingSet;
 
         CommandListHandle cmdList;
+
+        std::shared_ptr<Math::BVHNode> sceneBVHRoot;
 
         RenderResource();
     };

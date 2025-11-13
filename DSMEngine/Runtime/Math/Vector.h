@@ -66,6 +66,7 @@ namespace DSM{
         static constexpr Vector Refract(const Vector& v, const Vector& n, float refractiveIndex) noexcept;
         static constexpr Vector Cross(const Vector& v1, const Vector& v2) noexcept requires (N == 3);
         static constexpr Scalar<T> Dot(const Vector& v1, const Vector& v2) noexcept;
+        static constexpr Vector Floor(Vector v) noexcept;
         
     private:
         std::array<T, N> m_Data;
@@ -371,8 +372,22 @@ namespace DSM{
         }
         return ret;
     }
-    template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
-    Vector<T, N> operator+(Vector<T, N> v0, Vector<T, N> v1) noexcept { return v0 += v1; };
+
+    template <typename T, std::size_t N> requires std::is_arithmetic_v<T>
+    constexpr Vector<T, N> Vector<T, N>::Floor(Vector v) noexcept
+    {
+        for(auto& elem : v.m_Data){
+            elem = std::floor(elem);
+        }
+        return v;
+    }
+    
+    template <typename T, std::size_t N>
+        requires std::is_arithmetic_v<T>
+    Vector<T, N> operator+(Vector<T, N> v0, Vector<T, N> v1) noexcept
+    {
+        return v0 += v1;
+    };
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
     Vector<T, N> operator-(Vector<T, N> v0, Vector<T, N> v1) noexcept { return v0 -= v1; };
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>

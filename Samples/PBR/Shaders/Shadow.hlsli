@@ -43,11 +43,15 @@ ShadowData GetShadowData(Surface surface)
     
     // 根据表面到视锥体的距离选择级联
     uint cascadeIndex = 0;
-    for(; cascadeIndex < gShadowConstants.cascadeCount; ++cascadeIndex) {
-        if(surface.depth < gShadowConstants.cascadeFarPlaneDist[cascadeIndex]) {
-            break;
-        }
+    uint cascadeCount = gShadowConstants.cascadeCount;
+    if(cascadeCount > 1){
+        // 向量比较与点乘避免循环
+        float4 cmpVec = (float4)surface.depth > gShadowConstants.cascadeFarPlaneDist;
+        float4 cascadeCountVec = float4(cascadeCount > 0, cascadeCount > 1, cascadeCount > 2, cascadeCount > 3);
+        float index = dot(cmpVec, cascadeCountVec);
+        cascadeIndex = min(uint(index), cascadeCount - 1);
     }
+
     data.cascadeIndex = cascadeIndex;
     
     return data;

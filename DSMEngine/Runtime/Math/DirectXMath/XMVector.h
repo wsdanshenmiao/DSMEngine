@@ -113,7 +113,7 @@ namespace DSM {
         static inline XMVector3 Refract(XMVector3 v, XMVector3 n, float refractiveIndex) noexcept { return DirectX::XMVector3Refract(v, n, refractiveIndex); }
         static inline XMVector3 Cross(XMVector3 v1, XMVector3 v2) noexcept { return DirectX::XMVector3Cross(v1, v2); }
         static inline XMScalar Dot(XMVector3 v1, XMVector3 v2) noexcept { return DirectX::XMVector3Dot(v1, v2); }
-
+        static inline XMVector3 Floor(XMVector3 v) noexcept { return DirectX::XMVectorFloor(v); }
 
     private:
         inline XMVector3(const DirectX::XMFLOAT3& v) noexcept : m_Vector(DirectX::XMLoadFloat3(&v)) {}

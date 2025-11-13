@@ -36,14 +36,14 @@ namespace DSM {
         
         inline XMScalar& operator*=(XMScalar other) noexcept
         {
-            DirectX::XMVectorMultiply(m_Vector, other);
+            m_Vector = DirectX::XMVectorMultiply(m_Vector, other);
             return *this;
         }
         inline XMScalar& operator*=(float v) noexcept { return operator*=(XMScalar{v}); }
 
         inline XMScalar& operator/=(XMScalar other) noexcept
         {
-            DirectX::XMVectorDivide(m_Vector, other);
+            m_Vector = DirectX::XMVectorDivide(m_Vector, other);
             return *this;
         }
         inline XMScalar& operator/=(float v) noexcept { return operator/=(XMScalar{v}); }
