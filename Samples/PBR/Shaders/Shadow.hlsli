@@ -37,9 +37,10 @@ float FadedShadowStrength (float dist, float scale, float fade)
 
 ShadowData GetShadowData(Surface surface)
 {
+    float recMaxDistance = gShadowConstants.recMaxDistance;
     ShadowData data;
     // 阴影边界处的过渡
-    data.strength = FadedShadowStrength(surface.depth, gShadowConstants.recMaxDistance, gShadowConstants.recDistanceFade);
+    data.strength = FadedShadowStrength(surface.depth, recMaxDistance, gShadowConstants.recDistanceFade);
     
     // 根据表面到视锥体的距离选择级联
     uint cascadeIndex = 0;
@@ -50,6 +51,8 @@ ShadowData GetShadowData(Surface surface)
         float4 cascadeCountVec = float4(cascadeCount > 0, cascadeCount > 1, cascadeCount > 2, cascadeCount > 3);
         float index = dot(cmpVec, cascadeCountVec);
         cascadeIndex = min(uint(index), cascadeCount - 1);
+        data.strength *= cascadeIndex == (cascadeCount - 1) ? 
+            FadedShadowStrength(surface.depth, recMaxDistance, gShadowConstants.recDistanceFade) : 1;
     }
 
     data.cascadeIndex = cascadeIndex;

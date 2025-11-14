@@ -60,6 +60,12 @@ namespace DSM{
             flags |= ImGuiTreeNodeFlags_Selected;
         }
 
+        bool opened = ImGui::TreeNodeEx(object.get(), flags, name.c_str());
+        // 当前节点被选中 
+        if(ImGui::IsItemClicked()){
+            m_SelectedObject = object;
+        }
+
         bool entityDelete = false;
         if(ImGui::BeginPopupContextItem()){
             if(ImGui::MenuItem("Delete GameObject")){
@@ -68,11 +74,6 @@ namespace DSM{
             ImGui::EndPopup();
         }
 
-        bool opened = ImGui::TreeNodeEx(object.get(), flags, name.c_str());
-        // 当前节点被选中 
-        if(ImGui::IsItemClicked() && !entityDelete){
-            m_SelectedObject = object;
-        }
         
         if(opened){
             ImGui::TreePop();

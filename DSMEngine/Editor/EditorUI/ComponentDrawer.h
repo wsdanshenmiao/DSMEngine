@@ -75,6 +75,8 @@ namespace DSM{
         virtual bool CanDraw(std::shared_ptr<GameObject> object) { return false; };
         virtual std::string GetName() { return "Component"; };
         virtual void DrawUI(std::shared_ptr<GameObject> object) = 0;
+        virtual void AddComponent(std::shared_ptr<GameObject> object) = 0;
+        virtual void RemoveComponent(std::shared_ptr<GameObject> object) = 0;
     };
 
 
@@ -108,6 +110,24 @@ namespace DSM{
             component->SetRotation(Math::Quaternion{rot});
             component->SetScale(scale);
         }
+
+        void AddComponent(std::shared_ptr<GameObject> object) override
+        {
+            assert(object != nullptr);
+
+            if (!object->HasComponent<Math::Transform>()) {
+                object->AddComponent<Math::Transform>();
+            }
+        }
+
+        void RemoveComponent(std::shared_ptr<GameObject> object)
+        {
+            assert(object != nullptr);
+
+            if (object->HasComponent<Math::Transform>()) {
+                object->RemoveComponent<Math::Transform>();
+            }
+        }
     };
 
 
@@ -136,7 +156,28 @@ namespace DSM{
             }
 
             ImGui::SameLine();
+            // 组件的添加
+            {
+                ImGui::PushItemWidth(-1);
 
+                if(ImGui::Button("Add Component")){
+                    ImGui::OpenPopup("AddComponent");
+                }
+
+                if(ImGui::BeginPopup("AddComponent")){
+                    for(auto& drawer : m_Drawers){
+                        auto name = drawer->GetName();
+                        if (ImGui::MenuItem(name.c_str())) {
+                            drawer->AddComponent(object);
+                            ImGui::CloseCurrentPopup();
+                        }
+                    }
+                    ImGui::EndPopup();
+                }
+                ImGui::PopItemWidth();
+            }
+
+            // 绘制各个组件的 UI
             for(auto& drawer : m_Drawers){
                 if(!drawer->CanDraw(object))
                     continue;
@@ -151,10 +192,27 @@ namespace DSM{
                 auto name = drawer->GetName();
                 bool opened = ImGui::TreeNodeEx(name.c_str(), treeNodeFlags, name.c_str());
                 ImGui::PopStyleVar();
-            
+                ImGui::SameLine(contentRegionAvailable.x - lineHeight * 0.5f);
+
+                if(ImGui::Button("...", ImVec2{lineHeight, lineHeight})){
+                    ImGui::OpenPopup("ComponentSettings");
+                }
+
+                bool removeComponent = false;
+                if(ImGui::BeginPopup("ComponentSettings")){
+                    if(ImGui::MenuItem("Remove Component")){
+                        removeComponent = true;
+                    }
+                    ImGui::EndPopup();
+                }
+                
                 if(opened){
                     drawer->DrawUI(object);
                     ImGui::TreePop();
+                }
+
+                if(removeComponent){
+                    drawer->RemoveComponent(object);
                 }
             }
         }

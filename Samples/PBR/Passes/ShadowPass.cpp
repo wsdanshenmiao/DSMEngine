@@ -142,6 +142,8 @@ namespace DSM {
             boundingBox = Math::AxisAlignedBox::Union(boundingBox, transBox);
         }
         Math::BoundingSphere boundingSphere{boundingBox};
+        if(boundingSphere.GetRadius() <= 0.f)
+            return;
 
         auto& camera = renderer.GetCamera();
         auto cameraSphereDir = camera.GetPosition() - boundingSphere.GetCenter();
@@ -177,6 +179,8 @@ namespace DSM {
         }
         shadowConstants.recMaxDistance = 1.0f / sm_Setting.distance;
         shadowConstants.recDistanceFade = 1.0f / sm_Setting.distanceFade;
+        auto cascadeFade = sm_Setting.directionalSetting.cascadeFace;
+        shadowConstants.cascadeFade = 1.f / (1 - cascadeFade * cascadeFade);
         shadowConstants.cascadeCount = cascadeCount;
         for(size_t i = 0; i < shadowConstants.cascadeCount; ++i) {
             float distance = (i == shadowConstants.cascadeCount - 1) ?

@@ -86,8 +86,8 @@ struct ShadowConstants
     float4 cascadeFarPlaneDist;
     float recMaxDistance;
     float recDistanceFade;
+    float cascadeFade;
     uint cascadeCount;
-    float pad;
 };
 
 #endif

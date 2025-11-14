@@ -21,6 +21,9 @@ namespace DSM::Math {
             Vector3 center = boundingBox.GetCenter();
             Vector3 size = boundingBox.GetSize() * 0.5f;
             float radius = size.Magnitude();
+            if (size.Get(0) < 0.f || size.Get(1) < 0.f || size.Get(2) < 0.f) {
+                radius = 0;
+            }
             m_Sphere = Vector4(center, radius);
         }
 
