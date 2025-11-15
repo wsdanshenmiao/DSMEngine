@@ -365,8 +365,10 @@ int main()
     engine.StartEngine(params);
     engine.SetRenderPipeline(std::make_unique<RenderPipeline>());
 
-    DSM::DSMEditor editor(&engine);
+    DSM::DSMEditor editor{};
+    editor.StartEditor(&engine);
     editor.Run();
+    editor.ShutDownEditor();
 
     engine.ShutDownEngine();
 

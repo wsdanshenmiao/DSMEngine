@@ -14,7 +14,7 @@ namespace DSM {
     template<typename T> requires std::is_arithmetic_v<T>
     class Quaternion {
     public:
-    Quaternion() noexcept : m_Vector({0,0,0,1}) {}
+        Quaternion() noexcept : m_Vector({0,0,0,1}) {}
         Quaternion(Vector<T, 3> axis, T angle) noexcept 
         {
             Vector<T, 3>::Normalize(axis);
@@ -25,7 +25,7 @@ namespace DSM {
             m_Vector.Set(2, axis.Get(2) * s);       // z
             m_Vector.Set(3, c);                     // w
         }
-    Quaternion(T pitch, T yaw, T roll) noexcept : Quaternion(Vector<T, 3>{pitch, yaw, roll}) {}
+        Quaternion(T pitch, T yaw, T roll) noexcept : Quaternion(Vector<T, 3>{pitch, yaw, roll}) {}
         Quaternion(const Vector<T, 3>& v) noexcept
         {
             T pi2 = T(std::numbers::pi) * T(2);
@@ -38,6 +38,7 @@ namespace DSM {
             m_Vector.Set(2, cr*cp*sy - sr*sp*cy); // z
             m_Vector.Set(3, cr*cp*cy + sr*sp*sy); // w
         }
+        Quaternion(T x, T y, T z, T w) noexcept : m_Vector({x, y, z, w}) {}
         explicit Quaternion(const Matrix<T, 3, 3>& m) noexcept : Quaternion(Matrix<T, 4, 4>(m)) {}
         explicit Quaternion(const Matrix<T, 4, 4>& m) noexcept
         {
@@ -87,8 +88,8 @@ namespace DSM {
             m_Vector = Vector<T, 4>{x, y, z, w};
         }
 
-    Quaternion operator-() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),-m_Vector.Get(3)}); }
-    Quaternion operator~() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),m_Vector.Get(3)}); }
+        Quaternion operator-() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),-m_Vector.Get(3)}); }
+        Quaternion operator~() const { return Quaternion(Vector<T, 4>{-m_Vector.Get(0),-m_Vector.Get(1),-m_Vector.Get(2),m_Vector.Get(3)}); }
         Quaternion& operator*=(const Quaternion& other) noexcept 
         {
             auto a = m_Vector;
@@ -100,10 +101,10 @@ namespace DSM {
             return *this;
         }
 
-    inline bool operator==(const Quaternion& o) { return m_Vector == o.m_Vector; } 
+        inline bool operator==(const Quaternion& o) { return m_Vector == o.m_Vector; } 
 
-    inline Scalar<T> Get(size_t index) const noexcept { return m_Vector.Get(index); }
-    inline void Set(size_t index, T val) noexcept { m_Vector.Set(index, val); }
+        inline Scalar<T> Get(size_t index) const noexcept { return m_Vector.Get(index); }
+        inline void Set(size_t index, T val) noexcept { m_Vector.Set(index, val); }
         // 四元数转欧拉角（Pitch, Yaw, Roll），返回Vector<T, 3>，单位为弧度
         Vector<T, 3> ToEulerAngles() const
         {
@@ -164,9 +165,9 @@ namespace DSM {
         }
 
     private:
-    explicit Quaternion(const DSM::Vector<T,4>& v) : m_Vector(v) {}
+        explicit Quaternion(const DSM::Vector<T,4>& v) : m_Vector(v) {}
 
-    Vector<T,4> m_Vector; // x,y,z,w
+        Vector<T,4> m_Vector; // x,y,z,w
     };
 
     template<typename T> requires std::is_arithmetic_v<T>

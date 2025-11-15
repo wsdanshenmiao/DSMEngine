@@ -20,6 +20,12 @@ namespace DSM {
         Scene() = default;
         ~Scene() = default;
 
+        Scene(const Scene& other) = delete;
+        Scene& operator=(const Scene& other) = delete;
+
+        Scene(Scene&& other) noexcept = default;
+        Scene& operator=(Scene&& other) noexcept = default;
+    
         void Update(float deltaTime);
         void OnGUI();
 
@@ -40,6 +46,9 @@ namespace DSM {
         {
             m_Registry.view<entt::entity>().each(func);
         }
+
+        auto& GetAllObjects() { return m_Objects; }
+        const auto& GetAllObjects() const { return m_Objects; }
 
     private:
         entt::registry m_Registry;

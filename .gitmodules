@@ -16,3 +16,9 @@
 [submodule "ThirdParty/imgui"]
 	path = ThirdParty/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "ThirdParty/DSMEngine/ThirdParty/json"]
+	path = ThirdParty/DSMEngine/ThirdParty/json
+	url = git@github.com:nlohmann/json.git
+[submodule "ThirdParty/json"]
+	path = ThirdParty/json
+	url = git@github.com:nlohmann/json.git

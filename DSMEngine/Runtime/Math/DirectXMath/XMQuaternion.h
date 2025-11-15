@@ -17,6 +17,7 @@ namespace DSM {
         // 三个角分别为 俯仰角(x)、偏航角(y)、滚动角(z)
         inline XMQuaternion(float pitch, float yaw, float roll) noexcept : XMQuaternion(XMVector3{pitch, yaw, roll}) {}
         XMQuaternion(XMVector3 v) noexcept;
+        inline XMQuaternion(float x, float y, float z, float w) noexcept : m_Vector(DirectX::XMVectorSet(x, y, z, w)) {}
         explicit XMQuaternion(const XMMatrix3& matrix);
         explicit XMQuaternion(const XMMatrix4& matrix);
 

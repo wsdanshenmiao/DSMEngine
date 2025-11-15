@@ -20,10 +20,9 @@ namespace DSM {
     class DSMEditor
     {
     public:
-        DSMEditor(DSMEngine* engine);
-        ~DSMEditor();
-
+        void StartEditor(DSMEngine* engine);
         void Run();
+        void ShutDownEditor();
 
     public:
         inline static EditorContext sm_EditorContext{};

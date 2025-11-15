@@ -41,4 +41,6 @@ target("ThirdParty")
     add_headerfiles("entt/single_include/**.hpp")
     add_includedirs(path.join(thirdPartyDir, "entt/single_include"), {public = true})
 
+    add_headerfiles("json/include/nlohmann/**.hpp")
+    add_includedirs(path.join(thirdPartyDir, "json/include"), {public = true})
 target_end()
