@@ -8,6 +8,9 @@
 #include "Runtime/Math/MathCommon.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
+#include "Runtime/Render/Camera/Camera.h"
+#include "Runtime/Render/ModelLoader.h"
+
 
 namespace DSM{
 
@@ -68,6 +71,51 @@ namespace DSM{
 		ImGui::PopID();
     }
 
+    inline void DrawMaterial(Material& mat)
+    {
+        std::array<float, 4> vec4{};
+
+        ImGui::PushID(&mat);
+
+        ImGui::Columns(2);
+        ImGui::SetColumnWidth(0, 125.0f);
+
+        ImGui::Text("Base Color");
+        ImGui::NextColumn();
+        memcpy(vec4.data(), &mat.baseColor, sizeof(mat.baseColor));
+        if(ImGui::ColorEdit4("##Base Color", vec4.data())){
+            memcpy(&mat.baseColor, vec4.data(), sizeof(mat.baseColor));
+        }
+        ImGui::NextColumn();
+
+
+        ImGui::Text("Emissive Color");
+        ImGui::NextColumn();
+        memcpy(vec4.data(), &mat.emissiveColor, sizeof(mat.emissiveColor));
+        if(ImGui::ColorEdit3("##Emissive Color", vec4.data())){
+            memcpy(&mat.emissiveColor, vec4.data(), sizeof(mat.emissiveColor));
+        }
+        ImGui::NextColumn();
+
+        ImGui::Text("Normal Texture Scale");
+        ImGui::NextColumn();
+        ImGui::SliderFloat("##Normal Texture Scale", &mat.normalTexScale, 0.0f, 1.0f);
+        ImGui::NextColumn();
+
+        ImGui::Text("Metallic Factor");
+        ImGui::NextColumn();
+        ImGui::SliderFloat("##Metallic Factor", &mat.metallicFactor, 0.0f, 1.0f);
+        ImGui::NextColumn();
+
+        ImGui::Text("Roughness Factor");
+        ImGui::NextColumn();
+        ImGui::SliderFloat("##Roughness Factor", &mat.roughnessFactor, 0.0f, 1.0f);
+        ImGui::NextColumn();
+
+        ImGui::Columns(1);
+        ImGui::PopID();
+    }
+
     struct IComponentDrawer
     {
         virtual ~IComponentDrawer() = default;
@@ -86,11 +134,7 @@ namespace DSM{
         {
             return object->HasComponent<Math::Transform>();
         }
-
-        std::string GetName() override
-        {
-            return "Transform";
-        }
+        std::string GetName() override { return "Transform"; }
 
         void DrawUI(const std::shared_ptr<GameObject> object) override
         {
@@ -98,19 +142,15 @@ namespace DSM{
 
             const auto& component = object->GetComponent<Math::Transform>();
             Math::Vector3 pos = component->GetPosition();
-            Math::Vector3 rot = component->GetRotation().ToEulerAngles();
             Math::Vector3 scale = component->GetScale();
-            float factor = 180.0 / std::numbers::pi;
-            rot *= factor;
+            Math::Vector3 degree = Math::RadiansToDegree(component->GetRotation().ToEulerAngles());
             DrawVec3Control("Position", pos);
-            DrawVec3Control("Rotation", rot);
+            DrawVec3Control("Rotation", degree);
             DrawVec3Control("Scale", scale, 1);
-            rot /= factor;
             component->SetPosition(pos);
-            component->SetRotation(Math::Quaternion{rot});
+            component->SetRotation(Math::Quaternion{Math::DegreeToRadians(degree)});
             component->SetScale(scale);
         }
-
         void AddComponent(std::shared_ptr<GameObject> object) override
         {
             assert(object != nullptr);
@@ -119,7 +159,6 @@ namespace DSM{
                 object->AddComponent<Math::Transform>();
             }
         }
-
         void RemoveComponent(std::shared_ptr<GameObject> object)
         {
             assert(object != nullptr);
@@ -130,7 +169,105 @@ namespace DSM{
         }
     };
 
+    struct CameraComponentDrawer : public IComponentDrawer
+    {
+        bool CanDraw(std::shared_ptr<GameObject> object) override
+        {
+            return object->HasComponent<Camera>();
+        }
+        std::string GetName() override { return "Camera"; }
+        void DrawUI(const std::shared_ptr<GameObject> object) override
+        {
+            assert(object != nullptr);
 
+            const auto& camera = object->GetComponent<Camera>();
+
+            if(float cameraFov = Math::RadiansToDegree(camera->GetFovY());
+                ImGui::DragFloat("Vertical Fov", &cameraFov, 1, 0, 360)){
+                camera->SetFovY(Math::DegreeToRadians(cameraFov));
+            }
+            float nearZ = camera->GetNearZ();
+            if(ImGui::DragFloat("Near Plane", &nearZ, 1, 0.001, std::numeric_limits<float>::max())){
+                camera->SetNearZ(nearZ);
+            }
+            if(float farZ = camera->GetFarZ();
+                ImGui::DragFloat("Far Plane", &farZ, 1, nearZ, std::numeric_limits<float>::max())){
+                camera->SetFarZ(std::max(nearZ, farZ));
+            }
+            if(bool reverse = camera->IsReversedZ();
+                ImGui::Checkbox("Reverse Z", &reverse)){
+                camera->ReverseZ(reverse);
+            }
+        }
+        void AddComponent(std::shared_ptr<GameObject> object) override
+        {
+            assert(object != nullptr);
+            if (!object->HasComponent<Camera>()) {
+                object->AddComponent<Camera>();
+            }
+        }
+        void RemoveComponent(std::shared_ptr<GameObject> object)
+        {
+            assert(object != nullptr);
+            if (object->HasComponent<Camera>()) {
+                object->RemoveComponent<Camera>();
+            }
+        }
+    };
+
+    struct ModelDrawer : public IComponentDrawer
+    {
+        bool CanDraw(std::shared_ptr<GameObject> object) override
+        {
+            return object->HasComponent<Model>();
+        }
+        std::string GetName() override { return "Model"; }
+        void DrawUI(const std::shared_ptr<GameObject> object) override
+        {
+            assert(object != nullptr);
+
+            const auto& model = object->GetComponent<Model>();
+            std::array<char, 256> buffer{};
+            if(model->name.size() > buffer.size()){
+                model->name.resize(buffer.size());
+            }
+            std::ranges::copy(model->name, buffer.begin());
+            if (ImGui::InputText("Model Name", buffer.data(), buffer.size())) {
+                model->name = std::string{buffer.data()};
+            }
+
+            std::string filePath = model->filePath;
+            if(model->filePath.size() > buffer.size()){
+                model->filePath.resize(buffer.size());
+            }
+            std::ranges::copy(model->filePath, buffer.begin());
+            if (ImGui::InputText("Model File Path", buffer.data(), buffer.size())) {
+                model->filePath = std::string(buffer.data());
+                auto newModel = ModelLoader::LoadModel(model->filePath);
+                if(newModel != nullptr){
+                    *model = std::move(*newModel);
+                }
+            }
+
+            for(const auto& material : model->materials){
+                DrawMaterial(*material);
+            }
+        }
+        void AddComponent(std::shared_ptr<GameObject> object) override
+        {
+            assert(object != nullptr);
+            if (!object->HasComponent<Model>()) {
+                object->AddComponent<Model>();
+            }
+        }
+        void RemoveComponent(std::shared_ptr<GameObject> object)
+        {
+            assert(object != nullptr);
+            if (object->HasComponent<Model>()) {
+                object->RemoveComponent<Model>();
+            }
+        }
+    };
 
     class ComponentDrawerManager
     {
@@ -138,6 +275,8 @@ namespace DSM{
         ComponentDrawerManager()
         {
             m_Drawers.push_back(std::make_unique<TransformComponentDrawer>());
+            m_Drawers.push_back(std::make_unique<CameraComponentDrawer>());
+            m_Drawers.push_back(std::make_unique<ModelDrawer>());
         }
 
         void DrawComponentsUI(std::shared_ptr<GameObject> object)

@@ -5,6 +5,8 @@
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
 #include "Runtime/Math/Transform.h"
+#include "Runtime/Render/Camera/Camera.h"
+#include "Runtime/Render/ModelLoader.h"
 
 #include <nlohmann/json.hpp>
 
@@ -120,32 +122,52 @@ namespace nlohmann {
     };
 
     template<>
-    struct adl_serializer<DSM::GameObject> 
+    struct adl_serializer<DSM::Camera>
     {
-        static void to_json(json& j, const DSM::GameObject& obj) 
+        static void to_json(json& j, const DSM::Camera& camera)
         {
-            j["enabled"] = obj.IsEnabled();
-            if(obj.HasComponent<DSM::TagComponent>()){
-                j["tag"] = *obj.GetComponent<DSM::TagComponent>();
-            }
-            if(obj.HasComponent<DSM::Math::Transform>()){
-                j["transform"] = *obj.GetComponent<DSM::Math::Transform>();
-            }
+            j = {
+                {"fovY", camera.GetFovY()},
+                {"nearZ", camera.GetNearZ()},
+                {"farZ", camera.GetFarZ()},
+                {"reversedZ", camera.IsReversedZ()}
+            };
         }
-        
-        static void from_json(const json& j, DSM::GameObject& obj) 
+        static void from_json(const json& j, DSM::Camera& camera)
         {
-            bool enabled = true;
-            if(j.contains("enabled")){
-                enabled = j.at("enabled").get<bool>();
+            auto getData = [&j] <typename T> (const std::string& name, T& data){
+                data = j.contains(name) ? j.at(name).get<T>() : T{};
+            };
+            float fovY;
+            getData("fovY", fovY);
+            camera.SetFovY(fovY);
+            float nearZ;
+            getData("nearZ", nearZ);
+            camera.SetNearZ(nearZ);
+            float farZ;
+            getData("farZ", farZ);
+            camera.SetFarZ(farZ);
+            bool reversedZ;
+            getData("reversedZ", reversedZ);
+            camera.ReverseZ(reversedZ);
+        }
+    };
+
+    template<>
+    struct adl_serializer<DSM::Model>
+    {
+        static void to_json(json& j, const DSM::Model& model)
+        {
+            j = { {"filePath", model.filePath} };
+        }
+        static void from_json(const json& j, DSM::Model& model)
+        {
+            if(j.contains("filePath")){
+                model.filePath = j.at("filePath").get<std::string>();
             }
-            obj.SetEnabled(enabled);
-            
-            if(j.contains("tag")){
-                obj.AddComponent<DSM::TagComponent>(j.at("tag").get<DSM::TagComponent>());
-            }
-            if(j.contains("transform")){
-                obj.AddComponent<DSM::Math::Transform>(j.at("transform").get<DSM::Math::Transform>());
+            auto newModel = DSM::ModelLoader::LoadModel(model.filePath);
+            if(newModel != nullptr){
+                model = std::move(*newModel);
             }
         }
     };

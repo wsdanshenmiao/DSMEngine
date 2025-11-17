@@ -3,7 +3,6 @@
 #include "Runtime/Render/Model.h"
 #include "../Shaders/ResourceData.h"
 #include "Runtime/Math/Collision/BoundingSphere.h"
-#include "Runtime/Math/Collision/Frustum.h"
 
 namespace DSM {
     ShadowPass::ShadowPass(Renderer &renderer, ShadowSetting shadowSetting)
@@ -144,15 +143,23 @@ namespace DSM {
         Math::BoundingSphere boundingSphere{boundingBox};
         if(boundingSphere.GetRadius() <= 0.f)
             return;
+        
+        // 获取相机的视锥体
+        const auto& camera = renderer.GetCamera();
+        m_CameraFrustum = Math::Frustum{camera.GetProjMatrix()};
 
-        auto& camera = renderer.GetCamera();
+        // 变换到世界空间
+        m_CameraFrustum *= Math::Matrix4::Inverse(camera.GetViewMatrix());
+
+        auto forwordDir = camera.GetLookAxis();
         auto cameraSphereDir = camera.GetPosition() - boundingSphere.GetCenter();
-        auto cameraLen = Math::Vector3::Dot(camera.GetLookAxis(), cameraSphereDir);
+        auto cameraLen = Math::Vector3::Dot(forwordDir, cameraSphereDir) / forwordDir.Magnitude();
         cameraLen = boundingSphere.GetRadius() - cameraLen;
         if(cameraLen > camera.GetNearZ()){
             cameraLen = std::min(float(cameraLen), camera.GetFarZ());
-            camera.SetFrustum(camera.GetFovY(), camera.GetAspectRatio(), camera.GetNearZ(), cameraLen);
+            m_CameraFrustum.SetFarPlane(cameraLen);
         }
+
 
         auto& cmdList = g_RenderResources.cmdList;
         cmdList->Open();
@@ -168,7 +175,7 @@ namespace DSM {
         // 转换为着色器资源以供后续 Pass 使用
         cmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
 
-        float zRange = camera.GetFarZ() - camera.GetNearZ();
+        float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
         Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;
         uint32_t cascadeCount = sm_Setting.directionalSetting.cascadeCount;
 
@@ -184,7 +191,7 @@ namespace DSM {
         shadowConstants.cascadeCount = cascadeCount;
         for(size_t i = 0; i < shadowConstants.cascadeCount; ++i) {
             float distance = (i == shadowConstants.cascadeCount - 1) ?
-                camera.GetFarZ() : float(camera.GetNearZ() + zRange * cascadeRatios.Get(i));
+                m_CameraFrustum.GetFarPlane() : float(m_CameraFrustum.GetNearPlane() + zRange * cascadeRatios.Get(i));
             shadowConstants.cascadeFarPlaneDist.Set(i, distance);
         }
         cmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
@@ -213,21 +220,13 @@ namespace DSM {
         auto lightView = lightCamera.GetViewMatrix();
         center = center * lightView;
 
-        // 获取相机的视锥体
-        const auto& camera = renderer.GetCamera();
-        Math::Matrix4 cameraInvView = Math::Matrix4::Inverse(camera.GetViewMatrix());
-        Math::Frustum cameraFrustum{camera.GetProjMatrix()};
-
-        // 变换到世界空间
-        cameraFrustum *= cameraInvView;
-
         size_t cascadeCount = sm_Setting.directionalSetting.cascadeCount;
         size_t tileOffset = index * cascadeCount;
         Math::Vector3 ratios = sm_Setting.directionalSetting.cascadeRatio;
 
         for(size_t i = 0; i < cascadeCount; ++i){
             // 计算级联的视锥体
-            auto cascadeFrustum = cameraFrustum;
+            auto cascadeFrustum = m_CameraFrustum;
             float zRange = cascadeFrustum.GetFarPlane() - cascadeFrustum.GetNearPlane();
             float nearPlane = cascadeFrustum.GetNearPlane();
             if(i != 0){

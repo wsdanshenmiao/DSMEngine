@@ -453,9 +453,12 @@ namespace DSM::ModelLoader {
 		}
 		else if(std::filesystem::exists(s_ModelCacheDir + filename)) {
 			model = LoadModelFromFile(filename);
-			s_LoadedModels[filename] = model;
+			if(model != nullptr) {
+				s_LoadedModels[filename] = model;
+			}
 		}
-		else {
+
+		if(model == nullptr) {
 			Assimp::Importer importer;
 			const aiScene* pScene = importer.ReadFile(
 				filename,
@@ -469,7 +472,7 @@ namespace DSM::ModelLoader {
 				std::string warning = "[Warning]: Failed to load \"";
 				warning += filename;
 				warning += "\"\n";
-				OutputDebugStringA(warning.c_str());
+				DSM_CORE_WARN(warning);
 				return nullptr;
 			}
 			model = std::make_shared<Model>();
@@ -487,6 +490,7 @@ namespace DSM::ModelLoader {
 			SaveModelToFile(*model, filename);
 			s_LoadedModels[filename] = model;
 		}
+		model->filePath = filename;
 
 		return model;
 	}

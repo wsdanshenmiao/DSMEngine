@@ -35,32 +35,6 @@ public:
     {
         auto& globalContext = DSMEngine::sm_GlobalContext;
 
-        auto lihuazou = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
-        m_Models.push_back(lihuazou);
-        std::shared_ptr<GameObject> lihuazouObj = globalContext.scene->GetObjectByID(
-            globalContext.scene->CreateObject("Lihuazou")).lock();
-        lihuazouObj->AddComponent<Model>(*lihuazou);
-        lihuazouObj->GetComponent<Math::Transform>()->SetScale(2);
-        
-        auto plane = ModelLoader::LoadModelFromGeometry("Plane", Geometry::GeometryGenerator::CreateGrid(50,50,2,2));
-        m_Models.push_back(plane);
-        std::shared_ptr<GameObject> planeObj = globalContext.scene->GetObjectByID(
-            globalContext.scene->CreateObject("Plane")).lock();
-        planeObj->AddComponent<Model>(*plane);
-        
-        // auto sponza = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        // m_Models.push_back(sponza);
-        // std::shared_ptr<GameObject> sponzaObj = globalContext.scene->GetObjectByID(
-        //     globalContext.scene->CreateObject("Sponza")).lock();
-        // sponzaObj->AddComponent<Model>(*sponza);
-
-        // auto powerplant = ModelLoader::LoadModel("Models/powerplant/powerplant.gltf");
-        // m_Models.push_back(powerplant);
-        // std::shared_ptr<GameObject> powerplantObj = globalContext.scene->GetObjectByID(
-        //     globalContext.scene->CreateObject("Powerplant")).lock();
-        // powerplantObj->AddComponent<Model>(*powerplant);
-        // powerplantObj->GetComponent<Math::Transform>()->SetScale(0.5f);
-
         CreateLight();
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));

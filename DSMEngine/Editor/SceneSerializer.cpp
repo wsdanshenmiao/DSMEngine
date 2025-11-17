@@ -28,6 +28,12 @@ namespace DSM {
                 if(obj.HasComponent<DSM::Math::Transform>()){
                     objJson["transform"] = *obj.GetComponent<DSM::Math::Transform>();
                 }
+                if(obj.HasComponent<Camera>()){
+                    objJson["camera"] = *obj.GetComponent<Camera>();
+                }
+                if(obj.HasComponent<DSM::Model>()){
+                    objJson["model"] = *obj.GetComponent<DSM::Model>();
+                }
                 sceneJson["objects"].push_back(objJson);
             }
             
@@ -55,6 +61,14 @@ namespace DSM {
                 }
                 if(objJson.contains("transform")){
                     *objPtr->GetComponent<DSM::Math::Transform>() = objJson.at("transform").get<DSM::Math::Transform>();
+                }
+                if(objJson.contains("camera")){
+                    objPtr->AddComponent<Camera>();
+                    *objPtr->GetComponent<Camera>() = objJson.at("camera").get<Camera>();
+                }
+                if(objJson.contains("model")){
+                    objPtr->AddComponent<DSM::Model>();
+                    *objPtr->GetComponent<DSM::Model>() = objJson.at("model").get<DSM::Model>();
                 }
             }
 

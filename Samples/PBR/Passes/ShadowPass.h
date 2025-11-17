@@ -4,6 +4,7 @@
 
 #include <map>
 #include "IRenderPass.h"
+#include "Runtime/Math/Collision/Frustum.h"
 
 namespace DSM {
     namespace Math{
@@ -92,6 +93,8 @@ namespace DSM {
         std::array<BindingLayoutHandle, 2> m_ShadowBindingLayouts;
 
         std::vector<Light> m_DirectionalLights{};
+
+        Math::Frustum m_CameraFrustum{};
     };
 } // namespace DSM
 

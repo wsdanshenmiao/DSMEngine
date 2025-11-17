@@ -4,6 +4,7 @@
 
 #include <concepts>
 #include <cassert>
+#include <numbers>
 #include "Runtime/Core/PlatformDetection.h"
 #include "Vector.h"
     
@@ -19,6 +20,12 @@
 #endif
 
 namespace DSM::Math {
+
+    template <typename T>
+    concept MultipliableWithFloat = requires(T a, float b) {
+        a * b;
+        a / b;
+    };
 
 #if defined(DSM_PLATFORM_WINDOWS)
     using Scalar = XMScalar;
@@ -210,6 +217,18 @@ namespace DSM::Math {
     inline constexpr T DivideByMultiple(T value, std::uint64_t alignment) noexcept
     {
         return (T)((value + alignment - 1) / alignment);
+    }
+
+    template <typename T> requires MultipliableWithFloat<T>
+    inline constexpr T DegreeToRadians(T degree) noexcept
+    {
+        return degree * (std::numbers::pi_v<float> / 180.f);
+    }
+
+    template <typename T> requires MultipliableWithFloat<T>
+    inline constexpr T RadiansToDegree(T radians) noexcept
+    {
+        return radians * (180.f / std::numbers::pi_v<float>);
     }
 
 } // namespace DSM 

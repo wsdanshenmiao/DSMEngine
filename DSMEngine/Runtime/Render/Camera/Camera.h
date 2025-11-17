@@ -51,6 +51,10 @@ namespace DSM {
             m_Viewport = {topLeftX, topLeftY, width, height, minDepth, maxDepth};
         }
 
+        void SetFovY(float fovY) noexcept { m_FovY = fovY; }
+        void SetNearZ(float nearZ) noexcept { m_NearZ = nearZ; }
+        void SetFarZ(float farZ) noexcept { m_FarZ = farZ; }
+
         void SetFrustum(float fovY, float aspect, float nearZ, float farZ) 
         {
 			m_FovY = fovY;

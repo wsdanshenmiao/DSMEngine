@@ -17,6 +17,7 @@ namespace DSM {
     struct Model
     {
         std::string name{};
+        std::string filePath{};
         std::vector<std::shared_ptr<Mesh>> meshes{};
         std::vector<std::shared_ptr<Material>> materials{};
         BufferHandle materialData{};
