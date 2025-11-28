@@ -15,7 +15,8 @@ namespace DSM{
             break;
         }
 
-        OnResize(renderDesc.window->GetWidth(), renderDesc.window->GetHeight());
+        ResizeFrameBuffer(renderDesc.window->GetWidth(), renderDesc.window->GetHeight());
+        ResizeRenderTexture(renderDesc.window->GetWidth(), renderDesc.window->GetHeight());
     }
 
     Renderer::~Renderer()
@@ -34,20 +35,29 @@ namespace DSM{
                 return false;
 
             // 最小为1
-            OnResize(std::max(event.GetWidth(), 1u), std::max(event.GetHeight(), 1u));
+            ResizeFrameBuffer(std::max(event.GetWidth(), 1u), std::max(event.GetHeight(), 1u));
             return true;
         });
+        m_Internal->OnEvent(event);
     }
 
-    void Renderer::OnResize(uint32_t width, uint32_t height)
+    void Renderer::ResizeRenderTexture(uint32_t width, uint32_t height)
     {
         m_Internal->device->WaitForIdle();
 
         m_Camera.SetViewPort(Viewport{float(width), float(height)});
         m_Camera.SetFrustum(std::numbers::pi * 0.5f, float(width) / float(height), 0.1f, 30.f);
 
+        m_Internal->colorTex = m_Internal->device->CreateTexture(TextureDesc()
+            .SetWidth(width)
+            .SetHeight(height)
+            .SetFormat(GetCurrentBackBuffer()->GetDesc().format)
+            .SetClearValue(Color{0.0f, 0.0f, 0.0f, 1.0f})
+            .SetInitialState(ResourceStates::RenderTarget)
+            .SetIsRenderTarget(true)
+            .SetDebugName("Renderer::ColorTexture"));
+
         // 由于交换链改变大小时所有额外的 Buffer 引用都需要释放
-        m_Internal->ResizeFramebuffer(width, height);
         if(m_RenderPipeline != nullptr){
             m_RenderPipeline->OnResize(*this, width, height);
         }

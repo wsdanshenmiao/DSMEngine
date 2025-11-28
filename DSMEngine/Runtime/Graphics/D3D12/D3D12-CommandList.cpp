@@ -40,13 +40,13 @@ namespace DSM::D3D12{
             cmdList = availedQueue.front();
             auto hr = cmdList->allocator->Reset();
             if(FAILED(hr)){
-                context.Error(std::format("Failed to reset allocator. Error msg: {}", Utility::GetHRErrorMessage(hr)));
+                context.Error(std::format("Failed to reset allocator. Error msg: {}", GetHRErrorMessage(hr)));
                 return nullptr;
             }
 
             hr = cmdList->cmdList->Reset(cmdList->allocator, nullptr);
             if(FAILED(hr)){
-                context.Error(std::format("Failed to reset cmdList. Error msg: {}", Utility::GetHRErrorMessage(hr)));
+                context.Error(std::format("Failed to reset cmdList. Error msg: {}", GetHRErrorMessage(hr)));
                 return nullptr;
             }
             cmdList->lastSubmittedFenceValue = 0;
@@ -124,7 +124,7 @@ namespace DSM::D3D12{
         auto errorMsg = [this](const std::string& msg, auto hr){
             uploadBufferAllocator = nullptr;
             gpuBufferAllocator = nullptr;
-            throw std::runtime_error{std::format("{} Error msg: {}", msg, Utility::GetHRErrorMessage(hr))};
+            throw std::runtime_error{std::format("{} Error msg: {}", msg, GetHRErrorMessage(hr))};
         };
 
         auto hr = context.device->CreateCommandAllocator(listType, IID_PPV_ARGS(allocator.GetAddressOf()));
@@ -184,7 +184,7 @@ namespace DSM::D3D12{
 
         auto hr = m_CurrCmdList->cmdList->Close();
         if(FAILED(hr)){
-            std::string msg = std::format("Failed to close command list. Error msg: {}", Utility::GetHRErrorMessage(hr));
+            std::string msg = std::format("Failed to close command list. Error msg: {}", GetHRErrorMessage(hr));
             m_Device.GetContext().Error(msg);
             return;
         }

@@ -2,15 +2,15 @@
 #ifndef __SHADERCOMPILER_H__
 #define __SHADERCOMPILER_H__
 
-#include <Windows.h>
+#include "Runtime/Utils/Utils.h"
+#include "Runtime/Graphics/Shader.h"
+
 #include <dxcapi.h>
 #include <vector>
 #include <map>
 #include <string>
 #include <unordered_map>
 #include <d3d12.h>
-#include "Runtime/Utils/Utils.h"
-#include "Runtime/Graphics/Shader.h"
 
 namespace DSM {
     class ShaderDefines

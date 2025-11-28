@@ -13,6 +13,7 @@
 #include <backends/imgui_impl_dx12.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_glfw.h>
+#include <ImGuizmo.h>
 
 using namespace DSM::D3D12;
 
@@ -177,6 +178,9 @@ namespace DSM{
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+        ImGuizmo::BeginFrame();
+
+        m_WindowUI->Render();
     }
 
     void RendererDX12::RenderWindowUI()
@@ -192,7 +196,7 @@ namespace DSM{
             InitWindowUI(m_WindowUI);
         }
 
-        auto fb = swapChainFramebuffers[GetCurrentBackBufferIndex()];
+        auto fb = swapChainFramebuffers[GetCurrentBackBufferIndex()].Get();
 
         auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ImGui Command List"));
         cmdList->Open();
@@ -214,8 +218,6 @@ namespace DSM{
         nativeList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, nullptr);
         auto heap = s_DescriptorHeap->GetShaderVisibleHeap();
         nativeList->SetDescriptorHeaps(1, &heap);
-
-        m_WindowUI->Render();
         
 		ImGui::Render();
 
@@ -236,6 +238,11 @@ namespace DSM{
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent(currentContext);
         }
+    }
+
+    void RendererDX12::OnEvent(Event &event)
+    {
+        m_WindowUI->OnEvent(event);
     }
 
     void RendererDX12::ResizeSwapChain(uint32_t width, uint32_t height)
@@ -297,6 +304,7 @@ namespace DSM{
             texDesc.initialState = ResourceStates::Present;
             texDesc.isRenderTarget = true;
             texDesc.keepInitialState = true;
+            texDesc.debugName = "SwapChain Buffer";
 
             m_SwapChainBuffers[i] = device->CreateHandleForNativeTexture(ObjectTypes::D3D12_Resource, resource.Get(), texDesc);
         }

@@ -25,9 +25,9 @@ namespace DSM{
         void BeginWindowUI() override;
         void RenderWindowUI() override;
 
-    protected:
-        void Render();
+        void OnEvent(Event& event) override;
 
+    protected:
         void ResizeSwapChain(uint32_t width, uint32_t height) override;
 
         bool BeginFrame() override;

@@ -16,10 +16,7 @@ namespace DSM {
     {
     public:
         void Serialize(const std::string& filepath);
-
         bool Deserialize(const std::string& filepath);
-
-    private:
     };
 } // namespace DSM
 

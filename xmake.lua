@@ -20,7 +20,7 @@ else
 end 
 
 -- 添加系统依赖库
-add_syslinks("d3d12", "dxgi", "d3dcompiler", "dxguid", "user32")
+add_syslinks("d3d12", "dxgi", "d3dcompiler", "dxguid", "user32", "comdlg32")
 
 add_requires("assimp", {system = false})
 

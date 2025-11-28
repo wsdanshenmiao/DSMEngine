@@ -43,4 +43,8 @@ target("ThirdParty")
 
     add_headerfiles("json/include/nlohmann/**.hpp")
     add_includedirs(path.join(thirdPartyDir, "json/include"), {public = true})
+
+    add_headerfiles("ImGuizmo/*.h")
+    add_files("ImGuizmo/*.cpp")
+    add_includedirs(path.join(thirdPartyDir, "ImGuizmo/"), {public = true})
 target_end()

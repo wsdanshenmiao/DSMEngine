@@ -4,6 +4,7 @@
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Editor/EditorUI/EditorUI.h"
 #include "SceneSerializer.h"
+#include "Runtime/Core/Window.h"
 
 namespace DSM{
     void DSMEditor::StartEditor(DSMEngine *engine)
@@ -16,11 +17,8 @@ namespace DSM{
         sm_EditorContext.renderer = DSMEngine::sm_GlobalContext.renderer;
         
         m_EditorUI = std::make_shared<EditorUI>(EditorUIDesc{ 
-            DSMEngine::sm_GlobalContext.renderer, DSMEngine::sm_GlobalContext.window });
-
-        SceneSerializer serializer;
-        serializer.Deserialize(std::filesystem::current_path().string() + "\\Assets\\Scene\\ExampleScene.json");
-
+            DSMEngine::sm_GlobalContext.renderer, 
+            DSMEngine::sm_GlobalContext.window });
     }
 
     void DSMEditor::Run()
@@ -36,8 +34,5 @@ namespace DSM{
         m_EditorUI.reset();
         sm_EditorContext = {};
         m_Engine = nullptr;
-        
-        SceneSerializer serializer;
-        serializer.Serialize(std::filesystem::current_path().string() + "\\Assets\\Scene\\ExampleScene.json");
     }
 }

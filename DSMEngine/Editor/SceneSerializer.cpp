@@ -52,6 +52,8 @@ namespace DSM {
             if(!sceneJson.contains("objects"))
                 return false;
 
+            DSMEngine::sm_GlobalContext.scene = std::make_shared<Scene>();
+
             for (const auto& objJson : sceneJson.at("objects")) {
                 auto objID = DSMEngine::sm_GlobalContext.scene->CreateObject();
                 auto objPtr = DSMEngine::sm_GlobalContext.scene->GetObjectByID(objID).lock();

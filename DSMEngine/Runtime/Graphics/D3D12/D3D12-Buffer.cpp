@@ -84,7 +84,7 @@ namespace DSM::D3D12{
         if (FAILED(hr))
         {
             std::string msg = std::format("CreateCommittedResource call failed for buffer {}, error msg: {}.",
-                DebugNameToString(desc.debugName), Utility::GetHRErrorMessage(hr));
+                DebugNameToString(desc.debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return false;
         }

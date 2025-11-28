@@ -78,14 +78,14 @@ namespace DSM::D3D12{
         const auto& context = m_Device.GetContext();
         auto hr = context.device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_CommandQueue.GetAddressOf()));
         if(FAILED(hr)){
-            context.Error(std::format("Failed to create command queue. Error msg: {}.", Utility::GetHRErrorMessage(hr)));
+            context.Error(std::format("Failed to create command queue. Error msg: {}.", GetHRErrorMessage(hr)));
             m_CommandQueue = nullptr;
             return;
         }
 
         hr = context.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_Fence.GetAddressOf()));
         if(FAILED(hr)){
-            context.Error(std::format("Failed to create fence. Error msg: {}.", Utility::GetHRErrorMessage(hr)));
+            context.Error(std::format("Failed to create fence. Error msg: {}.", GetHRErrorMessage(hr)));
             m_CommandQueue = nullptr;
             return;
         }
@@ -224,7 +224,7 @@ namespace DSM::D3D12{
         }
 
         auto errorMsg = [this](const std::string& msg, HRESULT hr){
-            std::string error = std::format("{}.Error msg: {}.", msg, Utility::GetHRErrorMessage(hr));
+            std::string error = std::format("{}.Error msg: {}.", msg, GetHRErrorMessage(hr));
             m_Context.Error(error);
             throw std::runtime_error(error);
         };
@@ -397,7 +397,7 @@ namespace DSM::D3D12{
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create heap {}, error msg: {}", 
-                DebugNameToString(d.debugName), Utility::GetHRErrorMessage(hr));
+                DebugNameToString(d.debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return HeapHandle{nullptr};
         }
@@ -457,7 +457,7 @@ namespace DSM::D3D12{
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create placed texture {}, error msg: {}", 
-                DebugNameToString(texture->GetDesc().debugName), Utility::GetHRErrorMessage(hr));
+                DebugNameToString(texture->GetDesc().debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return false;
         }
@@ -618,7 +618,7 @@ namespace DSM::D3D12{
         auto hr = buffer->resource->Map(0, &range, &mappedData);
         if(FAILED(hr)){
             std::string msg = std::format("Map call failed for buffer {}, error msg: {}",
-                DebugNameToString(buffer->GetDesc().debugName), Utility::GetHRErrorMessage(hr));
+                DebugNameToString(buffer->GetDesc().debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return nullptr;
         }
@@ -664,7 +664,7 @@ namespace DSM::D3D12{
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create placed buffer {}, error msg: {}.",
-                DebugNameToString(buffer->GetDesc().debugName), Utility::GetHRErrorMessage(hr));
+                DebugNameToString(buffer->GetDesc().debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return false;
         }
@@ -1331,7 +1331,7 @@ namespace DSM::D3D12{
 
         HRESULT hr = m_Context.device->GetDeviceRemovedReason();
         if (FAILED(hr)) {
-            m_Context.Error(std::format("Execute commandlist error. Error msg: {}!", Utility::GetHRErrorMessage(hr)));
+            m_Context.Error(std::format("Execute commandlist error. Error msg: {}!", GetHRErrorMessage(hr)));
         }
 
         return fenceValue;
@@ -1661,7 +1661,7 @@ namespace DSM::D3D12{
         RefPtr<ID3DBlob> error{};
         auto hr = D3D12SerializeVersionedRootSignature(&rsDesc, signature.GetAddressOf(), error.GetAddressOf());
         if(FAILED(hr)){
-            std::string msg = std::format("Failed to serialize root signature,Error msg: {}.", Utility::GetHRErrorMessage(hr));
+            std::string msg = std::format("Failed to serialize root signature,Error msg: {}.", GetHRErrorMessage(hr));
             if(error != nullptr && error->GetBufferSize() > 0){
                 msg += std::string(static_cast<const char*>(error->GetBufferPointer())) + ".";
             }
@@ -1675,7 +1675,7 @@ namespace DSM::D3D12{
             IID_PPV_ARGS(rootSig->rootSignature.GetAddressOf()));
         
         if(FAILED(hr)){
-            std::string msg = std::format("Failed to create root signature, Error msg: {}", Utility::GetHRErrorMessage(hr));
+            std::string msg = std::format("Failed to create root signature, Error msg: {}", GetHRErrorMessage(hr));
             m_Context.Error(msg);
             delete rootSig;
             return RootSignatureHandle{nullptr};

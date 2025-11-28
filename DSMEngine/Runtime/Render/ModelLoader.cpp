@@ -18,7 +18,6 @@
 namespace DSM::ModelLoader {
 
 	static DeviceHandle s_GraphicsDevice;
-	static const std::string s_ModelCacheDir = std::filesystem::current_path().string() + "\\Assets\\Models\\";
 	static std::array<TextureHandle, kNumTextures> s_CommonTextures;
 	// 缓存下来的模型，防止重复加载
 	static std::unordered_map<std::string, std::shared_ptr<Model>> s_LoadedModels;
@@ -63,7 +62,7 @@ namespace DSM::ModelLoader {
 
 	bool SaveModelToFile(const Model& model, const std::string& filename)
 	{
-		std::filesystem::path modelPath = s_ModelCacheDir + filename;
+		std::filesystem::path modelPath = filename;
 		if (!std::filesystem::exists(modelPath.parent_path())) {
 			std::filesystem::create_directories(modelPath.parent_path());
 		}
@@ -204,7 +203,7 @@ namespace DSM::ModelLoader {
 
 	std::shared_ptr<Model> LoadModelFromFile(const std::string& filename)
 	{
-		std::filesystem::path modelPath = s_ModelCacheDir + filename;
+		std::filesystem::path modelPath = filename;
 		std::ifstream ifs(modelPath, std::ios::binary);
 		if (!ifs.is_open()) {
 			return nullptr;
@@ -448,15 +447,15 @@ namespace DSM::ModelLoader {
     std::shared_ptr<Model> LoadModel(const std::string &filename)
     {
 		std::shared_ptr<Model> model = nullptr;
-		if(s_LoadedModels.contains(filename)){
-			model = s_LoadedModels[filename];
-		}
-		else if(std::filesystem::exists(s_ModelCacheDir + filename)) {
-			model = LoadModelFromFile(filename);
-			if(model != nullptr) {
-				s_LoadedModels[filename] = model;
-			}
-		}
+		//if(s_LoadedModels.contains(filename)){
+		//	model = s_LoadedModels[filename];
+		//}
+		//else if(std::filesystem::exists(filename)) {
+		//	model = LoadModelFromFile(filename);
+		//	if(model != nullptr) {
+		//		s_LoadedModels[filename] = model;
+		//	}
+		//}
 
 		if(model == nullptr) {
 			Assimp::Importer importer;

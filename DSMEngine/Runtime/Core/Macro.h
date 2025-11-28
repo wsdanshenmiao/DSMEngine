@@ -7,10 +7,6 @@
 #include "Runtime/Core/LogSystem.h"
 #include "Runtime/DSMEngine.h"
 
-#if defined(DSM_PLATFORM_WINDOWS)
-    #include <Windows.h>
-#endif
-
 #define BIT(x) (1 << x)
 
 // Core log macros

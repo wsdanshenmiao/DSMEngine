@@ -54,7 +54,7 @@ namespace DSM {
 
             // 使用了 PreZ Pass 无需清除深度
             const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-            cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{1, 0.7f, 0.75f, 1});
+            cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{0.0f, 0.0f, 0.0f, 1.0f});
 
             PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());

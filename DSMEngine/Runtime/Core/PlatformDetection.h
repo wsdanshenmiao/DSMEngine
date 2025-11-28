@@ -15,4 +15,20 @@
 	#error "Unknown platform!"
 #endif
 
+#if defined(DSM_PLATFORM_WINDOWS)
+#define NOMINMAX
+#include <Windows.h>
+#include <comdef.h>
+#include <commdlg.h>
+
+#if defined(min)
+#undef min
+#endif
+
+#if defined(max)
+#undef max
+#endif
+
+#endif
+
 #endif

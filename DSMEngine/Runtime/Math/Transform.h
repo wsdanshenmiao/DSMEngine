@@ -13,6 +13,15 @@ namespace DSM::Math {
         Transform() noexcept = default;
         Transform(Math::Vector3 pos, Math::Vector3 scale, Math::Quaternion rot) noexcept
             :m_Position(pos), m_Scale(scale), m_Rotation(rot){}
+        Transform(Math::Matrix4 matrix)
+        {
+            auto xAxis = Math::Vector3{matrix.Get(0)};
+            auto yAxis = Math::Vector3{matrix.Get(1)};
+            auto zAxis = Math::Vector3{matrix.Get(2)};
+            m_Position = Math::Vector3{matrix.Get(3)};
+            m_Scale = Math::Vector3{xAxis.Magnitude(), yAxis.Magnitude(), zAxis.Magnitude()};
+            m_Rotation = Math::Quaternion{Math::Matrix3{matrix}};
+        }
 
         inline const Math::Vector3& GetPosition() const noexcept { return m_Position; }
         inline const Math::Vector3& GetScale() const noexcept { return m_Scale; }

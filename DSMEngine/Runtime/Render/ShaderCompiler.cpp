@@ -1,6 +1,8 @@
 #include "ShaderCompiler.h"
 #include "Runtime/Utils/Utils.h"
 #include "Runtime/Core/Macro.h"
+#include "Runtime/Graphics/D3D12/D3D12Common.h"
+
 #include <wrl/client.h>
 #include <cassert>
 #include <format>
@@ -10,7 +12,7 @@ namespace DSM {
     inline void AssertShaderCompiler(HRESULT hr)
     {
         if(FAILED(hr)){
-            DSM_CORE_ERROR("Compiler shader error.Error msg: {}", Utility::GetHRErrorMessage(hr));
+            DSM_CORE_ERROR("Compiler shader error.Error msg: {}", GetHRErrorMessage(hr));
         }
     }
 

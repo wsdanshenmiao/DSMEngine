@@ -81,7 +81,8 @@ namespace DSM {
         void Render(float deltaTime);
         void OnEvent(Event& event);
 
-        void OnResize(uint32_t width, uint32_t height);
+        void ResizeRenderTexture(uint32_t width, uint32_t height);
+        void ResizeFrameBuffer(uint32_t width, uint32_t height) { m_Internal->ResizeFramebuffer(width, height); }
 
         [[nodiscard]] IDevice* GetDevice() const { return m_Internal->device; }
         [[nodiscard]] GraphicsAPI GetGraphicsAPI() const { return m_Internal->GetGraphicsAPI(); };
@@ -93,12 +94,11 @@ namespace DSM {
         uint32_t GetBackBufferCount() { return m_Internal->GetBackBufferCount(); }
         IFramebuffer* GetCurrentFramebuffer() { return GetFramebuffer(GetCurrentBackBufferIndex()); }
         IFramebuffer* GetFramebuffer(uint32_t index);
+        ITexture* GetColorTexture() { return m_Internal->colorTex; }
 
         Camera& GetCamera() noexcept { return m_Camera; }
 
     protected:
-        void ResizeSwapChain(uint32_t width, uint32_t height) { m_Internal->ResizeSwapChain(width, height); }
-
         bool BeginFrame() { return m_Internal->BeginFrame(); }
         void Present() { m_Internal->Present(); }
 
@@ -115,6 +115,7 @@ namespace DSM {
             DeviceHandle device;
             RenderParameters desc;
             std::vector<FramebufferHandle> swapChainFramebuffers{};
+            TextureHandle colorTex;
             uint32_t frameIndex = 0;
 
             [[nodiscard]] virtual GraphicsAPI GetGraphicsAPI() const = 0;
@@ -128,6 +129,8 @@ namespace DSM {
             virtual void InitWindowUI(WindowUI* windowUI) = 0;
             virtual void BeginWindowUI() = 0;
             virtual void RenderWindowUI() = 0;
+
+            virtual void OnEvent(Event& event) = 0;
 
             virtual bool BeginFrame() = 0;
             virtual void Present() = 0;

@@ -104,6 +104,12 @@ namespace DSM{
         return mapping;
     }
 
+    inline std::string GetHRErrorMessage(HRESULT hr)
+    {
+        _com_error err{hr};
+        std::wstring msg = err.ErrorMessage();
+        return Utility::WStringToUTF8(msg);
+    }
 
 
     namespace D3D12{     
