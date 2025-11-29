@@ -5,6 +5,7 @@
 #include <memory>
 #include "Runtime/Render/WindowUI.h"
 #include "Editor/EditorUI/SceneHierarchyPanel.h"
+#include "Editor/EditorUI/ContentBrowserPanel.h"
 
 namespace DSM {
     class Window;
@@ -34,6 +35,7 @@ namespace DSM {
 
     private:
         std::unique_ptr<SceneHierarchyPanel> m_SceneHierarchyPanel;
+        std::unique_ptr<ContentBrowserPanel> m_ContentBrowserPanel;
         Math::Vector4 m_ViewportBounds;
 
         int m_GizmoType = -1;

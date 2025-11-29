@@ -15,7 +15,7 @@ namespace DSM {
         m_Desc.height = winProps.m_Height;
 
         if(s_GLFWWindowCount == 0){
-            assert(glfwInit() != 0);
+            DSM_ASSERT(glfwInit() != 0, "Failed to initialize GLFW!");
             glfwSetErrorCallback([](int error, const char* description){
                 DSM_CORE_ERROR("GLFW Error ({0}): {1}", error, description);
             });
@@ -23,6 +23,7 @@ namespace DSM {
 
         
         m_Window = glfwCreateWindow(m_Desc.width, m_Desc.height, m_Desc.title.c_str(), nullptr, nullptr);
+        DSM_ASSERT(m_Window != nullptr, "Failed to create GLFW window!");
         s_GLFWWindowCount++;
 		glfwMakeContextCurrent(m_Window);
 
@@ -39,7 +40,7 @@ namespace DSM {
             data->callback(event);
         });
         
-        glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int width, int height){
+        glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, int width, int height){
             auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
             if(data == nullptr || data->callback == nullptr)
                 return;

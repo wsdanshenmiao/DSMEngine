@@ -118,6 +118,12 @@ namespace DSM{
         device->RunGarbageCollection();
         m_SwapChainBuffers.clear();
 
+        for(UINT bufferIndex = 0; bufferIndex < m_SwapChainDesc.BufferCount; bufferIndex++) {
+            WaitForSingleObject(m_FrameFenceEvents[bufferIndex], INFINITE);
+            CloseHandle(m_FrameFenceEvents[bufferIndex]);
+        }
+        m_FrameFenceEvents.clear();
+
         m_FrameFence = nullptr;
     }
 
@@ -251,6 +257,11 @@ namespace DSM{
             device->WaitForIdle();
             device->RunGarbageCollection();
         }
+
+        for(auto& event : m_FrameFenceEvents){
+            SetEvent(event);
+        }
+
         m_SwapChainBuffers.clear();
 
         auto hr = m_SwapChain->ResizeBuffers(

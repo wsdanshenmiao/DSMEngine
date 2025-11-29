@@ -119,6 +119,7 @@ namespace DSM::TextureManager {
 				size_t mipLevel = i % texDesc.mipLevels;
 				cmdList->WriteTexture(texture, arraySlice, mipLevel, subResources[i].pData, subResources[i].RowPitch, subResources[i].SlicePitch);
 			}
+			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::ShaderResource);
 			cmdList->Close();
 			s_GraphicsDevice->ExecuteCommandList(cmdList);
 
@@ -144,6 +145,7 @@ namespace DSM::TextureManager {
 			uint32_t rowPitch = GetRowPitch(texDesc.format, texDesc.width);
 			uint32_t slicePitch = GetSlicePitch(texDesc.format, texDesc.width, texDesc.height);
 			cmdList->WriteTexture(texture, 0, 0, imgData, rowPitch, slicePitch);
+			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::ShaderResource);
 			cmdList->Close();
 			s_GraphicsDevice->ExecuteCommandList(cmdList);
 

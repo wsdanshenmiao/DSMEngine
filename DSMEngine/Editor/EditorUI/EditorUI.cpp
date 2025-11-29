@@ -14,8 +14,9 @@
 
 namespace DSM {
     EditorUI::EditorUI(const EditorUIDesc& desc)
-        : m_SceneHierarchyPanel(std::make_unique<SceneHierarchyPanel>())
-    {
+        : m_SceneHierarchyPanel(std::make_unique<SceneHierarchyPanel>()),
+        m_ContentBrowserPanel(std::make_unique<ContentBrowserPanel>())
+        {
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -122,6 +123,7 @@ namespace DSM {
 
         DSMEngine::sm_GlobalContext.scene->OnGUI();
         m_SceneHierarchyPanel->OnGUI();
+        m_ContentBrowserPanel->OnGUI();
     }
 
     void EditorUI::OnEvent(Event &event)
@@ -187,6 +189,14 @@ namespace DSM {
         auto colorTex = renderer->GetColorTexture();
         auto gpuHandle = colorTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
         ImGui::Image(ImTextureRef{gpuHandle}, viewportSize);
+
+        if(ImGui::BeginDragDropTarget()){
+            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ContentBrowserPanel::sm_DragDropPayloadType)){
+                const char* path = static_cast<const char*>(payload->Data);
+                LoadScene(path);
+            }
+            ImGui::EndDragDropTarget();
+        }
         
         RenderGizmo();
         
@@ -237,6 +247,11 @@ namespace DSM {
 
     void EditorUI::LoadScene(const std::filesystem::path& filepath)
     {
+        if (filepath.extension().string() != ".dsmescene") {
+            DSM_WARN("Could not load file {}, is not a scene file", filepath.filename().string());
+			return;
+		}
+
         if (!filepath.empty()) {
             SceneSerializer serializer;
             if(serializer.Deserialize(filepath.string())){

@@ -30,9 +30,7 @@ namespace DSM {
 
             cmdList->BeginTimerQuery(sm_TimerQuery);
 
-            ITexture* backTexture = renderer.GetCurrentBackBuffer();
             ITexture* colorTex = renderer.GetColorTexture();
-            cmdList->CopyTexture(backTexture, {}, colorTex, {});
             cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::ShaderResource);
 
             cmdList->EndTimerQuery(sm_TimerQuery);

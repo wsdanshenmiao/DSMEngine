@@ -47,7 +47,7 @@ public:
         m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer));
 
         auto& camera = renderer.GetCamera();
-        camera.SetPosition({0, 3, 5});
+        camera.SetPosition({0, 3, -5});
         camera.LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(&camera);
@@ -104,49 +104,49 @@ public:
     {
         static float lightDir[3] = {-0.3, -1, 0.08};
         static float lightColor[3] = {1.0f, 1.0f, 1.0f};
-        if (ImGui::Begin("Light Settings")) {
-            ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);
-            ImGui::ColorEdit3("Light Color", lightColor);
+        // if (ImGui::Begin("Light Settings")) {
+        //     ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);
+        //     ImGui::ColorEdit3("Light Color", lightColor);
 
-            static const char* pcfMode[] = {
-                "None",
-                "3x PCF",
-                "5x PCF",
-                "7x PCF"
-            };
-            static int curr_scene_pcf_item = ShadowPass::sm_Setting.directionalSetting.filter;
-            if (ImGui::Combo("Scene PCF", &curr_scene_pcf_item, pcfMode, ARRAYSIZE(pcfMode))) {
-                auto& filter = ShadowPass::sm_Setting.directionalSetting.filter;
-                auto currMode = ShadowSetting::FilterMode(curr_scene_pcf_item);
-                if(filter != currMode){
-                    const auto& shaders = g_RenderResources.shaders;
-                    for(auto& config : g_RenderResources.renderConfigs){
-                        size_t baseIndex = config.pipelineDesc.PS == shaders[(size_t)ShaderSlot::LitPS + filter] ? 
-                            (size_t)ShaderSlot::LitPS : (size_t)ShaderSlot::LitPSNoTangent;
-                        config.pipelineDesc.PS = shaders[baseIndex + currMode];
-                    }
-                    filter = currMode;
-                }
-            }
+        //     static const char* pcfMode[] = {
+        //         "None",
+        //         "3x PCF",
+        //         "5x PCF",
+        //         "7x PCF"
+        //     };
+        //     static int curr_scene_pcf_item = ShadowPass::sm_Setting.directionalSetting.filter;
+        //     if (ImGui::Combo("Scene PCF", &curr_scene_pcf_item, pcfMode, ARRAYSIZE(pcfMode))) {
+        //         auto& filter = ShadowPass::sm_Setting.directionalSetting.filter;
+        //         auto currMode = ShadowSetting::FilterMode(curr_scene_pcf_item);
+        //         if(filter != currMode){
+        //             const auto& shaders = g_RenderResources.shaders;
+        //             for(auto& config : g_RenderResources.renderConfigs){
+        //                 size_t baseIndex = config.pipelineDesc.PS == shaders[(size_t)ShaderSlot::LitPS + filter] ? 
+        //                     (size_t)ShaderSlot::LitPS : (size_t)ShaderSlot::LitPSNoTangent;
+        //                 config.pipelineDesc.PS = shaders[baseIndex + currMode];
+        //             }
+        //             filter = currMode;
+        //         }
+        //     }
 
-            ImGui::Checkbox("Enable SSAO", &SSAO::sm_Settings.enable);
-            if(SSAO::sm_Settings.enable){
-                ImGui::SliderFloat("Occlusion Radius", &SSAO::sm_Settings.occlusionRadius, 0.1f, 2.0f);
-                ImGui::SliderInt("Sample Count", (int*)&SSAO::sm_Settings.sampleCount, 1, 14);
-                ImGui::SliderFloat("SSAO Threshold", &SSAO::sm_Settings.occlusionThreshold, 0.001f, 0.5f);
-                ImGui::SliderFloat("SSAO Fade", &SSAO::sm_Settings.fadeEnd, 1.f, 5.0f);
-                ImGui::SliderInt("SSAO Contrast", (int*)&SSAO::sm_Settings.contrast, 1, 5);
-                ImGui::SliderInt("SSAO Blur Radius", (int*)&SSAO::sm_Settings.blurRadius, 0, 5);
-                ImGui::SliderInt("SSAO Blur Count", (int*)&SSAO::sm_Settings.blurCount, 1, 5);
-            }
-        }
-        ImGui::End();
+        //     ImGui::Checkbox("Enable SSAO", &SSAO::sm_Settings.enable);
+        //     if(SSAO::sm_Settings.enable){
+        //         ImGui::SliderFloat("Occlusion Radius", &SSAO::sm_Settings.occlusionRadius, 0.1f, 2.0f);
+        //         ImGui::SliderInt("Sample Count", (int*)&SSAO::sm_Settings.sampleCount, 1, 14);
+        //         ImGui::SliderFloat("SSAO Threshold", &SSAO::sm_Settings.occlusionThreshold, 0.001f, 0.5f);
+        //         ImGui::SliderFloat("SSAO Fade", &SSAO::sm_Settings.fadeEnd, 1.f, 5.0f);
+        //         ImGui::SliderInt("SSAO Contrast", (int*)&SSAO::sm_Settings.contrast, 1, 5);
+        //         ImGui::SliderInt("SSAO Blur Radius", (int*)&SSAO::sm_Settings.blurRadius, 0, 5);
+        //         ImGui::SliderInt("SSAO Blur Count", (int*)&SSAO::sm_Settings.blurCount, 1, 5);
+        //     }
+        // }
+        // ImGui::End();
 
-        if(auto lights = g_RenderResources.lights; !lights.empty() && 
-           lights[0].lightType == LightType::Directional){
-            g_RenderResources.lights[0].direction = {lightDir[0], lightDir[1], lightDir[2]};
-            g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
-        }
+        // if(auto lights = g_RenderResources.lights; !lights.empty() && 
+        //    lights[0].lightType == LightType::Directional){
+        //     g_RenderResources.lights[0].direction = {lightDir[0], lightDir[1], lightDir[2]};
+        //     g_RenderResources.lights[0].color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
+        // }
     }
 
     void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
@@ -161,7 +161,7 @@ private:
     {
         g_RenderResources.lights.push_back(Light{}
             .SetType(LightType::Directional)
-            .SetDirection(Math::Vector3{-0.5f, -0.8f, -0.5f}.Normalized())
+            .SetDirection(Math::Vector3{0.5f, -0.8f, 0.5f}.Normalized())
             .SetColor({1,1,1,1}));
 
         auto randUint = [](){
