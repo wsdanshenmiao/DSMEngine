@@ -31,7 +31,7 @@ namespace DSM {
             cmdList->BeginTimerQuery(sm_TimerQuery);
 
             ITexture* colorTex = renderer.GetColorTexture();
-            cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::ShaderResource);
+            cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::PixelShaderResource);
 
             cmdList->EndTimerQuery(sm_TimerQuery);
             

@@ -187,7 +187,8 @@ namespace DSM{
             if (HasFlags(state, ResourceStates::VertexBuffer)) result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
             if (HasFlags(state, ResourceStates::IndexBuffer)) result |= D3D12_RESOURCE_STATE_INDEX_BUFFER;
             if (HasFlags(state, ResourceStates::IndirectArgument)) result |= D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-            if (HasFlags(state, ResourceStates::ShaderResource)) result |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+            if (HasFlags(state, ResourceStates::PixelShaderResource)) result |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            if (HasFlags(state, ResourceStates::NoPixelShaderResource)) result |= D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
             if (HasFlags(state, ResourceStates::UnorderedAccess)) result |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
             if (HasFlags(state, ResourceStates::RenderTarget)) result |= D3D12_RESOURCE_STATE_RENDER_TARGET;
             if (HasFlags(state, ResourceStates::DepthWrite)) result |= D3D12_RESOURCE_STATE_DEPTH_WRITE;
@@ -200,6 +201,7 @@ namespace DSM{
             if (HasFlags(state, ResourceStates::Present)) result |= D3D12_RESOURCE_STATE_PRESENT;
             if (HasFlags(state, ResourceStates::AccelerationStructrue)) result |= D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
             if (HasFlags(state, ResourceStates::ShadingRateSurface)) result |= D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE;
+            if (HasAllFlags(state, ResourceStates::ShaderResource)) result |= D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
 
             return result;
         }

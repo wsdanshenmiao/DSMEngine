@@ -1045,13 +1045,13 @@ namespace DSM::D3D12{
         for(const auto& binding : bindingSet->GetDesc()->bindings){
             switch (binding.type) {
             case ResourceType::Texture_SRV:
-                setTexState(binding, ResourceStates::ShaderResource); break;
+                setTexState(binding, ResourceStates::PixelShaderResource); break;
             case ResourceType::Texture_UAV:
                 setTexState(binding, ResourceStates::UnorderedAccess); break;
             case ResourceType::RawBuffer_SRV:
             case ResourceType::TypedBuffer_SRV:
             case ResourceType::StructuredBuffer_SRV:
-                setBufferState(binding, ResourceStates::ShaderResource); break;
+                setBufferState(binding, ResourceStates::PixelShaderResource); break;
             case ResourceType::RawBuffer_UAV:
             case ResourceType::TypedBuffer_UAV:
             case ResourceType::StructuredBuffer_UAV:

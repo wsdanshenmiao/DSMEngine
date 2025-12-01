@@ -173,7 +173,7 @@ namespace DSM {
             RenderDirectionalShadow(renderer, boundingSphere, i, split, tileSize);
         }
         // 转换为着色器资源以供后续 Pass 使用
-        cmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::ShaderResource);
+        cmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::PixelShaderResource);
 
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
         Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;

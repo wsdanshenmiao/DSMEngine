@@ -78,7 +78,6 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            // auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("GeometryPassCmdList"));
             auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
 
@@ -136,6 +135,10 @@ namespace DSM {
                     }
                 }
             }
+
+            auto normalTex = m_Framebuffer->GetDesc().colorAttachments[0].texture;
+            cmdList->SetTextureState(normalTex, AllSubresources, ResourceStates::ShaderResource);
+            cmdList->SetTextureState(depthTex.texture, AllSubresources, ResourceStates::ShaderResource);
 
             // 结束计时
             cmdList->EndTimerQuery(sm_TimerQuery);

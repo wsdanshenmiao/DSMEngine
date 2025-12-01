@@ -119,6 +119,7 @@ namespace DSM {
                 ssaoConstants.contrast = sm_Settings.contrast;
                 cmdList->WriteBuffer(m_SSAOConstants, &ssaoConstants, sizeof(ssaoConstants));
 
+                cmdList->SetTextureState(m_SSAOTex, AllSubresources, ResourceStates::UnorderedAccess);
                 cmdList->SetComputeState(ComputeState()
                     .SetPipeline(m_SSAOPipeline)
                     .AddBindingSet(m_SSAOBindingSet));
@@ -209,6 +210,8 @@ namespace DSM {
                 blurConstants.isHorizontal = true;
                 cmdList->WriteBuffer(m_BlurConstants, &blurConstants, sizeof(blurConstants));
                 
+                cmdList->SetTextureState(m_SSAOTex, AllSubresources, ResourceStates::NoPixelShaderResource);
+                cmdList->SetTextureState(m_TmpTexture, AllSubresources, ResourceStates::UnorderedAccess);
                 cmdList->SetComputeState(ComputeState()
                     .SetPipeline(m_BlurPipeline)
                     .AddBindingSet(m_BlurToTmpBindingSet));
@@ -217,14 +220,13 @@ namespace DSM {
 
                 blurConstants.isHorizontal = false;
                 cmdList->WriteBuffer(m_BlurConstants, &blurConstants, sizeof(blurConstants));
-                // 插入一个 UAV Barrier
-                cmdList->SetTextureState(m_TmpTexture, AllSubresources, ResourceStates::UnorderedAccess);
+                cmdList->SetTextureState(m_TmpTexture, AllSubresources, ResourceStates::NoPixelShaderResource);
+                cmdList->SetTextureState(m_SSAOTex, AllSubresources, ResourceStates::UnorderedAccess);
                 cmdList->SetComputeState(ComputeState()
                     .SetPipeline(m_BlurPipeline)
                     .AddBindingSet(m_BlurToSSAOBindingSet));
                 groupX = Math::Align(m_TmpTexture->GetDesc().height, sm_ThreadSize) / sm_ThreadSize;
                 cmdList->Dispatch(groupX, m_SSAOTex->GetDesc().width, 1);
-                cmdList->SetTextureState(m_SSAOTex, AllSubresources, ResourceStates::UnorderedAccess);
             }
         }
 

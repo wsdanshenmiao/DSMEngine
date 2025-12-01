@@ -116,7 +116,7 @@ namespace DSM {
             RenderParameters desc;
             std::vector<FramebufferHandle> swapChainFramebuffers{};
             TextureHandle colorTex;
-            uint32_t frameIndex = 0;
+            uint32_t frameIndex = 1;
 
             [[nodiscard]] virtual GraphicsAPI GetGraphicsAPI() const = 0;
 

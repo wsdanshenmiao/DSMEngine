@@ -37,6 +37,7 @@ namespace DSM {
             cmdList->Open();
             auto rowPitch = GetRowPitch(noiseTex->GetDesc().format, noiseTex->GetDesc().width);
             cmdList->WriteTexture(noiseTex, 0, 0, noiseData.data(), rowPitch);
+            cmdList->SetTextureState(noiseTex, AllSubresources, ResourceStates::ShaderResource);
             cmdList->Close();
             device->ExecuteCommandList(cmdList);
 
