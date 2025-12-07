@@ -25,18 +25,6 @@ namespace DSM {
 
         void Render(Renderer& renderer, float deltaTime) override
         {
-            auto& cmdList = g_RenderResources.cmdList;
-            cmdList->Open();
-
-            cmdList->BeginTimerQuery(sm_TimerQuery);
-
-            ITexture* colorTex = renderer.GetColorTexture();
-            cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::PixelShaderResource);
-
-            cmdList->EndTimerQuery(sm_TimerQuery);
-            
-            cmdList->Close();
-            renderer.GetDevice()->ExecuteCommandList(cmdList);
             renderer.GetDevice()->RunGarbageCollection();
         }
 

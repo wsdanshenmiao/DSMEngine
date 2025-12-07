@@ -23,26 +23,27 @@ namespace DSM{
                     DrawEntityNode(object);
                 }
             });
-        }
 
-        if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered()){
-            m_SelectedObject.reset();
-        }
+            if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered()){
+                m_SelectedObject.reset();
+            }
 
-        // 右键打开工具栏
-        if (ImGui::BeginPopupContextWindow(0, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
-        {
-            if (ImGui::MenuItem("Create Empty GameObject"))
-                DSMEngine::sm_GlobalContext.scene->CreateObject("Empty GameObject");
+            // 右键打开工具栏
+            if (ImGui::BeginPopupContextWindow(0, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+            {
+                if (ImGui::MenuItem("Create Empty GameObject"))
+                    m_Scene->CreateObject("Empty GameObject");
 
-            ImGui::EndPopup();
+                ImGui::EndPopup();
+            }
         }
 
         ImGui::End();
 
         // 属性面板
         ImGui::Begin("Properties");
-        if (auto selectedObject = GetSelectedObject().lock(); selectedObject != nullptr) {
+        if (auto selectedObject = GetSelectedObject().lock(); 
+            selectedObject != nullptr && m_Scene != nullptr) {
             // 显示选中物体的属性
             m_ComponentDrawerManager->DrawComponentsUI(selectedObject);
         }
@@ -80,7 +81,7 @@ namespace DSM{
         }
 
         if(entityDelete){
-            DSMEngine::sm_GlobalContext.scene->DestroyObject(object->GetID());
+            m_Scene->DestroyObject(object->GetID());
             if(isSelected){
                 m_SelectedObject.reset();
             }

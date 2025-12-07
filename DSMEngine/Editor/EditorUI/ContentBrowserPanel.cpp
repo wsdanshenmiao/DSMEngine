@@ -12,8 +12,8 @@ namespace DSM {
         // 加载文件夹和文件图标
         m_FolderIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\ContentBrowser\\DirectoryIcon.png");
         m_FileIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\ContentBrowser\\FileIcon.png");
-        DSM_ASSERT(m_FolderIcon != nullptr, "Failed to load folder icon texture!");
-        DSM_ASSERT(m_FileIcon != nullptr, "Failed to load file icon texture!");
+        DSM_CORE_ASSERT(m_FolderIcon != nullptr, "Failed to load folder icon texture!");
+        DSM_CORE_ASSERT(m_FileIcon != nullptr, "Failed to load file icon texture!");
     }
 
     void ContentBrowserPanel::OnGUI()

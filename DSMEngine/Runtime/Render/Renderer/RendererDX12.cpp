@@ -5,6 +5,7 @@
 #include "Runtime/Render/TextureManager.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Render/WindowUI.h"
+#include "Runtime/Graphics/D3D12/D3D12Common.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
@@ -224,7 +225,10 @@ namespace DSM{
         nativeList->OMSetRenderTargets(RTVs.size(), RTVs.data(), false, nullptr);
         auto heap = s_DescriptorHeap->GetShaderVisibleHeap();
         nativeList->SetDescriptorHeaps(1, &heap);
-        
+
+        cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::PixelShaderResource);
+        cmdList->CommitBarriers();
+
 		ImGui::Render();
 
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), nativeList);
@@ -248,6 +252,10 @@ namespace DSM{
 
     void RendererDX12::OnEvent(Event &event)
     {
+        if (m_WindowUI == nullptr) {
+            return;
+        }
+
         m_WindowUI->OnEvent(event);
     }
 
@@ -290,6 +298,11 @@ namespace DSM{
             presentFlags |= DXGI_PRESENT_ALLOW_TEARING;
 
         auto hr = m_SwapChain->Present(desc.vsyncEnabled ? 1 : 0, presentFlags);
+        if (!SUCCEEDED(hr)) {
+            ID3D12Device* device12 = device->GetNativeObject(ObjectTypes::D3D12_Device);
+            hr = device12->GetDeviceRemovedReason();
+            DSM_CORE_WARN(GetHRErrorMessage(hr));
+        }
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to present.");
 
         auto bufferIndex = GetCurrentBackBufferIndex();

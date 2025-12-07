@@ -61,43 +61,12 @@ public:
             Initialize(renderer);
             m_Initialized = true;
         }
-        // // 按下 R 键重新编译着色器
-        // if(DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::R)){
-        //     auto setupPass= Utility::CheckedCast<SetupPass*>(m_RenderPasses[0].get());
-        //     setupPass->CreateShader(renderer);
-        // }
 
         m_CameraController->Update(deltaTime);
 
-        std::vector<float> renderPassTimes;
-        CpuTimer timer{};
-        timer.Reset();
-        timer.Start();
         for (auto& renderPass : m_RenderPasses) {
             renderPass->Render(renderer, deltaTime);
-            timer.Tick();
-            renderPassTimes.push_back(timer.DeltaTime() * 1000.f);
         }
-        timer.Tick();
-
-        auto infoTimer = [&]() {
-            DSM_INFO("Frame {}:", renderer.GetFrameIndex());
-            DSM_INFO("Shadow Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(ShadowPass::sm_TimerQuery) * 1000.f);
-            DSM_INFO("Lighting Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(LightingPass::sm_TimerQuery) * 1000.f);
-            DSM_INFO("Geometry Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(GeometryPass::sm_TimerQuery) * 1000.f);
-            DSM_INFO("SSAO Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(SSAO::sm_TimerQuery) * 1000.f);
-            DSM_INFO("Lit Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(LitPass::sm_TimerQuery) * 1000.f);
-            DSM_INFO("Skybox Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(SkyboxPass::sm_TimerQuery) * 1000.f);
-            DSM_INFO("Final Pass Time: {} ms", renderer.GetDevice()->GetTimerQueryTime(FinalPass::sm_TimerQuery) * 1000.f);
-            for(size_t i = 0; i < renderPassTimes.size(); i++) {
-                DSM_INFO("Render Pass {} Time: {} ms", i, renderPassTimes[i]);
-            }
-            DSM_INFO("Cpu Time: {} ms", timer.DeltaTime() * 1000.f);
-            DSM_INFO("---------------------------------------------------");
-        };
-        //infoTimer();
-        timer.Stop();
-
     }
 
     void RenderUI(DSM::Renderer& renderer) override

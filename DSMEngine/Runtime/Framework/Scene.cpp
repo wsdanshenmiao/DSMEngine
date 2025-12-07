@@ -4,6 +4,24 @@
 #include "Runtime/Framework/ScriptableObject.h"
 
 namespace DSM {
+    Scene::~Scene()
+    {
+        m_Registry.clear();
+        m_Objects.clear();
+    }
+
+    Scene::Scene(const Scene &src)
+        :m_Registry(), m_Objects()
+    {
+        CopyScene(*this, src);
+    }
+
+    Scene &Scene::operator=(const Scene &src)
+    {
+        CopyScene(*this, src);
+        return *this;
+    }
+
     void Scene::Update(float deltaTime)
     {
         m_Registry.view<NativeScriptComponent>().each([this](entt::entity entity, NativeScriptComponent& script) {
@@ -58,5 +76,32 @@ namespace DSM {
             m_Objects.erase(objectID);
             m_Registry.destroy(objectID);
         }
+    }
+    
+    void Scene::CopyScene(Scene &dest, const Scene &src)
+    {
+        // 新场景与旧场景的对象ID映射表
+        std::unordered_map<ObjectID, ObjectID> idMap;
+        src.TraverseAllEntity([&](entt::entity entity) {
+            if(auto it = src.m_Objects.find(entity); it != src.m_Objects.end()){
+                auto oldGameObject = it->second;
+                auto obj = dest.GetObjectByID(dest.CreateObject()).lock();
+                obj->SetEnabled(oldGameObject->IsEnabled());
+                idMap[entity] = obj->GetID();
+            }
+        });
+
+        auto copyComponent = [&]<typename... Components>(std::variant<Components...>) {
+            (src.GetAllObjectsWithComponents<Components>().each(
+                [&](entt::entity entity, const Components& component) {
+                    if(auto it = idMap.find(entity); it != idMap.end()){
+                        if(auto obj = dest.GetObjectByID(it->second).lock(); obj != nullptr){
+                            obj->AddOrReplaceComponent<Components>(component);
+                        }
+                    }
+                }
+            ), ...);
+        };
+        copyComponent(AllComponents{}); 
     }
 }

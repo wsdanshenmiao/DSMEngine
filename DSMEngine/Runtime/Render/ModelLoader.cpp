@@ -20,7 +20,7 @@ namespace DSM::ModelLoader {
 	static DeviceHandle s_GraphicsDevice;
 	static std::array<TextureHandle, kNumTextures> s_CommonTextures;
 	// 缓存下来的模型，防止重复加载
-	static std::unordered_map<std::string, std::shared_ptr<Model>> s_LoadedModels;
+	static std::unordered_map<std::string, std::unique_ptr<Model>> s_LoadedModels;
 
 	struct ModelFileHeader
 	{
@@ -447,9 +447,18 @@ namespace DSM::ModelLoader {
     std::shared_ptr<Model> LoadModel(const std::string &filename)
     {
 		std::shared_ptr<Model> model = nullptr;
-		//if(s_LoadedModels.contains(filename)){
-		//	model = s_LoadedModels[filename];
-		//}
+		if(s_LoadedModels.contains(filename)){
+			model = std::make_shared<Model>();
+			auto& cachedModel = s_LoadedModels[filename];
+			model->boundingBox = cachedModel->boundingBox;
+			model->name = cachedModel->name;
+			model->filePath = cachedModel->filePath;
+			model->materialData = cachedModel->materialData;
+			model->materials.resize(cachedModel->materials.size());
+			model->meshes.resize(cachedModel->meshes.size());
+			std::ranges::copy(cachedModel->materials, std::ranges::begin(model->materials));
+			std::ranges::copy(cachedModel->meshes, std::ranges::begin(model->meshes));
+		}
 		//else if(std::filesystem::exists(filename)) {
 		//	model = LoadModelFromFile(filename);
 		//	if(model != nullptr) {
@@ -487,7 +496,14 @@ namespace DSM::ModelLoader {
 			model->boundingBox = boundingBox;
 
 			SaveModelToFile(*model, filename);
-			s_LoadedModels[filename] = model;
+			auto modelPtr = std::make_unique<Model>(*model);
+			modelPtr->boundingBox = model->boundingBox;
+			modelPtr->name = model->name;
+			modelPtr->filePath = model->filePath;
+			modelPtr->materialData = model->materialData;
+			std::ranges::copy(model->materials, std::ranges::begin(modelPtr->materials));
+			std::ranges::copy(model->meshes, std::ranges::begin(modelPtr->meshes));
+			s_LoadedModels[filename] = std::move(modelPtr);
 		}
 		model->filePath = filename;
 

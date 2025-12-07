@@ -91,8 +91,6 @@ namespace DSM {
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
         {
-            // auto cmdList = renderer.GetDevice()->CreateCommandList(
-            //     CommandListParameters().SetDebugName("Skybox Pass"));
             auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
 

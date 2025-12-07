@@ -7,6 +7,7 @@
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
+#include "Runtime/Render/TextureManager.h"
 
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
@@ -40,7 +41,12 @@ namespace DSM {
         // 根据不同的图形 API 初始化不同的 ImGui 后端
         desc.renderer->InitWindowUI(this);
 
-        m_SceneHierarchyPanel->SetScene(DSMEngine::sm_GlobalContext.scene);
+        OnSceneChange(DSMEngine::sm_GlobalContext.scene);
+
+        m_PlayIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PlayButton.png");
+        m_PauseIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PauseButton.png");
+        DSM_CORE_ASSERT(m_PlayIcon != nullptr, "Failed to load play icon texture!");
+        DSM_CORE_ASSERT(m_PauseIcon != nullptr, "Failed to load pause icon texture!");
     }
 
     void EditorUI::Render()
@@ -120,8 +126,9 @@ namespace DSM {
         ImGui::End();
 
         RenderViewportWindow();
+        RenderUIToolbar();
 
-        DSMEngine::sm_GlobalContext.scene->OnGUI();
+        m_ActiveScene->OnGUI();
         m_SceneHierarchyPanel->OnGUI();
         m_ContentBrowserPanel->OnGUI();
     }
@@ -164,6 +171,12 @@ namespace DSM {
 
             return false;
         });
+    }
+
+    void EditorUI::OnSceneChange(std::shared_ptr<Scene> scene)
+    {
+        m_ActiveScene = scene;
+        m_SceneHierarchyPanel->SetScene(scene);
     }
 
     void EditorUI::RenderViewportWindow()
@@ -230,10 +243,53 @@ namespace DSM {
         }
     }
 
+    void EditorUI::RenderUIToolbar()
+    {
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 2));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+		auto& colors = ImGui::GetStyle().Colors;
+		const auto& buttonHovered = colors[ImGuiCol_ButtonHovered];
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(buttonHovered.x, buttonHovered.y, buttonHovered.z, 0.5f));
+		const auto& buttonActive = colors[ImGuiCol_ButtonActive];
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(buttonActive.x, buttonActive.y, buttonActive.z, 0.5f));
+
+        ImGui::Begin("##Toolbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+        bool enableToolbar = m_ActiveScene != nullptr;
+
+		ImVec4 tintColor = ImVec4(1, 1, 1, 1);
+    	if (!enableToolbar)
+			tintColor.w = 0.5f;
+
+		float size = ImGui::GetWindowHeight() - 4.0f;
+		ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x * 0.5f) - (size * 0.5f));
+
+        bool hasPlayButton = m_SceneState == SceneState::Edit || m_SceneState == SceneState::Play;
+        bool hasPauseButton = m_SceneState != SceneState::Edit;
+
+        if(hasPlayButton){
+            // TODO: 后续更换为通用的资源视图
+            auto gpuHandle = m_PlayIcon->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
+            if(ImGui::ImageButton("##PlayButton", ImTextureRef{gpuHandle}, ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0,0,0,0), tintColor) && enableToolbar){
+                if (m_SceneState == SceneState::Edit){
+                    OnScenePlay();
+                }
+				else if (m_SceneState == SceneState::Play){
+                    OnSceneStop();
+                }
+            };
+        }
+
+		ImGui::PopStyleVar(2);
+		ImGui::PopStyleColor(3);
+		ImGui::End();
+    }
+
     void EditorUI::NewScene()
     {
         DSMEngine::sm_GlobalContext.scene = std::make_shared<Scene>();
-        m_SceneHierarchyPanel->SetScene(DSMEngine::sm_GlobalContext.scene);  
+        OnSceneChange(DSMEngine::sm_GlobalContext.scene);
     }
 
     void EditorUI::SaveScene()
@@ -255,9 +311,24 @@ namespace DSM {
         if (!filepath.empty()) {
             SceneSerializer serializer;
             if(serializer.Deserialize(filepath.string())){
-                m_SceneHierarchyPanel->SetScene(DSMEngine::sm_GlobalContext.scene);  
+                OnSceneChange(DSMEngine::sm_GlobalContext.scene);
             }
         }
+    }
+
+    void EditorUI::OnScenePlay()
+    {
+        m_SceneState = SceneState::Play;
+        auto tmpScene = std::make_shared<Scene>(*m_ActiveScene);
+        OnSceneChange(tmpScene);
+    }
+
+    void EditorUI::OnSceneStop()
+    {
+        DSM_CORE_ASSERT(m_SceneState == SceneState::Play, "Scene is not in play state!");
+        
+        m_SceneState = SceneState::Edit;
+        OnSceneChange(DSMEngine::sm_GlobalContext.scene);
     }
 
 } // namespace DSM

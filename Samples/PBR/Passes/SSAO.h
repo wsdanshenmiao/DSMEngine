@@ -125,7 +125,7 @@ namespace DSM {
                     .AddBindingSet(m_SSAOBindingSet));
                 cmdList->Dispatch(m_SSAOTex->GetDesc().width, m_SSAOTex->GetDesc().height, 1);
 
-                BlurSSAO(renderer, cmdList);
+                //BlurSSAO(renderer, cmdList);
             }
             else if(preEnable){
                 cmdList->ClearTextureFloat(m_SSAOTex, AllSubresources, Color{1,1,1,1});

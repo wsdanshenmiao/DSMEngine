@@ -18,10 +18,10 @@ namespace DSM {
         friend class GameObject;
     public:
         Scene() = default;
-        ~Scene() = default;
+        ~Scene();
 
-        Scene(const Scene& other) = delete;
-        Scene& operator=(const Scene& other) = delete;
+        Scene(const Scene& other);
+        Scene& operator=(const Scene& other);
 
         Scene(Scene&& other) noexcept = default;
         Scene& operator=(Scene&& other) noexcept = default;
@@ -42,13 +42,16 @@ namespace DSM {
 
         template <typename Func> requires std::invocable<Func, entt::entity> && 
             std::same_as<std::invoke_result_t<Func, entt::entity>, void>
-        void TraverseAllEntity(Func func)
+        void TraverseAllEntity(Func func) const
         {
             m_Registry.view<entt::entity>().each(func);
         }
 
         auto& GetAllObjects() { return m_Objects; }
         const auto& GetAllObjects() const { return m_Objects; }
+
+    private:
+        static void CopyScene(Scene& dest, const Scene& src);
 
     private:
         entt::registry m_Registry;

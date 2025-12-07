@@ -45,8 +45,6 @@ namespace DSM {
             float width = (float)fb->GetFramebufferInfo().width;
             float height = (float)fb->GetFramebufferInfo().height;
 
-            // auto cmdList = device->CreateCommandList(
-            //     CommandListParameters().SetDebugName("LitPassCmdList"));
             auto& cmdList = g_RenderResources.cmdList;
             cmdList->Open();
 
