@@ -16,7 +16,7 @@ namespace DSM{
         sm_EditorContext.window = DSMEngine::sm_GlobalContext.window;
         sm_EditorContext.renderer = DSMEngine::sm_GlobalContext.renderer;
         
-        m_EditorUI = std::make_shared<EditorUI>(EditorUIDesc{ 
+        m_EditorUI = std::make_unique<EditorUI>(EditorUIDesc{ 
             DSMEngine::sm_GlobalContext.renderer, 
             DSMEngine::sm_GlobalContext.window });
     }

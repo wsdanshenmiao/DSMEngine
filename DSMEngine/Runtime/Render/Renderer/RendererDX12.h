@@ -16,10 +16,10 @@ namespace DSM{
 
         inline GraphicsAPI GetGraphicsAPI() const override { return GraphicsAPI::D3D12; };
         
-        ITexture* GetCurrentBackBuffer() override;
-        ITexture* GetBackBuffer(uint32_t index) override;
-        uint32_t GetCurrentBackBufferIndex() override;
-        uint32_t GetBackBufferCount() override;
+        ITexture* GetCurrentBackBuffer() override { return m_SwapChainBuffers[GetCurrentBackBufferIndex()]; }
+        ITexture* GetBackBuffer(uint32_t index) override { return index < m_SwapChainBuffers.size() ? m_SwapChainBuffers[index] : nullptr; }
+        uint32_t GetCurrentBackBufferIndex() override { return m_SwapChain->GetCurrentBackBufferIndex(); }
+        uint32_t GetBackBufferCount() override { return m_SwapChainDesc.BufferCount; }
 
         void InitWindowUI(WindowUI* windowUI) override;
         void BeginWindowUI() override;
@@ -33,7 +33,7 @@ namespace DSM{
         bool BeginFrame() override;
         void Present() override;
 
-        void CreateRenderTarget();
+        void CreateRenderTarget(uint32_t width, uint32_t height);
 
     protected:
         WindowUI* m_WindowUI = nullptr;

@@ -3,10 +3,10 @@
 #define _DSM_EDITOR_H_
 
 #include <memory>
+#include "EditorUI/EditorUI.h"
 
 namespace DSM {
     class DSMEngine;
-    class EditorUI;
     class Window;
     class Renderer;
 
@@ -28,7 +28,7 @@ namespace DSM {
         inline static EditorContext sm_EditorContext{};
 
     private:
-        std::shared_ptr<EditorUI> m_EditorUI;
+        std::unique_ptr<EditorUI> m_EditorUI;
         DSMEngine* m_Engine;
     };
 } // namespace DSM

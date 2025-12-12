@@ -5,7 +5,6 @@
 #include "Runtime/Render/TextureManager.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Render/WindowUI.h"
-#include "Runtime/Graphics/D3D12/D3D12Common.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
@@ -92,7 +91,7 @@ namespace DSM{
         hr = pSwapChain1->QueryInterface(IID_PPV_ARGS(m_SwapChain.GetAddressOf()));
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to convert swapchain.");
 
-        CreateRenderTarget();
+        CreateRenderTarget(width, height);
 
         ID3D12Device* device12 = device->GetNativeObject(ObjectTypes::D3D12_Device);
         hr = device12->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_FrameFence));
@@ -126,26 +125,6 @@ namespace DSM{
         m_FrameFenceEvents.clear();
 
         m_FrameFence = nullptr;
-    }
-
-    ITexture *RendererDX12::GetCurrentBackBuffer() 
-    {
-        return m_SwapChainBuffers[GetCurrentBackBufferIndex()];
-    }
-
-    ITexture *RendererDX12::GetBackBuffer(uint32_t index)
-    {
-        return index < m_SwapChainBuffers.size() ? m_SwapChainBuffers[index] : nullptr;
-    }
-
-    uint32_t RendererDX12::GetCurrentBackBufferIndex()
-    {
-        return m_SwapChain->GetCurrentBackBufferIndex();
-    }
-
-    uint32_t RendererDX12::GetBackBufferCount()
-    {
-        return m_SwapChainDesc.BufferCount;
     }
 
     void RendererDX12::InitWindowUI(WindowUI *windowUI)
@@ -208,10 +187,10 @@ namespace DSM{
         auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("ImGui Command List"));
         cmdList->Open();
 
-        D3D12_CPU_DESCRIPTOR_HANDLE DSV;
-        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> RTVs;
+        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> RTVs{};
         for(const auto& rt : fb->GetDesc().colorAttachments){
-            if(rt.texture == nullptr) continue;
+            if(rt.texture == nullptr) 
+                continue;
             cmdList->SetTextureState(rt.texture, rt.subresources, ResourceStates::RenderTarget);    
             auto rtv = rt.texture->GetNativeView(ObjectTypes::D3D12_RenderTargetViewDescriptor, Format::RGBA8_UNORM, rt.subresources);
             RTVs.push_back(D3D12_CPU_DESCRIPTOR_HANDLE{rtv.integer});
@@ -230,14 +209,12 @@ namespace DSM{
         cmdList->CommitBarriers();
 
 		ImGui::Render();
-
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), nativeList);
 
         for(const auto& rt : fb->GetDesc().colorAttachments){
             if (rt.texture == nullptr) continue;
             cmdList->SetTextureState(rt.texture, rt.subresources, ResourceStates::Present);
         }
-        cmdList->CommitBarriers();
 
         cmdList->Close();
         device->ExecuteCommandList(cmdList);
@@ -255,7 +232,6 @@ namespace DSM{
         if (m_WindowUI == nullptr) {
             return;
         }
-
         m_WindowUI->OnEvent(event);
     }
 
@@ -280,12 +256,11 @@ namespace DSM{
 
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Resize swapchain Failed");
 
-        CreateRenderTarget();
+        CreateRenderTarget(width, height);
     }
 
     bool RendererDX12::BeginFrame()
     {
-        
         auto bufferIndex = m_SwapChain->GetCurrentBackBufferIndex();
         WaitForSingleObject(m_FrameFenceEvents[bufferIndex], INFINITE);
         
@@ -298,11 +273,6 @@ namespace DSM{
             presentFlags |= DXGI_PRESENT_ALLOW_TEARING;
 
         auto hr = m_SwapChain->Present(desc.vsyncEnabled ? 1 : 0, presentFlags);
-        if (!SUCCEEDED(hr)) {
-            ID3D12Device* device12 = device->GetNativeObject(ObjectTypes::D3D12_Device);
-            hr = device12->GetDeviceRemovedReason();
-            DSM_CORE_WARN(GetHRErrorMessage(hr));
-        }
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to present.");
 
         auto bufferIndex = GetCurrentBackBufferIndex();
@@ -311,7 +281,7 @@ namespace DSM{
         graphicsQueue->Signal(m_FrameFence, frameIndex);
     }
     
-    void RendererDX12::CreateRenderTarget()
+    void RendererDX12::CreateRenderTarget(uint32_t width, uint32_t height)
     {
         m_SwapChainBuffers.resize(m_SwapChainDesc.BufferCount);
         for(uint32_t i = 0; i < GetBackBufferCount(); ++i){
@@ -319,6 +289,8 @@ namespace DSM{
             auto hr = m_SwapChain->GetBuffer(i, IID_PPV_ARGS(resource.GetAddressOf()));
             DSM_CORE_ASSERT(SUCCEEDED(hr), "Get swapchain buffer failed.");
             
+            m_SwapChainDesc.Width = width;
+            m_SwapChainDesc.Height = height;
             TextureDesc texDesc{};
             texDesc.width = m_SwapChainDesc.Width;
             texDesc.height = m_SwapChainDesc.Height;

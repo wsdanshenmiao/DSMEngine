@@ -56,7 +56,7 @@ namespace DSM {
         std::shared_ptr<Scene> m_ActiveScene;
 
         TextureHandle m_PlayIcon;
-        TextureHandle m_PauseIcon;
+        TextureHandle m_StopIcon;
     };
     
 } // namespace DSM 

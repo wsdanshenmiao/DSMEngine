@@ -74,6 +74,7 @@ namespace DSM {
         Renderer(RenderParameters renderDesc);
         ~Renderer();
 
+        // 各个图形后端初始化 UI
         void InitWindowUI(WindowUI* windowUI);
 
         void SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline) { m_RenderPipeline = std::move(renderPipeline); }

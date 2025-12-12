@@ -17,17 +17,14 @@ namespace DSM {
     EditorUI::EditorUI(const EditorUIDesc& desc)
         : m_SceneHierarchyPanel(std::make_unique<SceneHierarchyPanel>()),
         m_ContentBrowserPanel(std::make_unique<ContentBrowserPanel>())
-        {
+    {
         ImGui::CreateContext();
+
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
-
-        io.MouseDrawCursor = true;
-
-        ImGui::StyleColorsDark();
 
         ImGuiStyle& style = ImGui::GetStyle();
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -44,9 +41,9 @@ namespace DSM {
         OnSceneChange(DSMEngine::sm_GlobalContext.scene);
 
         m_PlayIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PlayButton.png");
-        m_PauseIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PauseButton.png");
+        m_StopIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\StopButton.png");
         DSM_CORE_ASSERT(m_PlayIcon != nullptr, "Failed to load play icon texture!");
-        DSM_CORE_ASSERT(m_PauseIcon != nullptr, "Failed to load pause icon texture!");
+        DSM_CORE_ASSERT(m_StopIcon != nullptr, "Failed to load pause icon texture!");
     }
 
     void EditorUI::Render()
@@ -65,8 +62,12 @@ namespace DSM {
             ImGui::SetNextWindowViewport(viewport->ID);
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
             ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-            window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-            window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+            window_flags |= ImGuiWindowFlags_NoTitleBar | 
+                ImGuiWindowFlags_NoCollapse | 
+                ImGuiWindowFlags_NoResize | 
+                ImGuiWindowFlags_NoMove | 
+                ImGuiWindowFlags_NoBringToFrontOnFocus | 
+                ImGuiWindowFlags_NoNavFocus;
         }
         else {
             dockspace_flags &= ~ImGuiDockNodeFlags_PassthruCentralNode;
@@ -270,7 +271,8 @@ namespace DSM {
 
         if(hasPlayButton){
             // TODO: 后续更换为通用的资源视图
-            auto gpuHandle = m_PlayIcon->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
+            auto iconTex = m_SceneState == SceneState::Edit ? m_PlayIcon : m_StopIcon;
+            auto gpuHandle = iconTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
             if(ImGui::ImageButton("##PlayButton", ImTextureRef{gpuHandle}, ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0,0,0,0), tintColor) && enableToolbar){
                 if (m_SceneState == SceneState::Edit){
                     OnScenePlay();
