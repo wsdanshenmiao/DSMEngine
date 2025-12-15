@@ -8,7 +8,7 @@
 namespace DSM {
     struct WindowUI
     {
-        virtual void Render() = 0;
+        virtual void OnGUI() = 0;
         virtual void OnEvent(Event& event) = 0;
     };
 } // namespace DSM

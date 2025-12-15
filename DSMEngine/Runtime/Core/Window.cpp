@@ -4,6 +4,7 @@
 #include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Event/MouseButtonEvent.h"
 #include <GLFW/glfw3.h>
+#include "Window.h"
 
 namespace DSM {
     static uint8_t s_GLFWWindowCount = 0;
@@ -159,5 +160,14 @@ namespace DSM {
         }
     }
 
+    bool Window::IsMinimized() const
+    {
+        return glfwGetWindowAttrib(m_Window, GLFW_ICONIFIED) == GLFW_TRUE;
+    }
 
-} // namespace DSM 
+    bool Window::IsFullScreen() const
+    {
+        return glfwGetWindowAttrib(m_Window, GLFW_MAXIMIZED) == GLFW_TRUE;
+    }
+
+} // namespace DSM

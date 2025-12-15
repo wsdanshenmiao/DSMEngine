@@ -10,20 +10,20 @@
 #define BIT(x) (1 << x)
 
 // Core log macros
-#define DSM_CORE_DEBUG(...)    DSMEngine::sm_GlobalContext.loggerSystem->GetCoreLogger()->debug(__VA_ARGS__)
-#define DSM_CORE_TRACE(...)    DSMEngine::sm_GlobalContext.loggerSystem->GetCoreLogger()->trace(__VA_ARGS__)
-#define DSM_CORE_INFO(...)     DSMEngine::sm_GlobalContext.loggerSystem->GetCoreLogger()->info(__VA_ARGS__)
-#define DSM_CORE_WARN(...)     DSMEngine::sm_GlobalContext.loggerSystem->GetCoreLogger()->warn(__VA_ARGS__)
-#define DSM_CORE_ERROR(...)    DSMEngine::sm_GlobalContext.loggerSystem->GetCoreLogger()->error(__VA_ARGS__)
-#define DSM_CORE_CRITICAL(...) DSMEngine::sm_GlobalContext.loggerSystem->GetCoreLogger()->critical(__VA_ARGS__)
+#define DSM_CORE_DEBUG(...)    DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Debug, __VA_ARGS__)
+#define DSM_CORE_TRACE(...)    DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Trace, __VA_ARGS__)
+#define DSM_CORE_INFO(...)     DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Info, __VA_ARGS__)
+#define DSM_CORE_WARN(...)     DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Warn, __VA_ARGS__)
+#define DSM_CORE_ERROR(...)    DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Error, __VA_ARGS__)
+#define DSM_CORE_CRITICAL(...) DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Fatal, __VA_ARGS__)
 
 // Client log macros
-#define DSM_DEBUG(...)         DSMEngine::sm_GlobalContext.loggerSystem->GetClientLogger()->debug(__VA_ARGS__)
-#define DSM_TRACE(...)         DSMEngine::sm_GlobalContext.loggerSystem->GetClientLogger()->trace(__VA_ARGS__)
-#define DSM_INFO(...)          DSMEngine::sm_GlobalContext.loggerSystem->GetClientLogger()->info(__VA_ARGS__)
-#define DSM_WARN(...)          DSMEngine::sm_GlobalContext.loggerSystem->GetClientLogger()->warn(__VA_ARGS__)
-#define DSM_ERROR(...)         DSMEngine::sm_GlobalContext.loggerSystem->GetClientLogger()->error(__VA_ARGS__)
-#define DSM_CRITICAL(...)      DSMEngine::sm_GlobalContext.loggerSystem->GetClientLogger()->critical(__VA_ARGS__)
+#define DSM_DEBUG(...)         DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Debug, __VA_ARGS__)
+#define DSM_TRACE(...)         DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Trace, __VA_ARGS__)
+#define DSM_INFO(...)          DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Info, __VA_ARGS__)
+#define DSM_WARN(...)          DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Warn, __VA_ARGS__)
+#define DSM_ERROR(...)         DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Error, __VA_ARGS__)
+#define DSM_CRITICAL(...)      DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Fatal, __VA_ARGS__)
 
 #define DSM_ASSERT( isFalse, ... ) \
     if (!(bool)(isFalse)) { \

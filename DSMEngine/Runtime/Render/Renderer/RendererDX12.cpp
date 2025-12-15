@@ -166,7 +166,7 @@ namespace DSM{
         ImGui::NewFrame();
         ImGuizmo::BeginFrame();
 
-        m_WindowUI->Render();
+        m_WindowUI->OnGUI();
     }
 
     void RendererDX12::RenderWindowUI()

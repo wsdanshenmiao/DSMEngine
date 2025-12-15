@@ -3,6 +3,7 @@
 #define __EDITORUI_H__
 
 #include <memory>
+
 #include "Runtime/Render/WindowUI.h"
 #include "Editor/EditorUI/SceneHierarchyPanel.h"
 #include "Editor/EditorUI/ContentBrowserPanel.h"
@@ -22,7 +23,7 @@ namespace DSM {
     public:
         EditorUI(const EditorUIDesc& desc);
 
-        void Render() override;
+        void OnGUI() override;
         void OnEvent(Event& event) override;
 
     private:

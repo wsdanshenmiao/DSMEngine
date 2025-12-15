@@ -37,6 +37,9 @@ namespace DSM{
 		bool IsVSync() const { return m_Desc.VSync; }
         GLFWwindow* GetNativeWindow() const { return m_Window; }
 
+        bool IsMinimized() const;
+        bool IsFullScreen() const;
+
     private:
         GLFWwindow* m_Window;
         struct WindowData

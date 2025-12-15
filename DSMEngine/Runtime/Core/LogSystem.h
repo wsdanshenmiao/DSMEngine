@@ -15,56 +15,59 @@ namespace DSM {
             Info,
             Warn,
             Error,
-            Fatal
+            Fatal,
+            Count
         };
+
+        using LogFunc = std::function<void(LogLevel, const std::string&)>;
 
     public:
         LogSystem();
 
+        void SetLogFunc(LogFunc&& logFunc) { m_LogFunc = std::forward<LogFunc>(logFunc); }
+
         template<typename... Args>
-        void CoreLog(LogLevel level, Args&&... args)
+        void CoreLog(LogLevel level, std::string_view fmt, Args&&... args)
         {
-            Log(m_CoreLogger, level, std::forward<Args>(args)...);
+            std::string text;
+            if constexpr (sizeof...(args) > 0) {
+                text = std::vformat(fmt, std::make_format_args(args...));
+            } else {
+                text = std::string(fmt);
+            }
+            Log(m_CoreLogger, level, text);
+            if(m_LogFunc != nullptr){
+                m_LogFunc(level, text);
+            }
         }
 
         template<typename... Args>
-        void Log(LogLevel level, Args&&... args)
+        void Log(LogLevel level, std::string_view fmt, Args&&... args)
         {
-            Log(m_ClientLogger, level, std::forward<Args>(args)...);
+            std::string text;
+            if constexpr (sizeof...(args) > 0) {
+                text = std::vformat(fmt, std::make_format_args(args...));
+            }
+            else {
+                text = std::string(fmt);
+            }
+            Log(m_ClientLogger, level, text);
+            if(m_LogFunc != nullptr){
+                m_LogFunc(level, text);
+            }
         }
 
         std::shared_ptr<spdlog::logger> GetCoreLogger() { return m_CoreLogger; }
         std::shared_ptr<spdlog::logger> GetClientLogger() { return m_ClientLogger; }
 
     private:
-        template<typename... Args>
-        void Log(std::shared_ptr<spdlog::logger> logger, LogLevel level, Args&&... args)
-        {
-            switch (level) {
-            case LogLevel::Debug:
-                logger->debug(std::forward<Args>(args)...);
-                break;
-            case LogLevel::Trace:
-                logger->trace(std::forward<Args>(args)...);
-                break;
-            case LogLevel::Info:
-                logger->info(std::forward<Args>(args)...);
-                break;
-            case LogLevel::Warn:
-                logger->warn(std::forward<Args>(args)...);
-                break;
-            case LogLevel::Error:
-                logger->error(std::forward<Args>(args)...);
-                break;
-            case LogLevel::Fatal:
-                logger->critical(std::forward<Args>(args)...);
-                break;
-            }
-        }
+        void Log(std::shared_ptr<spdlog::logger> logger, LogLevel level, const std::string& msg);
 
     private:
         std::shared_ptr<spdlog::logger> m_CoreLogger = nullptr;
         std::shared_ptr<spdlog::logger> m_ClientLogger = nullptr;
+
+        LogFunc m_LogFunc{};
     };
 
 } // namespace DSM 
