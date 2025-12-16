@@ -16,7 +16,6 @@ namespace DSM {
         DSMEngine* engine{};
         std::shared_ptr<Window> window{};
         std::shared_ptr<Renderer> renderer{};
-        std::vector<std::shared_ptr<Widget>> widgets{};
     };
 
     class DSMEditor
@@ -25,17 +24,6 @@ namespace DSM {
         void StartEditor(DSMEngine* engine);
         void Run();
         void ShutDownEditor();
-
-        template <typename T>
-        static T* GetWidget()
-        {
-            for (const auto& widget : sm_EditorContext.widgets) {
-                if (T* castedWidget = dynamic_cast<T*>(widget.get())) {
-                    return castedWidget;
-                }
-            }
-            return nullptr;
-        }
 
     public:
         inline static EditorContext sm_EditorContext{};

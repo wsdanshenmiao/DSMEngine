@@ -5,8 +5,8 @@
 #include <memory>
 
 #include "Runtime/Render/WindowUI.h"
-#include "Editor/EditorUI/SceneHierarchyPanel.h"
-#include "Editor/EditorUI/ContentBrowserPanel.h"
+#include "Runtime/Graphics/Texture.h"
+#include "Editor/EditorUI/Widget.h"
 
 namespace DSM {
     class Window;
@@ -20,27 +20,34 @@ namespace DSM {
 
     class EditorUI : public WindowUI
     {
+        friend class DSMEditor;
     public:
         EditorUI(const EditorUIDesc& desc);
 
         void OnGUI() override;
         void OnEvent(Event& event) override;
 
+        template <typename T>
+        T* GetWidget()
+        {
+            for (const auto& widget : m_Widgets) {
+                if (T* castedWidget = dynamic_cast<T*>(widget.get())) {
+                    return castedWidget;
+                }
+            }
+            return nullptr;
+        }
+
     private:
         void OnSceneChange(std::shared_ptr<Scene> scene);
 
-        void RenderViewportWindow();
         void RenderGizmo();
         void RenderUIToolbar();
-
-        void NewScene();
-        void SaveScene();
-        void LoadScene(const std::filesystem::path& filepath);
 
         void OnScenePlay();
         void OnSceneStop();
 
-    private:
+    public:
         enum class SceneState
         {
             Edit,
@@ -48,12 +55,14 @@ namespace DSM {
             Pause
         };
 
-        std::unique_ptr<SceneHierarchyPanel> m_SceneHierarchyPanel;
-        std::unique_ptr<ContentBrowserPanel> m_ContentBrowserPanel;
+        SceneState m_SceneState = SceneState::Edit;
+
+    public:
+        std::vector<std::unique_ptr<Widget>> m_Widgets;
+        
         Math::Vector4 m_ViewportBounds;
 
         int m_GizmoType = -1;
-        SceneState m_SceneState = SceneState::Edit;
         std::shared_ptr<Scene> m_ActiveScene;
 
         TextureHandle m_PlayIcon;

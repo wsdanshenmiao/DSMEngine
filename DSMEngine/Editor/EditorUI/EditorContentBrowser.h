@@ -5,17 +5,15 @@
 
 #include <filesystem>
 #include "Runtime/Graphics/Texture.h"
+#include "Editor/EditorUI/Widget.h"
 
 namespace DSM {
-    class ContentBrowserPanel
+    class EditorContentBrowser : public Widget
     {
     public:
-        ContentBrowserPanel();
+        EditorContentBrowser(EditorUI* editorUI);
 
-        void OnGUI();
-
-    public:
-        constexpr static const char* sm_DragDropPayloadType = "CONTENT_BROWSER_ITEM";
+        void OnGUIEnabled() override;
 
     private:
         std::filesystem::path m_RootDirectory;

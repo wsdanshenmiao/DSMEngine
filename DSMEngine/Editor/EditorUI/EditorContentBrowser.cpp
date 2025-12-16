@@ -1,14 +1,19 @@
-#include "ContentBrowserPanel.h"
+#include "EditorContentBrowser.h"
+#include "Editor/AssertDefine.h"
 #include "Runtime/Render/TextureManager.h"
 #include "Runtime/Core/Macro.h"
 
 #include <imgui.h>
 
 namespace DSM {
-    ContentBrowserPanel::ContentBrowserPanel()
-        :m_RootDirectory(std::filesystem::current_path()),
+    EditorContentBrowser::EditorContentBrowser(EditorUI* editorUI)
+        : Widget(editorUI),
+        m_RootDirectory(std::filesystem::current_path()),
         m_CurrDirectory(m_RootDirectory)
     {
+        m_Title = "Assets";
+        m_Flags |= ImGuiWindowFlags_NoScrollbar;
+
         // 加载文件夹和文件图标
         m_FolderIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\ContentBrowser\\DirectoryIcon.png");
         m_FileIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\ContentBrowser\\FileIcon.png");
@@ -16,10 +21,8 @@ namespace DSM {
         DSM_CORE_ASSERT(m_FileIcon != nullptr, "Failed to load file icon texture!");
     }
 
-    void ContentBrowserPanel::OnGUI()
+    void EditorContentBrowser::OnGUIEnabled()
     {
-        ImGui::Begin("Content Browser");
-
         if(m_CurrDirectory.empty()){
             return;
         }
@@ -58,7 +61,7 @@ namespace DSM {
             // 拖拽源，可以拖拽文件到其他面板
             if(ImGui::BeginDragDropSource()){
                 auto filepath = path.string();
-                ImGui::SetDragDropPayload(sm_DragDropPayloadType, filepath.c_str(), filepath.size() + 1);
+                ImGui::SetDragDropPayload(g_ContentBrowserDragDropPayload, filepath.c_str(), filepath.size() + 1);
                 ImGui::EndDragDropSource();
             }
 
@@ -78,8 +81,5 @@ namespace DSM {
 
         // 恢复单列布局
         ImGui::Columns(1);
-
-        // Content browser end.
-        ImGui::End();   
     }
 }

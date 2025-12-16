@@ -9,7 +9,7 @@ namespace DSM {
     class EditorViewport : public Widget
     {
     public:
-        EditorViewport();
+        EditorViewport(EditorUI* editorUI);
 
         void OnGUIEnabled() override;
     };

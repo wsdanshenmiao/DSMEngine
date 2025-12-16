@@ -1,12 +1,14 @@
 #include "EditorViewport.h"
 #include "Editor/DSMEditor.h"
+#include "Editor/SceneManager.h"
+#include "Editor/AssertDefine.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 
 #include <imgui.h>
 
 namespace DSM {
-    EditorViewport::EditorViewport()
-        : Widget()
+    EditorViewport::EditorViewport(EditorUI* editorUI)
+        : Widget(editorUI)
     {
         m_Title = "Viewport";
         m_Size = Math::Vector2{400.0f, 300.0f};
@@ -33,9 +35,9 @@ namespace DSM {
         ImGui::Image(ImTextureRef{gpuHandle}, viewportSize);
 
         if(ImGui::BeginDragDropTarget()){
-            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ContentBrowserPanel::sm_DragDropPayloadType)){
+            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(g_ContentBrowserDragDropPayload)){
                 const char* path = static_cast<const char*>(payload->Data);
-                // LoadScene(path);
+                SceneManager::LoadScene(path);
             }
             ImGui::EndDragDropTarget();
         }

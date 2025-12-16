@@ -15,8 +15,8 @@ namespace DSM {
     class SceneSerializer
     {
     public:
-        void Serialize(const std::string& filepath);
-        bool Deserialize(const std::string& filepath);
+        void Serialize(const std::string& filepath, std::shared_ptr<Scene> scene);
+        std::shared_ptr<Scene> Deserialize(const std::string& filepath);
     };
 } // namespace DSM
 

@@ -12,7 +12,7 @@ namespace DSM {
     class EditorStyle : public Widget 
     {
     public:
-        EditorStyle();
+        EditorStyle(EditorUI* editorUI);
 
         void OnGUIEnabled() override;
 

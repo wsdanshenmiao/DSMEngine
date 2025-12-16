@@ -6,8 +6,9 @@
 #include <imgui_internal.h>
 
 namespace DSM {
-    Widget::Widget()
-        :m_Flags(ImGuiWindowFlags_NoCollapse) {}
+    Widget::Widget(EditorUI* editorUI)
+        : m_EditorUI(editorUI),
+        m_Flags(ImGuiWindowFlags_NoCollapse) {}
 
     void Widget::OnGUI()
     {
@@ -38,7 +39,7 @@ namespace DSM {
             varPushCount++;
         }
 
-        if (EditorViewport* viewport = DSMEditor::GetWidget<EditorViewport>()) {
+        if (EditorViewport* viewport = m_EditorUI->GetWidget<EditorViewport>()) {
             if (ImGuiWindow* window = viewport->GetWindow()) {
                 ImVec2 pos    = window->Pos;
                 ImVec2 sze    = window->Size;

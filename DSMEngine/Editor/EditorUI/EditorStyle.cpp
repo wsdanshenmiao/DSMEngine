@@ -217,13 +217,14 @@ namespace DSM {
     }
 
 
-    EditorStyle::EditorStyle()
+    EditorStyle::EditorStyle(EditorUI* editorUI)
+        : Widget(editorUI)
     {
         m_Title = "Editor Style";
         m_Size = {400.0f, 600.0f};
         m_Flags |= ImGuiWindowFlags_NoScrollbar;
         m_Padding = 8;
-        m_Enabled = true;
+        m_Enabled = false;
 
         SetupImGuiBase();
         StyleClassic();

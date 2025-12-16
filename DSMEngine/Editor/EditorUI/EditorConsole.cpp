@@ -19,8 +19,8 @@ namespace DSM {
         &EditorStyle::sm_ColorError, &EditorStyle::sm_ColorInfo
     };
 
-    EditorConsole::EditorConsole()
-    {
+    EditorConsole::EditorConsole(EditorUI* editorUI)
+        : Widget(editorUI){
         m_Title = "Console";
         m_Icon = TextureManager::LoadTextureFromFile("Textures/Icons/console.png");
         

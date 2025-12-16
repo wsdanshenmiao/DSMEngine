@@ -11,10 +11,12 @@ constexpr float c_DefaultWidgetValue = -1.0f;
 struct ImGuiWindow;
 
 namespace DSM {
+    class EditorUI;
+
     class Widget 
     {
     public:
-        Widget();
+        Widget(EditorUI* editorUI);
         virtual ~Widget() = default;
 
         void OnGUI();
@@ -28,6 +30,8 @@ namespace DSM {
         ImGuiWindow* GetWindow() const;
 
     protected:
+        EditorUI* m_EditorUI;
+
         bool m_Enabled = true;
         int m_Flags;
         float m_Alpha = c_DefaultWidgetValue;
@@ -36,7 +40,7 @@ namespace DSM {
         Math::Vector2 m_MaxSize = std::numeric_limits<float>::max();
         Math::Vector2 m_Padding = c_DefaultWidgetValue;
 
-        const char* m_Title;
+        const char* m_Title{};
     };
 }
 

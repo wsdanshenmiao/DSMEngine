@@ -13,7 +13,7 @@ namespace DSM {
     class EditorConsole : public Widget
     {
     public:
-        EditorConsole();
+        EditorConsole(EditorUI* editorUI);
         ~EditorConsole();
 
         void OnGUIEnabled() override;

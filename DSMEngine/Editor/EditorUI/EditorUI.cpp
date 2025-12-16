@@ -1,7 +1,13 @@
 #include "EditorUI.h"
 #include "Editor/DSMEditor.h"
 #include "Editor/SceneSerializer.h"
-#include "Editor/EditorUI/Widget.h"
+#include "Editor/AssertDefine.h"
+#include "Editor/EditorUI/EditorViewport.h"
+#include "Editor/EditorUI/EditorStyle.h"
+#include "Editor/EditorUI/EditorConsole.h"
+#include "Editor/EditorUI/EditorSceneHierarchy.h"
+#include "Editor/EditorUI/EditorProperties.h"
+#include "Editor/EditorUI/EditorContentBrowser.h"
 #include "Runtime/Core/Window.h"
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Render/Renderer/Renderer.h"
@@ -16,8 +22,6 @@
 
 namespace DSM {
     EditorUI::EditorUI(const EditorUIDesc& desc)
-        : m_SceneHierarchyPanel(std::make_unique<SceneHierarchyPanel>()),
-        m_ContentBrowserPanel(std::make_unique<ContentBrowserPanel>())
     {
         ImGui::CreateContext();
 
@@ -45,6 +49,13 @@ namespace DSM {
         m_StopIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\StopButton.png");
         DSM_CORE_ASSERT(m_PlayIcon != nullptr, "Failed to load play icon texture!");
         DSM_CORE_ASSERT(m_StopIcon != nullptr, "Failed to load pause icon texture!");
+
+        m_Widgets.push_back(std::make_unique<EditorViewport>(this));
+        m_Widgets.push_back(std::make_unique<EditorStyle>(this));
+        m_Widgets.push_back(std::make_unique<EditorConsole>(this));
+        m_Widgets.push_back(std::make_unique<EditorSceneHierarchy>(this));
+        m_Widgets.push_back(std::make_unique<EditorProperties>(this));
+        m_Widgets.push_back(std::make_unique<EditorContentBrowser>(this));
     }
 
     void EditorUI::OnGUI()
@@ -88,7 +99,7 @@ namespace DSM {
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
         }
 
-        for(auto& widget : DSMEditor::sm_EditorContext.widgets){
+        for(auto& widget : m_Widgets){
             widget->OnGUI();
         }
 
@@ -98,14 +109,11 @@ namespace DSM {
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("File")) {
                 if(ImGui::MenuItem("New Scene")) {
-                    NewScene();
                 }
                 if(ImGui::MenuItem("Save Scene")){
-                    SaveScene();
                 }
                 if(ImGui::MenuItem("Load Scene")){
                     auto filepath = Utility::FileDialogs::OpenFile("DSM Engine Scene (*.dsmescene)\0*.dsmescene\0");
-                    LoadScene(filepath);
                 }
 
                 ImGui::Separator();
@@ -120,9 +128,6 @@ namespace DSM {
         }
 
         RenderUIToolbar();
-
-        m_SceneHierarchyPanel->OnGUI();
-        m_ContentBrowserPanel->OnGUI();
 
         // End the dockspace window
         ImGui::End();
@@ -171,50 +176,11 @@ namespace DSM {
     void EditorUI::OnSceneChange(std::shared_ptr<Scene> scene)
     {
         m_ActiveScene = scene;
-        m_SceneHierarchyPanel->SetScene(scene);
-    }
-
-    void EditorUI::RenderViewportWindow()
-    {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
-        ImGui::Begin("Viewport");
-
-        m_ViewportBounds = {
-            ImGui::GetWindowPos().x,
-            ImGui::GetWindowPos().y,
-            ImGui::GetWindowSize().x,
-            ImGui::GetWindowSize().y
-        };
-        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-        auto& renderer = DSMEditor::sm_EditorContext.renderer;
-        Viewport cameraViewport = renderer->GetCamera().GetViewPort();
-        if(cameraViewport.Width() != m_ViewportBounds.Get(2) ||
-            cameraViewport.Height() != m_ViewportBounds.Get(3)){
-            renderer->GetCamera().SetViewPort(Viewport{m_ViewportBounds.Get(2), m_ViewportBounds.Get(3)});
-            renderer->ResizeRenderTexture(m_ViewportBounds.Get(2), m_ViewportBounds.Get(3));
-        }
-
-        auto colorTex = renderer->GetColorTexture();
-        auto gpuHandle = colorTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
-        ImGui::Image(ImTextureRef{gpuHandle}, viewportSize);
-
-        if(ImGui::BeginDragDropTarget()){
-            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ContentBrowserPanel::sm_DragDropPayloadType)){
-                const char* path = static_cast<const char*>(payload->Data);
-                LoadScene(path);
-            }
-            ImGui::EndDragDropTarget();
-        }
-        
-        RenderGizmo();
-        
-        ImGui::End();
-        ImGui::PopStyleVar();
     }
 
     void EditorUI::RenderGizmo()
     {
-        auto selectedObject = m_SceneHierarchyPanel->GetSelectedObject().lock();
+        auto selectedObject = GetWidget<EditorSceneHierarchy>()->GetSelectedObject().lock();
         if(selectedObject == nullptr || m_GizmoType == -1){
             return;
         }
@@ -264,8 +230,8 @@ namespace DSM {
         bool hasPauseButton = m_SceneState != SceneState::Edit;
 
         if(hasPlayButton){
-            // TODO: 后续更换为通用的资源视图
             auto iconTex = m_SceneState == SceneState::Edit ? m_PlayIcon : m_StopIcon;
+            // TODO: 后续更换为通用的资源视图
             auto gpuHandle = iconTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
             if(ImGui::ImageButton("##PlayButton", ImTextureRef{gpuHandle}, ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0,0,0,0), tintColor) && enableToolbar){
                 if (m_SceneState == SceneState::Edit){
@@ -280,36 +246,6 @@ namespace DSM {
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(3);
 		ImGui::End();
-    }
-
-    void EditorUI::NewScene()
-    {
-        DSMEngine::sm_GlobalContext.scene = std::make_shared<Scene>();
-        OnSceneChange(DSMEngine::sm_GlobalContext.scene);
-    }
-
-    void EditorUI::SaveScene()
-    {
-        auto filepath = Utility::FileDialogs::SaveFile("DSM Engine Scene (*.dsmescene)\0*.dsmescene\0");
-        if (!filepath.empty()) {
-            SceneSerializer serializer;
-            serializer.Serialize(filepath);
-        }
-    }
-
-    void EditorUI::LoadScene(const std::filesystem::path& filepath)
-    {
-        if (filepath.extension().string() != ".dsmescene") {
-            DSM_WARN("Could not load file {}, is not a scene file", filepath.filename().string());
-			return;
-		}
-
-        if (!filepath.empty()) {
-            SceneSerializer serializer;
-            if(serializer.Deserialize(filepath.string())){
-                OnSceneChange(DSMEngine::sm_GlobalContext.scene);
-            }
-        }
     }
 
     void EditorUI::OnScenePlay()

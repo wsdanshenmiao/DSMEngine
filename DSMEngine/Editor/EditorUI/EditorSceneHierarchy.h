@@ -1,8 +1,10 @@
 #pragma once
-#ifndef __SCENEHIERARCHYPANEL_H__
-#define __SCENEHIERARCHYPANEL_H__
+#ifndef __EDITORSCENEHIERARCHY_h__
+#define __EDITORSCENEHIERARCHY_h__
 
 #include <memory>
+
+#include "Editor/EditorUI/Widget.h"
 #include "Editor/EditorUI/ComponentDrawer.h"
 
 namespace DSM {
@@ -10,14 +12,12 @@ namespace DSM {
     class GameObject;
 
     // 场景的层级面板 UI
-    class SceneHierarchyPanel
+    class EditorSceneHierarchy : public Widget
     {
     public:
-        SceneHierarchyPanel() : m_ComponentDrawerManager(std::make_unique<ComponentDrawerManager>()) {}
-    
-        void SetScene(std::shared_ptr<Scene> scene);
+        EditorSceneHierarchy(EditorUI* editorUI);
 
-        void OnGUI();
+        void OnGUIEnabled() override;
 
         std::weak_ptr<GameObject> GetSelectedObject() const { return m_SelectedObject; }
         void SetSelectedObject(std::weak_ptr<GameObject> object) { m_SelectedObject = object; }
@@ -25,15 +25,11 @@ namespace DSM {
     private:
         void DrawEntityNode(std::shared_ptr<GameObject> object);
 
-        template<typename T, typename UIFunc>
-        void DrawComponent(const std::string& name, std::shared_ptr<GameObject> object, UIFunc func);
-
     private:
-        std::shared_ptr<Scene> m_Scene;
         std::unique_ptr<ComponentDrawerManager> m_ComponentDrawerManager;
         std::weak_ptr<GameObject> m_SelectedObject;
     };
     
 } // namespace DSM
 
-#endif  // __SCENEHIERARCHYPANEL_H__
+#endif  // __EDITORSCENEHIERARCHY_h__

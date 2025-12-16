@@ -4,9 +4,6 @@
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Core/Window.h"
 #include "Editor/EditorUI/EditorUI.h"
-#include "Editor/EditorUI/EditorViewport.h"
-#include "Editor/EditorUI/EditorStyle.h"
-#include "Editor/EditorUI/EditorConsole.h"
 
 namespace DSM{
     void DSMEditor::StartEditor(DSMEngine *engine)
@@ -21,13 +18,6 @@ namespace DSM{
         m_EditorUI = std::make_unique<EditorUI>(EditorUIDesc{ 
             DSMEngine::sm_GlobalContext.renderer, 
             DSMEngine::sm_GlobalContext.window });
-
-        
-        auto& widgets = sm_EditorContext.widgets;
-        widgets.clear();
-        widgets.push_back(std::make_shared<EditorViewport>());
-        widgets.push_back(std::make_shared<EditorStyle>());
-        widgets.push_back(std::make_shared<EditorConsole>());
     }
 
     void DSMEditor::Run()
