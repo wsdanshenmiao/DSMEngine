@@ -26,8 +26,10 @@ namespace DSM {
         virtual void OnEnable() {}
         virtual void OnDisable() {}
 
-        const char* GetTitle() const noexcept { return m_Title; }
+        inline const char* GetTitle() const noexcept { return m_Title; }
         ImGuiWindow* GetWindow() const;
+        [[nodiscard]] inline bool IsEnabled() const noexcept { return m_Enabled; }
+        inline void SetEnabled(bool enabled) { m_Enabled = enabled; }
 
     protected:
         EditorUI* m_EditorUI;

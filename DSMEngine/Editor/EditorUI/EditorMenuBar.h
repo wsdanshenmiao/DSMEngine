@@ -4,13 +4,20 @@
 
 
 namespace DSM {
+    class EditorUI;
+
     class EditorMenuBar
     {
     public:
+        EditorMenuBar(EditorUI* editorUI);
         void OnGUI();
 
     private:
         void WorldMenuGUI();
+        void ViewMenuGUI();
+
+    private:
+        EditorUI* m_EditorUI;
     };
 }
 

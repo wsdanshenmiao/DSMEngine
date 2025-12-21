@@ -22,7 +22,7 @@
 
 namespace DSM {
     EditorUI::EditorUI(const EditorUIDesc& desc)
-        :m_MenuBar(std::make_unique<EditorMenuBar>())
+        :m_MenuBar(std::make_unique<EditorMenuBar>(this))
     {
         ImGui::CreateContext();
 
