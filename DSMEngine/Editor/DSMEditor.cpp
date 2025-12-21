@@ -11,10 +11,6 @@ namespace DSM{
         DSM_ASSERT(engine != nullptr, "Engine is nullptr!");
         m_Engine = engine;
 
-        sm_EditorContext.engine = engine;
-        sm_EditorContext.window = DSMEngine::sm_GlobalContext.window;
-        sm_EditorContext.renderer = DSMEngine::sm_GlobalContext.renderer;
-
         m_EditorUI = std::make_unique<EditorUI>(EditorUIDesc{ 
             DSMEngine::sm_GlobalContext.renderer, 
             DSMEngine::sm_GlobalContext.window });
@@ -30,7 +26,6 @@ namespace DSM{
     void DSMEditor::ShutDownEditor()
     {
         m_EditorUI.reset();
-        sm_EditorContext = {};
         m_Engine = nullptr;
     }
 }

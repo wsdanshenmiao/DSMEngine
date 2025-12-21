@@ -19,8 +19,8 @@ namespace DSM {
         
         int varPushCount = 0;
 
-        float width = DSMEditor::sm_EditorContext.window->GetWidth();
-        float height = DSMEditor::sm_EditorContext.window->GetHeight();
+        float width = DSMEngine::sm_GlobalContext.window->GetWidth();
+        float height = DSMEngine::sm_GlobalContext.window->GetHeight();
         m_Size = m_Size == c_DefaultWidgetValue ? Math::Vector2{width, height} : m_Size;
     
         if(m_MinSize != c_DefaultWidgetValue || m_MaxSize != std::numeric_limits<float>::max()){

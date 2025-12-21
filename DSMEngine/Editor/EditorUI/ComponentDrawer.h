@@ -242,9 +242,13 @@ namespace DSM{
             }
             std::ranges::copy(model->filePath, buffer.begin());
             if(ImGui::Button("Load Model")){
-                std::string filepath = Utility::FileDialogs::OpenFile("Model Files\0*.gltf;*.glb;*.obj;*.fbx\0All Files\0*.*\0\0");
+                std::vector<Utility::FileDialogs::FilterOption> filterOptions{
+                    {"Model Files", "*.gltf;*.glb;*.obj;*.fbx"},
+                    {"All Files", "*.*"}
+                };
+                auto filepath = Utility::FileDialogs::OpenFile(filterOptions, "Load Model");
                 if(!filepath.empty()){
-                    auto newModel = ModelLoader::LoadModel(filepath);
+                    auto newModel = ModelLoader::LoadModel(filepath[0]);
                     if(newModel != nullptr){
                         *model = std::move(*newModel);
                     }

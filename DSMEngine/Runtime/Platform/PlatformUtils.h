@@ -5,6 +5,7 @@
 #include "Runtime/Core/PlatformDetection.h"
 
 #include <string>
+#include <vector>
 
 namespace DSM::Utility {
     
@@ -14,8 +15,27 @@ namespace DSM::Utility {
     class FileDialogs
     {
     public:
-        static std::string OpenFile(const char* filter);
-        static std::string SaveFile(const char* filter);
+        struct FilterOption
+        {
+            std::string name;
+            std::string pattern;
+        };
+
+    public:
+        static std::vector<std::string> OpenFile(
+            const std::vector<FilterOption>& filters, 
+            const std::string& title = "Open File");
+        static std::vector<std::string> SaveFile(
+            const std::vector<FilterOption>& filters, 
+            const std::string& title = "Save File");
+
+    private:
+        static std::vector<std::string> ShowFileDialog(
+            bool isOpenDialog,
+            const std::vector<FilterOption>& filters, 
+            const std::string& title = "Save File");
+
+        static std::vector<std::string> ParseMultiSelectFiles(const char* buffer);
     };
 }
 

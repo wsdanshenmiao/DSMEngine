@@ -22,6 +22,7 @@
 
 namespace DSM {
     EditorUI::EditorUI(const EditorUIDesc& desc)
+        :m_MenuBar(std::make_unique<EditorMenuBar>())
     {
         ImGui::CreateContext();
 
@@ -89,7 +90,6 @@ namespace DSM {
         static bool dockspaceOpen = true;
         ImGui::Begin("DockSpace Demo", &dockspaceOpen, window_flags);
         ImGui::PopStyleVar();
-
         ImGui::PopStyleVar(2);
 
         // Submit the DockSpace
@@ -99,33 +99,11 @@ namespace DSM {
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
         }
 
+        m_MenuBar->OnGUI();
         for(auto& widget : m_Widgets){
             widget->OnGUI();
         }
-
         m_ActiveScene->OnGUI();
-
-        // 开启菜单栏
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("File")) {
-                if(ImGui::MenuItem("New Scene")) {
-                }
-                if(ImGui::MenuItem("Save Scene")){
-                }
-                if(ImGui::MenuItem("Load Scene")){
-                    auto filepath = Utility::FileDialogs::OpenFile("DSM Engine Scene (*.dsmescene)\0*.dsmescene\0");
-                }
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Exit", ""))  {
-                    DSMEditor::sm_EditorContext.engine->Close();
-                }
-                ImGui::EndMenu();
-            }
-            
-            ImGui::EndMenuBar();
-        }
 
         RenderUIToolbar();
 
@@ -135,73 +113,11 @@ namespace DSM {
 
     void EditorUI::OnEvent(Event &event)
     {
-        EventDispatcher dispatcher(event);
-        dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e) {
-            if(e.IsRepeat()){
-                return false;
-            }
-            
-            bool control = DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::LeftControl) || 
-                DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::RightControl);
-            bool shift = DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::LeftShift) || 
-                DSMEngine::sm_GlobalContext.inputSystem->IsKeyPressed(KeyCode::RightShift);
-
-            switch (e.GetKeyCode()) {
-            case KeyCode::R:{
-                if(!ImGuizmo::IsUsing()){
-                    m_GizmoType = ImGuizmo::ROTATE;
-                }
-                break;
-            }
-            case KeyCode::T:{
-                if(!ImGuizmo::IsUsing()){
-                    m_GizmoType = ImGuizmo::TRANSLATE;
-                }
-                break;
-            }
-            case KeyCode::Y:{
-                if(!ImGuizmo::IsUsing()){
-                    m_GizmoType = ImGuizmo::SCALE;
-                }
-                break;
-            }
-            default:
-                break;
-            }
-
-            return false;
-        });
     }
 
     void EditorUI::OnSceneChange(std::shared_ptr<Scene> scene)
     {
         m_ActiveScene = scene;
-    }
-
-    void EditorUI::RenderGizmo()
-    {
-        auto selectedObject = GetWidget<EditorSceneHierarchy>()->GetSelectedObject().lock();
-        if(selectedObject == nullptr || m_GizmoType == -1){
-            return;
-        }
-
-        const auto& camera = DSMEditor::sm_EditorContext.renderer->GetCamera();
-
-        ImGuizmo::SetOrthographic(false);
-        ImGuizmo::SetDrawlist();
-
-        ImGuizmo::SetRect(m_ViewportBounds.Get(0), m_ViewportBounds.Get(1), 
-            m_ViewportBounds.Get(2), m_ViewportBounds.Get(3));
-
-        auto cameraView = camera.GetViewMatrix();
-        auto cameraProj = camera.GetProjMatrix();
-        auto transfrom = selectedObject->GetComponent<Math::Transform>();
-        Math::Matrix4 transMat = transfrom->GetLocalToWorld();
-        ImGuizmo::Manipulate((float*)&cameraView, (float*)&cameraProj, 
-            static_cast<ImGuizmo::OPERATION>(m_GizmoType), ImGuizmo::LOCAL, (float*)&transMat);
-        if(ImGuizmo::IsUsing()){
-            *transfrom = Math::Transform{transMat};
-        }
     }
 
     void EditorUI::RenderUIToolbar()

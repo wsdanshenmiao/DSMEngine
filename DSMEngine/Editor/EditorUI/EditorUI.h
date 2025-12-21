@@ -7,6 +7,7 @@
 #include "Runtime/Render/WindowUI.h"
 #include "Runtime/Graphics/Texture.h"
 #include "Editor/EditorUI/Widget.h"
+#include "Editor/EditorUI/EditorMenuBar.h"
 
 namespace DSM {
     class Window;
@@ -41,7 +42,6 @@ namespace DSM {
     private:
         void OnSceneChange(std::shared_ptr<Scene> scene);
 
-        void RenderGizmo();
         void RenderUIToolbar();
 
         void OnScenePlay();
@@ -59,10 +59,8 @@ namespace DSM {
 
     public:
         std::vector<std::unique_ptr<Widget>> m_Widgets;
-        
-        Math::Vector4 m_ViewportBounds;
+        std::unique_ptr<EditorMenuBar> m_MenuBar;
 
-        int m_GizmoType = -1;
         std::shared_ptr<Scene> m_ActiveScene;
 
         TextureHandle m_PlayIcon;

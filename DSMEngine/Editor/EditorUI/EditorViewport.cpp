@@ -2,9 +2,11 @@
 #include "Editor/DSMEditor.h"
 #include "Editor/SceneManager.h"
 #include "Editor/AssertDefine.h"
+#include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 
 namespace DSM {
     EditorViewport::EditorViewport(EditorUI* editorUI)
@@ -22,7 +24,7 @@ namespace DSM {
         float width = ImGui::GetContentRegionAvail().x;
         float height = ImGui::GetContentRegionAvail().y;
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-        auto& renderer = DSMEditor::sm_EditorContext.renderer;
+        auto& renderer = DSMEngine::sm_GlobalContext.renderer;
         Viewport cameraViewport = renderer->GetCamera().GetViewPort();
         if(cameraViewport.Width() != width || cameraViewport.Height() != height){
             renderer->ResizeRenderTexture(width, height);
@@ -40,6 +42,29 @@ namespace DSM {
                 SceneManager::LoadScene(path);
             }
             ImGui::EndDragDropTarget();
+        }
+
+        
+        auto selectedObject = m_EditorUI->GetWidget<EditorSceneHierarchy>()->GetSelectedObject().lock();
+        if(selectedObject == nullptr || m_GizmoType == -1){
+            return;
+        }
+
+        const auto& camera = DSMEngine::sm_GlobalContext.renderer->GetCamera();
+
+        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetDrawlist();
+
+        ImGuizmo::SetRect(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowWidth(), ImGui::GetWindowHeight());
+
+        auto cameraView = camera.GetViewMatrix();
+        auto cameraProj = camera.GetProjMatrix();
+        auto transfrom = selectedObject->GetComponent<Math::Transform>();
+        Math::Matrix4 transMat = transfrom->GetLocalToWorld();
+        ImGuizmo::Manipulate((float*)&cameraView, (float*)&cameraProj, 
+            static_cast<ImGuizmo::OPERATION>(m_GizmoType), ImGuizmo::LOCAL, (float*)&transMat);
+        if(ImGuizmo::IsUsing()){
+            *transfrom = Math::Transform{transMat};
         }
     }
 }
