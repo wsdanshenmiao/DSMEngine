@@ -1,18 +1,18 @@
 #include "EditorUI.h"
 #include "Editor/DSMEditor.h"
-#include "Editor/SceneSerializer.h"
 #include "Editor/AssertDefine.h"
-#include "Editor/EditorUI/EditorViewport.h"
+#include "Editor/SceneManager.h"
 #include "Editor/EditorUI/EditorStyle.h"
 #include "Editor/EditorUI/EditorConsole.h"
-#include "Editor/EditorUI/EditorSceneHierarchy.h"
+#include "Editor/EditorUI/EditorViewport.h"
 #include "Editor/EditorUI/EditorProperties.h"
+#include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Editor/EditorUI/EditorContentBrowser.h"
 #include "Runtime/Core/Window.h"
+#include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Framework/Object/GameObject.h"
-#include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Render/TextureManager.h"
 
@@ -21,8 +21,8 @@
 #include <ImGuizmo.h>
 
 namespace DSM {
-    EditorUI::EditorUI(const EditorUIDesc& desc)
-        :m_MenuBar(std::make_unique<EditorMenuBar>(this))
+    EditorUI::EditorUI(DSMEditor* editor)
+        :m_Editor(editor), m_MenuBar(std::make_unique<EditorMenuBar>(this))
     {
         ImGui::CreateContext();
 
@@ -39,12 +39,10 @@ namespace DSM {
             style.Colors[ImGuiCol_WindowBg].w = 1.0f;
         }
         
-        ImGui_ImplGlfw_InitForOther(desc.window->GetNativeWindow(), true);
+        ImGui_ImplGlfw_InitForOther(DSMEngine::sm_GlobalContext.window->GetNativeWindow(), true);
 
         // 根据不同的图形 API 初始化不同的 ImGui 后端
-        desc.renderer->InitWindowUI(this);
-
-        OnSceneChange(DSMEngine::sm_GlobalContext.scene);
+        DSMEngine::sm_GlobalContext.renderer->InitWindowUI(this);
 
         m_PlayIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PlayButton.png");
         m_StopIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\StopButton.png");
@@ -99,11 +97,11 @@ namespace DSM {
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
         }
 
-        m_MenuBar->OnGUI();
         for(auto& widget : m_Widgets){
             widget->OnGUI();
         }
-        m_ActiveScene->OnGUI();
+        DSMEngine::sm_GlobalContext.scene->OnGUI();
+        m_MenuBar->OnGUI();
 
         RenderUIToolbar();
 
@@ -113,11 +111,34 @@ namespace DSM {
 
     void EditorUI::OnEvent(Event &event)
     {
-    }
-
-    void EditorUI::OnSceneChange(std::shared_ptr<Scene> scene)
-    {
-        m_ActiveScene = scene;
+        EventDispatcher dispatcher(event);
+        dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e){
+            auto inputSystem = DSMEngine::sm_GlobalContext.inputSystem;
+            bool isCtrlPressed = inputSystem->IsKeyPressed(KeyCode::LeftControl) || 
+                inputSystem->IsKeyPressed(KeyCode::RightControl);
+            switch (e.GetKeyCode()) {
+            case KeyCode::S:{
+                // Ctrl + S 保存场景
+                if(isCtrlPressed){
+                    // 检测当前是否打开项目
+                    if(g_ProjectFilePath.empty()){
+                        Utility::FileDialogs::FilterOption filterOption{"DSM Project Files", "*" + std::string(g_ProjectFileExtension)};
+                        auto filepath = Utility::FileDialogs::SaveFile({filterOption}, "Save Project As");
+                        if(filepath.empty()){
+                            m_Editor->GetEngine()->Close();
+                        }
+                    }
+                    else{
+                        SceneManager::SaveScene(g_ProjectFilePath);
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+            }
+            return false;
+        });
     }
 
     void EditorUI::RenderUIToolbar()
@@ -133,7 +154,7 @@ namespace DSM {
 
         ImGui::Begin("##Toolbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-        bool enableToolbar = m_ActiveScene != nullptr;
+        bool enableToolbar = DSMEngine::sm_GlobalContext.scene != nullptr;
 
 		ImVec4 tintColor = ImVec4(1, 1, 1, 1);
     	if (!enableToolbar)
@@ -167,8 +188,8 @@ namespace DSM {
     void EditorUI::OnScenePlay()
     {
         m_SceneState = SceneState::Play;
-        auto tmpScene = std::make_shared<Scene>(*m_ActiveScene);
-        OnSceneChange(tmpScene);
+        m_InactiveScene = DSMEngine::sm_GlobalContext.scene;
+        DSMEngine::sm_GlobalContext.scene = std::make_shared<Scene>(*m_InactiveScene);
     }
 
     void EditorUI::OnSceneStop()
@@ -176,7 +197,8 @@ namespace DSM {
         DSM_CORE_ASSERT(m_SceneState == SceneState::Play, "Scene is not in play state!");
         
         m_SceneState = SceneState::Edit;
-        OnSceneChange(DSMEngine::sm_GlobalContext.scene);
+        DSMEngine::sm_GlobalContext.scene = m_InactiveScene;
+        m_InactiveScene = nullptr;
     }
 
 } // namespace DSM

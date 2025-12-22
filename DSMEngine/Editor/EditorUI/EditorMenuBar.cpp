@@ -22,6 +22,7 @@ namespace DSM {
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{style.FramePadding.x, 8});
             
             if(ImGui::BeginMenuBar()){
+                ProjectMenuGUI();
                 WorldMenuGUI();
                 ViewMenuGUI();
 
@@ -31,7 +32,28 @@ namespace DSM {
             ImGui::PopStyleVar();   
         }
     }
-    
+
+    void EditorMenuBar::ProjectMenuGUI()
+    {
+        if(ImGui::BeginMenu("Project")){
+            if(ImGui::MenuItem("New Project")){
+                
+            }
+            ImGui::Separator();
+
+            if(ImGui::MenuItem("Open Project")){
+                
+            }
+            ImGui::Separator();
+
+            if(ImGui::MenuItem("Save Project")){
+                
+            }
+
+            ImGui::EndMenu();
+        }
+    }
+
     void EditorMenuBar::WorldMenuGUI()
     {
         if (ImGui::BeginMenu("Scene")){
@@ -74,12 +96,12 @@ namespace DSM {
                 }
             };
 
-            guiView.template operator()<EditorViewport>();
-            guiView.template operator()<EditorSceneHierarchy>();
-            guiView.template operator()<EditorProperties>();
-            guiView.template operator()<EditorConsole>();
-            guiView.template operator()<EditorContentBrowser>();
-            guiView.template operator()<DSM::EditorStyle>();
+            guiView.operator()<EditorViewport>();
+            guiView.operator()<EditorSceneHierarchy>();
+            guiView.operator()<EditorProperties>();
+            guiView.operator()<EditorConsole>();
+            guiView.operator()<EditorContentBrowser>();
+            guiView.operator()<DSM::EditorStyle>();
             ImGui::EndMenu();
         }
     }

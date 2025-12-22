@@ -4,6 +4,7 @@
 #include "Runtime/Framework/ScriptableObject.h"
 
 namespace DSM {
+
     Scene::~Scene()
     {
         m_Registry.clear();
@@ -19,6 +20,17 @@ namespace DSM {
     Scene &Scene::operator=(const Scene &src)
     {
         CopyScene(*this, src);
+        return *this;
+    }
+
+    Scene::Scene(Scene &&other)
+    {
+        CopyScene(*this, other);
+    }
+
+    Scene &Scene::operator=(Scene &&other)
+    {
+        CopyScene(*this, other);
         return *this;
     }
 

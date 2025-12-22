@@ -18,6 +18,8 @@ namespace DSM {
         void Run();
         void ShutDownEditor();
 
+        DSMEngine* GetEngine() const { return m_Engine; }
+
     private:
         std::unique_ptr<EditorUI> m_EditorUI;
         DSMEngine* m_Engine;

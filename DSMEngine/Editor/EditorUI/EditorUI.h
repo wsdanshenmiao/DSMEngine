@@ -23,7 +23,7 @@ namespace DSM {
     {
         friend class DSMEditor;
     public:
-        EditorUI(const EditorUIDesc& desc);
+        EditorUI(DSMEditor* editor);
 
         void OnGUI() override;
         void OnEvent(Event& event) override;
@@ -40,8 +40,6 @@ namespace DSM {
         }
 
     private:
-        void OnSceneChange(std::shared_ptr<Scene> scene);
-
         void RenderUIToolbar();
 
         void OnScenePlay();
@@ -58,10 +56,12 @@ namespace DSM {
         SceneState m_SceneState = SceneState::Edit;
 
     public:
+        DSMEditor* m_Editor;
+
         std::vector<std::unique_ptr<Widget>> m_Widgets;
         std::unique_ptr<EditorMenuBar> m_MenuBar;
 
-        std::shared_ptr<Scene> m_ActiveScene;
+        std::shared_ptr<Scene> m_InactiveScene;
 
         TextureHandle m_PlayIcon;
         TextureHandle m_StopIcon;

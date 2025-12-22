@@ -2,7 +2,7 @@
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Core/Macro.h"
 #include "Editor/AssertDefine.h"
-#include "Editor/SceneSerializer.h"
+#include "Editor/Serializer/Serializer.h"
 
 #include <filesystem>
 
@@ -21,10 +21,10 @@ namespace DSM {
             return;
         }
 
-        if(!filepath.empty()){
-            SceneSerializer serializer;
-            if(auto scene = serializer.Deserialize(filepath)){
-                DSMEngine::sm_GlobalContext.scene = scene;
+        if(!filepath.empty()) {
+            auto newScene = std::make_shared<Scene>();
+            if(Serializer::DeserializeFromFile(filepath, *newScene)){
+                DSMEngine::sm_GlobalContext.scene = newScene;
             }
         }
     }
@@ -32,8 +32,7 @@ namespace DSM {
     void SceneManager::SaveScene(const std::string &filepath)
     {
         if (!filepath.empty()) {
-            SceneSerializer serializer;
-            serializer.Serialize(filepath, DSMEngine::sm_GlobalContext.scene);
+            Serializer::SerializeToFile(filepath, *DSMEngine::sm_GlobalContext.scene);
         }
     }
 }

@@ -23,9 +23,9 @@ namespace DSM {
         Scene(const Scene& other);
         Scene& operator=(const Scene& other);
 
-        Scene(Scene&& other) noexcept = default;
-        Scene& operator=(Scene&& other) noexcept = default;
-    
+        Scene(Scene&& other);
+        Scene& operator=(Scene&& other);
+
         void Update(float deltaTime);
         void OnGUI();
 
@@ -54,8 +54,8 @@ namespace DSM {
         static void CopyScene(Scene& dest, const Scene& src);
 
     private:
-        entt::registry m_Registry;
-        std::unordered_map<ObjectID, std::shared_ptr<GameObject>> m_Objects;
+        entt::registry m_Registry{};
+        std::unordered_map<ObjectID, std::shared_ptr<GameObject>> m_Objects{};
     };
 } // namespace DSM
 

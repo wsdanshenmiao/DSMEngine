@@ -13,6 +13,7 @@ namespace DSM {
         void OnGUI();
 
     private:
+        void ProjectMenuGUI();
         void WorldMenuGUI();
         void ViewMenuGUI();
 

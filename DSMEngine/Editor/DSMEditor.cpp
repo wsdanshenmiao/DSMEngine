@@ -11,9 +11,7 @@ namespace DSM{
         DSM_ASSERT(engine != nullptr, "Engine is nullptr!");
         m_Engine = engine;
 
-        m_EditorUI = std::make_unique<EditorUI>(EditorUIDesc{ 
-            DSMEngine::sm_GlobalContext.renderer, 
-            DSMEngine::sm_GlobalContext.window });
+        m_EditorUI = std::make_unique<EditorUI>(this);
     }
 
     void DSMEditor::Run()

@@ -4,6 +4,7 @@
 
 #include <variant>
 #include "Runtime/Math/Transform.h"
+#include "Runtime/Render/Model.h"
 
 namespace DSM {
     class ScriptableObject;
@@ -31,7 +32,8 @@ namespace DSM {
     using AllComponents = std::variant<
         Math::Transform,
         TagComponent,
-        NativeScriptComponent
+        NativeScriptComponent,
+        Model
     >;
 } // namespace DSM
 
