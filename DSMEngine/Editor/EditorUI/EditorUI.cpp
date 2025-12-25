@@ -31,23 +31,12 @@ namespace DSM {
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
-
-        ImGuiStyle& style = ImGui::GetStyle();
-        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-        {
-            style.WindowRounding = 0.0f;
-            style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-        }
+        io.ConfigWindowsResizeFromEdges  = true;
         
         ImGui_ImplGlfw_InitForOther(DSMEngine::sm_GlobalContext.window->GetNativeWindow(), true);
 
         // 根据不同的图形 API 初始化不同的 ImGui 后端
         DSMEngine::sm_GlobalContext.renderer->InitWindowUI(this);
-
-        m_PlayIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PlayButton.png");
-        m_StopIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\StopButton.png");
-        DSM_CORE_ASSERT(m_PlayIcon != nullptr, "Failed to load play icon texture!");
-        DSM_CORE_ASSERT(m_StopIcon != nullptr, "Failed to load pause icon texture!");
 
         m_Widgets.push_back(std::make_unique<EditorViewport>(this));
         m_Widgets.push_back(std::make_unique<EditorStyle>(this));
@@ -63,7 +52,7 @@ namespace DSM {
 
         // We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
         // because it would be confusing to have two docking targets within each others.
-        ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | 
+        ImGuiWindowFlags window_flags =
             ImGuiWindowFlags_NoDocking |
             ImGuiWindowFlags_NoTitleBar | 
             ImGuiWindowFlags_NoCollapse | 
@@ -87,14 +76,15 @@ namespace DSM {
         // Begin the dockspace window
         static bool dockspaceOpen = true;
         ImGui::Begin("DockSpace Demo", &dockspaceOpen, window_flags);
-        ImGui::PopStyleVar();
-        ImGui::PopStyleVar(2);
+        ImGui::PopStyleVar(3);
 
         // Submit the DockSpace
         ImGuiIO& io = ImGui::GetIO();
         if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
             ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+            ImGui::PopStyleVar();
         }
 
         for(auto& widget : m_Widgets){
@@ -102,8 +92,6 @@ namespace DSM {
         }
         DSMEngine::sm_GlobalContext.scene->OnGUI();
         m_MenuBar->OnGUI();
-
-        RenderUIToolbar();
 
         // End the dockspace window
         ImGui::End();
@@ -141,62 +129,14 @@ namespace DSM {
         });
     }
 
-    void EditorUI::RenderUIToolbar()
-    {
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 2));
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-		auto& colors = ImGui::GetStyle().Colors;
-		const auto& buttonHovered = colors[ImGuiCol_ButtonHovered];
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(buttonHovered.x, buttonHovered.y, buttonHovered.z, 0.5f));
-		const auto& buttonActive = colors[ImGuiCol_ButtonActive];
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(buttonActive.x, buttonActive.y, buttonActive.z, 0.5f));
-
-        ImGui::Begin("##Toolbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-
-        bool enableToolbar = DSMEngine::sm_GlobalContext.scene != nullptr;
-
-		ImVec4 tintColor = ImVec4(1, 1, 1, 1);
-    	if (!enableToolbar)
-			tintColor.w = 0.5f;
-
-		float size = ImGui::GetWindowHeight() - 4.0f;
-		ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x * 0.5f) - (size * 0.5f));
-
-        bool hasPlayButton = m_SceneState == SceneState::Edit || m_SceneState == SceneState::Play;
-        bool hasPauseButton = m_SceneState != SceneState::Edit;
-
-        if(hasPlayButton){
-            auto iconTex = m_SceneState == SceneState::Edit ? m_PlayIcon : m_StopIcon;
-            // TODO: 后续更换为通用的资源视图
-            auto gpuHandle = iconTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
-            if(ImGui::ImageButton("##PlayButton", ImTextureRef{gpuHandle}, ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0,0,0,0), tintColor) && enableToolbar){
-                if (m_SceneState == SceneState::Edit){
-                    OnScenePlay();
-                }
-				else if (m_SceneState == SceneState::Play){
-                    OnSceneStop();
-                }
-            };
-        }
-
-		ImGui::PopStyleVar(2);
-		ImGui::PopStyleColor(3);
-		ImGui::End();
-    }
-
     void EditorUI::OnScenePlay()
     {
-        m_SceneState = SceneState::Play;
         m_InactiveScene = DSMEngine::sm_GlobalContext.scene;
         DSMEngine::sm_GlobalContext.scene = std::make_shared<Scene>(*m_InactiveScene);
     }
 
     void EditorUI::OnSceneStop()
     {
-        DSM_CORE_ASSERT(m_SceneState == SceneState::Play, "Scene is not in play state!");
-        
-        m_SceneState = SceneState::Edit;
         DSMEngine::sm_GlobalContext.scene = m_InactiveScene;
         m_InactiveScene = nullptr;
     }

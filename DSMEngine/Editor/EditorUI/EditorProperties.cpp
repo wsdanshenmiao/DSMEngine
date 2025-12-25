@@ -14,7 +14,7 @@ namespace DSM {
 
     void EditorProperties::OnGUIEnabled()
     {
-        bool isPlayMode = m_EditorUI->m_SceneState == EditorUI::SceneState::Play;
+        bool isPlayMode = m_EditorUI->GetMenuBar().GetSceneState() == EditorMenuBar::SceneState::Play;
         ImGui::BeginDisabled(isPlayMode);
         if (auto selectedObject = m_EditorUI->GetWidget<EditorSceneHierarchy>()->GetSelectedObject().lock(); 
             selectedObject != nullptr) {

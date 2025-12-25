@@ -17,7 +17,7 @@ namespace DSM{
 
     void EditorSceneHierarchy::OnGUIEnabled()
     {
-        bool isPlayMode = m_EditorUI->m_SceneState == EditorUI::SceneState::Play;
+        bool isPlayMode = m_EditorUI->GetMenuBar().GetSceneState() == EditorMenuBar::SceneState::Play;
         ImGui::BeginDisabled(isPlayMode);
 
         ImGui::EndDisabled();

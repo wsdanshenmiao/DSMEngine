@@ -28,6 +28,8 @@ namespace DSM {
         void OnGUI() override;
         void OnEvent(Event& event) override;
 
+        const EditorMenuBar& GetMenuBar() const { return *m_MenuBar; }
+
         template <typename T>
         T* GetWidget()
         {
@@ -40,31 +42,16 @@ namespace DSM {
         }
 
     private:
-        void RenderUIToolbar();
-
         void OnScenePlay();
         void OnSceneStop();
 
-    public:
-        enum class SceneState
-        {
-            Edit,
-            Play,
-            Pause
-        };
-
-        SceneState m_SceneState = SceneState::Edit;
-
-    public:
+    private:
         DSMEditor* m_Editor;
 
         std::vector<std::unique_ptr<Widget>> m_Widgets;
         std::unique_ptr<EditorMenuBar> m_MenuBar;
 
         std::shared_ptr<Scene> m_InactiveScene;
-
-        TextureHandle m_PlayIcon;
-        TextureHandle m_StopIcon;
     };
     
 } // namespace DSM 
