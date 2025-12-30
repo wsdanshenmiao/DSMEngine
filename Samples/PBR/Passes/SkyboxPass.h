@@ -91,7 +91,7 @@ namespace DSM {
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
         {
-            auto& cmdList = g_RenderResources.cmdList;
+            auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Skybox Pass Command List"));
             cmdList->Open();
 
             // 开始计时
@@ -101,6 +101,7 @@ namespace DSM {
 
             SkyboxConstants skyboxConstants{};
             skyboxConstants.isReversedZ = renderer.GetCamera().IsReversedZ();
+            skyboxConstants.cameraPos = float4(renderer.GetCamera().GetPosition(), 1.0f);
             skyboxConstants.invViewProj = Math::Matrix4::InverseTranspose(renderer.GetCamera().GetViewProjMatrix());
             cmdList->WriteBuffer(m_SkyboxCB, &skyboxConstants, sizeof(SkyboxConstants));
 

@@ -65,7 +65,7 @@ namespace DSM {
                 }
             }
 
-            auto& cmdList = g_RenderResources.cmdList;
+            auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Lighting Pass Command List"));
             cmdList->Open();
 
             cmdList->BeginTimerQuery(sm_TimerQuery);

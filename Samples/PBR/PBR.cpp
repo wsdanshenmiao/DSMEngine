@@ -64,28 +64,9 @@ public:
 
         m_CameraController->Update(deltaTime);
 
-        std::vector<float> passTimes{};
-
-        CpuTimer timer{};
-        timer.Reset();
-        timer.Start();
         for (auto& renderPass : m_RenderPasses) {
             renderPass->Render(renderer, deltaTime);
-            timer.Tick();
-            passTimes.push_back(timer.DeltaTime() * 1000.f);
         }
-        timer.Tick();
-        float totalTime = timer.TotalTime();
-
-        auto infoTimer = [&](){
-            for(int i = 0; i < m_RenderPasses.size(); ++i){
-                DSM_INFO("{} Pass Time: {:.3f} ms", typeid(*m_RenderPasses[i]).name(), passTimes[i]);
-            }
-            DSM_INFO("Total Frame Time: {:.3f} ms", totalTime);
-            DSM_INFO("\n");
-        };
-        //infoTimer();
-        timer.Stop();
     }
 
     void RenderUI(DSM::Renderer& renderer) override
@@ -237,7 +218,7 @@ int main()
 {
     DSM::DSMEngine engine;
     DSM::EngineParameters params{};
-    params.enableDebugLayer = true;
+    params.enableDebugLayer = false;
     engine.StartEngine(params);
     engine.SetRenderPipeline(std::make_unique<RenderPipeline>());
 

@@ -45,7 +45,7 @@ namespace DSM {
             float width = (float)fb->GetFramebufferInfo().width;
             float height = (float)fb->GetFramebufferInfo().height;
 
-            auto& cmdList = g_RenderResources.cmdList;
+            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Lit Pass Command List"));
             cmdList->Open();
 
             cmdList->BeginTimerQuery(sm_TimerQuery);

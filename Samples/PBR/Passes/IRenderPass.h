@@ -119,10 +119,6 @@ namespace DSM {
         BindingSetDesc commonBindingSetDesc;
         BindingSetHandle commonBindingSet;
 
-        CommandListHandle cmdList;
-
-        std::shared_ptr<Math::BVHNode> sceneBVHRoot;
-
         RenderResource();
     };
 

@@ -106,20 +106,20 @@ namespace DSM {
                 inputSystem->IsKeyPressed(KeyCode::RightControl);
             switch (e.GetKeyCode()) {
             case KeyCode::S:{
-                // Ctrl + S 保存场景
-                if(isCtrlPressed){
-                    // 检测当前是否打开项目
-                    if(g_ProjectFilePath.empty()){
-                        Utility::FileDialogs::FilterOption filterOption{"DSM Project Files", "*" + std::string(g_ProjectFileExtension)};
-                        auto filepath = Utility::FileDialogs::SaveFile({filterOption}, "Save Project As");
-                        if(filepath.empty()){
-                            m_Editor->GetEngine()->Close();
-                        }
-                    }
-                    else{
-                        SceneManager::SaveScene(g_ProjectFilePath);
-                    }
-                }
+                // // Ctrl + S 保存场景
+                // if(isCtrlPressed){
+                //     // 检测当前是否打开项目
+                //     if(g_ProjectFilePath.empty()){
+                //         Utility::FileDialogs::FilterOption filterOption{"DSM Project Files", "*" + std::string(g_ProjectFileExtension)};
+                //         auto filepath = Utility::FileDialogs::SaveFile({filterOption}, "Save Project As");
+                //         if(filepath.empty()){
+                //             m_Editor->GetEngine()->Close();
+                //         }
+                //     }
+                //     else{
+                //         SceneManager::SaveScene(g_ProjectFilePath);
+                //     }
+                // }
                 break;
             }
             default:

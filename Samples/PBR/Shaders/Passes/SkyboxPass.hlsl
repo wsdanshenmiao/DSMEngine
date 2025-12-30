@@ -29,8 +29,9 @@ Varyings SkyboxVS(uint vertexID : SV_VertexID)
     float2 screenPos = float2(uint2(vertexID, vertexID << 1) & 2);
     float4 posCS = float4(screenPos * 2 - 1, gSkyboxConstants.isReversedZ ? 0 : 1, 1);
     o.posCS = posCS;
-    float4 posVS = mul(posCS, gSkyboxConstants.invViewProj);
-    o.viewDir = posVS.xyz;
+    float4 posWS = mul(posCS, gSkyboxConstants.invViewProj);
+    posWS /= posWS.w;
+    o.viewDir = posWS.xyz - gSkyboxConstants.cameraPos.xyz;
 
     return o;
 }

@@ -10,6 +10,8 @@ namespace DSM {
         sm_Setting = shadowSetting;
         auto device = renderer.GetDevice();
 
+        m_CmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Shadow Pass Command List"));
+
         m_ShadowCB = device->CreateBuffer(BufferDesc()
             .SetByteSize(sizeof(ShadowConstants))
             .SetIsConstantBuffer(true)
@@ -161,19 +163,18 @@ namespace DSM {
         }
 
 
-        auto& cmdList = g_RenderResources.cmdList;
-        cmdList->Open();
+        m_CmdList->Open();
 
         // 开始计时
-        cmdList->BeginTimerQuery(sm_TimerQuery);
+        m_CmdList->BeginTimerQuery(sm_TimerQuery);
 
-        cmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
+        m_CmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
 
         for(size_t i = 0; i < dirLightCount; ++i){
             RenderDirectionalShadow(renderer, boundingSphere, i, split, tileSize);
         }
         // 转换为着色器资源以供后续 Pass 使用
-        cmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::PixelShaderResource);
+        m_CmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::PixelShaderResource);
 
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
         Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;
@@ -194,25 +195,25 @@ namespace DSM {
                 m_CameraFrustum.GetFarPlane() : float(m_CameraFrustum.GetNearPlane() + zRange * cascadeRatios.Get(i));
             shadowConstants.cascadeFarPlaneDist.Set(i, distance);
         }
-        cmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
+        m_CmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
 
         // 结束计时
-        cmdList->EndTimerQuery(sm_TimerQuery);
+        m_CmdList->EndTimerQuery(sm_TimerQuery);
 
-        cmdList->Close();
-        renderer.GetDevice()->ExecuteCommandList(cmdList);
+        m_CmdList->Close();
+        renderer.GetDevice()->ExecuteCommandList(m_CmdList);
     }
 
     void ShadowPass::RenderDirectionalShadow(Renderer &renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize)
     {
         auto device = renderer.GetDevice();
         
-        const Light& light = m_DirectionalLights[index];
+        const Light& dirLight = m_DirectionalLights[index];
         DrawShadowConstants shadowCB{};
 
         Camera lightCamera{};
         float radius = boundingSphere.GetRadius();
-        auto lightPos = -light.direction * 2 * radius;
+        auto lightPos = -dirLight.direction * 2 * radius;
         Math::Vector4 center{boundingSphere.GetCenter(), 1};
         lightCamera.SetPosition(Math::Vector3{center} + lightPos);
         lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
@@ -276,9 +277,7 @@ namespace DSM {
     }
     
     void ShadowPass::DrawModelShadow(IDevice *device, DrawShadowConstants &shadowCB, Viewport viewport)
-    {
-        auto& cmdList = g_RenderResources.cmdList;
-        
+    {   
         auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
         for(const auto& [entity, model, transform] : view.each()) {
             auto bufferSize = Math::Align(sizeof(DrawShadowConstants), size_t(c_ConstantBufferOffsetSizeAlignment));
@@ -297,7 +296,7 @@ namespace DSM {
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("Mesh CB"));
-            cmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
+            m_CmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
 
             // 减少 BindingSet 的复杂度
             auto commonBindingSet = device->CreateBindingSet(BindingSetDesc()
@@ -312,7 +311,7 @@ namespace DSM {
                     // 避免重复写入
                     if(!writtenMaterials[submesh.materialIndex]){
                         shadowCB.baseColor = model.materials[submesh.materialIndex]->baseColor;
-                        cmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(DrawShadowConstants), bufferOffset);
+                        m_CmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(DrawShadowConstants), bufferOffset);
                         writtenMaterials[submesh.materialIndex] = true;
                     }
 
@@ -335,9 +334,9 @@ namespace DSM {
                         .AddBindingSet(commonBindingSet, 0)
                         .AddBindingSet(bindingSet, 1);
 
-                    cmdList->SetGraphicsState(state);
+                    m_CmdList->SetGraphicsState(state);
 
-                    cmdList->DrawIndexed(DrawArguments()
+                    m_CmdList->DrawIndexed(DrawArguments()
                         .SetVertexCount(submesh.indexCount)
                         .SetStartIndexLocation(submesh.indexOffset)
                         .SetStartVertexLocation(submesh.vertexOffset));

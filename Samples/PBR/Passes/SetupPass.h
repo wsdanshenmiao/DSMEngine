@@ -16,39 +16,13 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            g_RenderResources.cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Global Command List"));
-
             CreateSamplers(renderer);
-
-            auto& noiseTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Noise];
-            noiseTex = device->CreateTexture(TextureDesc()
-                .SetWidth(256)
-                .SetHeight(256)
-                .SetFormat(Format::RGBA8_UNORM)
-                .SetDebugName("NoiseTex"));
-            // 获取随机值
-            std::array<uint8_t, 256 * 256 * 4> noiseData;
-            std::mt19937 gen{std::random_device{}()};
-            std::uniform_int_distribution<int> dist(0, std::numeric_limits<uint8_t>::max());
-            for (size_t i = 0; i < noiseData.size(); ++i) {
-                noiseData[i] = static_cast<uint8_t>(dist(gen));
-            }
-            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("SetupPass Noise Upload"));
-            cmdList->Open();
-            auto rowPitch = GetRowPitch(noiseTex->GetDesc().format, noiseTex->GetDesc().width);
-            cmdList->WriteTexture(noiseTex, 0, 0, noiseData.data(), rowPitch);
-            cmdList->SetTextureState(noiseTex, AllSubresources, ResourceStates::ShaderResource);
-            cmdList->Close();
-            device->ExecuteCommandList(cmdList);
+            CreateNoiseTexture(renderer);
 
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common].AddItem(
                 BindingLayoutItem::Sampler(uint32_t(SamplerSlot::AnisoWrap)));   // 默认采样器
             g_RenderResources.commonBindingSetDesc.AddItem(
                 BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap)));
-
-            // SSAO
-            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-                .AddItem(BindingLayoutItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO));
 
             const auto& viewport = renderer.GetCamera().GetViewPort();
             OnResize(renderer, (uint32_t)viewport.Width(), (uint32_t)viewport.Height());
@@ -98,6 +72,7 @@ namespace DSM {
             }
         }
         
+    private:
         void CreateSamplers(Renderer& renderer) 
         {
             auto device = renderer.GetDevice();
@@ -135,7 +110,31 @@ namespace DSM {
                 .SetReductionType(SamplerReductionType::Comparison));
         }
 
-    private:
+        void CreateNoiseTexture(Renderer& renderer)
+        {
+            IDevice* device = renderer.GetDevice();
+            auto& noiseTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Noise];
+            noiseTex = device->CreateTexture(TextureDesc()
+                .SetWidth(256)
+                .SetHeight(256)
+                .SetFormat(Format::RGBA8_UNORM)
+                .SetDebugName("NoiseTex"));
+            // 获取随机值
+            std::array<uint8_t, 256 * 256 * 4> noiseData;
+            std::mt19937 gen{std::random_device{}()};
+            std::uniform_int_distribution<int> dist(0, std::numeric_limits<uint8_t>::max());
+            for (size_t i = 0; i < noiseData.size(); ++i) {
+                noiseData[i] = static_cast<uint8_t>(dist(gen));
+            }
+            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("SetupPass Noise Upload"));
+            cmdList->Open();
+            auto rowPitch = GetRowPitch(noiseTex->GetDesc().format, noiseTex->GetDesc().width);
+            cmdList->WriteTexture(noiseTex, 0, 0, noiseData.data(), rowPitch);
+            cmdList->SetTextureState(noiseTex, AllSubresources, ResourceStates::ShaderResource);
+            cmdList->Close();
+            device->ExecuteCommandList(cmdList);
+        }
+
         void GenerateRenderConfigs(Renderer& renderer, const Model& model)
         {
             auto device = renderer.GetDevice();

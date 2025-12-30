@@ -93,12 +93,16 @@ namespace DSM {
             m_BlurPipeline = device->CreateComputePipeline(ComputePipelineDesc()
                 .SetComputeShader(blurCs)
                 .AddBindingLayout(m_BlurBindingLayout, 0));
+            
+            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
+                .AddItem(BindingLayoutItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO));
 
             OnResize(renderer, fbDesc.width, fbDesc.height);
         }
 
         void Render(Renderer& renderer, float deltaTime) override
         {
+            return;
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters()
                 .SetDebugName("SSAO Command List")
                 .SetQueueType(CommandQueueType::Compute));

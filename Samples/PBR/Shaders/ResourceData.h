@@ -36,6 +36,7 @@ struct PassConstants
 struct SkyboxConstants
 {
     float4x4 invViewProj;
+    float4 cameraPos;
     bool isReversedZ;
 };
 

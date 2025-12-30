@@ -13,6 +13,7 @@ namespace DSM {
         {
             IDevice* device = renderer.GetDevice();
 
+            // create constant buffer
             m_PassCB = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sizeof(Math::Matrix4) * 2)
                 .SetIsConstantBuffer(true)
@@ -78,7 +79,7 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            auto& cmdList = g_RenderResources.cmdList;
+            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Geometry Pass Command List"));
             cmdList->Open();
 
             // 开始计时

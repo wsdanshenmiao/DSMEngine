@@ -81,6 +81,7 @@ namespace DSM {
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
         using ShadowMatrixArray = std::array<Math::Matrix4, sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount>;
 
+        CommandListHandle m_CmdList;
 
         TextureHandle m_ShadowMap;
 
