@@ -102,7 +102,6 @@ namespace DSM {
 
         void Render(Renderer& renderer, float deltaTime) override
         {
-            return;
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters()
                 .SetDebugName("SSAO Command List")
                 .SetQueueType(CommandQueueType::Compute));
