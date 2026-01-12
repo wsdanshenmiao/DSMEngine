@@ -11,7 +11,7 @@
 #include "Passes/LightingPass.h"
 #include "Passes/ShadowPass.h"
 #include "Passes/SkyBoxPass.h"
-#include "Passes/SSAO.h"
+#include "Passes/SSAOPass.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/ScriptableObject.h"
 #include "Runtime/Core/Input/InputSystem.h"
@@ -39,7 +39,7 @@ public:
 
         m_RenderPasses.push_back(std::make_unique<SetupPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer));
-        m_RenderPasses.push_back(std::make_unique<SSAO>(renderer));
+        m_RenderPasses.push_back(std::make_unique<SSAOPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}));
         m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
         m_RenderPasses.push_back(std::make_unique<LitPass>(renderer));
@@ -51,6 +51,14 @@ public:
         camera.LookAt({0,0,0}, {0,1,0});
         m_CameraController = std::make_unique<CameraController>();
         m_CameraController->InitCamera(&camera);
+
+        auto scene = DSMEngine::sm_GlobalContext.scene;
+        auto lihuazou = scene->CreateObject("Lihuazou");
+        auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
+		lihuazouPtr->AddComponent<Model>(*ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx"));
+		auto sponza = scene->CreateObject("Sponza");
+		auto sponzaPtr = scene->GetObjectByID(sponza).lock();
+		sponzaPtr->AddComponent<Model>(*ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf"));
     }
 
 

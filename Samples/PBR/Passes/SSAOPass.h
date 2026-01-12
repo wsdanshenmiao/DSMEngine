@@ -1,6 +1,6 @@
 #pragma once
-#ifndef __SSAO_H__
-#define __SSAO_H__
+#ifndef __SSAOPASS_H__
+#define __SSAOPASS_H__
 
 #include "IRenderPass.h"
 
@@ -17,10 +17,10 @@ namespace DSM {
         bool enable = true;
     };
 
-    class SSAO : public IRenderPass 
+    class SSAOPass : public IRenderPass 
     {
     public:
-        SSAO(Renderer& renderer)
+        SSAOPass(Renderer& renderer)
             : m_SSAOTex(g_RenderResources.commonTextures[(size_t)CommonTextureSlot::SSAO]) 
         {
             auto device = renderer.GetDevice();
@@ -151,8 +151,8 @@ namespace DSM {
 
             // 降分辨率生成
             auto texDesc = TextureDesc()
-                .SetWidth(std::max(width / 2, 1u))
-                .SetHeight(std::max(height / 2, 1u))
+                .SetWidth(std::max(width, 1u))
+                .SetHeight(std::max(height, 1u))
                 .SetFormat(Format::R32_FLOAT)
                 .SetIsUAV(true)
                 .SetInitialState(ResourceStates::UnorderedAccess)
@@ -291,4 +291,4 @@ namespace DSM {
 } // namespace DSM
 
 
-#endif // !__SSAO_H__
+#endif // !__SSAOPASS_H__
