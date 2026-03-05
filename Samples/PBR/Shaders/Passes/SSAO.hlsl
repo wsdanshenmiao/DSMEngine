@@ -38,15 +38,15 @@ void SSAOCS(uint3 dispatchThreadID : SV_DispatchThreadID)
         return;
     }
 
-    float2 uv = float2(dispatchThreadID.xy) / float2(width, height);
-    float3 normal = DecodeFloat2ToFloat3(gNormalTex.Sample(gLinearBorderSampler, uv, 0));
+    float2 uv = (float2(dispatchThreadID.xy) + 0.5f) / float2(width, height);
+    float3 normal = DecodeFloat2ToFloat3(gNormalTex.Sample(gLinearBorderSampler, uv));
 
     // 获取随机向量
-    float4 noise = gNoiseTex.Sample(gPointWrapSampler, uv * 4, 0);
+    float4 noise = gNoiseTex.Sample(gPointWrapSampler, uv);
     noise.xyz = normalize(noise.xyz * 2 - 1);
 
     // 获取视图空间的坐标
-    float depth = gDepthTex.Sample(gLinearBorderSampler, uv, 0);
+    float depth = gDepthTex.Sample(gLinearBorderSampler, uv);
     float4 posCS = float4(uv * 2 - 1, depth, 1);
     posCS.y *= -1;  // 需要翻转
     float4 posVS = mul(posCS, gSSAOConstants.projInv);
@@ -56,7 +56,7 @@ void SSAOCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     int sampleCount = clamp(gSSAOConstants.sampleCount, 0, MAX_SAMPLE_COUNT);
     for(int i = 0; i < sampleCount; ++i){
         // 将均匀分布的采样偏移进行随机偏移
-        float3 sampleOffset = reflect(sSamplePoints[i] * (noise.w * 0.5 + 0.5), noise.xyz);
+        float3 sampleOffset = reflect(sSamplePoints[i] * noise.w, noise.xyz);
         // 将采样偏移朝向法线半球方向
         sampleOffset *= sign(dot(normal, sampleOffset));
         float3 samplePoint = posVS.xyz + sampleOffset * gSSAOConstants.occlusionRadius;
@@ -66,7 +66,7 @@ void SSAOCS(uint3 dispatchThreadID : SV_DispatchThreadID)
         samplePointCS /= samplePointCS.w;
         float2 sampleUV = samplePointCS.xy * 0.5 + 0.5;
         sampleUV.y = 1 - sampleUV.y;   // 纹理坐标反转
-        float sampleDepth = gDepthTex.Sample(gLinearBorderSampler, sampleUV, 0);
+        float sampleDepth = gDepthTex.Sample(gLinearBorderSampler, sampleUV);
         sampleDepth = GetLinearDepth(sampleDepth, gSSAOConstants.proj);
 
         // 沿视线方向最近的点
@@ -82,7 +82,7 @@ void SSAOCS(uint3 dispatchThreadID : SV_DispatchThreadID)
             occlusion += angle * saturate(fade);
         }
     }
-    occlusion /= gSSAOConstants.sampleCount;
+    occlusion /= sampleCount;
 
     // 提高对比度
     gSSAOOutput[dispatchThreadID.xy] = pow(1 - saturate(occlusion), gSSAOConstants.contrast);

@@ -126,7 +126,9 @@ namespace DSM {
                 cmdList->SetComputeState(ComputeState()
                     .SetPipeline(m_SSAOPipeline)
                     .AddBindingSet(m_SSAOBindingSet));
-                cmdList->Dispatch(m_SSAOTex->GetDesc().width, m_SSAOTex->GetDesc().height, 1);
+                auto groupX = Math::DivideByMultiple(m_SSAOTex->GetDesc().width, 1u);
+                auto groupY = Math::DivideByMultiple(m_SSAOTex->GetDesc().height, 1u);
+                cmdList->Dispatch(groupX, groupY, 1);
 
                 //BlurSSAO(renderer, cmdList);
             }
@@ -151,8 +153,8 @@ namespace DSM {
 
             // 降分辨率生成
             auto texDesc = TextureDesc()
-                .SetWidth(std::max(width, 1u))
-                .SetHeight(std::max(height, 1u))
+                .SetWidth(std::max(width / 2, 1u))
+                .SetHeight(std::max(height / 2, 1u))
                 .SetFormat(Format::R32_FLOAT)
                 .SetIsUAV(true)
                 .SetInitialState(ResourceStates::UnorderedAccess)

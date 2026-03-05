@@ -54,8 +54,6 @@ namespace DSM {
         }
         DSMEngine::sm_GlobalContext.scene->OnGUI();
         m_MenuBar->OnGUI();
-        return;
-
 
         // Begin dockspace window
 
