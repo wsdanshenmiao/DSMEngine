@@ -15,8 +15,8 @@
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/ScriptableObject.h"
 #include "Runtime/Core/Input/InputSystem.h"
-#include "Runtime/DSMEngine.h"
 #include "Runtime/Framework/Component/Component.h"
+#include "InstrumentorTimer.h"
 #include <imgui.h>
 #include <print>
 
@@ -73,6 +73,7 @@ public:
         m_CameraController->Update(deltaTime);
 
         for (auto& renderPass : m_RenderPasses) {
+            InstrumentationTimer timer(typeid(*renderPass).name());
             renderPass->Render(renderer, deltaTime);
         }
     }
@@ -224,6 +225,7 @@ private:
 
 int main()
 {
+    Instrumentor::BeginSession("PBR Profiling");
     DSM::DSMEngine engine;
     DSM::EngineParameters params{};
     params.enableDebugLayer = false;

@@ -6,6 +6,7 @@
 #include "Runtime/Render/Model.h"
 #include "Shaders/ResourceData.h"
 #include "ShadowPass.h"
+#include "SSAOPass.h"
 
 namespace DSM {
     // 绘制所有模型
@@ -66,6 +67,7 @@ namespace DSM {
 
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(PassConstants));
 
+            renderer.GetDevice()->QueueWaitForCommandList(cmdList->GetDesc().queueType, CommandQueueType::Compute, SSAOPass::sm_LastFrameTime);
             auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
             for(const auto& [entity, model, transform] : view.each()) {
                 for(const auto& mesh : model.meshes){
@@ -117,7 +119,7 @@ namespace DSM {
                     }
                 }
             }
-
+            
             cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();

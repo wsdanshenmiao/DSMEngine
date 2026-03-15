@@ -29,7 +29,7 @@ static float3 sSamplePoints[MAX_SAMPLE_COUNT] = {
     {0, 0, 1}
 };
 
-[numthreads(1, 1, 1)]
+[numthreads(THREAD_SIZE, THREAD_SIZE, 1)]
 void SSAOCS(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
     int width, height;

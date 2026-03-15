@@ -38,7 +38,7 @@ namespace DSM {
         // 根据不同的图形 API 初始化不同的 ImGui 后端
         DSMEngine::sm_GlobalContext.renderer->InitWindowUI(this);
 
-        // m_Widgets.push_back(std::make_unique<EditorViewport>(this));
+        m_Widgets.push_back(std::make_unique<EditorViewport>(this));
         m_Widgets.push_back(std::make_unique<EditorStyle>(this));
         m_Widgets.push_back(std::make_unique<EditorConsole>(this));
         m_Widgets.push_back(std::make_unique<EditorSceneHierarchy>(this));
@@ -48,13 +48,6 @@ namespace DSM {
 
     void EditorUI::OnGUI()
     {
-
-        for(auto& widget : m_Widgets){
-            widget->OnGUI();
-        }
-        DSMEngine::sm_GlobalContext.scene->OnGUI();
-        m_MenuBar->OnGUI();
-
         // Begin dockspace window
 
         // We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,

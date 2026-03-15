@@ -25,16 +25,6 @@ namespace DSM {
 
         void Render(Renderer& renderer, float deltaTime) override
         {
-            auto cmdList = renderer.GetDevice()->CreateCommandList(
-                CommandListParameters().SetDebugName("Final Pass Command List"));
-            
-            cmdList->Open();
-
-            cmdList->CopyTexture(renderer.GetCurrentBackBuffer(), {}, renderer.GetColorTexture(), {});
-
-            cmdList->Close();
-            renderer.GetDevice()->ExecuteCommandList(cmdList);
-
             renderer.GetDevice()->RunGarbageCollection();
         }
 

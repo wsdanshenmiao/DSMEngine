@@ -27,7 +27,7 @@ namespace DSM {
         auto& renderer = DSMEngine::sm_GlobalContext.renderer;
         Viewport cameraViewport = renderer->GetCamera().GetViewPort();
         if(cameraViewport.Width() != width || cameraViewport.Height() != height){
-            renderer->ResizeRenderTexture(width, height);
+            renderer->ResizeRenderTexture(std::max(width, 1.f), std::max(height, 1.f));
         }
 
         // 设置渲染图像
@@ -43,7 +43,6 @@ namespace DSM {
             }
             ImGui::EndDragDropTarget();
         }
-
         
         auto selectedObject = m_EditorUI->GetWidget<EditorSceneHierarchy>()->GetSelectedObject().lock();
         if(selectedObject == nullptr || m_GizmoType == -1){

@@ -13,7 +13,7 @@ namespace DSM {
         float fadeEnd = 2; // SSAO 衰减结束距离
         uint32_t contrast = 2; // SSAO 的对比度
         uint32_t blurRadius = 5; // 模糊半径
-        uint32_t blurCount = 3; // 模糊次数
+        uint32_t blurCount = 1; // 模糊次数
         bool enable = true;
     };
 
@@ -93,7 +93,7 @@ namespace DSM {
             m_BlurPipeline = device->CreateComputePipeline(ComputePipelineDesc()
                 .SetComputeShader(blurCs)
                 .AddBindingLayout(m_BlurBindingLayout, 0));
-            
+
             g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
                 .AddItem(BindingLayoutItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO));
 
@@ -109,7 +109,7 @@ namespace DSM {
             cmdList->Open();
 
             cmdList->BeginTimerQuery(sm_TimerQuery);
-            
+
             static bool preEnable = sm_Settings.enable;
             if(sm_Settings.enable){
                 SSAOConstants ssaoConstants{};
@@ -126,11 +126,11 @@ namespace DSM {
                 cmdList->SetComputeState(ComputeState()
                     .SetPipeline(m_SSAOPipeline)
                     .AddBindingSet(m_SSAOBindingSet));
-                auto groupX = Math::DivideByMultiple(m_SSAOTex->GetDesc().width, 1u);
-                auto groupY = Math::DivideByMultiple(m_SSAOTex->GetDesc().height, 1u);
+                auto groupX = Math::DivideByMultiple(m_SSAOTex->GetDesc().width, 16u);
+                auto groupY = Math::DivideByMultiple(m_SSAOTex->GetDesc().height, 16u);
                 cmdList->Dispatch(groupX, groupY, 1);
 
-                //BlurSSAO(renderer, cmdList);
+                BlurSSAO(renderer, cmdList);
             }
             else if(preEnable){
                 cmdList->ClearTextureFloat(m_SSAOTex, AllSubresources, Color{1,1,1,1});
@@ -140,7 +140,8 @@ namespace DSM {
             cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
-            renderer.GetDevice()->ExecuteCommandList(cmdList);
+            renderer.GetDevice()->QueueWaitForCommandList(CommandQueueType::Compute, CommandQueueType::Graphics, GeometryPass::sm_LastFrameTime);
+            sm_LastFrameTime = renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
@@ -264,9 +265,8 @@ namespace DSM {
 
     public:
         inline static constexpr uint32_t sm_MaxBlurRadius = 5;
-
+        inline static uint64_t sm_LastFrameTime = 0;
         inline static SSAOSettings sm_Settings{};
-
         inline static TimerQueryHandle sm_TimerQuery{};
 
     private:

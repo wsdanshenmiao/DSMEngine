@@ -3,6 +3,7 @@
 #include "Runtime/Render/Model.h"
 #include "../Shaders/ResourceData.h"
 #include "Runtime/Math/Collision/BoundingSphere.h"
+#include "../InstrumentorTimer.h"
 
 namespace DSM {
     ShadowPass::ShadowPass(Renderer &renderer, ShadowSetting shadowSetting)
@@ -277,7 +278,7 @@ namespace DSM {
     }
     
     void ShadowPass::DrawModelShadow(IDevice *device, DrawShadowConstants &shadowCB, Viewport viewport)
-    {   
+    {
         auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
         for(const auto& [entity, model, transform] : view.each()) {
             auto bufferSize = Math::Align(sizeof(DrawShadowConstants), size_t(c_ConstantBufferOffsetSizeAlignment));
@@ -300,9 +301,9 @@ namespace DSM {
 
             // 减少 BindingSet 的复杂度
             auto commonBindingSet = device->CreateBindingSet(BindingSetDesc()
-                        .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
-                        .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))),
-                        m_ShadowBindingLayouts[0]);
+                .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
+                .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))),
+                m_ShadowBindingLayouts[0]);
 
             for(const auto& mesh : model.meshes){
                 bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
