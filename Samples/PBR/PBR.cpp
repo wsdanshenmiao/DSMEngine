@@ -53,12 +53,28 @@ public:
         m_CameraController->InitCamera(&camera);
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
+        auto processModel = [scene](std::shared_ptr<GameObject> obj, const std::shared_ptr<Model>& model) {
+            for (const auto& mesh : model->meshes) {
+                auto subObj = scene->CreateObject(mesh->name);
+                auto subObjPtr = scene->GetObjectByID(subObj).lock();
+                subObjPtr->AddComponent<Mesh>(*mesh);
+                subObjPtr->AddComponent<Math::AxisAlignedBox>(mesh->boundingBox);
+                subObjPtr->AddComponent<Material>(*model->materials[mesh->materialIndex]);
+                obj->AddChild(subObjPtr);
+            }
+        };
         auto lihuazou = scene->CreateObject("Lihuazou");
         auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
-		lihuazouPtr->AddComponent<Model>(*ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx"));
+        auto lihuazouModel = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
+		lihuazouPtr->AddComponent<Model>(*lihuazouModel);
+        processModel(lihuazouPtr, lihuazouModel);
+
+		lihuazouPtr->AddComponent<Model>();
 		auto sponza = scene->CreateObject("Sponza");
 		auto sponzaPtr = scene->GetObjectByID(sponza).lock();
-		sponzaPtr->AddComponent<Model>(*ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf"));
+        auto sponzaModel = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+        sponzaPtr->AddComponent<Model>(*sponzaModel);
+        processModel(sponzaPtr, sponzaModel);
     }
 
 

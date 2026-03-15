@@ -60,278 +60,278 @@ namespace DSM::ModelLoader {
 		std::array<uint32_t, kNumTextures> texFilenameSizes{};
 	};
 
-	bool SaveModelToFile(const Model& model, const std::string& filename)
-	{
-		std::filesystem::path modelPath = filename;
-		if (!std::filesystem::exists(modelPath.parent_path())) {
-			std::filesystem::create_directories(modelPath.parent_path());
-		}
-		std::ofstream ofs(modelPath, std::ios::binary);
-		if (!ofs.is_open()) {
-			return false;
-		}
+	// bool SaveModelToFile(const Model& model, const std::string& filename)
+	// {
+	// 	std::filesystem::path modelPath = filename;
+	// 	if (!std::filesystem::exists(modelPath.parent_path())) {
+	// 		std::filesystem::create_directories(modelPath.parent_path());
+	// 	}
+	// 	std::ofstream ofs(modelPath, std::ios::binary);
+	// 	if (!ofs.is_open()) {
+	// 		return false;
+	// 	}
 
-		// Write model data
-		ModelFileHeader modelHeader{};
-		modelHeader.boundingBox = model.boundingBox;
-		modelHeader.modelNameSize = model.name.size();
-		modelHeader.meshCount = model.meshes.size();
-		modelHeader.materialCount = model.materials.size();
-		modelHeader.dataSize = modelHeader.modelNameSize + sizeof(ModelFileHeader);
+	// 	// Write model data
+	// 	ModelFileHeader modelHeader{};
+	// 	modelHeader.boundingBox = model.boundingBox;
+	// 	modelHeader.modelNameSize = model.name.size();
+	// 	modelHeader.meshCount = model.meshes.size();
+	// 	modelHeader.materialCount = model.materials.size();
+	// 	modelHeader.dataSize = modelHeader.modelNameSize + sizeof(ModelFileHeader);
 
-		struct SubmeshData{
-			std::string name{};
-			SubmeshFileHeader header{};
-			std::array<std::string, kNumTextures> texFilename{};
-		};
-		struct MeshData{
-			std::string name{};
-			MeshFileHeader header{};
-			BufferHandle meshDataBuffer{};
-			std::vector<SubmeshData> submeshDataArray{};
-		};
-		std::vector<MeshData> meshDataArray(model.meshes.size());
-		for(size_t i = 0; i < model.meshes.size(); i++) {
-			const Mesh& mesh = *model.meshes[i];
-			MeshData& meshData = meshDataArray[i];
-			meshData.name = mesh.name;
-			meshData.header.dataSize = mesh.meshData->GetDesc().byteSize + mesh.name.size();
-			meshData.header.nameSize = mesh.name.size();
-			meshData.header.positionSlot = mesh.positionStream.slot;
-			meshData.header.positionOffset = mesh.positionStream.offset;
-			meshData.header.normalSlot = mesh.normalStream.slot;
-			meshData.header.normalOffset = mesh.normalStream.offset;
-			meshData.header.texcoordSlot = mesh.uvStream.slot;
-			meshData.header.texcoordOffset = mesh.uvStream.offset;
-			meshData.header.tangentSlot = mesh.tangentStream.slot;
-			meshData.header.tangentOffset = mesh.tangentStream.offset;
-			meshData.header.indexFormat = mesh.indexBufferViews.format;
-			meshData.header.indexOffset = mesh.indexBufferViews.offset;
-			meshData.header.psoFlags = mesh.psoFlags;
-			meshData.header.submeshCount = mesh.subMeshes.size();
-			meshData.header.boundingBox = mesh.boundingBox;
-			meshData.meshDataBuffer = mesh.meshData;
+	// 	struct SubmeshData{
+	// 		std::string name{};
+	// 		SubmeshFileHeader header{};
+	// 		std::array<std::string, kNumTextures> texFilename{};
+	// 	};
+	// 	struct MeshData{
+	// 		std::string name{};
+	// 		MeshFileHeader header{};
+	// 		BufferHandle meshDataBuffer{};
+	// 		std::vector<SubmeshData> submeshDataArray{};
+	// 	};
+	// 	std::vector<MeshData> meshDataArray(model.meshes.size());
+	// 	for(size_t i = 0; i < model.meshes.size(); i++) {
+	// 		const Mesh& mesh = *model.meshes[i];
+	// 		MeshData& meshData = meshDataArray[i];
+	// 		meshData.name = mesh.name;
+	// 		meshData.header.dataSize = mesh.meshData->GetDesc().byteSize + mesh.name.size();
+	// 		meshData.header.nameSize = mesh.name.size();
+	// 		meshData.header.positionSlot = mesh.positionStream.slot;
+	// 		meshData.header.positionOffset = mesh.positionStream.offset;
+	// 		meshData.header.normalSlot = mesh.normalStream.slot;
+	// 		meshData.header.normalOffset = mesh.normalStream.offset;
+	// 		meshData.header.texcoordSlot = mesh.uvStream.slot;
+	// 		meshData.header.texcoordOffset = mesh.uvStream.offset;
+	// 		meshData.header.tangentSlot = mesh.tangentStream.slot;
+	// 		meshData.header.tangentOffset = mesh.tangentStream.offset;
+	// 		meshData.header.indexFormat = mesh.indexBufferViews.format;
+	// 		meshData.header.indexOffset = mesh.indexBufferViews.offset;
+	// 		meshData.header.psoFlags = mesh.psoFlags;
+	// 		meshData.header.submeshCount = mesh.subMeshes.size();
+	// 		meshData.header.boundingBox = mesh.boundingBox;
+	// 		meshData.meshDataBuffer = mesh.meshData;
 
-			for(const auto& submesh : mesh.subMeshes) {
-				SubmeshFileHeader submeshHeader{};
-				submeshHeader.nameSize = submesh.name.size();
-				submeshHeader.indexCount = submesh.indexCount;
-				submeshHeader.indexOffset = submesh.indexOffset;
-				submeshHeader.vertexOffset = submesh.vertexOffset;
-				submeshHeader.materialIndex = submesh.materialIndex;
-				SubmeshData submeshData{};
-				uint32_t filenameSize = 0;
-				for(int j = 0; j < kNumTextures; j++) {
-					submeshData.texFilename[j] = submesh.textures[j]->GetDesc().debugName;
-					submeshHeader.texFilenameSizes[j] = submeshData.texFilename[j].size();
-					filenameSize += submeshData.texFilename[j].size();
-				}
-				submeshData.name = submesh.name;
-				submeshData.header = submeshHeader;
-				meshData.header.dataSize += sizeof(SubmeshFileHeader) + submeshHeader.nameSize + filenameSize;
-				meshData.submeshDataArray.push_back(submeshData);
-			}
+	// 		for(const auto& submesh : mesh.subMeshes) {
+	// 			SubmeshFileHeader submeshHeader{};
+	// 			submeshHeader.nameSize = submesh.name.size();
+	// 			submeshHeader.indexCount = submesh.indexCount;
+	// 			submeshHeader.indexOffset = submesh.indexOffset;
+	// 			submeshHeader.vertexOffset = submesh.vertexOffset;
+	// 			submeshHeader.materialIndex = submesh.materialIndex;
+	// 			SubmeshData submeshData{};
+	// 			uint32_t filenameSize = 0;
+	// 			for(int j = 0; j < kNumTextures; j++) {
+	// 				submeshData.texFilename[j] = submesh.textures[j]->GetDesc().debugName;
+	// 				submeshHeader.texFilenameSizes[j] = submeshData.texFilename[j].size();
+	// 				filenameSize += submeshData.texFilename[j].size();
+	// 			}
+	// 			submeshData.name = submesh.name;
+	// 			submeshData.header = submeshHeader;
+	// 			meshData.header.dataSize += sizeof(SubmeshFileHeader) + submeshHeader.nameSize + filenameSize;
+	// 			meshData.submeshDataArray.push_back(submeshData);
+	// 		}
 
-			modelHeader.dataSize += sizeof(MeshFileHeader) + meshData.header.dataSize;
-		}
+	// 		modelHeader.dataSize += sizeof(MeshFileHeader) + meshData.header.dataSize;
+	// 	}
 
-		modelHeader.dataSize += model.materials.size() * sizeof(Material);
+	// 	modelHeader.dataSize += model.materials.size() * sizeof(Material);
 
-		// Model data layout:
-		// [
-		// 	ModelFileHeader,
-		// 	model name,
-		// 	[ 
-		// 		MeshFileHeader, 
-		// 		mesh name, 
-		//		[ SubmeshFileHeader, submesh name ] ...
-		// 		mesh data
-		// 	] ...
-		// 	[ MaterialData ] * materialCount
-		// ]
-		auto cmdList = s_GraphicsDevice->CreateCommandList(
-			CommandListParameters().SetDebugName("Model Save Command List" + model.name));
+	// 	// Model data layout:
+	// 	// [
+	// 	// 	ModelFileHeader,
+	// 	// 	model name,
+	// 	// 	[ 
+	// 	// 		MeshFileHeader, 
+	// 	// 		mesh name, 
+	// 	//		[ SubmeshFileHeader, submesh name ] ...
+	// 	// 		mesh data
+	// 	// 	] ...
+	// 	// 	[ MaterialData ] * materialCount
+	// 	// ]
+	// 	auto cmdList = s_GraphicsDevice->CreateCommandList(
+	// 		CommandListParameters().SetDebugName("Model Save Command List" + model.name));
 
-		std::vector<char> modelData(modelHeader.dataSize);
-		uint64_t offset = 0;
-		auto addData = [&modelData, &offset](const void* data, size_t size) {
-			memcpy(modelData.data() + offset, data, size);
-			offset += size;
-		};
-		addData(&modelHeader, sizeof(ModelFileHeader));
-		addData(model.name.data(), model.name.size());
+	// 	std::vector<char> modelData(modelHeader.dataSize);
+	// 	uint64_t offset = 0;
+	// 	auto addData = [&modelData, &offset](const void* data, size_t size) {
+	// 		memcpy(modelData.data() + offset, data, size);
+	// 		offset += size;
+	// 	};
+	// 	addData(&modelHeader, sizeof(ModelFileHeader));
+	// 	addData(model.name.data(), model.name.size());
 
-		// 保存每一个 Mesh 的数据
-		for(const MeshData& meshData : meshDataArray) {
-			addData(&meshData.header, sizeof(MeshFileHeader));
-			addData(meshData.name.data(), meshData.name.size());
-			for (const auto& submeshData : meshData.submeshDataArray) {
-				addData(&submeshData.header, sizeof(SubmeshFileHeader));
-				addData(submeshData.name.data(), submeshData.name.size());
-				for(int i = 0; i < kNumTextures; i++) {
-					addData(submeshData.texFilename[i].data(), submeshData.texFilename[i].size());
-				}
-			}
+	// 	// 保存每一个 Mesh 的数据
+	// 	for(const MeshData& meshData : meshDataArray) {
+	// 		addData(&meshData.header, sizeof(MeshFileHeader));
+	// 		addData(meshData.name.data(), meshData.name.size());
+	// 		for (const auto& submeshData : meshData.submeshDataArray) {
+	// 			addData(&submeshData.header, sizeof(SubmeshFileHeader));
+	// 			addData(submeshData.name.data(), submeshData.name.size());
+	// 			for(int i = 0; i < kNumTextures; i++) {
+	// 				addData(submeshData.texFilename[i].data(), submeshData.texFilename[i].size());
+	// 			}
+	// 		}
 
-			// 回读 Mesh 数据
-			auto bufferDesc = meshData.meshDataBuffer->GetDesc();
-			bufferDesc.SetCpuAccess(CpuAccessMode::Read)
-				.SetDebugName("Read back texture " + bufferDesc.debugName);
-			BufferHandle readBackMeshDataBuffer = s_GraphicsDevice->CreateBuffer(bufferDesc);
-			cmdList->Open();
-			cmdList->CopyBuffer(readBackMeshDataBuffer, 0, meshData.meshDataBuffer, 0, bufferDesc.byteSize);
-			cmdList->Close();
-			auto fenceVal = s_GraphicsDevice->ExecuteCommandList(cmdList);
-			s_GraphicsDevice->QueueWaitForCommandList(CommandQueueType::Graphics, CommandQueueType::Graphics, fenceVal);
+	// 		// 回读 Mesh 数据
+	// 		auto bufferDesc = meshData.meshDataBuffer->GetDesc();
+	// 		bufferDesc.SetCpuAccess(CpuAccessMode::Read)
+	// 			.SetDebugName("Read back texture " + bufferDesc.debugName);
+	// 		BufferHandle readBackMeshDataBuffer = s_GraphicsDevice->CreateBuffer(bufferDesc);
+	// 		cmdList->Open();
+	// 		cmdList->CopyBuffer(readBackMeshDataBuffer, 0, meshData.meshDataBuffer, 0, bufferDesc.byteSize);
+	// 		cmdList->Close();
+	// 		auto fenceVal = s_GraphicsDevice->ExecuteCommandList(cmdList);
+	// 		s_GraphicsDevice->QueueWaitForCommandList(CommandQueueType::Graphics, CommandQueueType::Graphics, fenceVal);
 
-			void* mappedData = s_GraphicsDevice->MapBuffer(readBackMeshDataBuffer, CpuAccessMode::Read);
-			addData(mappedData, bufferDesc.byteSize);
-			s_GraphicsDevice->UnmapBuffer(readBackMeshDataBuffer);
-		}
+	// 		void* mappedData = s_GraphicsDevice->MapBuffer(readBackMeshDataBuffer, CpuAccessMode::Read);
+	// 		addData(mappedData, bufferDesc.byteSize);
+	// 		s_GraphicsDevice->UnmapBuffer(readBackMeshDataBuffer);
+	// 	}
 
-		std::vector<Material> materials(model.materials.size());
-		for (size_t i = 0; i < model.materials.size(); ++i) {
-			materials[i] = *model.materials[i];
-		}
-		addData(materials.data(), materials.size() * sizeof(Material));
+	// 	std::vector<Material> materials(model.materials.size());
+	// 	for (size_t i = 0; i < model.materials.size(); ++i) {
+	// 		materials[i] = *model.materials[i];
+	// 	}
+	// 	addData(materials.data(), materials.size() * sizeof(Material));
 
-		ofs.write(modelData.data(), modelData.size());
-		ofs.close();
+	// 	ofs.write(modelData.data(), modelData.size());
+	// 	ofs.close();
 
-		return true;
-	}
+	// 	return true;
+	// }
 
-	std::shared_ptr<Model> LoadModelFromFile(const std::string& filename)
-	{
-		std::filesystem::path modelPath = filename;
-		std::ifstream ifs(modelPath, std::ios::binary);
-		if (!ifs.is_open()) {
-			return nullptr;
-		}
+	// std::shared_ptr<Model> LoadModelFromFile(const std::string& filename)
+	// {
+	// 	std::filesystem::path modelPath = filename;
+	// 	std::ifstream ifs(modelPath, std::ios::binary);
+	// 	if (!ifs.is_open()) {
+	// 		return nullptr;
+	// 	}
 
-		std::shared_ptr<Model> model = std::make_shared<Model>();
+	// 	std::shared_ptr<Model> model = std::make_shared<Model>();
 
-		auto cmdList = s_GraphicsDevice->CreateCommandList(
-			CommandListParameters().SetDebugName("Model Load Command List" + model->name));
-		cmdList->Open();
+	// 	auto cmdList = s_GraphicsDevice->CreateCommandList(
+	// 		CommandListParameters().SetDebugName("Model Load Command List" + model->name));
+	// 	cmdList->Open();
 
-		// Read model data
-		ModelFileHeader modelHeader{};
-		ifs.read(reinterpret_cast<char*>(&modelHeader), sizeof(ModelFileHeader));
-		std::vector<char> modelData(modelHeader.dataSize);
-		ifs.read(modelData.data(), modelData.size());
-		uint64_t offset = 0;
-		auto copyData = [&modelData, &offset](void* dest, size_t size) {
-			memcpy(dest, modelData.data() + offset, size);
-			offset += size;
-		};
+	// 	// Read model data
+	// 	ModelFileHeader modelHeader{};
+	// 	ifs.read(reinterpret_cast<char*>(&modelHeader), sizeof(ModelFileHeader));
+	// 	std::vector<char> modelData(modelHeader.dataSize);
+	// 	ifs.read(modelData.data(), modelData.size());
+	// 	uint64_t offset = 0;
+	// 	auto copyData = [&modelData, &offset](void* dest, size_t size) {
+	// 		memcpy(dest, modelData.data() + offset, size);
+	// 		offset += size;
+	// 	};
 		
-		auto getData = [&modelData, &offset] <typename T> () {
-			const T* dataPtr = reinterpret_cast<const T*>(modelData.data() + offset);
-			offset += sizeof(T);
-			return dataPtr;
-		};
-		model->name.resize(modelHeader.modelNameSize);
-		copyData(model->name.data(), model->name.size());
-		model->boundingBox = modelHeader.boundingBox;
+	// 	auto getData = [&modelData, &offset] <typename T> () {
+	// 		const T* dataPtr = reinterpret_cast<const T*>(modelData.data() + offset);
+	// 		offset += sizeof(T);
+	// 		return dataPtr;
+	// 	};
+	// 	model->name.resize(modelHeader.modelNameSize);
+	// 	copyData(model->name.data(), model->name.size());
+	// 	model->boundingBox = modelHeader.boundingBox;
 
-		std::map<std::string_view, TextureHandle> uniqueTextureNames{};
+	// 	std::map<std::string_view, TextureHandle> uniqueTextureNames{};
 
-		model->meshes.reserve(modelHeader.meshCount);
-		model->materials.reserve(modelHeader.materialCount);
-		// Read mesh data
-		for (size_t i = 0; i < modelHeader.meshCount; ++i) {
-			const MeshFileHeader* meshHeader = getData.operator()<MeshFileHeader>();
+	// 	model->meshes.reserve(modelHeader.meshCount);
+	// 	model->materials.reserve(modelHeader.materialCount);
+	// 	// Read mesh data
+	// 	for (size_t i = 0; i < modelHeader.meshCount; ++i) {
+	// 		const MeshFileHeader* meshHeader = getData.operator()<MeshFileHeader>();
 
-			uint64_t meshBeginOffset = offset;
+	// 		uint64_t meshBeginOffset = offset;
 			
-			std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
-			mesh->name.resize(meshHeader->nameSize);
-			copyData(mesh->name.data(), mesh->name.size());
-			mesh->boundingBox = meshHeader->boundingBox;
+	// 		std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+	// 		mesh->name.resize(meshHeader->nameSize);
+	// 		copyData(mesh->name.data(), mesh->name.size());
+	// 		mesh->boundingBox = meshHeader->boundingBox;
 
-			for (size_t j = 0; j < meshHeader->submeshCount; ++j) {
-				const SubmeshFileHeader* submeshHeader = getData.operator()<SubmeshFileHeader>();
+	// 		for (size_t j = 0; j < meshHeader->submeshCount; ++j) {
+	// 			const SubmeshFileHeader* submeshHeader = getData.operator()<SubmeshFileHeader>();
 				
-				Mesh::SubMesh submesh{};
-				submesh.indexCount = submeshHeader->indexCount;
-				submesh.indexOffset = submeshHeader->indexOffset;
-				submesh.materialIndex = submeshHeader->materialIndex;
-				submesh.vertexOffset = submesh.vertexOffset;
+	// 			Mesh::SubMesh submesh{};
+	// 			submesh.indexCount = submeshHeader->indexCount;
+	// 			submesh.indexOffset = submeshHeader->indexOffset;
+	// 			submesh.materialIndex = submeshHeader->materialIndex;
+	// 			submesh.vertexOffset = submesh.vertexOffset;
 
-				std::string submeshName{};
-				submeshName.resize(submeshHeader->nameSize);
-				copyData(submeshName.data(), submeshName.size());
-				submesh.name = submeshName;
-				submesh.textures.resize(kNumTextures);
-				for(int k = 0; k < kNumTextures; k++){
-					std::string_view textureName = std::string_view(modelData.data() + offset, submeshHeader->texFilenameSizes[k]);
-					offset += submeshHeader->texFilenameSizes[k];
+	// 			std::string submeshName{};
+	// 			submeshName.resize(submeshHeader->nameSize);
+	// 			copyData(submeshName.data(), submeshName.size());
+	// 			submesh.name = submeshName;
+	// 			submesh.textures.resize(kNumTextures);
+	// 			for(int k = 0; k < kNumTextures; k++){
+	// 				std::string_view textureName = std::string_view(modelData.data() + offset, submeshHeader->texFilenameSizes[k]);
+	// 				offset += submeshHeader->texFilenameSizes[k];
 
-					if(s_CommonTextures[k]->GetDesc().debugName == textureName){
-						submesh.textures[k] = s_CommonTextures[k];
-					}
-					else if(!uniqueTextureNames.contains(textureName)){
-						submesh.textures[k] = TextureManager::LoadTextureFromFile(std::string(textureName));
-						uniqueTextureNames[textureName] = submesh.textures[k];
-					}
-					else {
-						submesh.textures[k] = uniqueTextureNames[textureName];
-					}
-				}
-				mesh->subMeshes.push_back(std::move(submesh));
-			}
+	// 				if(s_CommonTextures[k]->GetDesc().debugName == textureName){
+	// 					submesh.textures[k] = s_CommonTextures[k];
+	// 				}
+	// 				else if(!uniqueTextureNames.contains(textureName)){
+	// 					submesh.textures[k] = TextureManager::LoadTextureFromFile(std::string(textureName));
+	// 					uniqueTextureNames[textureName] = submesh.textures[k];
+	// 				}
+	// 				else {
+	// 					submesh.textures[k] = uniqueTextureNames[textureName];
+	// 				}
+	// 			}
+	// 			mesh->subMeshes.push_back(std::move(submesh));
+	// 		}
 
-			auto bufferSize = meshBeginOffset + meshHeader->dataSize - offset;
-			mesh->meshData = s_GraphicsDevice->CreateBuffer(BufferDesc()
-				.SetByteSize(bufferSize)
-				.SetDebugName("Mesh Data " + mesh->name));
-			cmdList->WriteBuffer(mesh->meshData, modelData.data() + offset, bufferSize);
-			offset += bufferSize;
+	// 		auto bufferSize = meshBeginOffset + meshHeader->dataSize - offset;
+	// 		mesh->meshData = s_GraphicsDevice->CreateBuffer(BufferDesc()
+	// 			.SetByteSize(bufferSize)
+	// 			.SetDebugName("Mesh Data " + mesh->name));
+	// 		cmdList->WriteBuffer(mesh->meshData, modelData.data() + offset, bufferSize);
+	// 		offset += bufferSize;
 
-			mesh->psoFlags = meshHeader->psoFlags;
-			auto addVertexBufferBinding = [&mesh](auto& binding, PSOFlags flag, uint32_t slot, uint64_t offset) {
-				if(HasFlags(PSOFlags(mesh->psoFlags), flag)){
-					binding = VertexBufferBinding{mesh->meshData, slot, offset};
-				}
-			};
-			addVertexBufferBinding(mesh->positionStream, kHasPosition, meshHeader->positionSlot, meshHeader->positionOffset);
-			addVertexBufferBinding(mesh->normalStream, kHasNormal, meshHeader->normalSlot, meshHeader->normalOffset);
-			addVertexBufferBinding(mesh->uvStream, kHasUV, meshHeader->texcoordSlot, meshHeader->texcoordOffset);
-			addVertexBufferBinding(mesh->tangentStream, kHasTangent, meshHeader->tangentSlot, meshHeader->tangentOffset);
+	// 		mesh->psoFlags = meshHeader->psoFlags;
+	// 		auto addVertexBufferBinding = [&mesh](auto& binding, PSOFlags flag, uint32_t slot, uint64_t offset) {
+	// 			if(HasFlags(PSOFlags(mesh->psoFlags), flag)){
+	// 				binding = VertexBufferBinding{mesh->meshData, slot, offset};
+	// 			}
+	// 		};
+	// 		addVertexBufferBinding(mesh->positionStream, kHasPosition, meshHeader->positionSlot, meshHeader->positionOffset);
+	// 		addVertexBufferBinding(mesh->normalStream, kHasNormal, meshHeader->normalSlot, meshHeader->normalOffset);
+	// 		addVertexBufferBinding(mesh->uvStream, kHasUV, meshHeader->texcoordSlot, meshHeader->texcoordOffset);
+	// 		addVertexBufferBinding(mesh->tangentStream, kHasTangent, meshHeader->tangentSlot, meshHeader->tangentOffset);
 
-			mesh->indexBufferViews = IndexBufferBinding{mesh->meshData, meshHeader->indexFormat, meshHeader->indexOffset};
+	// 		mesh->indexBufferViews = IndexBufferBinding{mesh->meshData, meshHeader->indexFormat, meshHeader->indexOffset};
 
-			model->meshes.push_back(mesh);
-		}
+	// 		model->meshes.push_back(mesh);
+	// 	}
 
-		// Read material data
-		for(size_t i = 0; i < modelHeader.materialCount; ++i){
-			std::shared_ptr<Material> material = std::make_shared<Material>();
-			copyData(material.get(), sizeof(Material));
-			model->materials.push_back(material);
-		}
+	// 	// Read material data
+	// 	for(size_t i = 0; i < modelHeader.materialCount; ++i){
+	// 		std::shared_ptr<Material> material = std::make_shared<Material>();
+	// 		copyData(material.get(), sizeof(Material));
+	// 		model->materials.push_back(material);
+	// 	}
 
-		if (model->materials.size() > 0) {
-			auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
-			std::vector<uint8_t> materialData(matByteSize * model->materials.size());
-			for (std::size_t i = 0; i < model->materials.size(); i++) {
-				memcpy(materialData.data() + i * matByteSize, model->materials[i].get(), sizeof(Material));
-			}
-			model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc().
-				SetByteSize(materialData.size()).
-				SetIsConstantBuffer(true).
-				SetDebugName("Model MaterialData" + model->name));
-			cmdList->WriteBuffer(model->materialData, materialData.data(), materialData.size());
-		}
+	// 	if (model->materials.size() > 0) {
+	// 		auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
+	// 		std::vector<uint8_t> materialData(matByteSize * model->materials.size());
+	// 		for (std::size_t i = 0; i < model->materials.size(); i++) {
+	// 			memcpy(materialData.data() + i * matByteSize, model->materials[i].get(), sizeof(Material));
+	// 		}
+	// 		model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc().
+	// 			SetByteSize(materialData.size()).
+	// 			SetIsConstantBuffer(true).
+	// 			SetDebugName("Model MaterialData" + model->name));
+	// 		cmdList->WriteBuffer(model->materialData, materialData.data(), materialData.size());
+	// 	}
 
-		cmdList->Close();
-		s_GraphicsDevice->ExecuteCommandList(cmdList);
+	// 	cmdList->Close();
+	// 	s_GraphicsDevice->ExecuteCommandList(cmdList);
 
-		ifs.close();
+	// 	ifs.close();
 
-		return model;
-	}
+	// 	return model;
+	// }
 
 	struct MeshData
 	{
@@ -372,7 +372,7 @@ namespace DSM::ModelLoader {
     void ProcessNode(Model& model, aiNode* node, const aiScene* scene);
     void ProcessMaterial(Model& model,const std::string& filename,const aiScene* scene);
     MeshData ProcessMesh(aiMesh* mesh);
-    void CreateMesh(Mesh& mesh, const std::span<MeshData>& meshDatas);
+    std::vector<std::shared_ptr<Mesh>> CreateMesh(const std::span<MeshData>& meshDatas);
 
 	std::shared_ptr<Model> LoadModelFromGeometry(
 		const std::string& name,
@@ -391,8 +391,6 @@ namespace DSM::ModelLoader {
 		else{
 			model->materials.push_back(material);
 		}
-		auto& mesh = model->meshes.emplace_back(std::make_shared<Mesh>());
-		mesh->name = name;
 
 		MeshData meshData{};
 		meshData.indices = geometryMesh.indices32;
@@ -417,7 +415,7 @@ namespace DSM::ModelLoader {
 		}
 		meshData.boundingBox = Math::AxisAlignedBox(minVertex, maxVertex);
 
-		CreateMesh(*mesh, {&meshData, 1});
+		model->meshes = CreateMesh({&meshData, 1});
 		model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc()
 			.SetByteSize(Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment)))
 			.SetIsConstantBuffer(true)
@@ -430,16 +428,17 @@ namespace DSM::ModelLoader {
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
 
-		mesh->subMeshes[0].textures = {
-			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-			TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
-			TextureManager::GetDefaultTexture(TextureManager::kBlackTransparent2D),
-			TextureManager::GetDefaultTexture(TextureManager::kDefaultNormalTex)
-		};
-
-		model->boundingBox = mesh->boundingBox;
+		for(const auto& mesh : model->meshes){
+			mesh->textures = {
+				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+				TextureManager::GetDefaultTexture(TextureManager::kWhiteOpaque2D),
+				TextureManager::GetDefaultTexture(TextureManager::kBlackTransparent2D),
+				TextureManager::GetDefaultTexture(TextureManager::kDefaultNormalTex)
+			};
+			model->boundingBox = Math::AxisAlignedBox::Union(model->boundingBox, mesh->boundingBox);
+		}
 
 		return model;
 	}
@@ -447,24 +446,6 @@ namespace DSM::ModelLoader {
     std::shared_ptr<Model> LoadModel(const std::string &filename)
     {
 		std::shared_ptr<Model> model = nullptr;
-		// if(s_LoadedModels.contains(filename)){
-		// 	model = std::make_shared<Model>();
-		// 	auto& cachedModel = s_LoadedModels[filename];
-		// 	model->boundingBox = cachedModel->boundingBox;
-		// 	model->name = cachedModel->name;
-		// 	model->filePath = cachedModel->filePath;
-		// 	model->materialData = cachedModel->materialData;
-		// 	model->materials.resize(cachedModel->materials.size());
-		// 	model->meshes.resize(cachedModel->meshes.size());
-		// 	std::ranges::copy(cachedModel->materials, std::ranges::begin(model->materials));
-		// 	std::ranges::copy(cachedModel->meshes, std::ranges::begin(model->meshes));
-		// }
-		//else if(std::filesystem::exists(filename)) {
-		//	model = LoadModelFromFile(filename);
-		//	if(model != nullptr) {
-		//		s_LoadedModels[filename] = model;
-		//	}
-		//}
 
 		if(model == nullptr) {
 			Assimp::Importer importer;
@@ -494,16 +475,6 @@ namespace DSM::ModelLoader {
 				boundingBox = Math::AxisAlignedBox::Union(boundingBox, mesh->boundingBox);
 			}
 			model->boundingBox = boundingBox;
-
-			// SaveModelToFile(*model, filename);
-			// auto modelPtr = std::make_unique<Model>(*model);
-			// modelPtr->boundingBox = model->boundingBox;
-			// modelPtr->name = model->name;
-			// modelPtr->filePath = model->filePath;
-			// modelPtr->materialData = model->materialData;
-			// std::ranges::copy(model->materials, std::ranges::begin(modelPtr->materials));
-			// std::ranges::copy(model->meshes, std::ranges::begin(modelPtr->meshes));
-			// s_LoadedModels[filename] = std::move(modelPtr);
 		}
 		model->filePath = filename;
 
@@ -513,8 +484,6 @@ namespace DSM::ModelLoader {
 	void ProcessNode(Model& model, aiNode* node, const aiScene* scene)
 	{
 		// 导入当前节点的网格
-		auto mesh = std::make_shared<Mesh>();
-		mesh->name = node->mName.C_Str();
 		std::vector<MeshData> meshDatas{};
 		meshDatas.reserve(node->mNumMeshes);
 		for (UINT i = 0; i < node->mNumMeshes; ++i) {
@@ -522,8 +491,8 @@ namespace DSM::ModelLoader {
 		}
 
 		if (!meshDatas.empty()) {
-			CreateMesh(*mesh, meshDatas);
-			model.meshes.push_back(std::move(mesh));
+			auto meshes = CreateMesh(meshDatas);
+			model.meshes.append_range(meshes);
 		}
 
 		// 导入子节点的网格
@@ -585,27 +554,31 @@ namespace DSM::ModelLoader {
 		return meshData;
 	}
 
-	void CreateMesh(Mesh& mesh, const std::span<MeshData>& meshDatas)
+	std::vector<std::shared_ptr<Mesh>> CreateMesh(const std::span<MeshData>& meshDatas)
 	{
-		if (meshDatas.empty()) return;
+		if (meshDatas.empty()) 
+			return {};
+
+		std::string meshName = meshDatas.empty() ? "" : meshDatas[0].name;
 		
 		std::vector<Math::Vector3> positions{};
 		std::vector<Math::Vector3> normals{};
 		std::vector<Math::Vector2> uvs{};
 		std::vector<Math::Vector4> tangents{};
 		std::vector<uint32_t> indices{};
-
+;
 		UINT preIndexCount = 0;
 		UINT preVertexCount = 0;
+		std::vector<std::shared_ptr<Mesh>> meshes;
 		for (const auto& meshData : meshDatas) {
+			Mesh mesh{};
 			auto indexCount = meshData.indices.size();
-			Mesh::SubMesh submesh;
-			submesh.materialIndex = meshData.materialIndex;
-			submesh.indexCount = indexCount;
-			submesh.indexOffset = preIndexCount;
-			submesh.vertexOffset = preVertexCount;
-			submesh.name = meshData.name;
-			mesh.subMeshes.push_back(std::move(submesh));
+			mesh.materialIndex = meshData.materialIndex;
+			mesh.indexCount = indexCount;
+			mesh.indexOffset = preIndexCount;
+			mesh.vertexOffset = preVertexCount;
+			mesh.name = meshData.name;
+			mesh.boundingBox = meshData.boundingBox;
 
 			preIndexCount += indexCount;
 			preVertexCount += meshData.positions.size();
@@ -620,7 +593,7 @@ namespace DSM::ModelLoader {
 			tangents.insert(tangents.end(), meshData.tangents.begin(), meshData.tangents.end());
 			indices.insert(indices.end(), meshData.indices.begin(), meshData.indices.end());
 
-			mesh.boundingBox = Math::AxisAlignedBox::Union(mesh.boundingBox, meshData.boundingBox);
+			meshes.push_back(std::make_shared<Mesh>(std::move(mesh)));
 		}
 
 		std::uint32_t posByteSize = positions.size() * sizeof(Math::Vector3);
@@ -634,42 +607,56 @@ namespace DSM::ModelLoader {
 		cmdList->Open();
 
 		auto meshDataBufferSize = posByteSize + normalByteSize + uvsByteSize + tangentsByteSize + indexByteSize;
-		mesh.meshData = s_GraphicsDevice->CreateBuffer(
-			BufferDesc().SetByteSize(meshDataBufferSize).SetDebugName("MeshData" + mesh.name));
+		auto meshData = s_GraphicsDevice->CreateBuffer(
+			BufferDesc().SetByteSize(meshDataBufferSize).SetDebugName("MeshData" + meshName));
 		
 		std::uint32_t offset = 0;
-		cmdList->WriteBuffer(mesh.meshData, positions.data(), posByteSize, offset);
-		mesh.positionStream = VertexBufferBinding().
-			SetBuffer(mesh.meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Position);
+		cmdList->WriteBuffer(meshData, positions.data(), posByteSize, offset);
+		auto positionStream = VertexBufferBinding().
+			SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Position);
 		offset += posByteSize;
 
+		VertexBufferBinding normalStream{};
 		if (normals.size() > 0) {
-			cmdList->WriteBuffer(mesh.meshData, normals.data(), normalByteSize, offset);
-			mesh.normalStream = VertexBufferBinding().
-				SetBuffer(mesh.meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Normal);
+			cmdList->WriteBuffer(meshData, normals.data(), normalByteSize, offset);
+			normalStream = VertexBufferBinding().
+				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Normal);
 			offset += normalByteSize;
 		}
+		VertexBufferBinding uvStream{};
 		if (uvs.size() > 0) {
-			cmdList->WriteBuffer(mesh.meshData, uvs.data(), uvsByteSize, offset);
-			mesh.uvStream = VertexBufferBinding().
-				SetBuffer(mesh.meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::TexCoord);
+			cmdList->WriteBuffer(meshData, uvs.data(), uvsByteSize, offset);
+			uvStream = VertexBufferBinding().
+				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::TexCoord);
 			offset += uvsByteSize;
 		}
+		VertexBufferBinding tangentStream{};
 		if (tangents.size() > 0) {
-			cmdList->WriteBuffer(mesh.meshData, tangents.data(), tangentsByteSize, offset);
-			mesh.tangentStream = VertexBufferBinding().
-				SetBuffer(mesh.meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Tangent);
+			cmdList->WriteBuffer(meshData, tangents.data(), tangentsByteSize, offset);
+			tangentStream = VertexBufferBinding().
+				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Tangent);
 			offset += tangentsByteSize;
 		}
 
 		assert(indices.size() > 0);
-		cmdList->WriteBuffer(mesh.meshData, indices.data(), indexByteSize, offset);
-		mesh.indexBufferViews = IndexBufferBinding().
-			SetBuffer(mesh.meshData).SetOffset(offset).SetFormat(Format::R32_UINT);
+		cmdList->WriteBuffer(meshData, indices.data(), indexByteSize, offset);
+		auto indexBufferViews = IndexBufferBinding().
+			SetBuffer(meshData).SetOffset(offset).SetFormat(Format::R32_UINT);
 		offset += indexByteSize;
 
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
+
+		for(auto& mesh : meshes) {
+			mesh->meshData = meshData;
+			mesh->positionStream = positionStream;
+			mesh->normalStream = normalStream;
+			mesh->uvStream = uvStream;
+			mesh->tangentStream = tangentStream;
+			mesh->indexBufferViews = indexBufferViews;
+		}
+
+		return meshes;
 	}
 
 	void ProcessMaterial(
@@ -770,15 +757,13 @@ namespace DSM::ModelLoader {
 		for (auto& mesh : model.meshes) {
 			int psoFlags = 0;
 			std::uint32_t num = 1;
-			for (auto& submesh : mesh->subMeshes) {
-				submesh.textures = matTextures[submesh.materialIndex];
-				auto& material = scene->mMaterials[submesh.materialIndex];
-				if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {
-					mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kBothSide;
-				}
-				if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
-					mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kAlphaBlend;
-				}
+			mesh->textures = matTextures[mesh->materialIndex];
+			auto& material = scene->mMaterials[mesh->materialIndex];
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {
+				mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kBothSide;
+			}
+			if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
+				mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kAlphaBlend;
 			}
 		}
 

@@ -3,6 +3,7 @@
 #define __SCENE_H__
 
 #include <unordered_map>
+#include <unordered_set>
 #include <entt/entt.hpp>
 #include "Runtime/Utils/Utils.h"
 
@@ -49,6 +50,7 @@ namespace DSM {
 
         auto& GetAllObjects() { return m_Objects; }
         const auto& GetAllObjects() const { return m_Objects; }
+        const auto& GetRootObjects() const { return m_RootObjects; }
 
     private:
         static void CopyScene(Scene& dest, const Scene& src);
@@ -56,6 +58,7 @@ namespace DSM {
     private:
         entt::registry m_Registry{};
         std::unordered_map<ObjectID, std::shared_ptr<GameObject>> m_Objects{};
+        std::unordered_set<std::shared_ptr<GameObject>> m_RootObjects{};
     };
 } // namespace DSM
 

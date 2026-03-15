@@ -26,7 +26,6 @@ namespace DSM {
         void DrawEntityNode(std::shared_ptr<GameObject> object);
 
     private:
-        std::unique_ptr<ComponentDrawerManager> m_ComponentDrawerManager;
         std::weak_ptr<GameObject> m_SelectedObject;
     };
     

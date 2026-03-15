@@ -307,41 +307,39 @@ namespace DSM {
 
             for(const auto& mesh : model.meshes){
                 bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
-                for(const auto& submesh : mesh->subMeshes){
-                    auto bufferOffset = bufferSize * submesh.materialIndex;
-                    // 避免重复写入
-                    if(!writtenMaterials[submesh.materialIndex]){
-                        shadowCB.baseColor = model.materials[submesh.materialIndex]->baseColor;
-                        m_CmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(DrawShadowConstants), bufferOffset);
-                        writtenMaterials[submesh.materialIndex] = true;
-                    }
-
-                    size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
-                    const auto& pipeline = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
-
-                    auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                        .AddItem(BindingSetItem().ConstantBuffer(1, shadowConstantsBuffer, 
-                            BufferRange{}.SetByteOffset(bufferOffset).SetByteSize(bufferSize)))
-                        .AddItem(BindingSetItem().Texture_SRV(0, submesh.textures[kBaseColor]))
-                        , m_ShadowBindingLayouts[1]);
-
-                    GraphicsState state{};
-                    state.SetFramebuffer(m_ShadowFramebuffer)
-                        .SetPipeline(pipeline)
-                        .SetViewport(ViewportState().AddViewportAndScissorRect(viewport))
-                        .SetIndexBuffer(mesh->indexBufferViews)
-                        .AddVertexBuffer(mesh->positionStream)
-                        .AddVertexBuffer(mesh->uvStream)
-                        .AddBindingSet(commonBindingSet, 0)
-                        .AddBindingSet(bindingSet, 1);
-
-                    m_CmdList->SetGraphicsState(state);
-
-                    m_CmdList->DrawIndexed(DrawArguments()
-                        .SetVertexCount(submesh.indexCount)
-                        .SetStartIndexLocation(submesh.indexOffset)
-                        .SetStartVertexLocation(submesh.vertexOffset));
+                auto bufferOffset = bufferSize * mesh->materialIndex;
+                // 避免重复写入
+                if(!writtenMaterials[mesh->materialIndex]){
+                    shadowCB.baseColor = model.materials[mesh->materialIndex]->baseColor;
+                    m_CmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(DrawShadowConstants), bufferOffset);
+                    writtenMaterials[mesh->materialIndex] = true;
                 }
+
+                size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
+                const auto& pipeline = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
+
+                auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+                    .AddItem(BindingSetItem().ConstantBuffer(1, shadowConstantsBuffer, 
+                        BufferRange{}.SetByteOffset(bufferOffset).SetByteSize(bufferSize)))
+                    .AddItem(BindingSetItem().Texture_SRV(0, mesh->textures[kBaseColor]))
+                    , m_ShadowBindingLayouts[1]);
+
+                GraphicsState state{};
+                state.SetFramebuffer(m_ShadowFramebuffer)
+                    .SetPipeline(pipeline)
+                    .SetViewport(ViewportState().AddViewportAndScissorRect(viewport))
+                    .SetIndexBuffer(mesh->indexBufferViews)
+                    .AddVertexBuffer(mesh->positionStream)
+                    .AddVertexBuffer(mesh->uvStream)
+                    .AddBindingSet(commonBindingSet, 0)
+                    .AddBindingSet(bindingSet, 1);
+
+                m_CmdList->SetGraphicsState(state);
+
+                m_CmdList->DrawIndexed(DrawArguments()
+                    .SetVertexCount(mesh->indexCount)
+                    .SetStartIndexLocation(mesh->indexOffset)
+                    .SetStartVertexLocation(mesh->vertexOffset));
             }
         }
     }

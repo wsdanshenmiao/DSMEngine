@@ -77,46 +77,44 @@ namespace DSM {
                     auto& meshBuffer = renderConfig[mesh->psoIndex].meshCB;
                     cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
 
-                    for(const auto& submesh : mesh->subMeshes){
-                        // 绑定资源
-                        auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
-                        auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * submesh.materialIndex);
-                        BindingSetDesc bindingDesc{};
-                        bindingDesc.AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
-                            .AddItem(BindingSetItem().ConstantBuffer(1, model.materialData, matBufferRange));
-                        for(size_t i = 0; i < kNumTextures; ++i){
-                            bindingDesc.AddItem(BindingSetItem().Texture_SRV(i, submesh.textures[i]));
-                        }
-                        auto localBindingSet = device->CreateBindingSet(bindingDesc, g_RenderResources.bindingLayouts[(size_t)BindingLayoutSlot::Local]);
-
-                        GraphicsState state{};
-                        state.SetFramebuffer(fb)
-                            .SetPipeline(g_RenderResources.psoCache[renderConfig[mesh->psoIndex].pipelineDesc])
-                            .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                            .SetIndexBuffer(mesh->indexBufferViews)
-                            .AddBindingSet(localBindingSet, (uint32_t)BindingLayoutSlot::Local)
-                            .AddBindingSet(g_RenderResources.commonBindingSet, (uint32_t)BindingLayoutSlot::Common);
-                        if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
-                            state.AddVertexBuffer(mesh->positionStream);
-                        }
-                        if(HasFlags(PSOFlags(mesh->psoFlags), kHasUV)){
-                            state.AddVertexBuffer(mesh->uvStream);
-                        }
-                        if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
-                            state.AddVertexBuffer(mesh->normalStream);
-                        }
-                        if(HasFlags(PSOFlags(mesh->psoFlags), kHasTangent)){
-                            state.AddVertexBuffer(mesh->tangentStream);
-                        }
-                        
-                        cmdList->SetGraphicsState(state);
-
-                        // 绘制
-                        cmdList->DrawIndexed(DrawArguments{}
-                            .SetStartIndexLocation(submesh.indexOffset)
-                            .SetStartVertexLocation(submesh.vertexOffset)
-                            .SetVertexCount(submesh.indexCount));
+                    // 绑定资源
+                    auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
+                    auto matBufferRange = BufferRange().SetByteSize(sizeof(Material)).SetByteOffset(matByteSize * mesh->materialIndex);
+                    BindingSetDesc bindingDesc{};
+                    bindingDesc.AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
+                        .AddItem(BindingSetItem().ConstantBuffer(1, model.materialData, matBufferRange));
+                    for(size_t i = 0; i < kNumTextures; ++i){
+                        bindingDesc.AddItem(BindingSetItem().Texture_SRV(i, mesh->textures[i]));
                     }
+                    auto localBindingSet = device->CreateBindingSet(bindingDesc, g_RenderResources.bindingLayouts[(size_t)BindingLayoutSlot::Local]);
+
+                    GraphicsState state{};
+                    state.SetFramebuffer(fb)
+                        .SetPipeline(g_RenderResources.psoCache[renderConfig[mesh->psoIndex].pipelineDesc])
+                        .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
+                        .SetIndexBuffer(mesh->indexBufferViews)
+                        .AddBindingSet(localBindingSet, (uint32_t)BindingLayoutSlot::Local)
+                        .AddBindingSet(g_RenderResources.commonBindingSet, (uint32_t)BindingLayoutSlot::Common);
+                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
+                        state.AddVertexBuffer(mesh->positionStream);
+                    }
+                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasUV)){
+                        state.AddVertexBuffer(mesh->uvStream);
+                    }
+                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
+                        state.AddVertexBuffer(mesh->normalStream);
+                    }
+                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasTangent)){
+                        state.AddVertexBuffer(mesh->tangentStream);
+                    }
+                    
+                    cmdList->SetGraphicsState(state);
+
+                    // 绘制
+                    cmdList->DrawIndexed(DrawArguments{}
+                        .SetStartIndexLocation(mesh->indexOffset)
+                        .SetStartVertexLocation(mesh->vertexOffset)
+                        .SetVertexCount(mesh->indexCount));
                 }
             }
             

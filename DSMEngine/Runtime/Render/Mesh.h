@@ -37,17 +37,12 @@ namespace DSM {
 		Math::AxisAlignedBox boundingBox;
 
 		// 每次绘制需要使用的数据
-		struct SubMesh
-		{
-			std::string name;
-			uint32_t indexCount;
-			uint32_t indexOffset;
-			uint32_t vertexOffset;
-			uint16_t materialIndex;
-			// 使用的纹理在描述符堆中的偏移
-			std::vector<TextureHandle> textures;
-		};
-		std::vector<SubMesh> subMeshes;
+		uint32_t indexCount;
+		uint32_t indexOffset;
+		uint32_t vertexOffset;
+		uint16_t materialIndex;
+		// 使用的纹理在描述符堆中的偏移
+		std::vector<TextureHandle> textures;
 
 		BufferHandle meshData{};
 	};

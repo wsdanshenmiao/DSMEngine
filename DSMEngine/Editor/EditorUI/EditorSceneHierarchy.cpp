@@ -11,8 +11,6 @@ namespace DSM{
     {
         m_Title = "Hierarchy";
         m_Flags |= ImGuiWindowFlags_HorizontalScrollbar;
-
-        m_ComponentDrawerManager = std::make_unique< ComponentDrawerManager>();
     }
 
     void EditorSceneHierarchy::OnGUIEnabled()
@@ -23,12 +21,9 @@ namespace DSM{
         ImGui::EndDisabled();
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
-        scene->TraverseAllEntity([this, scene](entt::entity entity) {
-            std::shared_ptr<GameObject> object = scene->GetObjectByID(entity).lock();
-            if (object != nullptr) {
-                DrawEntityNode(object);
-            }
-        });
+        for(const auto& rootObject : scene->GetRootObjects()){
+            DrawEntityNode(rootObject);
+        }
 
         if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered()){
             m_SelectedObject.reset();
@@ -50,10 +45,13 @@ namespace DSM{
         if(object == nullptr)
             return;
 
+        const auto& children = object->GetChildren();
         ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_AllowOverlap | 
             ImGuiTreeNodeFlags_SpanFullWidth | 
-            ImGuiTreeNodeFlags_OpenOnArrow |
-            ImGuiTreeNodeFlags_Leaf;
+            ImGuiTreeNodeFlags_OpenOnArrow;
+        if(children.empty()){
+            nodeFlags |= ImGuiTreeNodeFlags_Leaf;
+        }
     
         const auto& name = object->GetComponent<TagComponent>()->tag;
 
@@ -77,6 +75,11 @@ namespace DSM{
         }
 
         if(opened){
+            if(!children.empty()){
+                for (const auto& child : children) {
+                    DrawEntityNode(child);
+                }
+            }
             ImGui::TreePop();
         }
 

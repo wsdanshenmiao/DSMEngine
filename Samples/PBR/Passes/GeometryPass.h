@@ -110,30 +110,28 @@ namespace DSM {
                         .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
                     m_Pipeline->GetDesc().bindingLayouts[0]);
 
-                    for(const auto& submesh : mesh->subMeshes){
-                        GraphicsState state = GraphicsState()
-                            .SetFramebuffer(m_Framebuffer)
-                            .SetPipeline(m_Pipeline)
-                            .SetViewport(ViewportState().
-                                AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                            .SetIndexBuffer(mesh->indexBufferViews)
-                            .AddBindingSet(bindingSet, 0);
-                        if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
-                            state.AddVertexBuffer(mesh->positionStream);
-                        }
-                        auto vertexBinding = mesh->normalStream;
-                        vertexBinding.SetSlot(1);
-                        if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
-                            state.AddVertexBuffer(vertexBinding);
-                        }
-
-                        cmdList->SetGraphicsState(state);
-                        // 绘制
-                        cmdList->DrawIndexed(DrawArguments{}
-                            .SetStartIndexLocation(submesh.indexOffset)
-                            .SetStartVertexLocation(submesh.vertexOffset)
-                            .SetVertexCount(submesh.indexCount));
+                    GraphicsState state = GraphicsState()
+                        .SetFramebuffer(m_Framebuffer)
+                        .SetPipeline(m_Pipeline)
+                        .SetViewport(ViewportState().
+                            AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
+                        .SetIndexBuffer(mesh->indexBufferViews)
+                        .AddBindingSet(bindingSet, 0);
+                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
+                        state.AddVertexBuffer(mesh->positionStream);
                     }
+                    auto vertexBinding = mesh->normalStream;
+                    vertexBinding.SetSlot(1);
+                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
+                        state.AddVertexBuffer(vertexBinding);
+                    }
+
+                    cmdList->SetGraphicsState(state);
+                    // 绘制
+                    cmdList->DrawIndexed(DrawArguments{}
+                        .SetStartIndexLocation(mesh->indexOffset)
+                        .SetStartVertexLocation(mesh->vertexOffset)
+                        .SetVertexCount(mesh->indexCount));
                 }
             }
 

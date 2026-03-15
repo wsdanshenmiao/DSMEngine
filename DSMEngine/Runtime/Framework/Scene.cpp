@@ -3,16 +3,19 @@
 #include "Runtime/Framework/Component/Component.h"
 #include "Runtime/Framework/ScriptableObject.h"
 
+#include <stack>
+
 namespace DSM {
 
     Scene::~Scene()
     {
         m_Registry.clear();
         m_Objects.clear();
+        m_RootObjects.clear();
     }
 
     Scene::Scene(const Scene &src)
-        :m_Registry(), m_Objects()
+        :m_Registry(), m_Objects(), m_RootObjects()
     {
         CopyScene(*this, src);
     }
@@ -79,14 +82,36 @@ namespace DSM {
         object->AddComponent<Math::Transform>();
         object->AddComponent<TagComponent>(name.empty() ? "GameObject" : name);
         m_Objects[id] = object;
+        m_RootObjects.insert(object);
         return id;
     }
 
     void Scene::DestroyObject(ObjectID objectID)
     {
-        if(m_Objects.contains(objectID)){
-            m_Objects.erase(objectID);
-            m_Registry.destroy(objectID);
+        if(!m_Objects.contains(objectID))
+            return;
+
+        auto obj = m_Objects[objectID];
+        if(obj->GetParent() == nullptr){
+            m_RootObjects.erase(obj);
+        }
+        // 递归销毁子对象
+        std::vector<std::shared_ptr<GameObject>> nodes{};
+        std::stack<std::shared_ptr<GameObject>> toDestroy{};
+        toDestroy.push(obj);
+        while(!std::empty(toDestroy)){
+            auto current = toDestroy.top();
+            toDestroy.pop();
+            nodes.push_back(current);
+            for(auto& child : current->GetChildren()){
+                toDestroy.push(child);
+            }
+        }
+
+        for(auto& node : nodes | std::views::reverse){
+            node->SetParent(nullptr);
+            m_Objects.erase(node->GetID());
+            m_Registry.destroy(node->GetID());
         }
     }
     
@@ -94,12 +119,24 @@ namespace DSM {
     {
         // 新场景与旧场景的对象ID映射表
         std::unordered_map<ObjectID, ObjectID> idMap;
-        src.TraverseAllEntity([&](entt::entity entity) {
+        src.TraverseAllEntity([&src, &dest, &idMap](entt::entity entity) {
             if(auto it = src.m_Objects.find(entity); it != src.m_Objects.end()){
                 auto oldGameObject = it->second;
                 auto obj = dest.GetObjectByID(dest.CreateObject()).lock();
                 obj->SetEnabled(oldGameObject->IsEnabled());
                 idMap[entity] = obj->GetID();
+            }
+        });
+        // 根据映射关系复制父子关系
+        dest.TraverseAllEntity([&src, &dest, &idMap](entt::entity entity) {
+            if(auto destIt = dest.m_Objects.find(entity); destIt != dest.m_Objects.end()){
+                auto destObj = destIt->second;
+                if(auto srcIt = src.m_Objects.find(destIt->first); srcIt != src.m_Objects.end()){
+                    auto parent = srcIt->second->GetParent();
+                    auto destParentID = parent == nullptr ? entt::null : parent->GetID();
+                    auto destParent = dest.GetObjectByID(destParentID).lock();
+                    destObj->SetParent(destParent);
+                }
             }
         });
 
