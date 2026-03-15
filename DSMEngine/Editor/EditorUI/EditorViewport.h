@@ -12,6 +12,7 @@ namespace DSM {
         EditorViewport(EditorUI* editorUI);
 
         void OnGUIEnabled() override;
+        void OnEvent(Event& event) override;
     
     private:
         int m_GizmoType = -1;

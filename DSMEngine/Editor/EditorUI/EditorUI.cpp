@@ -127,6 +127,10 @@ namespace DSM {
             }
             return false;
         });
+
+        for(auto& widget : m_Widgets){
+            widget->OnEvent(event);
+        }
     }
 
     void EditorUI::OnScenePlay()

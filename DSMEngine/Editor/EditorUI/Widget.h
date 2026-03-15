@@ -12,6 +12,7 @@ struct ImGuiWindow;
 
 namespace DSM {
     class EditorUI;
+    class Event;
 
     class Widget 
     {
@@ -22,6 +23,7 @@ namespace DSM {
         void OnGUI();
         virtual void OnGUIDefault() {}
         virtual void OnGUIEnabled() {}
+        virtual void OnEvent(Event& event) {}
 
         virtual void OnEnable() {}
         virtual void OnDisable() {}

@@ -4,6 +4,8 @@
 #include "Editor/AssertDefine.h"
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Event/KeyEvent.h"
+#include "Runtime/Core/Input/InputSystem.h"
 
 #include <imgui.h>
 #include <ImGuizmo.h>
@@ -65,5 +67,40 @@ namespace DSM {
         if(ImGuizmo::IsUsing()){
             *transfrom = Math::Transform{transMat};
         }
+    }
+    
+    void EditorViewport::OnEvent(Event &event)
+    {
+        EventDispatcher dispatcher(event);
+        dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e) {
+            if(e.IsRepeat()){
+                return false;
+            }
+            
+            switch (e.GetKeyCode()) {
+            case KeyCode::R:{
+                if(!ImGuizmo::IsUsing()){
+                    m_GizmoType = ImGuizmo::ROTATE;
+                }
+                break;
+            }
+            case KeyCode::T:{
+                if(!ImGuizmo::IsUsing()){
+                    m_GizmoType = ImGuizmo::TRANSLATE;
+                }
+                break;
+            }
+            case KeyCode::Y:{
+                if(!ImGuizmo::IsUsing()){
+                    m_GizmoType = ImGuizmo::SCALE;
+                }
+                break;
+            }
+            default:
+                break;
+            }
+
+            return false;
+        });
     }
 }
