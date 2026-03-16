@@ -84,6 +84,11 @@ namespace DSM::Math {
             return (size.Get(0) * size.Get(1) + size.Get(1) * size.Get(2) + size.Get(2) * size.Get(0)) * 2.f;
         }
 
+        bool Contains(const AxisAlignedBox& other) const noexcept
+        {
+            return Vector3::Max(m_Max, other.m_Max) == m_Max && Vector3::Min(m_Min, other.m_Min) == m_Min;
+        }
+
         static AxisAlignedBox Union(AxisAlignedBox a, const AxisAlignedBox& b) noexcept
         {
             a.m_Min = Vector3::Min(a.m_Min, b.m_Min);

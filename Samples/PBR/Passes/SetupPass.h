@@ -30,6 +30,27 @@ namespace DSM {
 
         void Render(DSM::Renderer& renderer, float deltaTime) override 
         {
+            auto scene = DSMEngine::sm_GlobalContext.scene;
+            auto objView = scene->GetAllObjectsWithComponents<Mesh, Material>();
+            g_RenderResources.objWithoutBounds.clear();
+            auto objShouldBeRemoved = g_RenderResources.sceneBVH.GetLeafNodes();
+            // 更新 BVH 中的物体包围盒，或将不再具有有效包围盒的物体加入待移除列表
+            for(const auto& [id, mesh, material] : objView.each()){
+                auto obj = scene->GetObjectByID(id).lock();
+                if(auto bounds = obj->GetComponent<Math::AxisAlignedBox>(); bounds != nullptr){
+                    g_RenderResources.sceneBVH.InsertOrUpdateNode(obj);
+                    objShouldBeRemoved.erase(obj);
+                }
+                else{
+                    g_RenderResources.objWithoutBounds.emplace_back(obj);
+                }
+            }
+
+            // 从 BVH 中移除不再具有有效包围盒的物体
+            for(const auto& [obj, node] : objShouldBeRemoved){
+                g_RenderResources.sceneBVH.RemoveNode(node);
+            }
+
             auto objs = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model>();
             std::set<const Model*> pModels{};
             bool generateNeeded = false;

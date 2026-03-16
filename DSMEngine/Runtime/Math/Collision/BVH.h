@@ -3,6 +3,7 @@
 #define __BVH_H__
 
 #include <stack>
+#include "Runtime/Math/Collision/BoundingBox.h"
 #include "Runtime/Framework/Object/GameObject.h"
 
 namespace DSM::Math {
@@ -33,7 +34,7 @@ namespace DSM::Math {
                     return node != nullptr && node->left != nullptr && node->right != nullptr ?
                         std::max(node->left->height, node->right->height) + 1 : 0;
                 };
-                int preHeight = getHeight(this);
+                int preHeight = height = getHeight(this);
                 for (BVHNode* node = parent.lock().get(); 
                     node != nullptr && preHeight != (node->height - 1); 
                     node = node->parent.lock().get()) {
@@ -180,6 +181,40 @@ namespace DSM::Math {
             }
         }
 
+        void UpdateNode(std::shared_ptr<GameObject> object)
+        {
+            if(object == nullptr)
+                return;
+
+            auto node = FindNode(object);
+            auto bounds = node == nullptr ? nullptr : object->GetComponent<AxisAlignedBox>();
+            if(bounds == nullptr)
+                return;
+
+            // 仅在包围盒不再被父节点包含时才需要调整树结构
+            if(auto checkNode = node->parent.expired() ? node : node->parent.lock();
+                checkNode != nullptr && checkNode->bounds.Contains(*bounds)){
+                node->bounds = *bounds;
+            }
+            else{
+                RemoveNode(node);
+                InsertNode(object);
+            }
+        }
+
+        void InsertOrUpdateNode(std::shared_ptr<GameObject> object)
+        {
+            if(object != nullptr) {
+                auto node = FindNode(object);
+                if(node != nullptr) {
+                    UpdateNode(object);
+                }
+                else {
+                    InsertNode(object);
+                }
+            }
+        }
+
     private:
         /// <summary>
         /// 使用表面启发式算法查找最佳的插入点
@@ -217,7 +252,7 @@ namespace DSM::Math {
                 return nullptr;
 
             // 旋转后新的根节点为当前节点的子节点
-            auto newRoot = std::move(isRight ? node->left : node->right);
+            auto newRoot = isRight ? node->left : node->right;
             if (newRoot == nullptr)
                 return nullptr;
 
@@ -274,14 +309,12 @@ namespace DSM::Math {
             int factor = node->BalanceFactor();
             std::shared_ptr<BVHNode> newRoot = node;
             // 左重
-            if (factor > 1)
-            {
+            if (factor > 1) {
                 if (node->left != nullptr && node->left->BalanceFactor() < 0)
                     node->left = RotateLeft(node->left);  // LR
                 newRoot = RotateRight(node);
             }
-            else if (factor < -1)   // 右重
-            {
+            else if (factor < -1) {   // 右重
                 if (node->right != nullptr && node->right->BalanceFactor() > 0)
                     node->right = RotateRight(node->right);    // RL
                 newRoot = RotateLeft(node);

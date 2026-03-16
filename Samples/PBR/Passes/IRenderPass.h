@@ -121,7 +121,7 @@ namespace DSM {
 
         // 场景中的物体
         Math::BVHTree sceneBVH{};
-        std::vector<std::shared_ptr<GameObject>> objectsWithoutBounds{};
+        std::vector<std::shared_ptr<GameObject>> objWithoutBounds{};
 
         RenderResource();
     };
