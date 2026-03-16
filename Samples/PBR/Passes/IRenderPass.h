@@ -119,6 +119,10 @@ namespace DSM {
         BindingSetDesc commonBindingSetDesc;
         BindingSetHandle commonBindingSet;
 
+        // 场景中的物体
+        Math::BVHTree sceneBVH{};
+        std::vector<std::shared_ptr<GameObject>> objectsWithoutBounds{};
+
         RenderResource();
     };
 
@@ -129,14 +133,32 @@ namespace DSM {
         return g_RenderResources.commonSamplers[static_cast<size_t>(slot)];
     }
 
+    inline SamplerHandle GetCommonSampler(size_t slot)
+    {
+        assert(slot < (size_t)SamplerSlot::Count);
+        return g_RenderResources.commonSamplers[slot];
+    }
+
     inline BindingLayoutHandle GetBindingLayout(BindingLayoutSlot slot)
     {
         return g_RenderResources.bindingLayouts[static_cast<size_t>(slot)];
     }
 
+    inline BindingLayoutHandle GetBindingLayout(size_t slot)
+    {
+        assert(slot < (size_t)BindingLayoutSlot::Count);
+        return g_RenderResources.bindingLayouts[slot];
+    }
+
     inline TextureHandle GetCommonTexture(CommonTextureSlot slot)
     {
         return g_RenderResources.commonTextures[static_cast<size_t>(slot)];
+    }
+
+    inline TextureHandle GetCommonTexture(size_t slot)
+    {
+        assert(slot < (size_t)CommonTextureSlot::Count);
+        return g_RenderResources.commonTextures[slot];
     }
 
 } // namespace DSM

@@ -78,6 +78,12 @@ namespace DSM::Math {
         inline Vector3 GetCenter() const noexcept { return (m_Min + m_Max) * 0.5f; }
         inline Vector3 GetSize() const noexcept { return m_Max - m_Min; }
 
+        float Area() const noexcept
+        {
+            Vector3 size = GetSize();
+            return (size.Get(0) * size.Get(1) + size.Get(1) * size.Get(2) + size.Get(2) * size.Get(0)) * 2.f;
+        }
+
         static AxisAlignedBox Union(AxisAlignedBox a, const AxisAlignedBox& b) noexcept
         {
             a.m_Min = Vector3::Min(a.m_Min, b.m_Min);
