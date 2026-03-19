@@ -120,8 +120,10 @@ namespace DSM {
         BindingSetHandle commonBindingSet;
 
         // 场景中的物体
-        Math::BVHTree sceneBVH{};
-        std::vector<std::shared_ptr<GameObject>> objWithoutBounds{};
+        std::vector<std::shared_ptr<GameObject>> objects{};
+        std::vector<std::pair<size_t, std::shared_ptr<GameObject>>> objInFrustum{};
+
+        BufferHandle meshCB{};
 
         RenderResource();
     };

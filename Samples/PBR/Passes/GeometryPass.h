@@ -24,27 +24,6 @@ namespace DSM {
             // 创建法线法线纹理等资源
             OnResize(renderer, (uint32_t)viewport.Width(), (uint32_t)viewport.Height());
 
-            // 编译 Shader
-            ShaderCompileDesc compileDesc = ShaderCompileDesc()
-                .SetType(ShaderType::Vertex)
-                .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/Passes/GeometryPass.hlsl")
-                .SetEnterPoint("GeometryPassVS");
-            ShaderByteCode geometryPassVS{compileDesc};
-            ShaderHandle vs = device->CreateShader(ShaderDesc()
-                .SetShaderType(compileDesc.type)
-                .SetEntryName(compileDesc.enterPoint)
-                .SetDebugName(compileDesc.enterPoint),
-                geometryPassVS.GetByteCode(), geometryPassVS.GetByteCodeSize());
-            compileDesc.SetType(ShaderType::Pixel)
-                .SetEnterPoint("GeometryPassPS");
-            ShaderByteCode geometryPassPS{compileDesc};
-            ShaderHandle ps = device->CreateShader(ShaderDesc()
-                .SetShaderType(compileDesc.type)
-                .SetEntryName(compileDesc.enterPoint)
-                .SetDebugName(compileDesc.enterPoint),
-                geometryPassPS.GetByteCode(), geometryPassPS.GetByteCodeSize());
-
             std::array<VertexAttributeDesc, 2> attributes = {
                 VertexAttributeDesc()
                     .SetName("POSITION")
@@ -58,19 +37,34 @@ namespace DSM {
                     .SetElementStride(sizeof(Math::Vector3))
             };
 
-            auto inputLayout = device->CreateInputLayout(attributes, vs);
+            // 编译 Shader
+            auto createShader = [device](ShaderType type, const auto& entryPoint) {
+                ShaderCompileDesc compileDesc = ShaderCompileDesc()
+                    .SetType(type)
+                    .SetMode(ShaderMode::SM_6_6)
+                    .SetFilename("Shaders/Passes/GeometryPass.hlsl")
+                    .SetEnterPoint(entryPoint);
+                ShaderByteCode geometryPass{compileDesc};
+                return device->CreateShader(ShaderDesc()
+                    .SetShaderType(compileDesc.type)
+                    .SetEntryName(compileDesc.enterPoint)
+                    .SetDebugName(compileDesc.enterPoint),
+                    geometryPass.GetByteCode(), geometryPass.GetByteCodeSize());
+            };
+
+            auto vertexShader = createShader(ShaderType::Vertex, "GeometryPassVS");
+            auto inputLayout = device->CreateInputLayout(attributes, vertexShader);
             
             auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
+                .AddItem(BindingLayoutItem().ConstantBuffer(0))
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(1)));
             m_Pipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc()
-                .SetVertexShader(vs)
-                .SetPixelShader(ps)
+                .SetVertexShader(vertexShader)
+                .SetPixelShader(createShader(ShaderType::Pixel, "GeometryPassPS"))
                 .SetInputLayout(inputLayout)
                 .SetRenderState(RenderState{})
                 .AddBindingLayout(bindingLayout, 0),
                 m_Framebuffer);
-            g_RenderResources.psoCache[m_Pipeline->GetDesc()] = m_Pipeline;
 
             sm_TimerQuery = device->CreateTimerQuery();
         }
@@ -85,10 +79,10 @@ namespace DSM {
             // 开始计时
             cmdList->BeginTimerQuery(sm_TimerQuery);
 
-            const auto& depthTex = g_RenderResources.framebuffer->GetDesc().depthAttachment;
+            auto& fbDesc = m_Framebuffer->GetDesc();
             float depth = float(!renderer.GetCamera().IsReversedZ());
-            cmdList->ClearDepthStencilTexture(depthTex.texture, AllSubresources, true, depth, false, 0);
-            cmdList->ClearTextureFloat(m_Framebuffer->GetDesc().colorAttachments[0].texture, AllSubresources, {});
+            cmdList->ClearDepthStencilTexture(fbDesc.depthAttachment.texture, AllSubresources, true, depth, false, 0);
+            cmdList->ClearTextureFloat(fbDesc.colorAttachments[0].texture, AllSubresources, {});
 
             std::array<Math::Matrix4, 2> viewProj = {
                 Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix()),
@@ -96,48 +90,42 @@ namespace DSM {
             };
             cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
 
-            // 渲染深度
-            auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
-            for(const auto& [entity, model, transform] : view.each()){
-                for(const auto& mesh : model.meshes){
-                    MeshConstants meshCB{};
-                    meshCB.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
-                    meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
-                    auto& meshBuffer = g_RenderResources.renderConfigs[mesh->psoIndex].meshCB;
-                    cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants));
-                    auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                        .AddItem(BindingSetItem().ConstantBuffer(0, meshBuffer))
-                        .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
+            for(const auto& [index, obj] : g_RenderResources.objects | std::views::enumerate){
+                auto [mesh, transform] = obj->GetComponents<Mesh, Math::Transform>();
+
+                auto meshCBSize = Math::Align(sizeof(MeshConstants), (size_t)c_ConstantBufferOffsetSizeAlignment);
+                auto bufferRange = BufferRange(index * meshCBSize, meshCBSize);
+                auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+                    .AddItem(BindingSetItem().ConstantBuffer(0, g_RenderResources.meshCB, bufferRange))
+                    .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
                     m_Pipeline->GetDesc().bindingLayouts[0]);
 
-                    GraphicsState state = GraphicsState()
-                        .SetFramebuffer(m_Framebuffer)
-                        .SetPipeline(m_Pipeline)
-                        .SetViewport(ViewportState().
-                            AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                        .SetIndexBuffer(mesh->indexBufferViews)
-                        .AddBindingSet(bindingSet, 0);
-                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
-                        state.AddVertexBuffer(mesh->positionStream);
-                    }
-                    auto vertexBinding = mesh->normalStream;
-                    vertexBinding.SetSlot(1);
-                    if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
-                        state.AddVertexBuffer(vertexBinding);
-                    }
-
-                    cmdList->SetGraphicsState(state);
-                    // 绘制
-                    cmdList->DrawIndexed(DrawArguments{}
-                        .SetStartIndexLocation(mesh->indexOffset)
-                        .SetStartVertexLocation(mesh->vertexOffset)
-                        .SetVertexCount(mesh->indexCount));
+                GraphicsState state = GraphicsState()
+                    .SetFramebuffer(m_Framebuffer)
+                    .SetPipeline(m_Pipeline)
+                    .SetViewport(ViewportState().
+                        AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
+                    .SetIndexBuffer(mesh->indexBufferViews)
+                    .AddBindingSet(bindingSet, 0);
+                if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
+                    state.AddVertexBuffer(mesh->positionStream);
                 }
+                auto vertexBinding = mesh->normalStream;
+                vertexBinding.SetSlot(1);
+                if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
+                    state.AddVertexBuffer(vertexBinding);
+                }
+
+                cmdList->SetGraphicsState(state);
+                // 绘制
+                cmdList->DrawIndexed(DrawArguments{}
+                    .SetStartIndexLocation(mesh->indexOffset)
+                    .SetStartVertexLocation(mesh->vertexOffset)
+                    .SetVertexCount(mesh->indexCount));
             }
 
-            auto normalTex = m_Framebuffer->GetDesc().colorAttachments[0].texture;
-            cmdList->SetTextureState(normalTex, AllSubresources, ResourceStates::ShaderResource);
-            cmdList->SetTextureState(depthTex.texture, AllSubresources, ResourceStates::ShaderResource);
+            cmdList->SetTextureState(fbDesc.colorAttachments[0].texture, AllSubresources, ResourceStates::ShaderResource);
+            cmdList->SetTextureState(fbDesc.depthAttachment.texture, AllSubresources, ResourceStates::ShaderResource);
 
             // 结束计时
             cmdList->EndTimerQuery(sm_TimerQuery);

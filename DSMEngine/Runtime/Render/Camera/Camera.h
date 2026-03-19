@@ -5,6 +5,7 @@
 #include <numbers>
 #include "Runtime/Graphics/GraphicsCommon.h"
 #include "Runtime/Math/Transform.h"
+#include "Runtime/Math/Collision/Frustum.h"
 
 namespace DSM {
     class Camera
@@ -31,6 +32,7 @@ namespace DSM {
         float GetFarZ() const noexcept { return m_FarZ; }
         float GetFovY() const noexcept { return m_FovY; }
         float GetAspectRatio() const noexcept { return m_Aspect; }
+        Math::Frustum GetFrustum() const noexcept { return Math::Frustum{GetProjMatrix()}; }
 
         void SetPosition(float x, float y, float z) noexcept { m_Transform.SetPosition(x, y, z); }
         void SetPosition(Math::Vector3 position) noexcept { m_Transform.SetPosition(position); }

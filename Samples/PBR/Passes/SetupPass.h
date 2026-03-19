@@ -31,25 +31,59 @@ namespace DSM {
         void Render(DSM::Renderer& renderer, float deltaTime) override 
         {
             auto scene = DSMEngine::sm_GlobalContext.scene;
-            auto objView = scene->GetAllObjectsWithComponents<Mesh, Material>();
-            g_RenderResources.objWithoutBounds.clear();
-            auto objShouldBeRemoved = g_RenderResources.sceneBVH.GetLeafNodes();
+            auto device = renderer.GetDevice();
+
+
+            auto cmdList = device->CreateCommandList(CommandListParameters{}.SetDebugName("SetupPass CmdList"));
+            cmdList->Open();
+
+            g_RenderResources.objInFrustum.clear();
+            g_RenderResources.objects.clear();
+
+            auto cameraFrustum = renderer.GetCamera().GetFrustum();
+            Math::Matrix4 invView = Math::Matrix4::Inverse(renderer.GetCamera().GetViewMatrix());
+            auto objView = scene->GetAllObjectsWithComponents<Mesh, Material, Math::Transform>();
+
+            // 为所有的物体生成 MeshCB
+            auto meshCBSize = Math::Align(sizeof(MeshConstants), (size_t)c_ConstantBufferOffsetSizeAlignment);
+            g_RenderResources.meshCB = device->CreateBuffer(BufferDesc()
+                .SetByteSize(meshCBSize * objView.size_hint())
+                .SetIsConstantBuffer(true)
+                .SetDebugName("MeshCB"));
+
             // 更新 BVH 中的物体包围盒，或将不再具有有效包围盒的物体加入待移除列表
-            for(const auto& [id, mesh, material] : objView.each()){
+            for(const auto& [id, mesh, material, transform] : objView.each()){
                 auto obj = scene->GetObjectByID(id).lock();
-                if(auto bounds = obj->GetComponent<Math::AxisAlignedBox>(); bounds != nullptr){
-                    g_RenderResources.sceneBVH.InsertOrUpdateNode(obj);
-                    objShouldBeRemoved.erase(obj);
+                
+                // 将世界矩阵写入缓冲区
+                MeshConstants meshCB{};
+                meshCB.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
+                meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
+                auto objIndex = g_RenderResources.objects.size();
+                cmdList->WriteBuffer(g_RenderResources.meshCB, &meshCB, sizeof(MeshConstants), objIndex * meshCBSize);
+
+                if(auto boundingBox = obj->GetComponent<Math::AxisAlignedBox>(); boundingBox != nullptr){
+                    // 将视锥体变换到局部空间
+                    auto invWorld = Math::Matrix4::Inverse(transform.GetLocalToWorld());
+                    auto frustum = cameraFrustum * (invView * invWorld);
+                    // 判断是否在视锥体内
+                    if(frustum.Intersects(*boundingBox)){
+                        g_RenderResources.objInFrustum.emplace_back(objIndex, obj);
+                    }
                 }
                 else{
-                    g_RenderResources.objWithoutBounds.emplace_back(obj);
+                    g_RenderResources.objInFrustum.emplace_back(objIndex, obj);
                 }
+                
+                g_RenderResources.objects.emplace_back(obj);
             }
 
-            // 从 BVH 中移除不再具有有效包围盒的物体
-            for(const auto& [obj, node] : objShouldBeRemoved){
-                g_RenderResources.sceneBVH.RemoveNode(node);
-            }
+            cmdList->Close();
+            device->ExecuteCommandList(cmdList);
+
+
+
+            
 
             auto objs = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model>();
             std::set<const Model*> pModels{};

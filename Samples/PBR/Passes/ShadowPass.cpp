@@ -163,7 +163,6 @@ namespace DSM {
             m_CameraFrustum.SetFarPlane(cameraLen);
         }
 
-
         m_CmdList->Open();
 
         // 开始计时

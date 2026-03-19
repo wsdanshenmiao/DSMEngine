@@ -66,14 +66,14 @@ public:
         auto lihuazou = scene->CreateObject("Lihuazou");
         auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
         auto lihuazouModel = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
-		// lihuazouPtr->AddComponent<Model>(*lihuazouModel);
+		lihuazouPtr->AddComponent<Model>(*lihuazouModel);
         processModel(lihuazouPtr, lihuazouModel);
 
 		lihuazouPtr->AddComponent<Model>();
 		auto sponza = scene->CreateObject("Sponza");
 		auto sponzaPtr = scene->GetObjectByID(sponza).lock();
         auto sponzaModel = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        // sponzaPtr->AddComponent<Model>(*sponzaModel);
+        sponzaPtr->AddComponent<Model>(*sponzaModel);
         processModel(sponzaPtr, sponzaModel);
     }
 
