@@ -2,16 +2,6 @@
 #include "../Light.hlsli"
 #include "../Common.hlsli"
 
-struct MaterialConstants
-{
-    float4 baseColor;
-    float4 emissiveColor;
-    float normalTexScale;
-    float metallicFactor;
-    float roughnessFactor;
-    float pad1;
-};
-
 ConstantBuffer<MeshConstants> gMeshConstants : register(b0);
 ConstantBuffer<MaterialConstants> gMaterialConstants : register(b1);
 ConstantBuffer<PassConstants> gPassConstants : register(b2);

@@ -21,6 +21,15 @@ struct MeshConstants
     float4x4 worldIT;
 };
 
+struct MaterialConstants
+{
+    float4 baseColor;
+    float4 emissiveColor;
+    float normalTexScale;
+    float metallicFactor;
+    float roughnessFactor;
+};
+
 struct PassConstants
 {
     float4x4 view;

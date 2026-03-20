@@ -44,12 +44,32 @@ namespace DSM {
             Math::Matrix4 invView = Math::Matrix4::Inverse(renderer.GetCamera().GetViewMatrix());
             auto objView = scene->GetAllObjectsWithComponents<Mesh, Material, Math::Transform>();
 
-            // 为所有的物体生成 MeshCB
-            auto meshCBSize = Math::Align(sizeof(MeshConstants), (size_t)c_ConstantBufferOffsetSizeAlignment);
-            g_RenderResources.meshCB = device->CreateBuffer(BufferDesc()
-                .SetByteSize(meshCBSize * objView.size_hint())
-                .SetIsConstantBuffer(true)
-                .SetDebugName("MeshCB"));
+            // 为所有的物体生成 MeshBuffer 和 MaterialBuffer
+            auto meshBufferSize = sizeof(MeshConstants) * objView.size_hint();
+            auto& meshBuffer = g_RenderResources.meshBuffer;
+            if(meshBuffer == nullptr || meshBufferSize > meshBuffer->GetDesc().byteSize){
+                meshBuffer = device->CreateBuffer(BufferDesc()
+                    .SetByteSize(meshBufferSize)
+                    .SetStructStride(sizeof(MeshConstants))
+                    .SetDebugName("MeshBuffer"));
+            }
+            auto materialBufferSize = sizeof(Material) * objView.size_hint();
+            auto& materialBuffer = g_RenderResources.materialBuffer;
+            if(materialBuffer == nullptr || materialBufferSize > materialBuffer->GetDesc().byteSize){
+                materialBuffer = device->CreateBuffer(BufferDesc()
+                    .SetByteSize(materialBufferSize)
+                    .SetStructStride(sizeof(Material))
+                    .SetDebugName("MaterialBuffer"));
+            }
+
+            // 创建纹理 Bindless 描述符布局和描述符表
+            auto bindlessDesc = BindlessLayoutDesc()
+                .SetVisibility(ShaderType::Pixel)
+                .SetFirstSlot(0)
+                .AddRegisterSpace(BindingLayoutItem::Texture_SRV(1));
+            g_RenderResources.textureBindlessLayout = device->CreateBindlessLayout(bindlessDesc);
+            g_RenderResources.textureBindlessTable = device->CreateDescriptorTable(g_RenderResources.textureBindlessLayout);
+            device->ResizeDescriptorTable(g_RenderResources.textureBindlessTable, objView.size_hint() * MaterialTex::kNumTextures);
 
             // 更新 BVH 中的物体包围盒，或将不再具有有效包围盒的物体加入待移除列表
             for(const auto& [id, mesh, material, transform] : objView.each()){
@@ -60,7 +80,8 @@ namespace DSM {
                 meshCB.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
                 meshCB.worldIT = Math::Matrix4::InverseTranspose(meshCB.world);
                 auto objIndex = g_RenderResources.objects.size();
-                cmdList->WriteBuffer(g_RenderResources.meshCB, &meshCB, sizeof(MeshConstants), objIndex * meshCBSize);
+                cmdList->WriteBuffer(meshBuffer, &meshCB, sizeof(MeshConstants), objIndex * sizeof(MeshConstants));
+                cmdList->WriteBuffer(materialBuffer, &material, sizeof(Material), objIndex * sizeof(Material));
 
                 if(auto boundingBox = obj->GetComponent<Math::AxisAlignedBox>(); boundingBox != nullptr){
                     // 将视锥体变换到局部空间
@@ -73,6 +94,21 @@ namespace DSM {
                 }
                 else{
                     g_RenderResources.objInFrustum.emplace_back(objIndex, obj);
+                }
+
+                // 将网格的纹理添加到资源列表中
+                for(const auto& tex : mesh.textures){
+                    auto& textures = g_RenderResources.textures;
+                    if(!textures.contains(tex)){
+                        auto& bindlessTable = g_RenderResources.textureBindlessTable;
+                        if(bindlessTable->GetCapacity() <= textures.size()){
+                            auto newCapacity = std::max(size_t(bindlessTable->GetCapacity() * 1.2f), textures.size() + 1);
+                            device->ResizeDescriptorTable(bindlessTable, newCapacity);
+                        }
+                        device->WriteDescriptorTable(g_RenderResources.textureBindlessTable, 
+                            BindingSetItem::Texture_SRV(textures.size(), tex));
+                        textures.insert(tex);
+                    }
                 }
                 
                 g_RenderResources.objects.emplace_back(obj);

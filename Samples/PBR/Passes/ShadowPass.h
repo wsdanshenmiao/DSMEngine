@@ -49,13 +49,6 @@ namespace DSM {
 
     class ShadowPass : public IRenderPass
     {
-    private:
-        struct DrawShadowConstants
-        {
-            Math::Matrix4 viewProj;
-            Math::Vector4 baseColor;
-        };
-
     public:
         ShadowPass(Renderer& renderer, ShadowSetting shadowSetting);
 
@@ -66,7 +59,7 @@ namespace DSM {
     private:
         void RenderDirectionalShadow(Renderer& renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize);
 
-        void DrawModelShadow(IDevice* device, DrawShadowConstants& shadowCB, Viewport viewport);
+        void DrawModelShadow(IDevice* device, const Math::Matrix4& viewProj, Viewport viewport, size_t cascadeIndex);
 
         Viewport GetTileViewport(size_t index, size_t split, size_t tileSize) const;
 
@@ -78,20 +71,30 @@ namespace DSM {
         inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
+        enum ShaderSlot
+        {
+            ShadowVS,
+            ShadowVSClip,
+            ShadowPS,
+            ShadowPSClip,
+            Count
+        };
+
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
         using ShadowMatrixArray = std::array<Math::Matrix4, sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount>;
 
         CommandListHandle m_CmdList;
 
-        TextureHandle m_ShadowMap;
+        TextureHandle m_ShadowMap{};
+        BufferHandle m_ShadowCB{};
+        BufferHandle m_PassCB{};
 
-        BufferHandle m_ShadowCB;
         ShadowMatrixArray m_DirectionalShadowMatrices{};
 
         FramebufferHandle m_ShadowFramebuffer;
 
         std::vector<GraphicsPipelineHandle> m_ShadowPipelineDescs;
-        std::array<BindingLayoutHandle, 2> m_ShadowBindingLayouts;
+        BindingLayoutHandle m_ShadowBindingLayout;
 
         std::vector<Light> m_DirectionalLights{};
 

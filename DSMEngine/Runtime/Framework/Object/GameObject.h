@@ -24,14 +24,10 @@ namespace DSM {
         template <typename T>
         bool HasComponent() const noexcept { return m_World->m_Registry.all_of<T>(m_Handle); }
 
-        template <typename T>
-        T* GetComponent() noexcept { return m_World->m_Registry.try_get<T>(m_Handle); }
         template <typename... Args>
-        auto GetComponents() noexcept { return m_World->m_Registry.try_get<Args...>(m_Handle); }
-        template <typename T>
-        const T* GetComponent() const noexcept { return m_World->m_Registry.try_get<T>(m_Handle); }
+        auto GetComponent() noexcept { return m_World->m_Registry.try_get<Args...>(m_Handle); }
         template <typename... Args>
-        const auto GetComponents() const noexcept { return m_World->m_Registry.try_get<Args...>(m_Handle); }
+        const auto GetComponent() const noexcept { return m_World->m_Registry.try_get<Args...>(m_Handle); }
 
         template <typename T, typename... Args>
         T* AddComponent(Args&&... args) noexcept 

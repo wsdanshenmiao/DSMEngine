@@ -13,20 +13,25 @@ struct Varyings
     float2 uv : TEXCOORD0;
 };
 
-ConstantBuffer<MeshConstants> gMeshConstants : register(b0);
-cbuffer gShadowPassConstants : register(b1)
+StructuredBuffer<MeshConstants> gMeshBuffer : register(t0);
+StructuredBuffer<MaterialConstants> gMaterialBuffer : register(t1);
+
+cbuffer gShadowPassConstants : register(b0)
 {
     float4x4 gViewProj;
-    float4 gMatBaseColor;
 };
 
-Texture2D<float4> gBaseColorTex : register(t0);
+cbuffer gObjectConstants : register(b1)
+{
+    int gObjectIndex;
+}
 
 Varyings ShadowPassVS(Attributes input)
 {
     Varyings output;
 
-    float4 posWS = mul(float4(input.posOS, 1.0), gMeshConstants.world);
+    MeshConstants meshConst = gMeshBuffer[gObjectIndex];
+    float4 posWS = mul(float4(input.posOS, 1.0), meshConst.world);
     output.posCS = mul(posWS, gViewProj);
     output.uv = input.uv;
 
@@ -36,8 +41,9 @@ Varyings ShadowPassVS(Attributes input)
 
 void ShadowPassPS(Varyings input)
 {
-    float4 baseCol = gBaseColorTex.Sample(gAnisoWrapSampler, input.uv);
-    baseCol *= gMatBaseColor;
+    MaterialConstants matConst = gMaterialBuffer[gObjectIndex];
+    // float4 baseCol = gBaseColorTex.Sample(gAnisoWrapSampler, input.uv);
+    float4 baseCol = matConst.baseColor;
 
 #if defined(SHADOWS_CLIP)
     clip(baseCol.a - 0.1);

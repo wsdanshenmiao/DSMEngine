@@ -13,7 +13,12 @@ struct Varyings
     float3 normal : NORMAL;
 };
 
-ConstantBuffer<MeshConstants> gMeshConstants : register(b0);
+StructuredBuffer<MeshConstants> gMeshBuffer : register(t0);
+
+cbuffer gObjectConstants : register(b0)
+{
+    int gObjectIndex;
+}
 cbuffer gPassConstants : register(b1)
 {
     float4x4 gView;
@@ -24,8 +29,9 @@ cbuffer gPassConstants : register(b1)
 Varyings GeometryPassVS(Attributes input)
 {
     Varyings output;
-    float4 posWS = mul(float4(input.posOS, 1.0), gMeshConstants.world);
-    float3 normal = mul(normalize(input.normal), (float3x3)gMeshConstants.worldIT);
+    MeshConstants meshCB = gMeshBuffer[gObjectIndex];
+    float4 posWS = mul(float4(input.posOS, 1.0), meshCB.world);
+    float3 normal = mul(normalize(input.normal), (float3x3)meshCB.worldIT);
     normal = mul(normal, (float3x3)gView);
     float4x4 viewProj = mul(gView, gProj);
     output.posCS = mul(posWS, viewProj);

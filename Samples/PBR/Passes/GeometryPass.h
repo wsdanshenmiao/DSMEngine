@@ -56,8 +56,10 @@ namespace DSM {
             auto inputLayout = device->CreateInputLayout(attributes, vertexShader);
             
             auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
-                .AddItem(BindingLayoutItem().ConstantBuffer(0))
-                .AddItem(BindingLayoutItem().VolatileConstantBuffer(1)));
+                .AddItem(BindingLayoutItem().PushConstants(0, sizeof(int))) // obj index
+                .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
+                .AddItem(BindingLayoutItem().StructuredBuffer_SRV(0)));
+                
             m_Pipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc()
                 .SetVertexShader(vertexShader)
                 .SetPixelShader(createShader(ShaderType::Pixel, "GeometryPassPS"))
@@ -90,15 +92,13 @@ namespace DSM {
             };
             cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
 
-            for(const auto& [index, obj] : g_RenderResources.objects | std::views::enumerate){
-                auto [mesh, transform] = obj->GetComponents<Mesh, Math::Transform>();
+            auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+                .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB))
+                .AddItem(BindingSetItem().StructuredBuffer_SRV(0, g_RenderResources.meshBuffer)),
+                m_Pipeline->GetDesc().bindingLayouts[0]);
 
-                auto meshCBSize = Math::Align(sizeof(MeshConstants), (size_t)c_ConstantBufferOffsetSizeAlignment);
-                auto bufferRange = BufferRange(index * meshCBSize, meshCBSize);
-                auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                    .AddItem(BindingSetItem().ConstantBuffer(0, g_RenderResources.meshCB, bufferRange))
-                    .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB)), 
-                    m_Pipeline->GetDesc().bindingLayouts[0]);
+            for(const auto& [index, obj] : g_RenderResources.objInFrustum){
+                auto mesh = obj->GetComponent<Mesh>();
 
                 GraphicsState state = GraphicsState()
                     .SetFramebuffer(m_Framebuffer)
@@ -117,6 +117,10 @@ namespace DSM {
                 }
 
                 cmdList->SetGraphicsState(state);
+
+                int objIndex = index;
+                cmdList->SetPushConstants(&objIndex, sizeof(int));
+
                 // 绘制
                 cmdList->DrawIndexed(DrawArguments{}
                     .SetStartIndexLocation(mesh->indexOffset)

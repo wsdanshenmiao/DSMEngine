@@ -18,6 +18,13 @@ namespace DSM {
             .SetIsConstantBuffer(true)
             .SetDebugName("Shadow Constants Buffer"));
 
+        auto passCBSize = Math::Align(sizeof(Math::Matrix4), (size_t)c_ConstantBufferOffsetSizeAlignment);
+        m_PassCB = device->CreateBuffer(BufferDesc()
+            .SetByteSize(passCBSize * sm_Setting.sm_MaxCascadeCount)
+            .SetIsConstantBuffer(true)
+            .SetIsVolatile(true)
+            .SetDebugName("Shadow Pass PassConstants Buffer"));
+
         m_ShadowMap = renderer.GetDevice()->CreateTexture(TextureDesc()
             .SetWidth(shadowSetting.directionalSetting.size)
             .SetHeight(shadowSetting.directionalSetting.size)
@@ -29,43 +36,34 @@ namespace DSM {
         m_ShadowFramebuffer = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(m_ShadowMap));
 
         // 编译 ShadowPass 的着色器
-        auto shadowVSDesc = ShaderCompileDesc()
-            .SetType(ShaderType::Vertex)
-            .SetMode(ShaderMode::SM_6_6)
-            .SetEnterPoint("ShadowPassVS")
-            .SetFilename("Shaders/Passes/ShadowPass.hlsl");
-        ShaderByteCode shadowVS{shadowVSDesc};
-        shadowVSDesc.AddDefine("SHADOWS_CLIP", "1");
-        ShaderByteCode shadowVSClip{shadowVSDesc};
-        auto shadowPSDesc = ShaderCompileDesc()
-            .SetType(ShaderType::Pixel)
-            .SetMode(ShaderMode::SM_6_6)
-            .SetEnterPoint("ShadowPassPS")
-            .SetFilename("Shaders/Passes/ShadowPass.hlsl");
-        ShaderByteCode shadowPS{shadowPSDesc};
-        shadowPSDesc.AddDefine("SHADOWS_CLIP", "1");
-        ShaderByteCode shadowPSClip{shadowPSDesc};
-
-        auto createShader = [&](const ShaderByteCode& byteCode, const auto& name) {
+        auto createShader = [&](ShaderType type, const std::string& entryPoint, const auto& define) {
+            auto desc = ShaderCompileDesc()
+                .SetType(type)
+                .SetMode(ShaderMode::SM_6_6)
+                .SetEnterPoint(entryPoint)
+                .SetFilename("Shaders/Passes/ShadowPass.hlsl");
+            if(!std::empty(define)){
+                desc.AddDefine(define, "1");
+            }
+            ShaderByteCode byteCode{desc};
             return device->CreateShader(ShaderDesc()
-                .SetEntryName(byteCode.GetDesc().enterPoint)
-                .SetShaderType(byteCode.GetDesc().type)
-                .SetDebugName(name), 
+                .SetEntryName(desc.enterPoint)
+                .SetShaderType(desc.type)
+                .SetDebugName(desc.enterPoint), 
                 byteCode.GetByteCode(), byteCode.GetByteCodeSize());
         };
-        auto& shaders = g_RenderResources.shaders;            
-        shaders[size_t(ShaderSlot::ShadowVS)] = createShader(shadowVS, "ShadowPassVS");
-        shaders[size_t(ShaderSlot::ShadowVSClip)] = createShader(shadowVSClip, "ShadowPassVSClip");
-        shaders[size_t(ShaderSlot::ShadowPS)] = createShader(shadowPS, "ShadowPassPS");
-        shaders[size_t(ShaderSlot::ShadowPSClip)] = createShader(shadowPSClip, "ShadowPassPSClip");
+        std::array<ShaderHandle, ShaderSlot::Count> shaders{};
+        shaders[ShaderSlot::ShadowVS] = createShader(ShaderType::Vertex, "ShadowPassVS", std::string{});
+        shaders[ShaderSlot::ShadowVSClip] = createShader(ShaderType::Vertex, "ShadowPassVS", "SHADOWS_CLIP");
+        shaders[ShaderSlot::ShadowPS] = createShader(ShaderType::Pixel, "ShadowPassPS", std::string{});
+        shaders[ShaderSlot::ShadowPSClip] = createShader(ShaderType::Pixel, "ShadowPassPS", "SHADOWS_CLIP");
 
-        m_ShadowBindingLayouts[0] = device->CreateBindingLayout(BindingLayoutDesc()
+        m_ShadowBindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
             .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
+            .AddItem(BindingLayoutItem().PushConstants(1, sizeof(int)))
             .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::AnisoWrap)))
-        );
-        m_ShadowBindingLayouts[1] = device->CreateBindingLayout(BindingLayoutDesc()
-            .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
-            .AddItem(BindingLayoutItem().Texture_SRV(0))
+            .AddItem(BindingLayoutItem().StructuredBuffer_SRV(0))
+            .AddItem(BindingLayoutItem().StructuredBuffer_SRV(1))
         );
 
         std::array<VertexAttributeDesc, 2> vertexDescs = {
@@ -88,8 +86,7 @@ namespace DSM {
                 .SetPixelShader(psHandle)
                 .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                 .SetRenderState(renderState)
-                .AddBindingLayout(m_ShadowBindingLayouts[0], 0)
-                .AddBindingLayout(m_ShadowBindingLayouts[1], 1);
+                .AddBindingLayout(m_ShadowBindingLayout, 0);
             auto pso = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
             g_RenderResources.psoCache[pipelineDesc] = pso;
             return pso;
@@ -209,7 +206,6 @@ namespace DSM {
         auto device = renderer.GetDevice();
         
         const Light& dirLight = m_DirectionalLights[index];
-        DrawShadowConstants shadowCB{};
 
         Camera lightCamera{};
         float radius = boundingSphere.GetRadius();
@@ -225,17 +221,17 @@ namespace DSM {
         size_t tileOffset = index * cascadeCount;
         Math::Vector3 ratios = sm_Setting.directionalSetting.cascadeRatio;
 
-        for(size_t i = 0; i < cascadeCount; ++i){
+        for(size_t cascadeIndex = 0; cascadeIndex < cascadeCount; ++cascadeIndex){
             // 计算级联的视锥体
             auto cascadeFrustum = m_CameraFrustum;
             float zRange = cascadeFrustum.GetFarPlane() - cascadeFrustum.GetNearPlane();
             float nearPlane = cascadeFrustum.GetNearPlane();
-            if(i != 0){
-                nearPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(i - 1);
+            if(cascadeIndex != 0){
+                nearPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(cascadeIndex - 1);
             }
             float farPlane = cascadeFrustum.GetFarPlane();
-            if(i != cascadeCount - 1){
-                farPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(i);
+            if(cascadeIndex != cascadeCount - 1){
+                farPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(cascadeIndex);
             }
 
             cascadeFrustum.SetNearPlane(nearPlane);
@@ -257,7 +253,7 @@ namespace DSM {
             lightCameraMax = Math::Vector3::Floor(lightCameraMax);
             lightCameraMax *= worldUnitsPerTexelVec;
 
-            size_t tileIndex = tileOffset + i;
+            size_t tileIndex = tileOffset + cascadeIndex;
 
             // 获取正交投影
             float l = std::max(center.Get(0) - radius, lightCameraMin.Get(0));
@@ -268,78 +264,52 @@ namespace DSM {
             float f = std::min(center.Get(2) + radius, lightCameraMax.Get(2));
             Math::Matrix4 proj = Math::GetOrthographicMatrix(l, r, b, t, n, f);
 
-            shadowCB.viewProj = Math::Matrix4::Transpose(lightView * proj);
+            auto viewProj = Math::Matrix4::Transpose(lightView * proj);
             Math::Vector2 offset{float(tileIndex % split), float(tileIndex / split)};
-            m_DirectionalShadowMatrices[tileIndex] = ConvertToAtlasMatrix(shadowCB.viewProj, offset, 1.f / split);
+            m_DirectionalShadowMatrices[tileIndex] = ConvertToAtlasMatrix(viewProj, offset, 1.f / split);
 
-            DrawModelShadow(device, shadowCB, GetTileViewport(tileIndex, split, tileSize));
+            DrawModelShadow(device, viewProj, GetTileViewport(tileIndex, split, tileSize), cascadeIndex);
         }
     }
     
-    void ShadowPass::DrawModelShadow(IDevice *device, DrawShadowConstants &shadowCB, Viewport viewport)
+    void ShadowPass::DrawModelShadow(IDevice *device, const Math::Matrix4 &viewProj, Viewport viewport, size_t cascadeIndex)
     {
-        auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
-        for(const auto& [entity, model, transform] : view.each()) {
-            auto bufferSize = Math::Align(sizeof(DrawShadowConstants), size_t(c_ConstantBufferOffsetSizeAlignment));
-            BufferHandle shadowConstantsBuffer = device->CreateBuffer(BufferDesc()
-                .SetByteSize(bufferSize * model.materials.size())
-                .SetIsConstantBuffer(true)
-                .SetIsVolatile(true)
-                .SetDebugName("Shadow Pass CB"));
-            std::vector<bool> writtenMaterials(model.materials.size(), false);
+        auto passCBOffset = cascadeIndex * Math::Align(sizeof(Math::Matrix4), (size_t)c_ConstantBufferOffsetSizeAlignment);
+        m_CmdList->WriteBuffer(m_PassCB, &viewProj, sizeof(Math::Matrix4), passCBOffset);
+        auto passCBRange = BufferRange{}.SetByteOffset(passCBOffset).SetByteSize(sizeof(Math::Matrix4));
+        size_t sampleIndex = size_t(SamplerSlot::AnisoWrap);
+        auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+            .AddItem(BindingSetItem().ConstantBuffer(0, m_PassCB, passCBRange))
+            .AddItem(BindingSetItem().StructuredBuffer_SRV(0, g_RenderResources.meshBuffer))
+            .AddItem(BindingSetItem().StructuredBuffer_SRV(1, g_RenderResources.materialBuffer))
+            .AddItem(BindingSetItem().Sampler(sampleIndex, GetCommonSampler(sampleIndex)))
+            , m_ShadowBindingLayout);
 
-            MeshConstants meshCB{};
-            meshCB.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
-            meshCB.worldIT = Math::Matrix4::Inverse(meshCB.world);
-            auto meshConstantBuffer = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sizeof(MeshConstants))
-                .SetIsConstantBuffer(true)
-                .SetIsVolatile(true)
-                .SetDebugName("Mesh CB"));
-            m_CmdList->WriteBuffer(meshConstantBuffer, &meshCB, sizeof(MeshConstants));
+        for(const auto& [index, obj] : g_RenderResources.objects | std::views::enumerate){
+            auto [mesh, material, transfrom] = obj->GetComponent<Mesh, Material, Math::Transform>();
 
-            // 减少 BindingSet 的复杂度
-            auto commonBindingSet = device->CreateBindingSet(BindingSetDesc()
-                .AddItem(BindingSetItem().ConstantBuffer(0, meshConstantBuffer))
-                .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))),
-                m_ShadowBindingLayouts[0]);
+            bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
+            size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
+            const auto& pipeline = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
 
-            for(const auto& mesh : model.meshes){
-                bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
-                auto bufferOffset = bufferSize * mesh->materialIndex;
-                // 避免重复写入
-                if(!writtenMaterials[mesh->materialIndex]){
-                    shadowCB.baseColor = model.materials[mesh->materialIndex]->baseColor;
-                    m_CmdList->WriteBuffer(shadowConstantsBuffer, &shadowCB, sizeof(DrawShadowConstants), bufferOffset);
-                    writtenMaterials[mesh->materialIndex] = true;
-                }
+            GraphicsState state{};
+            state.SetFramebuffer(m_ShadowFramebuffer)
+                .SetPipeline(pipeline)
+                .SetViewport(ViewportState().AddViewportAndScissorRect(viewport))
+                .SetIndexBuffer(mesh->indexBufferViews)
+                .AddVertexBuffer(mesh->positionStream)
+                .AddVertexBuffer(mesh->uvStream)
+                .AddBindingSet(bindingSet, 0);
 
-                size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
-                const auto& pipeline = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
+            m_CmdList->SetGraphicsState(state);
 
-                auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                    .AddItem(BindingSetItem().ConstantBuffer(1, shadowConstantsBuffer, 
-                        BufferRange{}.SetByteOffset(bufferOffset).SetByteSize(bufferSize)))
-                    .AddItem(BindingSetItem().Texture_SRV(0, mesh->textures[kBaseColor]))
-                    , m_ShadowBindingLayouts[1]);
+            int objectIndex = int(index);
+            m_CmdList->SetPushConstants(&objectIndex, sizeof(int));
 
-                GraphicsState state{};
-                state.SetFramebuffer(m_ShadowFramebuffer)
-                    .SetPipeline(pipeline)
-                    .SetViewport(ViewportState().AddViewportAndScissorRect(viewport))
-                    .SetIndexBuffer(mesh->indexBufferViews)
-                    .AddVertexBuffer(mesh->positionStream)
-                    .AddVertexBuffer(mesh->uvStream)
-                    .AddBindingSet(commonBindingSet, 0)
-                    .AddBindingSet(bindingSet, 1);
-
-                m_CmdList->SetGraphicsState(state);
-
-                m_CmdList->DrawIndexed(DrawArguments()
-                    .SetVertexCount(mesh->indexCount)
-                    .SetStartIndexLocation(mesh->indexOffset)
-                    .SetStartVertexLocation(mesh->vertexOffset));
-            }
+            m_CmdList->DrawIndexed(DrawArguments()
+                .SetVertexCount(mesh->indexCount)
+                .SetStartIndexLocation(mesh->indexOffset)
+                .SetStartVertexLocation(mesh->vertexOffset));
         }
     }
 

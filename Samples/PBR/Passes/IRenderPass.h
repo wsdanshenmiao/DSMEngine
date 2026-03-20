@@ -60,10 +60,6 @@ namespace DSM {
         LitPSNoTangentPCF3,
         LitPSNoTangentPCF5,
         LitPSNoTangentPCF7,
-        ShadowVS,
-        ShadowPS,
-        ShadowVSClip,
-        ShadowPSClip,
         Count
     };
 
@@ -123,7 +119,11 @@ namespace DSM {
         std::vector<std::shared_ptr<GameObject>> objects{};
         std::vector<std::pair<size_t, std::shared_ptr<GameObject>>> objInFrustum{};
 
-        BufferHandle meshCB{};
+        BufferHandle meshBuffer{};
+        BufferHandle materialBuffer{};
+        std::unordered_set<TextureHandle> textures{};
+        BindingLayoutHandle textureBindlessLayout{};
+        DescriptorTableHandle textureBindlessTable{};
 
         RenderResource();
     };
