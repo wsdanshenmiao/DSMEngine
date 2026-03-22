@@ -2,7 +2,6 @@
 #include "assimp/postprocess.h"
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
-#include "Material.h"
 #include "Renderer/Renderer.h"
 #include "Geometry.h"
 #include "Runtime/Math/MathCommon.h"
@@ -18,7 +17,7 @@
 namespace DSM::ModelLoader {
 
 	static DeviceHandle s_GraphicsDevice;
-	static std::array<TextureHandle, kNumTextures> s_CommonTextures;
+	static std::array<TextureHandle, ShaderResource::kNumTextures> s_CommonTextures;
 	// 缓存下来的模型，防止重复加载
 	static std::unordered_map<std::string, std::unique_ptr<Model>> s_LoadedModels;
 
@@ -57,7 +56,7 @@ namespace DSM::ModelLoader {
 		uint32_t indexOffset;
 		uint32_t vertexOffset;
 		uint16_t materialIndex;
-		std::array<uint32_t, kNumTextures> texFilenameSizes{};
+		std::array<uint32_t, ShaderResource::kNumTextures> texFilenameSizes{};
 	};
 
 	// bool SaveModelToFile(const Model& model, const std::string& filename)
@@ -377,7 +376,7 @@ namespace DSM::ModelLoader {
 	std::shared_ptr<Model> LoadModelFromGeometry(
 		const std::string& name,
 		const Geometry::GeometryMesh& geometryMesh,
-		std::shared_ptr<Material> material)
+		std::shared_ptr<ShaderResource::MaterialData> material)
 	{
 		if (geometryMesh.vertices.empty()){
 			return nullptr;
@@ -386,7 +385,13 @@ namespace DSM::ModelLoader {
 		auto model = std::make_shared<Model>();
 		model->name = name;
 		if(material == nullptr){
-			model->materials.emplace_back(std::make_shared<Material>());
+			auto mat = std::make_shared<ShaderResource::MaterialData>();
+			mat->baseColor = Math::Vector4{1, 1, 1, 1};
+			mat->emissiveColor = Math::Vector4{0, 0, 0, 0};
+			mat->normalTexScale = 1;
+			mat->metallicFactor = 1;
+			mat->roughnessFactor = 1;
+			model->materials.emplace_back(mat);
 		}
 		else{
 			model->materials.push_back(material);
@@ -417,14 +422,14 @@ namespace DSM::ModelLoader {
 
 		model->meshes = CreateMesh({&meshData, 1});
 		model->materialData = s_GraphicsDevice->CreateBuffer(BufferDesc()
-			.SetByteSize(Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment)))
+			.SetByteSize(Math::Align(sizeof(ShaderResource::MaterialData), size_t(c_ConstantBufferOffsetSizeAlignment)))
 			.SetIsConstantBuffer(true)
 			.SetDebugName("Model MaterialData" + name));
 
 		auto cmdList = s_GraphicsDevice->CreateCommandList(
 			CommandListParameters().SetDebugName("InitMaterialData"));
 		cmdList->Open();
-		cmdList->WriteBuffer(model->materialData, model->materials[0].get(), sizeof(Material));
+		cmdList->WriteBuffer(model->materialData, model->materials[0].get(), sizeof(ShaderResource::MaterialData));
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
 
@@ -664,7 +669,7 @@ namespace DSM::ModelLoader {
 		const std::string& filename,
 		const aiScene* scene)
 	{
-		std::vector<std::vector<TextureHandle>> matTextures(scene->mNumMaterials, std::vector<TextureHandle>(kNumTextures));
+		std::vector<std::vector<TextureHandle>> matTextures(scene->mNumMaterials, std::vector<TextureHandle>(ShaderResource::kNumTextures, nullptr));
 		std::map<std::string, TextureHandle> uniqueTextures{};
 
 		model.materials.resize(scene->mNumMaterials);
@@ -672,8 +677,13 @@ namespace DSM::ModelLoader {
 			auto& modelMaterial = model.materials[i];
 			auto& material = scene->mMaterials[i];
 
-			modelMaterial = std::make_shared<Material>();
-			
+			modelMaterial = std::make_shared<ShaderResource::MaterialData>();
+			modelMaterial->baseColor = Math::Vector4{1, 1, 1, 1};
+			modelMaterial->emissiveColor = Math::Vector4{0, 0, 0, 0};
+			modelMaterial->normalTexScale = 1;
+			modelMaterial->metallicFactor = 1;
+			modelMaterial->roughnessFactor = 1;
+
 			Math::Vector3 vector{};
 			std::uint32_t num = 3;
 			float value{};
@@ -682,7 +692,7 @@ namespace DSM::ModelLoader {
 				modelMaterial->baseColor = Math::Vector4{vector, 1};
 			}
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, (float*)&vector, &num)) {
-				modelMaterial->emissiveColor = vector;
+				modelMaterial->emissiveColor = Math::Vector4{vector, 1};
 			}
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_METALLIC_FACTOR, value)) {
 				modelMaterial->metallicFactor = value;
@@ -697,16 +707,16 @@ namespace DSM::ModelLoader {
 			auto& srcHandle = matTextures[i];
 
 			auto tryCreateTexture = [&](aiTextureType type) {
-				MaterialTex materialTex;
+				ShaderResource::MaterialTex materialTex;
 				switch (type) {
 					case aiTextureType_DIFFUSE : 
-					case aiTextureType_BASE_COLOR: materialTex = kBaseColor; break;
-					case aiTextureType_DIFFUSE_ROUGHNESS: materialTex = kDiffuseRoughness; break;
-					case aiTextureType_METALNESS: materialTex = kMetalness; break;
-					case aiTextureType_AMBIENT_OCCLUSION : materialTex = kOcclusion; break;
-					case aiTextureType_EMISSIVE: materialTex = kEmissive; break;
-					case aiTextureType_NORMALS: materialTex = kNormal; break;
-					default: materialTex = kBaseColor; break;
+					case aiTextureType_BASE_COLOR: materialTex = ShaderResource::kBaseColor; break;
+					case aiTextureType_DIFFUSE_ROUGHNESS: materialTex = ShaderResource::kDiffuseRoughness; break;
+					case aiTextureType_METALNESS: materialTex = ShaderResource::kMetalness; break;
+					case aiTextureType_AMBIENT_OCCLUSION : materialTex = ShaderResource::kOcclusion; break;
+					case aiTextureType_EMISSIVE: materialTex = ShaderResource::kEmissive; break;
+					case aiTextureType_NORMALS: materialTex = ShaderResource::kNormal; break;
+					default: materialTex = ShaderResource::kBaseColor; break;
 				}
 				if (material->GetTextureCount(type) == 0) {
 					srcHandle[materialTex] = s_CommonTextures[materialTex];
@@ -767,10 +777,10 @@ namespace DSM::ModelLoader {
 			}
 		}
 
-		auto matByteSize = Math::Align(sizeof(Material), size_t(c_ConstantBufferOffsetSizeAlignment));
+		auto matByteSize = Math::Align(sizeof(ShaderResource::MaterialData), size_t(c_ConstantBufferOffsetSizeAlignment));
 		std::vector<uint8_t> materialData(matByteSize * model.materials.size());
 		for (std::size_t i = 0; i < model.materials.size(); i++) {
-			memcpy(materialData.data() + i * matByteSize, model.materials[i].get(), sizeof(Material));
+			memcpy(materialData.data() + i * matByteSize, model.materials[i].get(), sizeof(ShaderResource::MaterialData));
 		}
 		model.materialData = s_GraphicsDevice->CreateBuffer(BufferDesc().
 			SetByteSize(materialData.size()).

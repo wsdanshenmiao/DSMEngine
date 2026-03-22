@@ -12,10 +12,10 @@ struct Light
     float attenuation;
 };
 
-ConstantBuffer<LightData> gLightData : register(b3);
+ConstantBuffer<ShaderResource::LightData> gLightData : register(b2);
 
-StructuredBuffer<DirectionalLightData> gDirLightData : register(t6);
-StructuredBuffer<OtherLightData> gOtherLightData : register(t7);
+StructuredBuffer<ShaderResource::DirectionalLightData> gDirLightData : register(t3);
+StructuredBuffer<ShaderResource::OtherLightData> gOtherLightData : register(t4);
 
 uint GetDirectionalLightCount()
 {
@@ -60,7 +60,7 @@ Light GetDirectionalLight(uint index, Surface surface)
 
 Light GetOtherLight(uint index, Surface surface)
 {
-    OtherLightData lightData = gOtherLightData[index];
+    ShaderResource::OtherLightData lightData = gOtherLightData[index];
     float3 pos = lightData.positionAndRange.xyz;
     float invRange = lightData.positionAndRange.w;
     float2 spotAngle = lightData.spotAngle.xy;

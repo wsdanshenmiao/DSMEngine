@@ -2,7 +2,7 @@
 #include "../ResourceData.h"
 
 
-ConstantBuffer<SkyboxConstants> gSkyboxConstants : register(b0);
+ConstantBuffer<ShaderResource::SkyboxConstants> gSkyboxConstants : register(b0);
 
 TextureCube<float3> gSkyboxTex : register(t0);
 

@@ -10,7 +10,7 @@
 // 最大模糊半径
 static const uint sMaxBlurRadius = 5;
 
-ConstantBuffer<SSAOBlurConstants> gSSAOBlurConstants : register(b0);
+ConstantBuffer<ShaderResource::SSAOBlurConstants> gSSAOBlurConstants : register(b0);
 
 RWTexture2D<float4> gOutput : register(u0);
 Texture2D<float> gBlurTexture : register(t0);

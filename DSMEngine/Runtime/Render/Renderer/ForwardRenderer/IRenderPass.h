@@ -2,15 +2,18 @@
 #ifndef __IRENDERPASS_H__
 #define __IRENDERPASS_H__
 
-#include "../Light.h"
+#include "Runtime/Render/Light.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Math/Collision/BVH.h"
+
+#include <array>
 
 namespace DSM {
 
     struct IRenderPass
     {
+        virtual ~IRenderPass() = default;
         virtual void Render(DSM::Renderer& renderer, float deltaTime) = 0;
         virtual void OnResize(Renderer& renderer, uint32_t width, uint32_t height) = 0;
     };
@@ -20,33 +23,6 @@ namespace DSM {
         GraphicsPipelineDesc pipelineDesc;
         BufferHandle meshCB;
     };
-
-    namespace LitPassBindingLayout{
-        namespace Constants{
-            enum Slot{
-                MeshConstants = 0,
-                MaterialConstants,
-                PassConstants,
-                LightData,
-                ShadowConstants
-            };
-        }
-        namespace ShaderResource{
-            enum Slot{
-                Albedo = 0,
-                Roughness,
-                Metallic,
-                Occlusion,
-                Emissive,
-                Normal,
-                DirectionalLights,
-                OtherLights,
-                ShadowMap,
-                SSAO
-            };
-        }
-        
-    }
 
     enum class ShaderSlot : uint32_t
     {
@@ -63,13 +39,6 @@ namespace DSM {
         Count
     };
 
-    enum class BindingLayoutSlot : uint32_t
-    {
-        Common,
-        Local,
-        Count
-    };
-
     enum class CommonTextureSlot : uint32_t
     {
         Color = 0,
@@ -77,6 +46,7 @@ namespace DSM {
         Normal, //  视图空间下的法线
         Noise,
         SSAO,
+        ShadowMap,
         Count
     };
 
@@ -101,19 +71,8 @@ namespace DSM {
         std::array<TextureHandle, (size_t)CommonTextureSlot::Count> commonTextures;
         std::array<SamplerHandle, (size_t)SamplerSlot::Count> commonSamplers;
 
-        std::unordered_map<GraphicsPipelineDesc, GraphicsPipelineHandle> psoCache;
-        std::vector<RenderConfig> renderConfigs;
-        
         std::vector<ShaderHandle> shaders;
         std::vector<Light> lights;
-
-        // 每一个 Pass 根据其所提供的资源添加 Layout
-        std::array<BindingLayoutDesc, (size_t)BindingLayoutSlot::Count> bindingLayoutDescs;
-        std::array<BindingLayoutHandle, (size_t)BindingLayoutSlot::Count> bindingLayouts;
-
-        // 每一个 Pass 根据其所提供的资源添加 Binding Set
-        BindingSetDesc commonBindingSetDesc;
-        BindingSetHandle commonBindingSet;
 
         // 场景中的物体
         std::vector<std::shared_ptr<GameObject>> objects{};
@@ -121,7 +80,7 @@ namespace DSM {
 
         BufferHandle meshBuffer{};
         BufferHandle materialBuffer{};
-        std::unordered_set<TextureHandle> textures{};
+        std::unordered_map<TextureHandle, size_t> textures{};
         BindingLayoutHandle textureBindlessLayout{};
         DescriptorTableHandle textureBindlessTable{};
 
@@ -139,17 +98,6 @@ namespace DSM {
     {
         assert(slot < (size_t)SamplerSlot::Count);
         return g_RenderResources.commonSamplers[slot];
-    }
-
-    inline BindingLayoutHandle GetBindingLayout(BindingLayoutSlot slot)
-    {
-        return g_RenderResources.bindingLayouts[static_cast<size_t>(slot)];
-    }
-
-    inline BindingLayoutHandle GetBindingLayout(size_t slot)
-    {
-        assert(slot < (size_t)BindingLayoutSlot::Count);
-        return g_RenderResources.bindingLayouts[slot];
     }
 
     inline TextureHandle GetCommonTexture(CommonTextureSlot slot)

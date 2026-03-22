@@ -1,0 +1,235 @@
+#pragma once
+#ifndef __GEOMETRYPASS_H__
+#define __GEOMETRYPASS_H__
+
+#include "IRenderPass.h"
+#include "Runtime/Render/Model.h"
+#include "Shaders/ForwardShader/ResourceData.h"
+#include "ShadowPass.h"
+#include "SSAOPass.h"
+#include "LightingPass.h"
+
+namespace DSM {
+    // 绘制所有模型
+    class LitPass : public IRenderPass
+    {
+    public:
+        LitPass(Renderer& renderer)
+        {
+            auto device = renderer.GetDevice();
+            m_PassCB = device->CreateBuffer(BufferDesc()
+                .SetByteSize(sizeof(ShaderResource::PassConstants))
+                .SetIsConstantBuffer(true)
+                .SetIsVolatile(true)
+                .SetDebugName("PassConstants"));
+
+            // 将 ShadowMap 绑定到管线
+            auto bindingLayoutDesc = BindingLayoutDesc{}
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(0))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(1))
+                .AddItem(BindingLayoutItem::Texture_SRV(2))
+                .AddItem(BindingLayoutItem::VolatileConstantBuffer(0))
+                .AddItem(BindingLayoutItem::PushConstants(1, sizeof(int)))
+                .AddItem(BindingLayoutItem::ConstantBuffer(2))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(3))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(4))
+                .AddItem(BindingLayoutItem::ConstantBuffer(3))
+                .AddItem(BindingLayoutItem::Texture_SRV(5))
+                .AddItem(BindingLayoutItem::Sampler(uint32_t(SamplerSlot::Shadow)))
+                .AddItem(BindingLayoutItem::Sampler(uint32_t(SamplerSlot::AnisoWrap)));
+            m_BindingLayout = device->CreateBindingLayout(bindingLayoutDesc);
+
+            sm_TimerQuery = device->CreateTimerQuery();
+        }
+
+        void Render(DSM::Renderer& renderer, float deltaTime) override
+        {
+            auto device = renderer.GetDevice();
+
+            auto fb = g_RenderResources.framebuffer;
+            assert(fb != nullptr && 
+                fb->GetDesc().colorAttachments.size() > 0 && 
+                fb->GetDesc().depthAttachment.Valid());
+            float width = (float)fb->GetFramebufferInfo().width;
+            float height = (float)fb->GetFramebufferInfo().height;
+
+            auto bindingSetDesc = BindingSetDesc{}
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(0, g_RenderResources.meshBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(1, g_RenderResources.materialBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(2, GetCommonTexture(CommonTextureSlot::SSAO)))
+                .AddItem(BindingSetItem::ConstantBuffer(0, m_PassCB))
+                .AddItem(BindingSetItem::PushConstants(1, sizeof(int)))
+                .AddItem(BindingSetItem::ConstantBuffer(2, LightingPass::sm_LightDataBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(3, LightingPass::sm_DirLightDataBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_OtherLightDataBuffer))
+                .AddItem(BindingSetItem::ConstantBuffer(3, ShadowPass::sm_ShadowCB))
+                .AddItem(BindingSetItem::Texture_SRV(5, GetCommonTexture(CommonTextureSlot::ShadowMap)))
+                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), GetCommonSampler(SamplerSlot::Shadow)))
+                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap)));
+            auto bindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);
+
+            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Lit Pass Command List"));
+            cmdList->Open();
+
+            cmdList->BeginTimerQuery(sm_TimerQuery);
+
+            // 使用了 PreZ Pass 无需清除深度
+            const auto& rendertarget = fb->GetDesc().colorAttachments[0];
+            cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{0.0f, 0.0f, 0.0f, 1.0f});
+
+            ShaderResource::PassConstants passCB{};
+            passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());
+            passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
+            passCB.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
+            passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
+            passCB.cameraPos = renderer.GetCamera().GetPosition();
+            passCB.deltaTime = deltaTime;
+            passCB.renderTargetSize = Math::Vector2{ width, height };
+            passCB.nearFarZ = Math::Vector2{ renderer.GetCamera().GetNearZ(), renderer.GetCamera().GetFarZ() };
+
+            cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(ShaderResource::PassConstants));
+
+            for(const auto& [index, object] : g_RenderResources.objInFrustum) {
+                auto mesh = object->GetComponent<Mesh>();
+
+                GraphicsState state{};
+                state.SetFramebuffer(fb)
+                    .SetPipeline(GetPipelineState(renderer, *mesh))
+                    .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
+                    .SetIndexBuffer(mesh->indexBufferViews)
+                    .AddBindingSet(bindingSet, 0)
+                    .AddBindingSet(g_RenderResources.textureBindlessTable, 1);
+                if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
+                    state.AddVertexBuffer(mesh->positionStream);
+                }
+                if(HasFlags(PSOFlags(mesh->psoFlags), kHasUV)){
+                    state.AddVertexBuffer(mesh->uvStream);
+                }
+                if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
+                    state.AddVertexBuffer(mesh->normalStream);
+                }
+                if(HasFlags(PSOFlags(mesh->psoFlags), kHasTangent)){
+                    state.AddVertexBuffer(mesh->tangentStream);
+                }
+                
+                cmdList->SetGraphicsState(state);
+
+                int objIndex = (int)index;
+                cmdList->SetPushConstants(&objIndex, sizeof(int));
+                
+                // 绘制
+                cmdList->DrawIndexed(DrawArguments{}
+                    .SetStartIndexLocation(mesh->indexOffset)
+                    .SetStartVertexLocation(mesh->vertexOffset)
+                    .SetVertexCount(mesh->indexCount));
+            }
+            
+            cmdList->EndTimerQuery(sm_TimerQuery);
+
+            cmdList->Close();
+
+            // 等待 ssao 计算完成
+            device->QueueWaitForCommandList(cmdList->GetDesc().queueType, CommandQueueType::Compute, SSAOPass::sm_LastFrameTime);
+            device->ExecuteCommandList(cmdList);
+        }
+
+        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override 
+        {
+        }
+
+    private:
+        size_t GetPSOIndex(PSOFlags flags, bool reverseZ) const
+        {
+            size_t index = 0;
+            auto filterMode = ShadowPass::sm_Setting.directionalSetting.filter;
+            if(HasFlags(flags, kHasPosition)) index |= 1 << 0;
+            if(HasFlags(flags, kHasNormal)) index |= 1 << 1;
+            if(HasFlags(flags, kHasUV)) index |= 1 << 2;
+            if(HasFlags(flags, kHasTangent)) index |= 1 << 3;
+            if(HasFlags(filterMode, ShadowSetting::_PCF3x3)) index |= 1 << 4;
+            if(HasFlags(filterMode, ShadowSetting::_PCF5x5)) index |= 1 << 5;
+            if(HasFlags(flags, kAlphaBlend)) index |= 1 << 6;
+            if(HasFlags(flags, kBothSide)) index |= 1 << 7;
+            if(reverseZ) index |= 1 << 8;
+            return index;
+        }
+
+        GraphicsPipelineHandle GetPipelineState(Renderer& renderer, Mesh& mesh)
+        {
+            auto psoIndex = GetPSOIndex(PSOFlags(mesh.psoFlags), renderer.GetCamera().IsReversedZ());
+            if(psoIndex >= std::size(m_Pipelines) || m_Pipelines[psoIndex] == nullptr){
+                m_Pipelines.resize(std::max(m_Pipelines.size() * 2, psoIndex + 1));
+                // 创建对应的 PSO
+                m_Pipelines[psoIndex] = CreatePipelineState(renderer, mesh);
+            }
+            return m_Pipelines[psoIndex];
+        }
+
+        GraphicsPipelineHandle CreatePipelineState(Renderer& renderer, Mesh& mesh)
+        {
+            auto device = renderer.GetDevice();
+
+            BlendState hasBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{}.SetBlendEnable(true));
+            BlendState noBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{});
+
+            auto reverseZ = renderer.GetCamera().IsReversedZ();
+            DepthStencilState readDepth = DepthStencilState{}
+                .SetDepthWriteEnable(false)
+                .SetDepthFunc(reverseZ ? ComparisonFunc::GreaterOrEqual : ComparisonFunc::LessOrEqual);
+
+            RasterState defaultRaster = RasterState{};
+            RasterState twoSided = RasterState{}.SetCullMode(RasterCullMode::None);
+
+            const auto& shaders = g_RenderResources.shaders;
+            auto litVS = shaders[(size_t)ShaderSlot::LitVS];
+            auto litVSNoTangent = shaders[(size_t)ShaderSlot::LitVSNoTangent];
+
+            std::vector<VertexAttributeDesc> attributes{};
+            auto addAttribute = [&attributes](auto currFlag, auto flag, 
+                const std::string& name, auto index, auto format, auto size) {
+                if (HasFlags(PSOFlags(currFlag), flag)) {
+                    attributes.push_back(VertexAttributeDesc()
+                        .SetName(name)
+                        .SetBufferIndex(index)
+                        .SetFormat(format)
+                        .SetElementStride(size));
+                }
+            };
+            addAttribute(mesh.psoFlags, kHasPosition, "POSITION", 0, Format::RGB32_FLOAT, sizeof(Math::Vector3));
+            addAttribute(mesh.psoFlags, kHasUV, "TEXCOORD", 1, Format::RG32_FLOAT, sizeof(Math::Vector2));
+            addAttribute(mesh.psoFlags, kHasNormal, "NORMAL", 2, Format::RGB32_FLOAT, sizeof(Math::Vector3));
+            addAttribute(mesh.psoFlags, kHasTangent, "TANGENT", 3, Format::RGBA32_FLOAT, sizeof(Math::Vector4));
+            bool hasTangent = HasFlags(PSOFlags(mesh.psoFlags), kHasTangent);
+            InputLayoutHandle layout = device->CreateInputLayout(attributes, hasTangent ? litVS : litVSNoTangent);
+
+            const auto& blendState = HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend) ? hasBlend : noBlend;
+            const auto& depthState = readDepth;
+            const auto& rasterState = HasFlags(PSOFlags(mesh.psoFlags), kBothSide) ? twoSided : defaultRaster;
+            // 创建渲染配置
+            auto shadowFilter = ShadowPass::sm_Setting.directionalSetting.filter;
+            ShaderHandle ps = hasTangent ? shaders[size_t(ShaderSlot::LitPS) + shadowFilter] : 
+                shaders[size_t(ShaderSlot::LitPSNoTangent) + shadowFilter];
+            auto pipelineDesc = GraphicsPipelineDesc()
+                .SetInputLayout(layout)
+                .SetVertexShader(hasTangent ? litVS : litVSNoTangent)
+                .SetPixelShader(ps)
+                .SetRenderState(RenderState{ blendState, depthState, rasterState })
+                .AddBindingLayout(m_BindingLayout, 0)
+                .AddBindingLayout(g_RenderResources.textureBindlessLayout, 1);
+
+            return device->CreateGraphicsPipeline(pipelineDesc, g_RenderResources.framebuffer);
+        }
+
+    public:
+        inline static TimerQueryHandle sm_TimerQuery{};
+
+    private:
+        BufferHandle m_PassCB{};
+        BindingLayoutHandle m_BindingLayout{};
+        std::vector<GraphicsPipelineHandle> m_Pipelines{};
+    };
+
+} // namespace DSM
+
+
+#endif

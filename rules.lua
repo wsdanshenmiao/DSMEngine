@@ -28,7 +28,7 @@ rule("ShaderCopy")
         end)
 rule_end()
 
-rule("EngineShderCopy")
+rule("EngineShaderCopy")
     set_extensions(".hlsl", ".hlsli")
     after_build(
         function(target)

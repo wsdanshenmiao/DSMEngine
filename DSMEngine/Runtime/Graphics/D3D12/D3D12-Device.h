@@ -120,7 +120,7 @@ namespace DSM::D3D12 {
     {
     public:
         explicit Device(DeviceDesc desc);
-        ~Device() override;
+        virtual ~Device() override;
 
         Object GetNativeObject(ObjectType type) override;
 

@@ -42,7 +42,7 @@ namespace DSM {
                 ShaderCompileDesc compileDesc = ShaderCompileDesc()
                     .SetType(type)
                     .SetMode(ShaderMode::SM_6_6)
-                    .SetFilename("Shaders/Passes/GeometryPass.hlsl")
+                    .SetFilename("Shaders/ForwardShader/Passes/GeometryPass.hlsl")
                     .SetEnterPoint(entryPoint);
                 ShaderByteCode geometryPass{compileDesc};
                 return device->CreateShader(ShaderDesc()

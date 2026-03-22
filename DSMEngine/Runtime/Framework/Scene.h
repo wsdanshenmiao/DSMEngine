@@ -36,10 +36,9 @@ namespace DSM {
         void DestroyObject(ObjectID objectID);
 
         template <typename... Component>
-        auto GetAllObjectsWithComponents() const
-        {
-            return m_Registry.view<Component...>();
-        }
+        auto GetObjectsWithComponents() const { return m_Registry.view<Component...>(); }
+        template <typename... Component>
+        auto GetObjectsWithComponents() { return m_Registry.view<Component...>(); }
 
         template <typename Func> requires std::invocable<Func, entt::entity> && 
             std::same_as<std::invoke_result_t<Func, entt::entity>, void>

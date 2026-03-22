@@ -6,8 +6,8 @@
 #include <vector>
 #include <memory>
 #include "Mesh.h"
-#include "Material.h"
 #include "Runtime/Math/Transform.h"
+#include "Shaders/ForwardShader/ResourceData.h"
 
 
 namespace DSM {
@@ -19,7 +19,7 @@ namespace DSM {
         std::string name{};
         std::string filePath{};
         std::vector<std::shared_ptr<Mesh>> meshes{};
-        std::vector<std::shared_ptr<Material>> materials{};
+        std::vector<std::shared_ptr<ShaderResource::MaterialData>> materials{};
         BufferHandle materialData{};
         Math::AxisAlignedBox boundingBox{};
     };

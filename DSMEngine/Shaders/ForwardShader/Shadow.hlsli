@@ -2,7 +2,7 @@
 #define __SHADOW_HLSLI__
 
 #include "Common.hlsli"
-#include "../ResourceData.h"
+#include "ResourceData.h"
 #include "Surface.hlsli"
 
 #if defined(DIRECTIONAL_PCF3)
@@ -26,9 +26,8 @@ struct ShadowData
     uint cascadeIndex;
 };
 
-Texture2D<float> gShadowMap : register(t8);
-
-ConstantBuffer<ShadowConstants> gShadowConstants : register(b4);
+ConstantBuffer<ShaderResource::ShadowConstants> gShadowConstants : register(b3);
+Texture2D<float> gShadowMap : register(t5);
 
 float FadedShadowStrength (float dist, float scale, float fade)
 {

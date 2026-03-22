@@ -4,7 +4,7 @@
 
 #include "IRenderPass.h"
 #include "Runtime/Math/MathCommon.h"
-#include "Shaders/ResourceData.h"
+#include "Shaders/ForwardShader/ResourceData.h"
 
 namespace DSM {
     class LightingPass : public IRenderPass
@@ -13,30 +13,28 @@ namespace DSM {
         LightingPass(Renderer& renderer)
         {
             auto device = renderer.GetDevice();
-            m_LightDataBuffer = device->CreateBuffer(BufferDesc()
-                .SetByteSize(Math::Align(sizeof(LightData), size_t(c_ConstantBufferOffsetSizeAlignment)))
+            sm_LightDataBuffer = device->CreateBuffer(BufferDesc()
+                .SetByteSize(Math::Align(sizeof(ShaderResource::LightData), size_t(c_ConstantBufferOffsetSizeAlignment)))
                 .SetIsConstantBuffer(true)
                 .SetDebugName("Light Data Buffer"));
-            m_DirLightDataBuffer = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sm_MaxDirLightCount * sizeof(DirectionalLightData))
-                .SetStructStride(sizeof(DirectionalLightData))
+            sm_DirLightDataBuffer = device->CreateBuffer(BufferDesc()
+                .SetByteSize(sm_MaxDirLightCount * sizeof(ShaderResource::DirectionalLightData))
+                .SetStructStride(sizeof(ShaderResource::DirectionalLightData))
                 .SetDebugName("Directional Light Data Buffer"));
-            m_OtherLightDataBuffer = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sm_MaxOtherLightCount * sizeof(OtherLightData))
-                .SetStructStride(sizeof(OtherLightData))
+            sm_OtherLightDataBuffer = device->CreateBuffer(BufferDesc()
+                .SetByteSize(sm_MaxOtherLightCount * sizeof(ShaderResource::OtherLightData))
+                .SetStructStride(sizeof(ShaderResource::OtherLightData))
                 .SetDebugName("Other Light Data Buffer"));
-
-            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-                .AddItem(BindingLayoutItem().ConstantBuffer(LitPassBindingLayout::Constants::LightData))
-                .AddItem(BindingLayoutItem().StructuredBuffer_SRV(LitPassBindingLayout::ShaderResource::DirectionalLights))
-                .AddItem(BindingLayoutItem().StructuredBuffer_SRV(LitPassBindingLayout::ShaderResource::OtherLights));
-            g_RenderResources.commonBindingSetDesc
-                .AddItem(BindingSetItem().ConstantBuffer(LitPassBindingLayout::Constants::LightData, m_LightDataBuffer))
-                .AddItem(BindingSetItem().StructuredBuffer_SRV(LitPassBindingLayout::ShaderResource::DirectionalLights, m_DirLightDataBuffer))
-                .AddItem(BindingSetItem().StructuredBuffer_SRV(LitPassBindingLayout::ShaderResource::OtherLights, m_OtherLightDataBuffer));
 
             CreateShader(renderer);
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
+        }
+
+        virtual ~LightingPass()
+        {
+            sm_LightDataBuffer = nullptr;
+            sm_DirLightDataBuffer = nullptr;
+            sm_OtherLightDataBuffer = nullptr;
         }
 
         void Render(Renderer& renderer, float deltaTime) override
@@ -45,8 +43,8 @@ namespace DSM {
             if(lightSize == 0)
                 return;
 
-            std::vector<DirectionalLightData> dirLightData{};
-            std::vector<OtherLightData> otherLightData{};
+            std::vector<ShaderResource::DirectionalLightData> dirLightData{};
+            std::vector<ShaderResource::OtherLightData> otherLightData{};
 
             for (const auto& light : g_RenderResources.lights) {
                 switch(light.lightType){
@@ -70,12 +68,12 @@ namespace DSM {
 
             cmdList->BeginTimerQuery(sm_TimerQuery);
 
-            LightData lightData;
+            ShaderResource::LightData lightData;
             lightData.dirLightCount = std::min(dirLightData.size(), sm_MaxDirLightCount);
             lightData.otherLightCount = std::min(otherLightData.size(), sm_MaxOtherLightCount);
-            cmdList->WriteBuffer(m_LightDataBuffer, &lightData, sizeof(lightData));
-            cmdList->WriteBuffer(m_DirLightDataBuffer, dirLightData.data(), lightData.dirLightCount * sizeof(DirectionalLightData));
-            cmdList->WriteBuffer(m_OtherLightDataBuffer, otherLightData.data(), lightData.otherLightCount * sizeof(OtherLightData));
+            cmdList->WriteBuffer(sm_LightDataBuffer, &lightData, sizeof(lightData));
+            cmdList->WriteBuffer(sm_DirLightDataBuffer, dirLightData.data(), lightData.dirLightCount * sizeof(ShaderResource::DirectionalLightData));
+            cmdList->WriteBuffer(sm_OtherLightDataBuffer, otherLightData.data(), lightData.otherLightCount * sizeof(ShaderResource::OtherLightData));
 
             cmdList->EndTimerQuery(sm_TimerQuery);
 
@@ -86,17 +84,17 @@ namespace DSM {
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) {}
 
     private:
-        DirectionalLightData CreateDirLightData(const Light& light)
+        ShaderResource::DirectionalLightData CreateDirLightData(const Light& light)
         {
-            DirectionalLightData data;
+            ShaderResource::DirectionalLightData data;
             data.color = light.color;
             data.direction = -Math::Vector4(light.direction).Normalized();
             return data;
         }
 
-        OtherLightData CreatePointLightData(const Light& light)
+        ShaderResource::OtherLightData CreatePointLightData(const Light& light)
         {
-            OtherLightData data;
+            ShaderResource::OtherLightData data;
             data.color = light.color;
             data.direction = Math::Vector4::Zero();
             data.positionAndRange = Math::Vector4{light.position, 1 / light.range};
@@ -105,9 +103,9 @@ namespace DSM {
             return data;
         }
 
-        OtherLightData CreateSpotLightData(const Light& light)
+        ShaderResource::OtherLightData CreateSpotLightData(const Light& light)
         {
-            OtherLightData data;
+            ShaderResource::OtherLightData data;
             data.color = light.color;
             data.direction = -Math::Vector4(light.direction).Normalized();
             data.positionAndRange = Math::Vector4{light.position, 1 / light.range};
@@ -121,7 +119,7 @@ namespace DSM {
             ShaderCompileDesc litVSDesc{};
             litVSDesc.SetType(ShaderType::Vertex)
                 .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/Passes/LitPass.hlsl")
+                .SetFilename("Shaders/ForwardShader/Passes/LitPass.hlsl")
                 .SetEnterPoint("LitPassVS");
             ShaderByteCode litVSNoTangent{litVSDesc};
             ShaderByteCode litVS{litVSDesc.AddDefine("USE_TANGENT", "1")};
@@ -129,7 +127,7 @@ namespace DSM {
             ShaderCompileDesc litPSDesc{};
             litPSDesc.SetType(ShaderType::Pixel)
                 .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/Passes/LitPass.hlsl")
+                .SetFilename("Shaders/ForwardShader/Passes/LitPass.hlsl")
                 .SetEnterPoint("LitPassPS");
             ShaderByteCode litPSNoTangent{litPSDesc};
             ShaderByteCode litPSNoTangentPCF3{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF3", "1")};
@@ -166,10 +164,9 @@ namespace DSM {
 
         inline static TimerQueryHandle sm_TimerQuery{};
 
-    private:
-        BufferHandle m_LightDataBuffer;
-        BufferHandle m_DirLightDataBuffer;
-        BufferHandle m_OtherLightDataBuffer;
+        inline static BufferHandle sm_LightDataBuffer{};
+        inline static BufferHandle sm_DirLightDataBuffer{};
+        inline static BufferHandle sm_OtherLightDataBuffer{};    
     };
 }
 

@@ -9,7 +9,7 @@ Texture2D<float2> gNormalTex : register(t0);
 Texture2D<float> gDepthTex : register(t1);
 Texture2D<float4> gNoiseTex : register(t2);
 
-ConstantBuffer<SSAOConstants> gSSAOConstants : register(b0);
+ConstantBuffer<ShaderResource::SSAOConstants> gSSAOConstants : register(b0);
 
 // 四面体的 8 个顶点和 6 个面的中点
 static float3 sSamplePoints[MAX_SAMPLE_COUNT] = {

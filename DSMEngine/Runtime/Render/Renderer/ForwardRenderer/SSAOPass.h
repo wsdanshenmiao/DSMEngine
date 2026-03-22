@@ -30,13 +30,13 @@ namespace DSM {
             sm_TimerQuery = device->CreateTimerQuery();
 
             m_SSAOConstants = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sizeof(SSAOConstants))
+                .SetByteSize(sizeof(ShaderResource::SSAOConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("SSAO Constants"));
 
             m_BlurConstants = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sizeof(SSAOBlurConstants))
+                .SetByteSize(sizeof(ShaderResource::SSAOBlurConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("SSAO Blur Constants"));
@@ -70,7 +70,7 @@ namespace DSM {
                 .SetType(ShaderType::Compute)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint("SSAOCS")
-                .SetFilename("Shaders/Passes/SSAO.hlsl")};
+                .SetFilename("Shaders/ForwardShader/Passes/SSAO.hlsl")};
             auto cs = device->CreateShader(ShaderDesc()
                 .SetShaderType(ShaderType::Compute)
                 .SetEntryName("SSAOCS")
@@ -84,7 +84,7 @@ namespace DSM {
                 .SetType(ShaderType::Compute)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint("SSAOBlurCS")
-                .SetFilename("Shaders/Passes/SSAOBlur.hlsl")};
+                .SetFilename("Shaders/ForwardShader/Passes/SSAOBlur.hlsl")};
             auto blurCs = device->CreateShader(ShaderDesc()
                 .SetShaderType(ShaderType::Compute)
                 .SetEntryName("SSAOBlurCS")
@@ -93,9 +93,6 @@ namespace DSM {
             m_BlurPipeline = device->CreateComputePipeline(ComputePipelineDesc()
                 .SetComputeShader(blurCs)
                 .AddBindingLayout(m_BlurBindingLayout, 0));
-
-            g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-                .AddItem(BindingLayoutItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO));
 
             OnResize(renderer, fbDesc.width, fbDesc.height);
         }
@@ -112,7 +109,7 @@ namespace DSM {
 
             static bool preEnable = sm_Settings.enable;
             if(sm_Settings.enable){
-                SSAOConstants ssaoConstants{};
+                ShaderResource::SSAOConstants ssaoConstants{};
                 ssaoConstants.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
                 ssaoConstants.projInv = Math::Matrix4::Inverse(ssaoConstants.proj);
                 ssaoConstants.sampleCount = std::min(sm_Settings.sampleCount, 14u);
@@ -148,10 +145,6 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            // 需要先移除先前的绑定
-            auto binding = BindingSetItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO, m_SSAOTex);
-            std::erase(g_RenderResources.commonBindingSetDesc.bindings, binding);
-
             // 降分辨率生成
             auto texDesc = TextureDesc()
                 .SetWidth(std::max(width / 2, 1u))
@@ -163,9 +156,6 @@ namespace DSM {
                 .SetDebugName("SSAO Texture");
             m_SSAOTex = device->CreateTexture(texDesc);
             m_TmpTexture = device->CreateTexture(texDesc);
-
-            g_RenderResources.commonBindingSetDesc
-                .AddItem(BindingSetItem::Texture_SRV(LitPassBindingLayout::ShaderResource::SSAO, m_SSAOTex));
 
             auto& depthTex = g_RenderResources.framebuffer->GetDesc().depthAttachment.texture;
             auto& normalTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Normal];
@@ -209,7 +199,7 @@ namespace DSM {
                 cmdList->WriteBuffer(m_BlurWeights, weights.data(), sizeof(float) * weights.size());
             }
 
-            SSAOBlurConstants blurConstants{};
+            ShaderResource::SSAOBlurConstants blurConstants{};
             blurConstants.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
             blurConstants.blurRadius = sm_Settings.blurRadius;
             for(int i = 0; i < sm_Settings.blurCount; ++i){

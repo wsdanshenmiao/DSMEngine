@@ -1,9 +1,9 @@
 #include "ShadowPass.h"
 #include "Runtime/Render/ShaderCompiler.h"
 #include "Runtime/Render/Model.h"
-#include "../Shaders/ResourceData.h"
+#include "Shaders/ForwardShader/ResourceData.h"
 #include "Runtime/Math/Collision/BoundingSphere.h"
-#include "../InstrumentorTimer.h"
+#include "Runtime/Core/InstrumentorTimer.h"
 
 namespace DSM {
     ShadowPass::ShadowPass(Renderer &renderer, ShadowSetting shadowSetting)
@@ -13,8 +13,8 @@ namespace DSM {
 
         m_CmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Shadow Pass Command List"));
 
-        m_ShadowCB = device->CreateBuffer(BufferDesc()
-            .SetByteSize(sizeof(ShadowConstants))
+        sm_ShadowCB = device->CreateBuffer(BufferDesc()
+            .SetByteSize(sizeof(ShaderResource::ShadowConstants))
             .SetIsConstantBuffer(true)
             .SetDebugName("Shadow Constants Buffer"));
 
@@ -25,15 +25,7 @@ namespace DSM {
             .SetIsVolatile(true)
             .SetDebugName("Shadow Pass PassConstants Buffer"));
 
-        m_ShadowMap = renderer.GetDevice()->CreateTexture(TextureDesc()
-            .SetWidth(shadowSetting.directionalSetting.size)
-            .SetHeight(shadowSetting.directionalSetting.size)
-            .SetClearValue(Color{1,1,1,1})
-            .SetFormat(Format::D32)
-            .SetIsRenderTarget(true)
-            .SetDebugName("ShadowMap"));
-
-        m_ShadowFramebuffer = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(m_ShadowMap));
+        ResizeShadowMap(device);
 
         // 编译 ShadowPass 的着色器
         auto createShader = [&](ShaderType type, const std::string& entryPoint, const auto& define) {
@@ -41,7 +33,7 @@ namespace DSM {
                 .SetType(type)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint(entryPoint)
-                .SetFilename("Shaders/Passes/ShadowPass.hlsl");
+                .SetFilename("Shaders/ForwardShader/Passes/ShadowPass.hlsl");
             if(!std::empty(define)){
                 desc.AddDefine(define, "1");
             }
@@ -86,12 +78,12 @@ namespace DSM {
                 .SetPixelShader(psHandle)
                 .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                 .SetRenderState(renderState)
-                .AddBindingLayout(m_ShadowBindingLayout, 0);
+                .AddBindingLayout(m_ShadowBindingLayout, 0)
+                .AddBindingLayout(g_RenderResources.textureBindlessLayout, 1);
             auto pso = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
-            g_RenderResources.psoCache[pipelineDesc] = pso;
             return pso;
         };
-        size_t count = (ShadowSetting::FilterMode::_PCF7x7 + 1);
+        size_t count = ShadowSetting::FilterMode::Count;
         for(size_t i = 0; i < 2 * count; ++i){
             bool clip = i < count;
             ShaderHandle vs = shaders[clip ? size_t(ShaderSlot::ShadowVSClip) : size_t(ShaderSlot::ShadowVS)];
@@ -100,24 +92,26 @@ namespace DSM {
             float scale = (i % count) + 1;
             renderState.rasterState.SetSlopeScaleDepthBias(1.5f * scale).SetDepthBias(100 * scale);
             auto pso = createPipeline(vs, ps, clip, renderState);
-            m_ShadowPipelineDescs.push_back(pso);
+            m_ShadowPipeline.push_back(pso);
         }
-
-        // 将 ShadowMap 绑定到管线
-        g_RenderResources.bindingLayoutDescs[(size_t)BindingLayoutSlot::Common]
-            .AddItem(BindingLayoutItem().Texture_SRV(LitPassBindingLayout::ShaderResource::ShadowMap))
-            .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::Shadow)))
-            .AddItem(BindingLayoutItem().ConstantBuffer(LitPassBindingLayout::Constants::ShadowConstants));
-        g_RenderResources.commonBindingSetDesc
-            .AddItem(BindingSetItem().Texture_SRV(LitPassBindingLayout::ShaderResource::ShadowMap, m_ShadowMap))
-            .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::Shadow), GetCommonSampler(SamplerSlot::Shadow)))
-            .AddItem(BindingSetItem().ConstantBuffer(LitPassBindingLayout::Constants::ShadowConstants, m_ShadowCB));
 
         sm_TimerQuery = device->CreateTimerQuery();
     }
-    
+
+    ShadowPass::~ShadowPass()
+    {
+        sm_ShadowCB = nullptr;
+    }
+
     void ShadowPass::Render(Renderer &renderer, float deltaTime)
     {
+        // 检测是否要调整阴影图大小
+        const auto& shadowMapDesc = g_RenderResources.commonTextures[static_cast<size_t>(CommonTextureSlot::ShadowMap)]->GetDesc();
+        if(sm_Setting.directionalSetting.size != shadowMapDesc.width || sm_Setting.directionalSetting.size != shadowMapDesc.height){
+            ResizeShadowMap(renderer.GetDevice());
+        }
+
+        // 从全局资源中获取所有的定向光
         m_DirectionalLights.clear();
         for(const auto& light : g_RenderResources.lights){
             if(light.lightType == LightType::Directional){
@@ -133,11 +127,11 @@ namespace DSM {
         size_t tileSize = sm_Setting.directionalSetting.size / split;
 
         // 计算包围球
-        auto view = DSMEngine::sm_GlobalContext.scene->GetAllObjectsWithComponents<Model, Math::Transform>();
+        auto view = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Math::AxisAlignedBox, Math::Transform>();
         // 计算所有模型的包围盒
         Math::AxisAlignedBox boundingBox{};
-        for (const auto& [entity, model, transform] : view.each()) {
-            auto transBox = model.boundingBox * transform;
+        for (const auto& [entity, bounds, transform] : view.each()) {
+            auto transBox = bounds * transform;
             boundingBox = Math::AxisAlignedBox::Union(boundingBox, transBox);
         }
         Math::BoundingSphere boundingSphere{boundingBox};
@@ -165,20 +159,20 @@ namespace DSM {
         // 开始计时
         m_CmdList->BeginTimerQuery(sm_TimerQuery);
 
-        m_CmdList->ClearDepthStencilTexture(m_ShadowMap, AllSubresources, true, 1, false, 0);
+        m_CmdList->ClearDepthStencilTexture(GetCommonTexture(CommonTextureSlot::ShadowMap), AllSubresources, true, 1, false, 0);
 
         for(size_t i = 0; i < dirLightCount; ++i){
             RenderDirectionalShadow(renderer, boundingSphere, i, split, tileSize);
         }
         // 转换为着色器资源以供后续 Pass 使用
-        m_CmdList->SetTextureState(m_ShadowMap, AllSubresources, ResourceStates::PixelShaderResource);
+        m_CmdList->SetTextureState(GetCommonTexture(CommonTextureSlot::ShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
 
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
         Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;
         uint32_t cascadeCount = sm_Setting.directionalSetting.cascadeCount;
 
         // 写入阴影变换矩阵
-        ShadowConstants shadowConstants{};
+        ShaderResource::ShadowConstants shadowConstants{};
         for(size_t i = 0; i < dirLightCount * cascadeCount; ++i){
             shadowConstants.shadowViewProjs[i] = m_DirectionalShadowMatrices[i];
         }
@@ -192,7 +186,7 @@ namespace DSM {
                 m_CameraFrustum.GetFarPlane() : float(m_CameraFrustum.GetNearPlane() + zRange * cascadeRatios.Get(i));
             shadowConstants.cascadeFarPlaneDist.Set(i, distance);
         }
-        m_CmdList->WriteBuffer(m_ShadowCB, &shadowConstants, sizeof(ShadowConstants));
+        m_CmdList->WriteBuffer(sm_ShadowCB, &shadowConstants, sizeof(ShaderResource::ShadowConstants));
 
         // 结束计时
         m_CmdList->EndTimerQuery(sm_TimerQuery);
@@ -286,11 +280,11 @@ namespace DSM {
             , m_ShadowBindingLayout);
 
         for(const auto& [index, obj] : g_RenderResources.objects | std::views::enumerate){
-            auto [mesh, material, transfrom] = obj->GetComponent<Mesh, Material, Math::Transform>();
+            auto [mesh, material, transfrom] = obj->GetComponent<Mesh, ShaderResource::MaterialData, Math::Transform>();
 
             bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
-            size_t baseIndex = alphaClip ? 0 : (ShadowSetting::FilterMode::_PCF7x7  +1);
-            const auto& pipeline = m_ShadowPipelineDescs[baseIndex + sm_Setting.directionalSetting.filter];
+            size_t baseIndex = alphaClip ? 0 : ShadowSetting::FilterMode::Count;
+            const auto& pipeline = m_ShadowPipeline[baseIndex + sm_Setting.directionalSetting.filter];
 
             GraphicsState state{};
             state.SetFramebuffer(m_ShadowFramebuffer)
@@ -299,7 +293,8 @@ namespace DSM {
                 .SetIndexBuffer(mesh->indexBufferViews)
                 .AddVertexBuffer(mesh->positionStream)
                 .AddVertexBuffer(mesh->uvStream)
-                .AddBindingSet(bindingSet, 0);
+                .AddBindingSet(bindingSet, 0)
+                .AddBindingSet(g_RenderResources.textureBindlessTable, 1);
 
             m_CmdList->SetGraphicsState(state);
 
@@ -331,5 +326,21 @@ namespace DSM {
         };
 
         return atlasTransform * m;
+    }
+    
+    void ShadowPass::ResizeShadowMap(IDevice* device)
+    {
+        DSM_ASSERT(device != nullptr, "Device is null");
+
+        auto& shadowMapTex = g_RenderResources.commonTextures[static_cast<size_t>(CommonTextureSlot::ShadowMap)];
+        shadowMapTex = device->CreateTexture(TextureDesc()
+            .SetWidth(sm_Setting.directionalSetting.size)
+            .SetHeight(sm_Setting.directionalSetting.size)
+            .SetClearValue(Color{1,1,1,1})
+            .SetFormat(Format::D32)
+            .SetIsRenderTarget(true)
+            .SetDebugName("ShadowMap"));
+
+        m_ShadowFramebuffer = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(shadowMapTex));
     }
 }

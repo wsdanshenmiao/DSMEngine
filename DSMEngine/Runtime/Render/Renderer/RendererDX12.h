@@ -12,7 +12,7 @@ namespace DSM{
     {
     public:
         RendererDX12(const RenderParameters& renderDesc);
-        ~RendererDX12();
+        virtual ~RendererDX12();
 
         inline GraphicsAPI GetGraphicsAPI() const override { return GraphicsAPI::D3D12; };
         

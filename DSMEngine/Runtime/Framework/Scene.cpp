@@ -141,7 +141,7 @@ namespace DSM {
         });
 
         auto copyComponent = [&]<typename... Components>(std::variant<Components...>) {
-            (src.GetAllObjectsWithComponents<Components>().each(
+            (src.GetObjectsWithComponents<Components>().each(
                 [&](entt::entity entity, const Components& component) {
                     if(auto it = idMap.find(entity); it != idMap.end()){
                         if(auto obj = dest.GetObjectByID(it->second).lock(); obj != nullptr){

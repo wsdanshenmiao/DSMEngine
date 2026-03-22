@@ -13,7 +13,7 @@ namespace DSM {
             auto device = renderer.GetDevice();
 
             m_SkyboxCB = device->CreateBuffer(BufferDesc()
-                .SetByteSize(sizeof(SkyboxConstants))
+                .SetByteSize(sizeof(ShaderResource::SkyboxConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("SkyboxCB"));
@@ -55,7 +55,7 @@ namespace DSM {
                 .SetType(ShaderType::Vertex)
                 .SetMode(ShaderMode::SM_6_6)
                 .SetEnterPoint("SkyboxVS")
-                .SetFilename("Shaders/Passes/SkyboxPass.hlsl");
+                .SetFilename("Shaders/ForwardShader/Passes/SkyboxPass.hlsl");
             ShaderByteCode vsByteCode{compileDesc};
             compileDesc.SetType(ShaderType::Pixel)
                 .SetEnterPoint("SkyboxPS");
@@ -74,17 +74,15 @@ namespace DSM {
 
             auto cmpFunc = renderer.GetCamera().IsReversedZ() ? 
                 ComparisonFunc::GreaterOrEqual : ComparisonFunc::LessOrEqual;
-            m_PipelineDesc.AddBindingLayout(bindingLayout, 0)
+            auto pipelineDesc = GraphicsPipelineDesc()
+                .AddBindingLayout(bindingLayout, 0)
                 .SetRenderState(RenderState()
                     .SetDepthStencilState(DepthStencilState()
                         .SetDepthWriteEnable(false)
                         .SetDepthFunc(cmpFunc)))
                 .SetVertexShader(vs)
                 .SetPixelShader(ps);
-            if(!g_RenderResources.psoCache.contains(m_PipelineDesc)){
-                auto pso = device->CreateGraphicsPipeline(m_PipelineDesc, g_RenderResources.framebuffer);
-                g_RenderResources.psoCache.insert(std::make_pair(m_PipelineDesc, pso));
-            }
+            m_Pipeline = device->CreateGraphicsPipeline(pipelineDesc, g_RenderResources.framebuffer);
 
             sm_TimerQuery = device->CreateTimerQuery();
         }
@@ -99,14 +97,14 @@ namespace DSM {
 
             auto& fb = g_RenderResources.framebuffer;
 
-            SkyboxConstants skyboxConstants{};
+            ShaderResource::SkyboxConstants skyboxConstants{};
             skyboxConstants.isReversedZ = renderer.GetCamera().IsReversedZ();
             skyboxConstants.cameraPos = float4(renderer.GetCamera().GetPosition(), 1.0f);
             skyboxConstants.invViewProj = Math::Matrix4::InverseTranspose(renderer.GetCamera().GetViewProjMatrix());
-            cmdList->WriteBuffer(m_SkyboxCB, &skyboxConstants, sizeof(SkyboxConstants));
+            cmdList->WriteBuffer(m_SkyboxCB, &skyboxConstants, sizeof(ShaderResource::SkyboxConstants));
 
             GraphicsState graphicsState = GraphicsState()
-                .SetPipeline(g_RenderResources.psoCache.at(m_PipelineDesc))
+                .SetPipeline(m_Pipeline)
                 .SetFramebuffer(fb)
                 .SetViewport(ViewportState().AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                 .AddBindingSet(m_BindingSet, 0);
@@ -128,7 +126,7 @@ namespace DSM {
     private:
         TextureHandle m_SkyboxTexture;
         BufferHandle m_SkyboxCB;
-        GraphicsPipelineDesc m_PipelineDesc;
+        GraphicsPipelineHandle m_Pipeline;
 
         BindingSetHandle m_BindingSet;
     };

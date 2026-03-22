@@ -29,7 +29,8 @@ namespace DSM {
             None,
             _PCF3x3,
             _PCF5x5,
-            _PCF7x7
+            _PCF7x7,
+            Count
         };
         
         struct Directional
@@ -51,6 +52,7 @@ namespace DSM {
     {
     public:
         ShadowPass(Renderer& renderer, ShadowSetting shadowSetting);
+        virtual ~ShadowPass();
 
         void Render(Renderer& renderer, float deltaTime) override;
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override{}
@@ -65,9 +67,11 @@ namespace DSM {
 
         Math::Matrix4 ConvertToAtlasMatrix(const Math::Matrix4& m, Math::Vector2 offset, float scale) const;
 
+        void ResizeShadowMap(IDevice* device);
 
     public:
         inline static ShadowSetting sm_Setting;
+        inline static BufferHandle sm_ShadowCB{};
         inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
@@ -85,15 +89,13 @@ namespace DSM {
 
         CommandListHandle m_CmdList;
 
-        TextureHandle m_ShadowMap{};
-        BufferHandle m_ShadowCB{};
         BufferHandle m_PassCB{};
 
         ShadowMatrixArray m_DirectionalShadowMatrices{};
 
         FramebufferHandle m_ShadowFramebuffer;
 
-        std::vector<GraphicsPipelineHandle> m_ShadowPipelineDescs;
+        std::vector<GraphicsPipelineHandle> m_ShadowPipeline;
         BindingLayoutHandle m_ShadowBindingLayout;
 
         std::vector<Light> m_DirectionalLights{};

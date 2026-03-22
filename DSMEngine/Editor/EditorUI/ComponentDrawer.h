@@ -71,7 +71,7 @@ namespace DSM{
 		ImGui::PopID();
     }
 
-    inline void DrawMaterial(Material& mat)
+    inline void DrawMaterial(ShaderResource::MaterialData& mat)
     {
         std::array<float, 4> vec4{};
 

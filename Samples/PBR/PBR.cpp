@@ -4,19 +4,19 @@
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Render/Camera/CameraController.h"
 #include "Runtime/Render/Geometry.h"
-#include "Passes/SetupPass.h"
-#include "Passes/GeometryPass.h"
-#include "Passes/LitPass.h"
-#include "Passes/FinalPass.h"
-#include "Passes/LightingPass.h"
-#include "Passes/ShadowPass.h"
-#include "Passes/SkyBoxPass.h"
-#include "Passes/SSAOPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/SetupPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/GeometryPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/LitPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/FinalPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/LightingPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/ShadowPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/SkyBoxPass.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/SSAOPass.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/ScriptableObject.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Framework/Component/Component.h"
-#include "InstrumentorTimer.h"
+#include "Runtime/Core/InstrumentorTimer.h"
 #include <imgui.h>
 #include <print>
 
@@ -59,21 +59,18 @@ public:
                 auto subObjPtr = scene->GetObjectByID(subObj).lock();
                 subObjPtr->AddComponent<Mesh>(*mesh);
                 subObjPtr->AddComponent<Math::AxisAlignedBox>(mesh->boundingBox);
-                subObjPtr->AddComponent<Material>(*model->materials[mesh->materialIndex]);
+                subObjPtr->AddComponent<ShaderResource::MaterialData>(*model->materials[mesh->materialIndex]);
                 obj->AddChild(subObjPtr);
             }
         };
         auto lihuazou = scene->CreateObject("Lihuazou");
         auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
         auto lihuazouModel = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
-		lihuazouPtr->AddComponent<Model>(*lihuazouModel);
         processModel(lihuazouPtr, lihuazouModel);
 
-		lihuazouPtr->AddComponent<Model>();
 		auto sponza = scene->CreateObject("Sponza");
 		auto sponzaPtr = scene->GetObjectByID(sponza).lock();
         auto sponzaModel = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
-        sponzaPtr->AddComponent<Model>(*sponzaModel);
         processModel(sponzaPtr, sponzaModel);
     }
 
@@ -89,7 +86,6 @@ public:
         m_CameraController->Update(deltaTime);
 
         for (auto& renderPass : m_RenderPasses) {
-            InstrumentationTimer timer(typeid(*renderPass).name());
             renderPass->Render(renderer, deltaTime);
         }
     }
@@ -111,16 +107,7 @@ public:
             static int curr_scene_pcf_item = ShadowPass::sm_Setting.directionalSetting.filter;
             if (ImGui::Combo("Scene PCF", &curr_scene_pcf_item, pcfMode, ARRAYSIZE(pcfMode))) {
                 auto& filter = ShadowPass::sm_Setting.directionalSetting.filter;
-                auto currMode = ShadowSetting::FilterMode(curr_scene_pcf_item);
-                if(filter != currMode){
-                    const auto& shaders = g_RenderResources.shaders;
-                    for(auto& config : g_RenderResources.renderConfigs){
-                        size_t baseIndex = config.pipelineDesc.PS == shaders[(size_t)ShaderSlot::LitPS + filter] ? 
-                            (size_t)ShaderSlot::LitPS : (size_t)ShaderSlot::LitPSNoTangent;
-                        config.pipelineDesc.PS = shaders[baseIndex + currMode];
-                    }
-                    filter = currMode;
-                }
+                filter = ShadowSetting::FilterMode(curr_scene_pcf_item);
             }
 
             ImGui::Checkbox("Enable SSAO", &SSAOPass::sm_Settings.enable);

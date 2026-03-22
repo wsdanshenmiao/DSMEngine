@@ -21,8 +21,8 @@ namespace DSM{
 
     Renderer::~Renderer()
     {
-        m_Internal = nullptr;
         m_RenderPipeline = nullptr;
+        m_Internal = nullptr;
     }
 
 
