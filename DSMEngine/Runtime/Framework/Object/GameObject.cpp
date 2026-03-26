@@ -14,7 +14,14 @@ namespace DSM {
             child->SetParent(shared_from_this());
         }
     }
-    
+
+    void GameObject::AddChild(ObjectID childID)
+    {
+        if(auto child = m_World->GetObjectByID(childID).lock()){
+            AddChild(child);
+        }
+    }
+
     void GameObject::RemoveChild(const std::shared_ptr<GameObject> &child)
     {
         if(child != nullptr && child->m_Parent.lock().get() == this){
@@ -25,11 +32,18 @@ namespace DSM {
             }
         }
     }
-    
+
+    void GameObject::RemoveChild(ObjectID childID)
+    {
+        if(auto child = m_World->GetObjectByID(childID).lock()){
+            RemoveChild(child);
+        }
+    }
+
     void GameObject::SetParent(const std::shared_ptr<GameObject> &parent)
     {
         // 避免设置自己为父对象
-        if(parent.get() == this)
+        if(parent == nullptr || parent.get() == this)
             return;
 
         // 检测若设置为父对象是否会成环
@@ -57,6 +71,13 @@ namespace DSM {
             else{
                 m_World->m_RootObjects.insert(self);
             }
+        }
+    }
+    
+    void GameObject::SetParent(ObjectID parentID)
+    {
+        if(auto parent = m_World->GetObjectByID(parentID).lock()){
+            SetParent(parent);
         }
     }
 }

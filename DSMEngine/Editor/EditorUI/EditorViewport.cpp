@@ -5,10 +5,13 @@
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/Renderer/Renderer.h"
 #include "Runtime/Event/KeyEvent.h"
+#include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
+#include "Runtime/Core/Window.h"
 
 #include <imgui.h>
 #include <ImGuizmo.h>
+#include <glfw/glfw3.h>
 
 namespace DSM {
     EditorViewport::EditorViewport(EditorUI* editorUI)
@@ -100,6 +103,26 @@ namespace DSM {
                 break;
             }
 
+            return false;
+        });
+        dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& e) {
+            if(e.GetWidth() != 0 && e.GetHeight() != 0){
+                int window_width, window_height;
+                auto window = DSMEngine::sm_GlobalContext.window->GetNativeWindow();
+                glfwGetWindowSize(window, &window_width, &window_height);
+                int fb_width, fb_height;
+                glfwGetFramebufferSize(window, &fb_width, &fb_height);
+
+                ImGuiIO& io = ImGui::GetIO();
+                io.DisplaySize = ImVec2((float)window_width, (float)window_height);
+                io.DisplayFramebufferScale = ImVec2((float)fb_width / (float)window_width,
+                                                    (float)fb_height / (float)window_height);
+
+                // 只缩放字体，不缩放样式
+                float base_width = 1024.f;
+                float scale = io.DisplaySize.x / base_width;
+                io.FontGlobalScale = scale;
+            }
             return false;
         });
     }

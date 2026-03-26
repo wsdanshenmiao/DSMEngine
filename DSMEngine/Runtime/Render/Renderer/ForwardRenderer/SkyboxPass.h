@@ -3,13 +3,14 @@
 #define __SKYBOXPASS_H__
 
 #include "Runtime/Render/TextureManager.h"
-#include "SetupPass.h"
+#include "Runtime/Render/ShaderCompiler.h"
 
 namespace DSM {
     class SkyboxPass : public IRenderPass {
     public:
         SkyboxPass(Renderer& renderer)
         {
+            auto& renderRes = RenderResource::GetInstance();
             auto device = renderer.GetDevice();
 
             m_SkyboxCB = device->CreateBuffer(BufferDesc()
@@ -47,7 +48,7 @@ namespace DSM {
             m_BindingSet = device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem().ConstantBuffer(0, m_SkyboxCB))
                 .AddItem(BindingSetItem().Texture_SRV(0, m_SkyboxTexture))
-                .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap))), 
+                .AddItem(BindingSetItem().Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap))), 
                 bindingLayout);
 
             // 编译 Shader
@@ -82,7 +83,7 @@ namespace DSM {
                         .SetDepthFunc(cmpFunc)))
                 .SetVertexShader(vs)
                 .SetPixelShader(ps);
-            m_Pipeline = device->CreateGraphicsPipeline(pipelineDesc, g_RenderResources.framebuffer);
+            m_Pipeline = device->CreateGraphicsPipeline(pipelineDesc, renderRes.GetFramebuffer());
 
             sm_TimerQuery = device->CreateTimerQuery();
         }
@@ -95,8 +96,6 @@ namespace DSM {
             // 开始计时
             cmdList->BeginTimerQuery(sm_TimerQuery);
 
-            auto& fb = g_RenderResources.framebuffer;
-
             ShaderResource::SkyboxConstants skyboxConstants{};
             skyboxConstants.isReversedZ = renderer.GetCamera().IsReversedZ();
             skyboxConstants.cameraPos = float4(renderer.GetCamera().GetPosition(), 1.0f);
@@ -105,7 +104,7 @@ namespace DSM {
 
             GraphicsState graphicsState = GraphicsState()
                 .SetPipeline(m_Pipeline)
-                .SetFramebuffer(fb)
+                .SetFramebuffer(RenderResource::GetInstance().GetFramebuffer())
                 .SetViewport(ViewportState().AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                 .AddBindingSet(m_BindingSet, 0);
             cmdList->SetGraphicsState(graphicsState);

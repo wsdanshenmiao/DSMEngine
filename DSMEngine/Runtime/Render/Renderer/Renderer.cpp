@@ -2,6 +2,8 @@
 #include "RendererDX12.h"
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Window.h"
+#include "Runtime/Core/InstrumentorTimer.h"
+#include "Runtime/Core/InstrumentorMacro.h"
 
 namespace DSM{
 
@@ -83,9 +85,11 @@ namespace DSM{
 
         // 执行渲染与回调函数
         callback(beforeFrame);
-        if(BeginFrame()){
+        if(InstrumentationTimer timer{"Begin Frame"}; BeginFrame()){
+            timer.Stop();
             callback(beforeRender);
             if(m_RenderPipeline != nullptr){
+                PROFILE_SCOPE("Render Scene");
                 m_RenderPipeline->Render(*this, deltaTime);
             }
             m_Internal->BeginWindowUI();
@@ -96,6 +100,7 @@ namespace DSM{
             callback(afterRender);
 
             callback(beforePresent);
+            PROFILE_SCOPE("Present");
             Present();
             callback(afterPresent);
         }

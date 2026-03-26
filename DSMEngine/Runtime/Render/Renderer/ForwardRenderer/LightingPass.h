@@ -2,7 +2,7 @@
 #ifndef __LIGHTINGPASS_H__
 #define __LIGHTINGPASS_H__
 
-#include "IRenderPass.h"
+#include "RenderResource.h"
 #include "Runtime/Math/MathCommon.h"
 #include "Shaders/ForwardShader/ResourceData.h"
 
@@ -26,7 +26,6 @@ namespace DSM {
                 .SetStructStride(sizeof(ShaderResource::OtherLightData))
                 .SetDebugName("Other Light Data Buffer"));
 
-            CreateShader(renderer);
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
@@ -39,14 +38,14 @@ namespace DSM {
 
         void Render(Renderer& renderer, float deltaTime) override
         {
-            auto lightSize = g_RenderResources.lights.size();
-            if(lightSize == 0)
+            auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
+            if(lights.empty())
                 return;
 
             std::vector<ShaderResource::DirectionalLightData> dirLightData{};
             std::vector<ShaderResource::OtherLightData> otherLightData{};
 
-            for (const auto& light : g_RenderResources.lights) {
+            for (const auto& [id, light] : lights.each()) {
                 switch(light.lightType){
                 case LightType::Directional:
                     dirLightData.push_back(CreateDirLightData(light));
@@ -111,51 +110,6 @@ namespace DSM {
             data.positionAndRange = Math::Vector4{light.position, 1 / light.range};
             data.spotAngle = Math::Vector4{light.innerAngle, light.outerAngle};
             return data;
-        }
-
-        void CreateShader(Renderer& renderer) 
-        {
-            // 创建着色器
-            ShaderCompileDesc litVSDesc{};
-            litVSDesc.SetType(ShaderType::Vertex)
-                .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/ForwardShader/Passes/LitPass.hlsl")
-                .SetEnterPoint("LitPassVS");
-            ShaderByteCode litVSNoTangent{litVSDesc};
-            ShaderByteCode litVS{litVSDesc.AddDefine("USE_TANGENT", "1")};
-
-            ShaderCompileDesc litPSDesc{};
-            litPSDesc.SetType(ShaderType::Pixel)
-                .SetMode(ShaderMode::SM_6_6)
-                .SetFilename("Shaders/ForwardShader/Passes/LitPass.hlsl")
-                .SetEnterPoint("LitPassPS");
-            ShaderByteCode litPSNoTangent{litPSDesc};
-            ShaderByteCode litPSNoTangentPCF3{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF3", "1")};
-            ShaderByteCode litPSNoTangentPCF5{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF5", "1")};
-            ShaderByteCode litPSNoTangentPCF7{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF7", "1")};
-            ShaderByteCode litPS{litPSDesc.AddDefine("USE_TANGENT", "1")};
-            ShaderByteCode litPSPCF3{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF3", "1")};
-            ShaderByteCode litPSPCF5{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF5", "1")};
-            ShaderByteCode litPSPCF7{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF7", "1")};
-
-            auto createShader = [&](const ShaderByteCode& byteCode, const auto& name) {
-                return renderer.GetDevice()->CreateShader(ShaderDesc()
-                    .SetEntryName(byteCode.GetDesc().enterPoint)
-                    .SetShaderType(byteCode.GetDesc().type)
-                    .SetDebugName(name), 
-                    byteCode.GetByteCode(), byteCode.GetByteCodeSize());
-            };
-            auto& shaders = g_RenderResources.shaders;
-            shaders[(size_t)ShaderSlot::LitVS] = createShader(litVS, "LitPassVS");
-            shaders[(size_t)ShaderSlot::LitVSNoTangent] = createShader(litVSNoTangent, "LitPassVSNoTangent");
-            shaders[(size_t)ShaderSlot::LitPS] = createShader(litPS, "LitPassPS");
-            shaders[(size_t)ShaderSlot::LitPSPCF3] = createShader(litPSPCF3, "LitPassPSPCF3");
-            shaders[(size_t)ShaderSlot::LitPSPCF5] = createShader(litPSPCF5, "LitPassPSPCF5");
-            shaders[(size_t)ShaderSlot::LitPSPCF7] = createShader(litPSPCF7, "LitPassPSPCF7");
-            shaders[(size_t)ShaderSlot::LitPSNoTangent] = createShader(litPSNoTangent, "LitPassPSNoTangent");
-            shaders[(size_t)ShaderSlot::LitPSNoTangentPCF3] = createShader(litPSNoTangentPCF3, "LitPassPSNoTangentPCF3");
-            shaders[(size_t)ShaderSlot::LitPSNoTangentPCF5] = createShader(litPSNoTangentPCF5, "LitPassPSNoTangentPCF5");
-            shaders[(size_t)ShaderSlot::LitPSNoTangentPCF7] = createShader(litPSNoTangentPCF7, "LitPassPSNoTangentPCF7");
         }
 
     public:

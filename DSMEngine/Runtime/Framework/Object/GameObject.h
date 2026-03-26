@@ -21,8 +21,8 @@ namespace DSM {
         bool IsEnabled() const noexcept { return m_Enabled; }
         void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
 
-        template <typename T>
-        bool HasComponent() const noexcept { return m_World->m_Registry.all_of<T>(m_Handle); }
+        template <typename... Args>
+        bool HasComponent() const noexcept { return m_World->m_Registry.all_of<Args...>(m_Handle); }
 
         template <typename... Args>
         auto GetComponent() noexcept { return m_World->m_Registry.try_get<Args...>(m_Handle); }
@@ -46,8 +46,11 @@ namespace DSM {
         bool RemoveComponent() noexcept { if(HasComponent<T>()) { m_World->m_Registry.remove<T>(m_Handle); return true; } return false; }
 
         void AddChild(const std::shared_ptr<GameObject>& child);
+        void AddChild(ObjectID childID);
         void RemoveChild(const std::shared_ptr<GameObject>& child);
+        void RemoveChild(ObjectID childID);
         void SetParent(const std::shared_ptr<GameObject>& parent);
+        void SetParent(ObjectID parentID);
         const auto& GetChildren() const noexcept { return m_Children; }
         std::shared_ptr<GameObject> GetParent() const noexcept { return m_Parent.lock(); }
 

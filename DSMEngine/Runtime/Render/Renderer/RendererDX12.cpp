@@ -5,6 +5,7 @@
 #include "Runtime/Render/TextureManager.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Render/WindowUI.h"
+#include "Runtime/Core/InstrumentorTimer.h"
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>

@@ -93,13 +93,19 @@ namespace DSM::Math {
         {
             if (object == nullptr)
                 return nullptr;
+            auto [transform, objBounds] = object->GetComponent<Transform, AxisAlignedBox>();
+            if(objBounds == nullptr || transform == nullptr)
+                return nullptr;
+
+            // 变换到世界空间的包围盒
+            auto bounds = *objBounds * *transform;
 
             // 搜索合适的插入位置
-            std::shared_ptr<BVHNode> sibling = FindBestNode(object);
+            std::shared_ptr<BVHNode> sibling = FindBestNode(bounds);
             if (sibling == nullptr) {
                 m_Root = std::make_shared<BVHNode>();
                 m_Root->object = object;
-                m_Root->bounds = *object->GetComponent<AxisAlignedBox>();
+                m_Root->bounds = bounds;
                 m_LeafNodes[object] = m_Root;
                 return m_Root;
             }
@@ -107,7 +113,7 @@ namespace DSM::Math {
             // 创建新的父节点并插入新的节点
             auto newNode = std::make_shared<BVHNode>();
             newNode->object = object;
-            newNode->bounds = *object->GetComponent<AxisAlignedBox>();
+            newNode->bounds = bounds;
 
             auto oldParent = sibling->parent.lock();
             auto newParent = std::make_shared<BVHNode>();
@@ -183,22 +189,26 @@ namespace DSM::Math {
 
         void UpdateNode(std::shared_ptr<GameObject> object)
         {
-            if(object == nullptr)
-                return;
-
             auto node = FindNode(object);
-            auto bounds = node == nullptr ? nullptr : object->GetComponent<AxisAlignedBox>();
-            if(bounds == nullptr)
+            if(node != nullptr)
+                UpdateNode(node);
+        }
+
+        void UpdateNode(std::shared_ptr<BVHNode> node)
+        {
+            auto nodeBounds = node == nullptr ? nullptr : node->object->GetComponent<AxisAlignedBox>();
+            if(nodeBounds == nullptr)
                 return;
 
+            auto bounds = *nodeBounds * *node->object->GetComponent<Math::Transform>();
             // 仅在包围盒不再被父节点包含时才需要调整树结构
             if(auto checkNode = node->parent.expired() ? node : node->parent.lock();
-                checkNode != nullptr && checkNode->bounds.Contains(*bounds)){
-                node->bounds = *bounds;
+                checkNode != nullptr && checkNode->bounds.Contains(bounds)){
+                node->bounds = bounds;
             }
             else{
                 RemoveNode(node);
-                InsertNode(object);
+                InsertNode(node->object);
             }
         }
 
@@ -207,7 +217,7 @@ namespace DSM::Math {
             if(object != nullptr) {
                 auto node = FindNode(object);
                 if(node != nullptr) {
-                    UpdateNode(object);
+                    UpdateNode(node);
                 }
                 else {
                     InsertNode(object);
@@ -219,21 +229,20 @@ namespace DSM::Math {
         /// <summary>
         /// 使用表面启发式算法查找最佳的插入点
         /// </summary>
-        std::shared_ptr<BVHNode> FindBestNode(std::shared_ptr<GameObject> object)
+        std::shared_ptr<BVHNode> FindBestNode(const AxisAlignedBox& bounds)
         {
-            if(object == nullptr || m_Root == nullptr)
+            if(m_Root == nullptr)
                 return nullptr;
 
             float bestCost = std::numeric_limits<float>::max();
             std::shared_ptr<BVHNode> sibling = nullptr;
             for (const auto& [obj, node] : m_LeafNodes) {
                 // 插入一个节点的开销为合并后包围盒的面积及所有祖先节点的面积增量
-                auto objectBounds = object->GetComponent<AxisAlignedBox>();
-                float cost = AxisAlignedBox::Union(node->bounds, *objectBounds).Area();
+                float cost = AxisAlignedBox::Union(node->bounds, bounds).Area();
                 auto parent = node->parent.lock();
                 for (; parent != nullptr && cost < bestCost; parent = parent->parent.lock()) {
                     // 累加父节点的面积增量
-                    auto newBounds = AxisAlignedBox::Union(parent->bounds, *objectBounds);
+                    auto newBounds = AxisAlignedBox::Union(parent->bounds, bounds);
                     cost += newBounds.Area() - parent->bounds.Area();
                 }
 

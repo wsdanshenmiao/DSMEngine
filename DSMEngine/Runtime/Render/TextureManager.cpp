@@ -66,6 +66,10 @@ namespace DSM::TextureManager {
         s_DefaultTextures[kBlackCubeTex] = s_GraphicsDevice->CreateTexture(texDesc);
         cmdList->WriteTexture(s_DefaultTextures[kBlackCubeTex], 0, 0, BlackCubeTexels, 6 * 4);
 		
+		for(auto& tex : s_DefaultTextures) {
+			cmdList->SetTextureState(tex, AllSubresources, ResourceStates::ShaderResource);
+		}
+
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
 	}

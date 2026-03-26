@@ -75,19 +75,21 @@ namespace DSM {
         auto createPipeline = [&](IShader* vsHandle, IShader* psHandle, bool clip, const auto& renderState) {
             auto pipelineDesc = GraphicsPipelineDesc()
                 .SetVertexShader(vsHandle)
-                .SetPixelShader(psHandle)
                 .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
                 .SetRenderState(renderState)
-                .AddBindingLayout(m_ShadowBindingLayout, 0)
-                .AddBindingLayout(g_RenderResources.textureBindlessLayout, 1);
+                .AddBindingLayout(m_ShadowBindingLayout, 0);
+            if(psHandle != nullptr){
+                pipelineDesc.SetPixelShader(psHandle)
+                    .AddBindingLayout(RenderResource::GetInstance().GetTextureBindlessLayout(), 1);
+            }
             auto pso = device->CreateGraphicsPipeline(pipelineDesc, m_ShadowFramebuffer);
             return pso;
         };
         size_t count = ShadowSetting::FilterMode::Count;
         for(size_t i = 0; i < 2 * count; ++i){
             bool clip = i < count;
-            ShaderHandle vs = shaders[clip ? size_t(ShaderSlot::ShadowVSClip) : size_t(ShaderSlot::ShadowVS)];
-            ShaderHandle ps = shaders[clip ? size_t(ShaderSlot::ShadowPSClip) : size_t(ShaderSlot::ShadowPS)];
+            ShaderHandle vs = shaders[clip ? ShaderSlot::ShadowVSClip : ShaderSlot::ShadowVS];
+            ShaderHandle ps = clip ? shaders[ShaderSlot::ShadowPSClip] : nullptr;
             auto renderState = RenderState{};
             float scale = (i % count) + 1;
             renderState.rasterState.SetSlopeScaleDepthBias(1.5f * scale).SetDepthBias(100 * scale);
@@ -105,15 +107,17 @@ namespace DSM {
 
     void ShadowPass::Render(Renderer &renderer, float deltaTime)
     {
+        auto& renderRes = RenderResource::GetInstance();
+
         // 检测是否要调整阴影图大小
-        const auto& shadowMapDesc = g_RenderResources.commonTextures[static_cast<size_t>(CommonTextureSlot::ShadowMap)]->GetDesc();
+        const auto& shadowMapDesc = renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap)->GetDesc();
         if(sm_Setting.directionalSetting.size != shadowMapDesc.width || sm_Setting.directionalSetting.size != shadowMapDesc.height){
             ResizeShadowMap(renderer.GetDevice());
         }
 
         // 从全局资源中获取所有的定向光
         m_DirectionalLights.clear();
-        for(const auto& light : g_RenderResources.lights){
+        for(const auto& [id, light] : DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>().each()){
             if(light.lightType == LightType::Directional){
                 m_DirectionalLights.push_back(light);
             }
@@ -126,15 +130,10 @@ namespace DSM {
         size_t split = tiles <= 1 ? 1 : (tiles <= 4 ? 2 : 4);
         size_t tileSize = sm_Setting.directionalSetting.size / split;
 
-        // 计算包围球
-        auto view = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Math::AxisAlignedBox, Math::Transform>();
-        // 计算所有模型的包围盒
-        Math::AxisAlignedBox boundingBox{};
-        for (const auto& [entity, bounds, transform] : view.each()) {
-            auto transBox = bounds * transform;
-            boundingBox = Math::AxisAlignedBox::Union(boundingBox, transBox);
-        }
-        Math::BoundingSphere boundingSphere{boundingBox};
+        auto bvhRoot = renderRes.GetBVH().GetRoot();
+        if(bvhRoot == nullptr)
+            return;
+        Math::BoundingSphere boundingSphere{bvhRoot->bounds};
         if(boundingSphere.GetRadius() <= 0.f)
             return;
         
@@ -159,13 +158,13 @@ namespace DSM {
         // 开始计时
         m_CmdList->BeginTimerQuery(sm_TimerQuery);
 
-        m_CmdList->ClearDepthStencilTexture(GetCommonTexture(CommonTextureSlot::ShadowMap), AllSubresources, true, 1, false, 0);
+        m_CmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap), AllSubresources, true, 1, false, 0);
 
         for(size_t i = 0; i < dirLightCount; ++i){
             RenderDirectionalShadow(renderer, boundingSphere, i, split, tileSize);
         }
         // 转换为着色器资源以供后续 Pass 使用
-        m_CmdList->SetTextureState(GetCommonTexture(CommonTextureSlot::ShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
+        m_CmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
 
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
         Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;
@@ -268,18 +267,20 @@ namespace DSM {
     
     void ShadowPass::DrawModelShadow(IDevice *device, const Math::Matrix4 &viewProj, Viewport viewport, size_t cascadeIndex)
     {
+        auto& renderRes = RenderResource::GetInstance();
+
         auto passCBOffset = cascadeIndex * Math::Align(sizeof(Math::Matrix4), (size_t)c_ConstantBufferOffsetSizeAlignment);
         m_CmdList->WriteBuffer(m_PassCB, &viewProj, sizeof(Math::Matrix4), passCBOffset);
         auto passCBRange = BufferRange{}.SetByteOffset(passCBOffset).SetByteSize(sizeof(Math::Matrix4));
         size_t sampleIndex = size_t(SamplerSlot::AnisoWrap);
         auto bindingSet = device->CreateBindingSet(BindingSetDesc()
             .AddItem(BindingSetItem().ConstantBuffer(0, m_PassCB, passCBRange))
-            .AddItem(BindingSetItem().StructuredBuffer_SRV(0, g_RenderResources.meshBuffer))
-            .AddItem(BindingSetItem().StructuredBuffer_SRV(1, g_RenderResources.materialBuffer))
-            .AddItem(BindingSetItem().Sampler(sampleIndex, GetCommonSampler(sampleIndex)))
+            .AddItem(BindingSetItem().StructuredBuffer_SRV(0, renderRes.GetMeshBuffer()))
+            .AddItem(BindingSetItem().StructuredBuffer_SRV(1, renderRes.GetMaterialBuffer()))
+            .AddItem(BindingSetItem().Sampler(sampleIndex, renderRes.GetCommonSampler(sampleIndex)))
             , m_ShadowBindingLayout);
 
-        for(const auto& [index, obj] : g_RenderResources.objects | std::views::enumerate){
+        for(const auto& [obj, index] : renderRes.GetObjects()){
             auto [mesh, material, transfrom] = obj->GetComponent<Mesh, ShaderResource::MaterialData, Math::Transform>();
 
             bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
@@ -293,8 +294,10 @@ namespace DSM {
                 .SetIndexBuffer(mesh->indexBufferViews)
                 .AddVertexBuffer(mesh->positionStream)
                 .AddVertexBuffer(mesh->uvStream)
-                .AddBindingSet(bindingSet, 0)
-                .AddBindingSet(g_RenderResources.textureBindlessTable, 1);
+                .AddBindingSet(bindingSet, 0);
+            if(alphaClip){
+                state.AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
+            }
 
             m_CmdList->SetGraphicsState(state);
 
@@ -332,15 +335,14 @@ namespace DSM {
     {
         DSM_ASSERT(device != nullptr, "Device is null");
 
-        auto& shadowMapTex = g_RenderResources.commonTextures[static_cast<size_t>(CommonTextureSlot::ShadowMap)];
-        shadowMapTex = device->CreateTexture(TextureDesc()
+        auto shadowMap = device->CreateTexture(TextureDesc()
             .SetWidth(sm_Setting.directionalSetting.size)
             .SetHeight(sm_Setting.directionalSetting.size)
             .SetClearValue(Color{1,1,1,1})
             .SetFormat(Format::D32)
             .SetIsRenderTarget(true)
             .SetDebugName("ShadowMap"));
-
-        m_ShadowFramebuffer = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(shadowMapTex));
+        RenderResource::GetInstance().SetCommonTexture(CommonTextureSlot::ShadowMap, shadowMap);
+        m_ShadowFramebuffer = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(shadowMap));
     }
 }

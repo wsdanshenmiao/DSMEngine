@@ -2,17 +2,33 @@
 #ifndef __GEOMETRYPASS_H__
 #define __GEOMETRYPASS_H__
 
-#include "IRenderPass.h"
+#include "RenderResource.h"
 #include "Runtime/Render/Model.h"
 #include "Shaders/ForwardShader/ResourceData.h"
 #include "ShadowPass.h"
 #include "SSAOPass.h"
 #include "LightingPass.h"
+#include "Runtime/Core/InstrumentorTimer.h"
 
 namespace DSM {
     // 绘制所有模型
     class LitPass : public IRenderPass
     {
+        enum ShaderSlot
+        {
+            LitVS,
+            LitVSNoTangent,
+            LitPS,
+            LitPSPCF3,
+            LitPSPCF5,
+            LitPSPCF7,
+            LitPSNoTangent,
+            LitPSNoTangentPCF3,
+            LitPSNoTangentPCF5,
+            LitPSNoTangentPCF7,
+            Count
+        };
+        
     public:
         LitPass(Renderer& renderer)
         {
@@ -39,14 +55,17 @@ namespace DSM {
                 .AddItem(BindingLayoutItem::Sampler(uint32_t(SamplerSlot::AnisoWrap)));
             m_BindingLayout = device->CreateBindingLayout(bindingLayoutDesc);
 
+            CreateShader(renderer);
+
             sm_TimerQuery = device->CreateTimerQuery();
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
         {
             auto device = renderer.GetDevice();
+            auto& renderRes = RenderResource::GetInstance();
 
-            auto fb = g_RenderResources.framebuffer;
+            auto fb = renderRes.GetFramebuffer();
             assert(fb != nullptr && 
                 fb->GetDesc().colorAttachments.size() > 0 && 
                 fb->GetDesc().depthAttachment.Valid());
@@ -54,18 +73,18 @@ namespace DSM {
             float height = (float)fb->GetFramebufferInfo().height;
 
             auto bindingSetDesc = BindingSetDesc{}
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(0, g_RenderResources.meshBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(1, g_RenderResources.materialBuffer))
-                .AddItem(BindingSetItem::Texture_SRV(2, GetCommonTexture(CommonTextureSlot::SSAO)))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(0, renderRes.GetMeshBuffer()))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(1, renderRes.GetMaterialBuffer()))
+                .AddItem(BindingSetItem::Texture_SRV(2, renderRes.GetCommonTexture(CommonTextureSlot::SSAO)))
                 .AddItem(BindingSetItem::ConstantBuffer(0, m_PassCB))
                 .AddItem(BindingSetItem::PushConstants(1, sizeof(int)))
                 .AddItem(BindingSetItem::ConstantBuffer(2, LightingPass::sm_LightDataBuffer))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(3, LightingPass::sm_DirLightDataBuffer))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_OtherLightDataBuffer))
                 .AddItem(BindingSetItem::ConstantBuffer(3, ShadowPass::sm_ShadowCB))
-                .AddItem(BindingSetItem::Texture_SRV(5, GetCommonTexture(CommonTextureSlot::ShadowMap)))
-                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), GetCommonSampler(SamplerSlot::Shadow)))
-                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), GetCommonSampler(SamplerSlot::AnisoWrap)));
+                .AddItem(BindingSetItem::Texture_SRV(5, renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap)))
+                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), renderRes.GetCommonSampler(SamplerSlot::Shadow)))
+                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap)));
             auto bindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);
 
             auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Lit Pass Command List"));
@@ -89,7 +108,7 @@ namespace DSM {
 
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(ShaderResource::PassConstants));
 
-            for(const auto& [index, object] : g_RenderResources.objInFrustum) {
+            for(const auto& [index, object] : renderRes.GetObjectInFrustum()) {
                 auto mesh = object->GetComponent<Mesh>();
 
                 GraphicsState state{};
@@ -98,7 +117,7 @@ namespace DSM {
                     .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                     .SetIndexBuffer(mesh->indexBufferViews)
                     .AddBindingSet(bindingSet, 0)
-                    .AddBindingSet(g_RenderResources.textureBindlessTable, 1);
+                    .AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
                 if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
                     state.AddVertexBuffer(mesh->positionStream);
                 }
@@ -116,7 +135,7 @@ namespace DSM {
 
                 int objIndex = (int)index;
                 cmdList->SetPushConstants(&objIndex, sizeof(int));
-                
+
                 // 绘制
                 cmdList->DrawIndexed(DrawArguments{}
                     .SetStartIndexLocation(mesh->indexOffset)
@@ -133,9 +152,7 @@ namespace DSM {
             device->ExecuteCommandList(cmdList);
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override 
-        {
-        }
+        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }
 
     private:
         size_t GetPSOIndex(PSOFlags flags, bool reverseZ) const
@@ -180,9 +197,8 @@ namespace DSM {
             RasterState defaultRaster = RasterState{};
             RasterState twoSided = RasterState{}.SetCullMode(RasterCullMode::None);
 
-            const auto& shaders = g_RenderResources.shaders;
-            auto litVS = shaders[(size_t)ShaderSlot::LitVS];
-            auto litVSNoTangent = shaders[(size_t)ShaderSlot::LitVSNoTangent];
+            auto litVS = m_Shaders[ShaderSlot::LitVS];
+            auto litVSNoTangent = m_Shaders[ShaderSlot::LitVSNoTangent];
 
             std::vector<VertexAttributeDesc> attributes{};
             auto addAttribute = [&attributes](auto currFlag, auto flag, 
@@ -207,17 +223,61 @@ namespace DSM {
             const auto& rasterState = HasFlags(PSOFlags(mesh.psoFlags), kBothSide) ? twoSided : defaultRaster;
             // 创建渲染配置
             auto shadowFilter = ShadowPass::sm_Setting.directionalSetting.filter;
-            ShaderHandle ps = hasTangent ? shaders[size_t(ShaderSlot::LitPS) + shadowFilter] : 
-                shaders[size_t(ShaderSlot::LitPSNoTangent) + shadowFilter];
+            ShaderHandle ps = hasTangent ? m_Shaders[size_t(ShaderSlot::LitPS) + shadowFilter] : 
+                m_Shaders[size_t(ShaderSlot::LitPSNoTangent) + shadowFilter];
             auto pipelineDesc = GraphicsPipelineDesc()
                 .SetInputLayout(layout)
                 .SetVertexShader(hasTangent ? litVS : litVSNoTangent)
                 .SetPixelShader(ps)
                 .SetRenderState(RenderState{ blendState, depthState, rasterState })
                 .AddBindingLayout(m_BindingLayout, 0)
-                .AddBindingLayout(g_RenderResources.textureBindlessLayout, 1);
+                .AddBindingLayout(RenderResource::GetInstance().GetTextureBindlessLayout(), 1);
 
-            return device->CreateGraphicsPipeline(pipelineDesc, g_RenderResources.framebuffer);
+            return device->CreateGraphicsPipeline(pipelineDesc, RenderResource::GetInstance().GetFramebuffer());
+        }
+
+        void CreateShader(Renderer& renderer)
+        {
+            // 创建着色器
+            ShaderCompileDesc litVSDesc{};
+            litVSDesc.SetType(ShaderType::Vertex)
+                .SetMode(ShaderMode::SM_6_6)
+                .SetFilename("Shaders/ForwardShader/Passes/LitPass.hlsl")
+                .SetEnterPoint("LitPassVS");
+            ShaderByteCode litVSNoTangent{litVSDesc};
+            ShaderByteCode litVS{litVSDesc.AddDefine("USE_TANGENT", "1")};
+
+            ShaderCompileDesc litPSDesc{};
+            litPSDesc.SetType(ShaderType::Pixel)
+                .SetMode(ShaderMode::SM_6_6)
+                .SetFilename("Shaders/ForwardShader/Passes/LitPass.hlsl")
+                .SetEnterPoint("LitPassPS");
+            ShaderByteCode litPSNoTangent{litPSDesc};
+            ShaderByteCode litPSNoTangentPCF3{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF3", "1")};
+            ShaderByteCode litPSNoTangentPCF5{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF5", "1")};
+            ShaderByteCode litPSNoTangentPCF7{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF7", "1")};
+            ShaderByteCode litPS{litPSDesc.AddDefine("USE_TANGENT", "1")};
+            ShaderByteCode litPSPCF3{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF3", "1")};
+            ShaderByteCode litPSPCF5{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF5", "1")};
+            ShaderByteCode litPSPCF7{ShaderCompileDesc{litPSDesc}.AddDefine("DIRECTIONAL_PCF7", "1")};
+
+            auto createShader = [&](const ShaderByteCode& byteCode, const auto& name) {
+                return renderer.GetDevice()->CreateShader(ShaderDesc()
+                    .SetEntryName(byteCode.GetDesc().enterPoint)
+                    .SetShaderType(byteCode.GetDesc().type)
+                    .SetDebugName(name), 
+                    byteCode.GetByteCode(), byteCode.GetByteCodeSize());
+            };
+            m_Shaders[ShaderSlot::LitVS] = createShader(litVS, "LitPassVS");
+            m_Shaders[ShaderSlot::LitVSNoTangent] = createShader(litVSNoTangent, "LitPassVSNoTangent");
+            m_Shaders[ShaderSlot::LitPS] = createShader(litPS, "LitPassPS");
+            m_Shaders[ShaderSlot::LitPSPCF3] = createShader(litPSPCF3, "LitPassPSPCF3");
+            m_Shaders[ShaderSlot::LitPSPCF5] = createShader(litPSPCF5, "LitPassPSPCF5");
+            m_Shaders[ShaderSlot::LitPSPCF7] = createShader(litPSPCF7, "LitPassPSPCF7");
+            m_Shaders[ShaderSlot::LitPSNoTangent] = createShader(litPSNoTangent, "LitPassPSNoTangent");
+            m_Shaders[ShaderSlot::LitPSNoTangentPCF3] = createShader(litPSNoTangentPCF3, "LitPassPSNoTangentPCF3");
+            m_Shaders[ShaderSlot::LitPSNoTangentPCF5] = createShader(litPSNoTangentPCF5, "LitPassPSNoTangentPCF5");
+            m_Shaders[ShaderSlot::LitPSNoTangentPCF7] = createShader(litPSNoTangentPCF7, "LitPassPSNoTangentPCF7");
         }
 
     public:
@@ -227,6 +287,7 @@ namespace DSM {
         BufferHandle m_PassCB{};
         BindingLayoutHandle m_BindingLayout{};
         std::vector<GraphicsPipelineHandle> m_Pipelines{};
+        std::array<ShaderHandle, ShaderSlot::Count> m_Shaders{};
     };
 
 } // namespace DSM

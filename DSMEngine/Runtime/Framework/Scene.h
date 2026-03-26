@@ -18,6 +18,8 @@ namespace DSM {
     {
         friend class GameObject;
     public:
+        using ObjectCallback = std::function<void(std::shared_ptr<GameObject>)>;
+
         Scene() = default;
         ~Scene();
 

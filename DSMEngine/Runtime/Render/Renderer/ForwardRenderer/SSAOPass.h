@@ -2,7 +2,7 @@
 #ifndef __SSAOPASS_H__
 #define __SSAOPASS_H__
 
-#include "IRenderPass.h"
+#include "RenderResource.h"
 
 namespace DSM {
     struct SSAOSettings
@@ -21,11 +21,9 @@ namespace DSM {
     {
     public:
         SSAOPass(Renderer& renderer)
-            : m_SSAOTex(g_RenderResources.commonTextures[(size_t)CommonTextureSlot::SSAO]) 
+            : m_SSAOTex(RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::SSAO)) 
         {
             auto device = renderer.GetDevice();
-
-            auto fbDesc = g_RenderResources.framebuffer->GetFramebufferInfo();
 
             sm_TimerQuery = device->CreateTimerQuery();
 
@@ -34,13 +32,11 @@ namespace DSM {
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("SSAO Constants"));
-
             m_BlurConstants = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sizeof(ShaderResource::SSAOBlurConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("SSAO Blur Constants"));
-
             m_BlurWeights = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sizeof(float) * (sm_MaxBlurRadius * 2 + 1))
                 .SetStructStride(sizeof(float))
@@ -93,8 +89,10 @@ namespace DSM {
             m_BlurPipeline = device->CreateComputePipeline(ComputePipelineDesc()
                 .SetComputeShader(blurCs)
                 .AddBindingLayout(m_BlurBindingLayout, 0));
+            
+            const Viewport& viewport = renderer.GetCamera().GetViewPort();
+            OnResize(renderer, viewport.Width(), viewport.Height());
 
-            OnResize(renderer, fbDesc.width, fbDesc.height);
         }
 
         void Render(Renderer& renderer, float deltaTime) override
@@ -143,6 +141,7 @@ namespace DSM {
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
         {
+            auto& renderRes = RenderResource::GetInstance();
             auto device = renderer.GetDevice();
 
             // 降分辨率生成
@@ -157,16 +156,16 @@ namespace DSM {
             m_SSAOTex = device->CreateTexture(texDesc);
             m_TmpTexture = device->CreateTexture(texDesc);
 
-            auto& depthTex = g_RenderResources.framebuffer->GetDesc().depthAttachment.texture;
-            auto& normalTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Normal];
-            auto& noiseTex = g_RenderResources.commonTextures[(size_t)CommonTextureSlot::Noise];
+            auto& depthTex = renderRes.GetFramebuffer()->GetDesc().depthAttachment.texture;
+            auto& normalTex = renderRes.GetCommonTexture(CommonTextureSlot::Normal);
+            auto& noiseTex = renderRes.GetCommonTexture(CommonTextureSlot::Noise);
             m_SSAOBindingSet = device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem::Texture_UAV(0, m_SSAOTex))
                 .AddItem(BindingSetItem::Texture_SRV(0, normalTex))
                 .AddItem(BindingSetItem::Texture_SRV(1, depthTex))
                 .AddItem(BindingSetItem::Texture_SRV(2, noiseTex))
-                .AddItem(BindingSetItem::Sampler(size_t(SamplerSlot::PointWrap), GetCommonSampler(SamplerSlot::PointWrap)))
-                .AddItem(BindingSetItem::Sampler(size_t(SamplerSlot::LinearBorder), GetCommonSampler(SamplerSlot::LinearBorder)))
+                .AddItem(BindingSetItem::Sampler(size_t(SamplerSlot::PointWrap), renderRes.GetCommonSampler(SamplerSlot::PointWrap)))
+                .AddItem(BindingSetItem::Sampler(size_t(SamplerSlot::LinearBorder), renderRes.GetCommonSampler(SamplerSlot::LinearBorder)))
                 .AddItem(BindingSetItem::ConstantBuffer(0, m_SSAOConstants)),
                 m_SSAOBindingLayout);
 
@@ -175,7 +174,7 @@ namespace DSM {
                 .AddItem(BindingSetItem::Texture_SRV(1, normalTex))
                 .AddItem(BindingSetItem::Texture_SRV(2, depthTex))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(3, m_BlurWeights))
-                .AddItem(BindingSetItem::Sampler(size_t(SamplerSlot::PointBorder), GetCommonSampler(SamplerSlot::PointBorder)));
+                .AddItem(BindingSetItem::Sampler(size_t(SamplerSlot::PointBorder), renderRes.GetCommonSampler(SamplerSlot::PointBorder)));
             m_BlurToSSAOBindingSet = device->CreateBindingSet(BindingSetDesc(blurBindingSetDesc)
                 .AddItem(BindingSetItem::Texture_UAV(0, m_SSAOTex))
                 .AddItem(BindingSetItem::Texture_SRV(0, m_TmpTexture)),

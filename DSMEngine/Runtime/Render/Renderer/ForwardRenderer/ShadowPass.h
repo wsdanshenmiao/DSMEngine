@@ -3,7 +3,7 @@
 #define __SHADOW_PASS_H__
 
 #include <map>
-#include "IRenderPass.h"
+#include "RenderResource.h"
 #include "Runtime/Math/Collision/Frustum.h"
 
 namespace DSM {

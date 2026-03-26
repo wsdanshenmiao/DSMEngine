@@ -2,8 +2,9 @@
 #ifndef __SHADING_PASS_H__
 #define __SHADING_PASS_H__
 
-#include "IRenderPass.h"
+#include "RenderResource.h"
 #include "Runtime/Render/Model.h"
+#include "Runtime/Render/ShaderCompiler.h"
 
 namespace DSM {
     // 在该 Pass 中进行着色
@@ -19,10 +20,6 @@ namespace DSM {
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
                 .SetDebugName("GeometryPassConstants"));
-
-            const Viewport& viewport = renderer.GetCamera().GetViewPort();
-            // 创建法线法线纹理等资源
-            OnResize(renderer, (uint32_t)viewport.Width(), (uint32_t)viewport.Height());
 
             std::array<VertexAttributeDesc, 2> attributes = {
                 VertexAttributeDesc()
@@ -52,21 +49,16 @@ namespace DSM {
                     geometryPass.GetByteCode(), geometryPass.GetByteCodeSize());
             };
 
-            auto vertexShader = createShader(ShaderType::Vertex, "GeometryPassVS");
-            auto inputLayout = device->CreateInputLayout(attributes, vertexShader);
-            
-            auto bindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
+            m_VertexShader = createShader(ShaderType::Vertex, "GeometryPassVS");
+            m_PixelShader = createShader(ShaderType::Pixel, "GeometryPassPS");
+            m_InputLayout = device->CreateInputLayout(attributes, m_VertexShader);
+            m_BindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
                 .AddItem(BindingLayoutItem().PushConstants(0, sizeof(int))) // obj index
                 .AddItem(BindingLayoutItem().VolatileConstantBuffer(1))
                 .AddItem(BindingLayoutItem().StructuredBuffer_SRV(0)));
-                
-            m_Pipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc()
-                .SetVertexShader(vertexShader)
-                .SetPixelShader(createShader(ShaderType::Pixel, "GeometryPassPS"))
-                .SetInputLayout(inputLayout)
-                .SetRenderState(RenderState{})
-                .AddBindingLayout(bindingLayout, 0),
-                m_Framebuffer);
+
+            const Viewport& viewport = renderer.GetCamera().GetViewPort();
+            OnResize(renderer, viewport.Width(), viewport.Height());
 
             sm_TimerQuery = device->CreateTimerQuery();
         }
@@ -94,10 +86,10 @@ namespace DSM {
 
             auto bindingSet = device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB))
-                .AddItem(BindingSetItem().StructuredBuffer_SRV(0, g_RenderResources.meshBuffer)),
+                .AddItem(BindingSetItem().StructuredBuffer_SRV(0, RenderResource::GetInstance().GetMeshBuffer())),
                 m_Pipeline->GetDesc().bindingLayouts[0]);
 
-            for(const auto& [index, obj] : g_RenderResources.objInFrustum){
+            for(const auto& [index, obj] : RenderResource::GetInstance().GetObjectInFrustum()){
                 auto mesh = obj->GetComponent<Mesh>();
 
                 GraphicsState state = GraphicsState()
@@ -140,20 +132,27 @@ namespace DSM {
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
         {
+            // 创建法线法线纹理等资源
             IDevice* device = renderer.GetDevice();
-            // Resize normal texture
-            // 法线纹理
-            auto slot = (size_t)CommonTextureSlot::Normal;
-            g_RenderResources.commonTextures[slot] = device->CreateTexture(TextureDesc()
+            auto normalTex = device->CreateTexture(TextureDesc()
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetFormat(Format::RG32_FLOAT)
                 .SetIsRenderTarget(true)
                 .SetClearValue({})
                 .SetDebugName("NormalTexture"));
+            RenderResource::GetInstance().SetCommonTexture(CommonTextureSlot::Normal, normalTex);
             m_Framebuffer = device->CreateFramebuffer(FramebufferDesc()
-                .AddColorAttachment(g_RenderResources.commonTextures[slot])
-                .SetDepthAttachment(g_RenderResources.framebuffer->GetDesc().depthAttachment.texture));
+                .AddColorAttachment(normalTex)
+                .SetDepthAttachment(RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::Depth)));
+
+            m_Pipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc()
+                .SetVertexShader(m_VertexShader)
+                .SetPixelShader(m_PixelShader)
+                .SetInputLayout(m_InputLayout)
+                .SetRenderState(RenderState{})
+                .AddBindingLayout(m_BindingLayout, 0),
+                m_Framebuffer);
         }
 
     public:
@@ -163,7 +162,12 @@ namespace DSM {
     private:
         BufferHandle m_PassCB{};
         FramebufferHandle m_Framebuffer{};
-        GraphicsPipelineHandle m_Pipeline;
+        GraphicsPipelineHandle m_Pipeline{};
+        
+        ShaderHandle m_VertexShader{};
+        ShaderHandle m_PixelShader{};
+        InputLayoutHandle m_InputLayout{};
+        BindingLayoutHandle m_BindingLayout{};
     };
 } // namespace DSM
 

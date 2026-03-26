@@ -4,6 +4,8 @@
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Framework/Scene.h"
+#include "Runtime/Core/InstrumentorTimer.h"
+#include "Runtime/Core/InstrumentorMacro.h"
 
 namespace DSM {
 
