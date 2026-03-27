@@ -47,7 +47,8 @@ namespace DSM{
     void RenderResource::UpdateRenderResource(const Camera& camera)
     {
         m_ObjInFrustum.clear();
-        m_Objects.clear();
+        m_OpaqueObjects.clear();
+        m_TransparentObjects.clear();
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
         auto objView = scene->GetObjectsWithComponents<Mesh, ShaderResource::MaterialData, Math::Transform>();
@@ -77,6 +78,8 @@ namespace DSM{
             if (obj == nullptr)
                 continue;
 
+            auto objIndex = std::size(m_OpaqueObjects) + std::size(m_TransparentObjects);
+
             bool updateTex = false;
             if(auto bouds = obj->GetComponent<Math::AxisAlignedBox>()){
                 // 有包围盒，检测是否在 BVH 中
@@ -90,7 +93,7 @@ namespace DSM{
                 }
             }
             else {
-                m_ObjInFrustum.push_back({m_Objects.size(), obj});
+                m_ObjInFrustum.push_back({objIndex, obj});
                 updateTex = true;
             }
 
@@ -114,7 +117,8 @@ namespace DSM{
             meshDataArr.push_back(std::move(meshData));
             matDataArr.push_back(material);
 
-            m_Objects[obj] = m_Objects.size();
+            auto& objects = HasFlags(PSOFlags{mesh.psoFlags}, kAlphaBlend) ? m_TransparentObjects : m_OpaqueObjects;
+            objects[obj] = objIndex;
         }
 
         // 移除不在场景中的物体
@@ -134,7 +138,10 @@ namespace DSM{
 
             if (cameraFrustum.Intersects(node->bounds)) {
                 if (node->object != nullptr) {
-                    if(auto it = m_Objects.find(node->object); it != std::end(m_Objects)){
+                    if(auto it = m_OpaqueObjects.find(node->object); it != std::end(m_OpaqueObjects)){
+                        m_ObjInFrustum.push_back({it->second, node->object});
+                    }
+                    else if(auto it = m_TransparentObjects.find(node->object); it != std::end(m_TransparentObjects)){
                         m_ObjInFrustum.push_back({it->second, node->object});
                     }
                 }

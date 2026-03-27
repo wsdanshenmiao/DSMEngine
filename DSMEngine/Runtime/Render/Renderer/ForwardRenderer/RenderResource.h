@@ -79,7 +79,8 @@ namespace DSM {
         inline DescriptorTableHandle& GetTextureBindlessTable() { return m_TextureBindlessTable; }
 
         inline auto& GetObjectInFrustum() { return m_ObjInFrustum; }
-        inline auto& GetObjects() { return m_Objects; }
+        inline auto& GetQpaqueObjects() { return m_OpaqueObjects; }
+        inline auto& GetTransparentObjects() { return m_TransparentObjects; }
 
         inline Math::BVHTree& GetBVH() { return m_BVH; }
 
@@ -111,7 +112,8 @@ namespace DSM {
 
         // 场景中的物体
         Math::BVHTree m_BVH;
-        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_Objects{};
+        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_OpaqueObjects{};
+        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_TransparentObjects{};
         std::vector<std::pair<size_t, std::shared_ptr<GameObject>>> m_ObjInFrustum{};
         
         BufferHandle m_MeshBuffer{};

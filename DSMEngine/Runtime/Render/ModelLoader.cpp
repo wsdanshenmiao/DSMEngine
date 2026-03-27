@@ -772,8 +772,8 @@ namespace DSM::ModelLoader {
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {
 				mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kBothSide;
 			}
-			if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
-				mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kAlphaBlend;
+			if(aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
+				mesh->psoFlags |= (psoFlags == 1) ? mesh->psoFlags : kAlphaBlend;
 			}
 		}
 

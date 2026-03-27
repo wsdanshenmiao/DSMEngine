@@ -30,14 +30,15 @@ namespace DSM {
         };
         
     public:
-        LitPass(Renderer& renderer)
+        LitPass(Renderer& renderer, bool isTransparentPass = false)
+            :m_IsTransparentPass(isTransparentPass)
         {
             auto device = renderer.GetDevice();
             m_PassCB = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sizeof(ShaderResource::PassConstants))
                 .SetIsConstantBuffer(true)
                 .SetIsVolatile(true)
-                .SetDebugName("PassConstants"));
+                .SetDebugName(std::string(isTransparentPass ? " Transparent" : " Opaque") + " CB"));
 
             // 将 ShadowMap 绑定到管线
             auto bindingLayoutDesc = BindingLayoutDesc{}
@@ -56,8 +57,6 @@ namespace DSM {
             m_BindingLayout = device->CreateBindingLayout(bindingLayoutDesc);
 
             CreateShader(renderer);
-
-            sm_TimerQuery = device->CreateTimerQuery();
         }
 
         void Render(DSM::Renderer& renderer, float deltaTime) override
@@ -87,14 +86,15 @@ namespace DSM {
                 .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap)));
             auto bindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);
 
-            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Lit Pass Command List"));
+            auto cmdListName = std::string{m_IsTransparentPass ? "Transparent" : "Opaque"} +"Lit Pass Command List";
+            auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName(cmdListName));
             cmdList->Open();
-
-            cmdList->BeginTimerQuery(sm_TimerQuery);
 
             // 使用了 PreZ Pass 无需清除深度
             const auto& rendertarget = fb->GetDesc().colorAttachments[0];
-            cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{0.0f, 0.0f, 0.0f, 1.0f});
+            if(!m_IsTransparentPass){
+                cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{0.0f, 0.0f, 0.0f, 1.0f});
+            }
 
             ShaderResource::PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());
@@ -110,6 +110,11 @@ namespace DSM {
 
             for(const auto& [index, object] : renderRes.GetObjectInFrustum()) {
                 auto mesh = object->GetComponent<Mesh>();
+                // 透明物体在渲染天空盒后渲染
+                if((HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) && !m_IsTransparentPass) ||
+                    (!HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) && m_IsTransparentPass)){
+                    continue;
+                }
 
                 GraphicsState state{};
                 state.SetFramebuffer(fb)
@@ -142,13 +147,12 @@ namespace DSM {
                     .SetStartVertexLocation(mesh->vertexOffset)
                     .SetVertexCount(mesh->indexCount));
             }
-            
-            cmdList->EndTimerQuery(sm_TimerQuery);
-
             cmdList->Close();
 
             // 等待 ssao 计算完成
-            device->QueueWaitForCommandList(cmdList->GetDesc().queueType, CommandQueueType::Compute, SSAOPass::sm_LastFrameTime);
+            if(!m_IsTransparentPass){
+                device->QueueWaitForCommandList(cmdList->GetDesc().queueType, CommandQueueType::Compute, SSAOPass::sm_LastFrameTime);
+            }
             device->ExecuteCommandList(cmdList);
         }
 
@@ -159,11 +163,11 @@ namespace DSM {
         {
             size_t index = 0;
             auto filterMode = ShadowPass::sm_Setting.directionalSetting.filter;
-            if(HasFlags(flags, kHasPosition)) index |= 1 << 0;
-            if(HasFlags(flags, kHasNormal)) index |= 1 << 1;
-            if(HasFlags(flags, kHasUV)) index |= 1 << 2;
+            if(!HasFlags(flags, kHasPosition)) index |= 1 << 0;
+            if(!HasFlags(flags, kHasNormal)) index |= 1 << 1;
+            if(!HasFlags(flags, kHasUV)) index |= 1 << 2;
             if(HasFlags(flags, kHasTangent)) index |= 1 << 3;
-            if(HasFlags(filterMode, ShadowSetting::_PCF3x3)) index |= 1 << 4;
+            if(!HasFlags(filterMode, ShadowSetting::_PCF3x3)) index |= 1 << 4;
             if(HasFlags(filterMode, ShadowSetting::_PCF5x5)) index |= 1 << 5;
             if(HasFlags(flags, kAlphaBlend)) index |= 1 << 6;
             if(HasFlags(flags, kBothSide)) index |= 1 << 7;
@@ -280,14 +284,14 @@ namespace DSM {
             m_Shaders[ShaderSlot::LitPSNoTangentPCF7] = createShader(litPSNoTangentPCF7, "LitPassPSNoTangentPCF7");
         }
 
-    public:
-        inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
         BufferHandle m_PassCB{};
         BindingLayoutHandle m_BindingLayout{};
         std::vector<GraphicsPipelineHandle> m_Pipelines{};
         std::array<ShaderHandle, ShaderSlot::Count> m_Shaders{};
+
+        bool m_IsTransparentPass = false;
     };
 
 } // namespace DSM

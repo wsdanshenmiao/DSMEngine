@@ -91,6 +91,9 @@ namespace DSM {
 
             for(const auto& [index, obj] : RenderResource::GetInstance().GetObjectInFrustum()){
                 auto mesh = obj->GetComponent<Mesh>();
+                // 透明物体不需要渲染深度
+                if(HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend))
+                    continue;
 
                 GraphicsState state = GraphicsState()
                     .SetFramebuffer(m_Framebuffer)

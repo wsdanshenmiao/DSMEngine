@@ -280,7 +280,7 @@ namespace DSM {
             .AddItem(BindingSetItem().Sampler(sampleIndex, renderRes.GetCommonSampler(sampleIndex)))
             , m_ShadowBindingLayout);
 
-        for(const auto& [obj, index] : renderRes.GetObjects()){
+        for(const auto& [obj, index] : renderRes.GetQpaqueObjects()){
             auto [mesh, material, transfrom] = obj->GetComponent<Mesh, ShaderResource::MaterialData, Math::Transform>();
 
             bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);

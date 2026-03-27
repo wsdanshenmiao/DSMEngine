@@ -39,6 +39,7 @@ namespace DSM {
             m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<LitPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
+            m_RenderPasses.push_back(std::make_unique<LitPass>(renderer, true)); // 透明物体
             m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer));
 
             auto& camera = renderer.GetCamera();
@@ -49,6 +50,7 @@ namespace DSM {
 
             // TODO: 这里先创建一个测试用的场景，后续应该将场景的创建放到外部，由用户根据需要创建不同的场景
             auto scene = DSMEngine::sm_GlobalContext.scene;
+            
             auto processModel = [scene](std::shared_ptr<GameObject> obj, const std::shared_ptr<Model>& model) {
                 for (const auto& mesh : model->meshes) {
                     auto subObj = scene->CreateObject(mesh->name);
@@ -56,9 +58,30 @@ namespace DSM {
                     subObjPtr->AddComponent<Mesh>(*mesh);
                     subObjPtr->AddComponent<Math::AxisAlignedBox>(mesh->boundingBox);
                     subObjPtr->AddComponent<ShaderResource::MaterialData>(*model->materials[mesh->materialIndex]);
-                    obj->AddChild(subObjPtr);
+                    if(obj != nullptr){
+                        obj->AddChild(subObjPtr);
+                    }
                 }
             };
+
+            // 透明物体
+            auto transparentTex = TextureManager::LoadTextureFromFile("Textures/transparent_texture.psd");
+            auto boxMesh = Geometry::GeometryGenerator::CreateBox(1, 1, 1, 0);
+            auto boxModel = ModelLoader::LoadModelFromGeometry("TransparentBox", boxMesh);
+            boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kAlphaBlend);
+            boxModel->meshes[0]->textures[ShaderResource::kBaseColor] = transparentTex;
+            processModel(nullptr, boxModel);
+            auto transparentObj = scene->GetObjectsWithComponents<Mesh>();
+            for(auto [id, mesh] : transparentObj.each()){
+				auto obj = scene->GetObjectByID(id).lock();
+                if(obj != nullptr){
+					auto transform = obj->GetComponent<Math::Transform>();
+                    transform->SetPosition({-2, 0.5f, 0});
+                    transform->SetRotation({0, 45, 0});
+				}
+			}
+
+            // 不透明物体
             auto lihuazou = scene->CreateObject("Lihuazou");
             auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
             auto lihuazouModel = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
