@@ -1,0 +1,33 @@
+#pragma once
+#ifndef __POSTEFFECTMANAGER_H__
+#define __POSTEFFECTMANAGER_H__
+
+#include "Runtime/Render/Renderer/ForwardRenderer/RenderResource.h"
+
+namespace DSM {
+    struct IPostEffect
+    {
+        virtual ~IPostEffect() = default;
+        virtual void Render(Renderer& renderer, float deltaTime, ITexture* srcTex, ITexture* dstTex) = 0;
+
+        bool m_Enable = true;
+        size_t m_Priority = 0; // 后处理执行顺序，数值越小优先执行
+    };
+
+    class PostEffectManager final : public IRenderPass
+    {
+    public:
+        PostEffectManager(Renderer& renderer);
+
+        void AddPostEffect(std::unique_ptr<IPostEffect> postEffect);
+        void Render(Renderer& renderer, float deltaTime);
+        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override;
+        
+    private:
+        std::vector<std::unique_ptr<IPostEffect>> m_PostEffects;
+        std::array<TextureHandle, 2> m_Textures{};
+    };
+}
+
+
+#endif // __POSTEFFECTMANAGER_H__

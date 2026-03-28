@@ -190,7 +190,11 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            BlendState hasBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{}.SetBlendEnable(true));
+            BlendState hasBlend = BlendState{}.SetRenderTarget(0, 
+                BlendState::RenderTarget{}
+                    .SetBlendEnable(true)
+                    .SetSrcBlend(BlendFactor::SrcAlpha)
+                    .SetDestBlend(BlendFactor::InvSrcAlpha));
             BlendState noBlend = BlendState{}.SetRenderTarget(0, BlendState::RenderTarget{});
 
             auto reverseZ = renderer.GetCamera().IsReversedZ();

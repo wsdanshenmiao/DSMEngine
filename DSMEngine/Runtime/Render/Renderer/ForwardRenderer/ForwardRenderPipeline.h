@@ -14,6 +14,7 @@
 #include "Runtime/Render/Camera/CameraController.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Core/InstrumentorTimer.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/PostEffect/PostEffectManager.h"
 
 #include <imgui.h>
 
@@ -40,6 +41,7 @@ namespace DSM {
             m_RenderPasses.push_back(std::make_unique<LitPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<LitPass>(renderer, true)); // 透明物体
+            m_RenderPasses.push_back(std::make_unique<PostEffectManager>(renderer));
             m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer));
 
             auto& camera = renderer.GetCamera();
@@ -69,6 +71,7 @@ namespace DSM {
             auto boxMesh = Geometry::GeometryGenerator::CreateBox(1, 1, 1, 0);
             auto boxModel = ModelLoader::LoadModelFromGeometry("TransparentBox", boxMesh);
             boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kAlphaBlend);
+            boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kBothSide);
             boxModel->meshes[0]->textures[ShaderResource::kBaseColor] = transparentTex;
             processModel(nullptr, boxModel);
             auto transparentObj = scene->GetObjectsWithComponents<Mesh>();
