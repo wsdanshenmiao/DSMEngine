@@ -12,7 +12,7 @@ static const uint sMaxBlurRadius = 5;
 
 ConstantBuffer<ShaderResource::SSAOBlurConstants> gSSAOBlurConstants : register(b0);
 
-RWTexture2D<float4> gOutput : register(u0);
+RWTexture2D<float> gOutput : register(u0);
 Texture2D<float> gBlurTexture : register(t0);
 // 用于判断是否需要模糊
 Texture2D<float2> gNormalTexture : register(t1);

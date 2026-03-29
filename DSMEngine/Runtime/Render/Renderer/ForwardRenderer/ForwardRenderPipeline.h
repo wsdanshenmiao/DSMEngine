@@ -45,8 +45,8 @@ namespace DSM {
             m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer));
 
             auto& camera = renderer.GetCamera();
-            camera.SetPosition({0, 3, -5});
-            camera.LookAt({0,0,0}, {0,1,0});
+            camera.SetPosition({0, 2, -2});
+            camera.LookAt({0,1,0}, {0,1,0});
             m_CameraController = std::make_unique<CameraController>();
             m_CameraController->InitCamera(&camera);
 
