@@ -8,14 +8,6 @@ Texture2D<float> gSSAOTex : register(t2);
 
 ConstantBuffer<ShaderResource::PassConstants> gPassConstants : register(b0);
 
-// // PBR相关纹理
-// Texture2D<float4> gBaseColorTex : register(t0);
-// Texture2D<float4> gDiffuseRoughnessTex : register(t1);
-// Texture2D<float4> gMetalnessTex : register(t2);
-// Texture2D<float> gOcclusionTex : register(t3);
-// Texture2D<float3> gEmissiveTex : register(t4);
-// Texture2D<float3> gNormalTex : register(t5);
-
 Texture2D gTextures[] : register(t0, space1);
 
 cbuffer ObjectConstants : register(b1)

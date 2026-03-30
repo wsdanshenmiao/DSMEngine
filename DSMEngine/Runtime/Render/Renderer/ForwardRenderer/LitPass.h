@@ -59,7 +59,7 @@ namespace DSM {
             CreateShader(renderer);
         }
 
-        void Render(DSM::Renderer& renderer, float deltaTime) override
+        uint64_t Render(DSM::Renderer& renderer, float deltaTime) override
         {
             auto device = renderer.GetDevice();
             auto& renderRes = RenderResource::GetInstance();
@@ -147,13 +147,21 @@ namespace DSM {
                     .SetStartVertexLocation(mesh->vertexOffset)
                     .SetVertexCount(mesh->indexCount));
             }
+
+            if (m_IsTransparentPass) {
+                cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::Color), AllSubresources, ResourceStates::NoPixelShaderResource);
+            }
+
             cmdList->Close();
 
             // 等待 ssao 计算完成
             if(!m_IsTransparentPass){
-                device->QueueWaitForCommandList(cmdList->GetDesc().queueType, CommandQueueType::Compute, SSAOPass::sm_LastFrameTime);
+                device->QueueWaitForCommandList(
+                    CommandQueueType::Graphics, 
+                    CommandQueueType::Compute, 
+                    RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::SSAO));
             }
-            device->ExecuteCommandList(cmdList);
+            return device->ExecuteCommandList(cmdList);
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }

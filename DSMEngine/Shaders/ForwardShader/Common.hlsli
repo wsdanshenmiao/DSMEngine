@@ -58,4 +58,26 @@ float GetLinearDepth(float depth, float4x4 projMatrix)
     return projMatrix[3][2] / (depth - projMatrix[2][2]);
 }
 
+
+float Luminance(float3 c)
+{
+    return dot(c, float3(0.2126f, 0.7152f, 0.0722f));
+}
+
+float3 LinearToSRGB(float3 linearCol)
+{
+    static const float a = 1.0f / 2.4f;
+    float3 srgb = 12.92f * linearCol;
+    srgb = select(linearCol > 0.0031308f, 1.055f * pow(linearCol, a) - 0.055f, srgb);
+    return saturate(srgb);
+}
+
+float3 SRGBToLinear(float3 srgb)
+{
+    static const float a = 1 / 1.055f;
+    float3 linearCol = srgb / 12.92f;
+    linearCol = select(srgb > 0.04045f, pow((srgb + 0.055f) * a, 2.4f), linearCol);
+    return linearCol;
+}
+
 #endif // __COMMON_HLSLI__

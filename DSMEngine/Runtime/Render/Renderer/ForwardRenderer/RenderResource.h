@@ -16,7 +16,7 @@ namespace DSM {
     struct IRenderPass
     {
         virtual ~IRenderPass() = default;
-        virtual void Render(DSM::Renderer& renderer, float deltaTime) = 0;
+        virtual uint64_t Render(DSM::Renderer& renderer, float deltaTime) = 0;
         virtual void OnResize(Renderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
@@ -42,6 +42,20 @@ namespace DSM {
         PointBorder,
         LinearBorder,
         Shadow,
+        Count
+    };
+
+    enum class RenderPass : uint8_t
+    {
+        Geometry = 0,
+        SSAO,
+        Shadow,
+        Lighting,
+        Lit,
+        Skybox,
+        Transparent,
+        PostEffect,
+        Final,
         Count
     };
 
@@ -84,7 +98,9 @@ namespace DSM {
 
         inline Math::BVHTree& GetBVH() { return m_BVH; }
 
-        void UpdateRenderResource(const Camera& camera);
+        inline uint64_t GetRenderPassFinishFence(RenderPass pass) const { return m_RenderPassFinishFence[(size_t)pass]; }
+
+        inline void SetRenderPassFinishFence(RenderPass pass, uint64_t fenceValue) { m_RenderPassFinishFence[(size_t)pass] = fenceValue; }
 
         inline void SetCommonSampler(SamplerSlot slot, SamplerHandle sampler)
         {
@@ -94,6 +110,8 @@ namespace DSM {
         {
             m_CommonTextures[(size_t)slot] = texture;
         }
+
+        void UpdateRenderResource(const Camera& camera);
 
         void OnResize(DSM::Renderer& renderer, uint32_t width, uint32_t height);
 
@@ -123,6 +141,8 @@ namespace DSM {
         
         BindingLayoutHandle m_TextureBindlessLayout{};
         DescriptorTableHandle m_TextureBindlessTable{};
+
+        std::array<uint64_t, (size_t)RenderPass::Count> m_RenderPassFinishFence{};
 
         CommandListHandle m_CmdList{};
     };

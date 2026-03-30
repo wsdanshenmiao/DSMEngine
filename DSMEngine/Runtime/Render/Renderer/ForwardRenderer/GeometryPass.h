@@ -63,7 +63,7 @@ namespace DSM {
             sm_TimerQuery = device->CreateTimerQuery();
         }
 
-        void Render(DSM::Renderer& renderer, float deltaTime) override
+        uint64_t Render(DSM::Renderer& renderer, float deltaTime) override
         {
             auto device = renderer.GetDevice();
 
@@ -130,7 +130,7 @@ namespace DSM {
             cmdList->EndTimerQuery(sm_TimerQuery);
             
             cmdList->Close();
-            sm_LastFrameTime = device->ExecuteCommandList(cmdList);
+            return device->ExecuteCommandList(cmdList);
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
@@ -160,7 +160,6 @@ namespace DSM {
 
     public:
         inline static TimerQueryHandle sm_TimerQuery{};
-        inline static uint64_t sm_LastFrameTime = 0;
 
     private:
         BufferHandle m_PassCB{};

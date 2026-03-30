@@ -88,7 +88,7 @@ namespace DSM {
             sm_TimerQuery = device->CreateTimerQuery();
         }
 
-        void Render(DSM::Renderer& renderer, float deltaTime) override
+        uint64_t Render(DSM::Renderer& renderer, float deltaTime) override
         {
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Skybox Pass Command List"));
             cmdList->Open();
@@ -115,7 +115,7 @@ namespace DSM {
             cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
-            renderer.GetDevice()->ExecuteCommandList(cmdList);
+            return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
     

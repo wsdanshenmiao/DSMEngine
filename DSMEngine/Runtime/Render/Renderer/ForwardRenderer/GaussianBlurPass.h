@@ -66,13 +66,13 @@ namespace DSM {
 			InvalidateCache();
 		}
 
-		void BlurTexture(Renderer& renderer, ICommandList* cmdList, ITexture* targetTexture)
+		void BlurTexture(Renderer& renderer, ICommandList* cmdList, ITexture* targetTexture, const GaussianBlurSettings& settings)
 		{
-			if (cmdList == nullptr || targetTexture == nullptr || m_Settings.blurCount < 1) {
+			if (cmdList == nullptr || targetTexture == nullptr || settings.blurCount < 1) {
 				return;
 			}
 
-			uint32_t blurRadius = std::clamp(m_Settings.blurRadius, 0u, sm_MaxBlurRadius);
+			uint32_t blurRadius = std::clamp(settings.blurRadius, 0u, sm_MaxBlurRadius);
 
             // 创建纹理及绑定资源
 			EnsureResources(renderer, targetTexture);
@@ -96,7 +96,7 @@ namespace DSM {
 
 			BlurConstants blurConstants{};
 			blurConstants.blurRadius = blurRadius;
-			for (uint32_t i = 0; i < m_Settings.blurCount; ++i) {
+			for (uint32_t i = 0; i < settings.blurCount; ++i) {
                 // 水平模糊
 				blurConstants.isHorizontal = 1;
 				cmdList->WriteBuffer(m_BlurConstants, &blurConstants, sizeof(blurConstants));
@@ -131,19 +131,19 @@ namespace DSM {
             }
 		}
 
-		void Render(Renderer& renderer, float deltaTime) override
+		uint64_t Render(Renderer& renderer, float deltaTime) override
 		{
 			if (m_TargetTexture == nullptr) {
-				return;
+				return 0;
 			}
 
 			auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters()
 				.SetDebugName("GaussianBlur Command List")
 				.SetQueueType(CommandQueueType::Compute));
 			cmdList->Open();
-			BlurTexture(renderer, cmdList, m_TargetTexture);
+			BlurTexture(renderer, cmdList, m_TargetTexture, m_Settings);
 			cmdList->Close();
-			renderer.GetDevice()->ExecuteCommandList(cmdList);
+			return renderer.GetDevice()->ExecuteCommandList(cmdList);
 		}
 
 		void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}

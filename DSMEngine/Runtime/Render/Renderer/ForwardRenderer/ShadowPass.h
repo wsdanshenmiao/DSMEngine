@@ -54,7 +54,7 @@ namespace DSM {
         ShadowPass(Renderer& renderer, ShadowSetting shadowSetting);
         virtual ~ShadowPass();
 
-        void Render(Renderer& renderer, float deltaTime) override;
+        uint64_t Render(Renderer& renderer, float deltaTime) override;
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override{}
 
 

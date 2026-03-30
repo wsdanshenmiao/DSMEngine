@@ -36,11 +36,11 @@ namespace DSM {
             sm_OtherLightDataBuffer = nullptr;
         }
 
-        void Render(Renderer& renderer, float deltaTime) override
+        uint64_t Render(Renderer& renderer, float deltaTime) override
         {
             auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
             if(lights.empty())
-                return;
+            return 0;
 
             std::vector<ShaderResource::DirectionalLightData> dirLightData{};
             std::vector<ShaderResource::OtherLightData> otherLightData{};
@@ -58,7 +58,7 @@ namespace DSM {
                     break;
                 default:
                     DSM_ERROR("Error light type.");
-                    return;
+                    return 0;
                 }
             }
 
@@ -77,7 +77,7 @@ namespace DSM {
             cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
-            renderer.GetDevice()->ExecuteCommandList(cmdList);
+            return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) {}

@@ -105,7 +105,7 @@ namespace DSM {
         sm_ShadowCB = nullptr;
     }
 
-    void ShadowPass::Render(Renderer &renderer, float deltaTime)
+    uint64_t ShadowPass::Render(Renderer &renderer, float deltaTime)
     {
         auto& renderRes = RenderResource::GetInstance();
 
@@ -132,10 +132,10 @@ namespace DSM {
 
         auto bvhRoot = renderRes.GetBVH().GetRoot();
         if(bvhRoot == nullptr)
-            return;
+            return 0;
         Math::BoundingSphere boundingSphere{bvhRoot->bounds};
         if(boundingSphere.GetRadius() <= 0.f)
-            return;
+            return 0;
         
         // 获取相机的视锥体
         const auto& camera = renderer.GetCamera();
@@ -191,7 +191,7 @@ namespace DSM {
         m_CmdList->EndTimerQuery(sm_TimerQuery);
 
         m_CmdList->Close();
-        renderer.GetDevice()->ExecuteCommandList(m_CmdList);
+        return renderer.GetDevice()->ExecuteCommandList(m_CmdList);
     }
 
     void ShadowPass::RenderDirectionalShadow(Renderer &renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize)

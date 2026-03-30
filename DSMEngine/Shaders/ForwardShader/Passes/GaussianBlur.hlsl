@@ -14,10 +14,10 @@ cbuffer gBlurConstants : register(b0)
 {
     uint gBlurRadius;
     bool gIsHorizontal;
-}
+};
 
 RWTexture2D<float4> gOutput : register(u0);
-Texture2D gInputTexture : register(t0);
+Texture2D<float4> gInputTexture : register(t0);
 StructuredBuffer<float> gBlurWeights : register(t1);
 
 
@@ -31,10 +31,8 @@ void GaussianBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID
     bool isHorizontal = gIsHorizontal;
     int width, height;
     gInputTexture.GetDimensions(width, height);
-    if(dispatchThreadID.x >= (isHorizontal ? width : height) || 
-        dispatchThreadID.y >= (isHorizontal ? height : width)) {
-        return;
-    }
+    bool isValidThread = dispatchThreadID.x < (isHorizontal ? width : height) &&
+        dispatchThreadID.y < (isHorizontal ? height : width);
 
     // 线程组边缘的像素也需要模糊，因此需要在共享内存中额外储存线程组边界外的值
     if (groupThreadID.x < blurRadius) {
@@ -58,17 +56,19 @@ void GaussianBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID
     // 等待所有的线程完成采样
     GroupMemoryBarrierWithGroupSync();
 
-    // 进行模糊
-    float4 color = 0;
-    float weightSum = 0;
-    for (int i = 0; i <= blurRadius * 2; ++i) {
-        float weight = gBlurWeights[i];
-        color += gCache[groupThreadID.x + i] * weight;
-        weightSum += weight;
-    }
-    color /= weightSum;
+    if (isValidThread) {
+        // 进行模糊
+        float4 color = 0;
+        float weightSum = 0;
+        for (int i = 0; i <= blurRadius * 2; ++i) {
+            float weight = gBlurWeights[i];
+            color += gCache[groupThreadID.x + i] * weight;
+            weightSum += weight;
+        }
+        color /= weightSum;
 
-    gOutput[isHorizontal ? dispatchThreadID.xy : dispatchThreadID.yx] = color;
+        gOutput[isHorizontal ? dispatchThreadID.xy : dispatchThreadID.yx] = color;
+    }
 }
 
 #endif

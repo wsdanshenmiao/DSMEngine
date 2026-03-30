@@ -1,12 +1,14 @@
 #include "PostEffectManager.h"
 #include "BloomPass.h"
+#include "ToneMappingPass.h"
 #include "Runtime/Render/Renderer/ForwardRenderer/MipmapPass.h"
 #include "Runtime/Render/Renderer/ForwardRenderer/GaussianBlurPass.h"
 
 namespace DSM{
     PostEffectManager::PostEffectManager(Renderer& renderer)
     {
-        AddPostEffect(std::make_unique<BloomPass>());
+        AddPostEffect(std::make_unique<BloomPass>(renderer));
+        AddPostEffect(std::make_unique<ToneMappingPass>(renderer));
 
         const auto& viewPort = renderer.GetCamera().GetViewPort();
         OnResize(renderer, viewPort.Width(), viewPort.Height());
@@ -22,8 +24,9 @@ namespace DSM{
         });
     }
 
-    void PostEffectManager::Render(Renderer &renderer, float deltaTime)
+    uint64_t PostEffectManager::Render(Renderer &renderer, float deltaTime)
     {
+        auto device = renderer.GetDevice();
         std::vector<IPostEffect*> enabledEffects{};
         for(const auto& postEffect : m_PostEffects){
             if(postEffect != nullptr && postEffect->m_Enable){
@@ -31,27 +34,34 @@ namespace DSM{
             }
         }
         if(enabledEffects.empty()){
-            return;
+            return 0;
         }
 
 		auto colorTex = RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::Color);
-        auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("PostEffectManager Command List"));
+        auto cmdList = device->CreateCommandList(CommandListParameters()
+            .SetDebugName("PostEffectManager Command List")
+            .SetQueueType(CommandQueueType::Compute));
+
         cmdList->Open();
         cmdList->CopyTexture(m_Textures[0], {}, colorTex, {});
         cmdList->Close();
-        renderer.GetDevice()->ExecuteCommandList(cmdList);
+        device->QueueWaitForCommandList(
+            CommandQueueType::Compute, 
+            CommandQueueType::Graphics, 
+            RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::Transparent));
+        device->ExecuteCommandList(cmdList);
 
         for(size_t i = 0; i < std::size(enabledEffects); ++i){
            auto srcTex = m_Textures[i % 2];
            auto dstTex = m_Textures[(i + 1) % 2];
-           enabledEffects[i]->Render(renderer, deltaTime, srcTex, dstTex);
+           enabledEffects[i]->Render(renderer, cmdList, deltaTime, srcTex, dstTex);
         }
 
-        auto& dstTex = m_Textures[enabledEffects.size() % 2];
         cmdList->Open();
+        auto& dstTex = m_Textures[enabledEffects.size() % 2];
         cmdList->CopyTexture(colorTex, {}, dstTex, {});
         cmdList->Close();
-        renderer.GetDevice()->ExecuteCommandList(cmdList);
+        return device->ExecuteCommandList(cmdList);
     }
     
     void PostEffectManager::OnResize(Renderer &renderer, uint32_t width, uint32_t height)

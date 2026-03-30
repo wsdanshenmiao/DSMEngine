@@ -92,10 +92,10 @@ namespace DSM {
 			}
 		}
 
-		void Render(Renderer& renderer, float deltaTime) override
+		uint64_t Render(Renderer& renderer, float deltaTime) override
 		{
 			if (m_TargetTexture == nullptr) {
-				return;
+				return 0;
 			}
 
 			auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters()
@@ -106,7 +106,7 @@ namespace DSM {
 			GenerateMips(renderer, cmdList, m_TargetTexture);
 
 			cmdList->Close();
-			renderer.GetDevice()->ExecuteCommandList(cmdList);
+			return renderer.GetDevice()->ExecuteCommandList(cmdList);
 		}
 
 		void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }

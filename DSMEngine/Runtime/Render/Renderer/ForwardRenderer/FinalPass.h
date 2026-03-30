@@ -13,9 +13,15 @@ namespace DSM {
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
-        void Render(Renderer& renderer, float deltaTime) override
+        uint64_t Render(Renderer& renderer, float deltaTime) override
         {
-            renderer.GetDevice()->RunGarbageCollection();
+            auto device = renderer.GetDevice();
+            device->QueueWaitForCommandList(
+                CommandQueueType::Graphics, 
+                CommandQueueType::Compute, 
+                RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::PostEffect));
+            device->RunGarbageCollection();
+            return 0;
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }

@@ -95,7 +95,7 @@ namespace DSM {
 
         }
 
-        void Render(Renderer& renderer, float deltaTime) override
+        uint64_t Render(Renderer& renderer, float deltaTime) override
         {
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters()
                 .SetDebugName("SSAO Command List")
@@ -135,8 +135,11 @@ namespace DSM {
             cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
-            renderer.GetDevice()->QueueWaitForCommandList(CommandQueueType::Compute, CommandQueueType::Graphics, GeometryPass::sm_LastFrameTime);
-            sm_LastFrameTime = renderer.GetDevice()->ExecuteCommandList(cmdList);
+            renderer.GetDevice()->QueueWaitForCommandList(
+                CommandQueueType::Compute, 
+                CommandQueueType::Graphics, 
+                RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::Geometry));
+            return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
 
         void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
@@ -196,6 +199,7 @@ namespace DSM {
                 sm_Settings.blurRadius = std::min(sm_Settings.blurRadius, sm_MaxBlurRadius);
                 std::vector<float> weights = CalculGaussWeights(sm_Settings.blurRadius);
                 cmdList->WriteBuffer(m_BlurWeights, weights.data(), sizeof(float) * weights.size());
+                preBlurRadius = sm_Settings.blurRadius;
             }
 
             ShaderResource::SSAOBlurConstants blurConstants{};
@@ -254,7 +258,6 @@ namespace DSM {
 
     public:
         inline static constexpr uint32_t sm_MaxBlurRadius = 5;
-        inline static uint64_t sm_LastFrameTime = 0;
         inline static SSAOSettings sm_Settings{};
         inline static TimerQueryHandle sm_TimerQuery{};
 

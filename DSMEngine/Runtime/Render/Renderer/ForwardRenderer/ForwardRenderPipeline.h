@@ -73,6 +73,8 @@ namespace DSM {
             boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kAlphaBlend);
             boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kBothSide);
             boxModel->meshes[0]->textures[ShaderResource::kBaseColor] = transparentTex;
+            boxModel->meshes[0]->textures[ShaderResource::kEmissive] = transparentTex;
+            boxModel->materials[0]->emissiveColor = {0.8, 0.8, 0.8, 1};
             processModel(nullptr, boxModel);
             auto transparentObj = scene->GetObjectsWithComponents<Mesh>();
             for(auto [id, mesh] : transparentObj.each()){
@@ -108,9 +110,10 @@ namespace DSM {
             InstrumentationTimer timer0{"Update Render Resource"};
             RenderResource::GetInstance().UpdateRenderResource(renderer.GetCamera());
             timer0.Stop();
-            for (auto& renderPass : m_RenderPasses) {
+            for (auto [index, renderPass] : m_RenderPasses | std::views::enumerate) {
                 InstrumentationTimer timer0{typeid(*renderPass).name()};
-                renderPass->Render(renderer, deltaTime);
+                uint64_t passFrameTime = renderPass->Render(renderer, deltaTime);
+                RenderResource::GetInstance().SetRenderPassFinishFence(RenderPass(index), passFrameTime);
             }
         }
 
