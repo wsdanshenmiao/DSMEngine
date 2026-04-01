@@ -4,6 +4,8 @@
 
 #include <memory>
 
+#include <imgui.h>
+
 #include "Runtime/Render/WindowUI.h"
 #include "Runtime/Graphics/Texture.h"
 #include "Editor/EditorUI/Widget.h"
@@ -52,6 +54,8 @@ namespace DSM {
         std::unique_ptr<EditorMenuBar> m_MenuBar;
 
         std::shared_ptr<Scene> m_InactiveScene;
+
+        ImFont* m_Font;
     };
     
 } // namespace DSM 

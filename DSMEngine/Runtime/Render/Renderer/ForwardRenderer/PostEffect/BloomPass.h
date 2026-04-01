@@ -14,8 +14,8 @@ namespace DSM{
     struct BloomSettings
     {
         float threshold = 0.8f;
-        uint32_t blurRadius = 5;
-        uint32_t blurCount = 2;
+        uint32_t blurRadius = 3;
+        uint32_t blurCount = 3;
     };
 
 

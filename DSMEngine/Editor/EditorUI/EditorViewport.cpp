@@ -116,10 +116,10 @@ namespace DSM {
                 ImGuiIO& io = ImGui::GetIO();
                 io.DisplaySize = ImVec2((float)window_width, (float)window_height);
                 io.DisplayFramebufferScale = ImVec2((float)fb_width / (float)window_width,
-                                                    (float)fb_height / (float)window_height);
+                                                (float)fb_height / (float)window_height);
 
                 // 只缩放字体，不缩放样式
-                float base_width = 1024.f;
+                static const float base_width = 1200.f;
                 float scale = io.DisplaySize.x / base_width;
                 io.FontGlobalScale = scale;
             }

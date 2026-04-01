@@ -229,7 +229,6 @@ namespace DSM {
         SetupImGuiBase();
         StyleClassic();
         SetupImGuiColors();
-        m_StyleType = 0;
     }
 
     void EditorStyle::OnGUIEnabled()
@@ -237,16 +236,8 @@ namespace DSM {
         std::array<const char*, 6> styleNames = {
             "Classic", "Light", "Dark",
             "ImGuiClassic", "ImGuiLight", "ImGuiDark" };
-        if(ImGui::Combo("Engine Theme", &m_StyleType, styleNames.data(), styleNames.size())){
-            switch(m_StyleType){
-                case 0: StyleClassic(); SetupImGuiColors(); break;
-                case 1: StyleLight(); SetupImGuiColors(); break;
-                case 2: StyleDark(); SetupImGuiColors(); break;
-                case 3: ImGui::StyleColorsClassic(); break;
-                case 4: ImGui::StyleColorsLight(); break;
-                case 5: ImGui::StyleColorsDark(); break;
-                default: break;
-            }
+        if(ImGui::Combo("Engine Theme", (int*)&m_StyleType, styleNames.data(), styleNames.size())){
+            UpdateStyle();
         }
 
         ImVec2 childSize{-std::numeric_limits<float>::min(), 0.0f};
@@ -292,6 +283,19 @@ namespace DSM {
 
             ImGui::PopStyleVar(1);
             ImGui::EndChild();
+        }
+    }
+    
+    void EditorStyle::UpdateStyle()
+    {
+        switch(m_StyleType){
+            case StyleType::Classic: StyleClassic(); SetupImGuiColors(); break;
+            case StyleType::Light: StyleLight(); SetupImGuiColors(); break;
+            case StyleType::Dark: StyleDark(); SetupImGuiColors(); break;
+            case StyleType::ImGuiClassic: ImGui::StyleColorsClassic(); break;
+            case StyleType::ImGuiLight: ImGui::StyleColorsLight(); break;
+            case StyleType::ImGuiDark: ImGui::StyleColorsDark(); break;
+            default: break;
         }
     }
 }

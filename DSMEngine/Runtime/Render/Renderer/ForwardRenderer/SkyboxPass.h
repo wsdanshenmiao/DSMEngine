@@ -23,7 +23,7 @@ namespace DSM {
             std::array<TextureHandle, 6> skyboxTextures{};
             for(int i = 0 ; i < 6; ++i){
                 skyboxTextures[i] = TextureManager::LoadTextureFromFile(
-                    "Textures/daylight" + std::to_string(i) + ".png");
+                    "Assets/Textures/daylight" + std::to_string(i) + ".png");
             }
             
             TextureDesc skyboxTexDesc = skyboxTextures.front()->GetDesc();

@@ -22,7 +22,7 @@ namespace DSM {
     EditorConsole::EditorConsole(EditorUI* editorUI)
         : Widget(editorUI){
         m_Title = "Console";
-        m_Icon = TextureManager::LoadTextureFromFile("Textures/Icons/console.png");
+        m_Icon = TextureManager::LoadTextureFromFile("Assets/Textures/Icons/console.png");
         
         g_LogLevelEnabled.fill(true);
         DSMEngine::sm_GlobalContext.loggerSystem->SetLogFunc(EditorConsole::Log);

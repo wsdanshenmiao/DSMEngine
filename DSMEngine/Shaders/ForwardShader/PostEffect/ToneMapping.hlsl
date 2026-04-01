@@ -88,7 +88,7 @@ float3 ToneMapACESFitted(float3 color)
 
 
 // Krzysztof Narkowicz 提供的近似 ACES 拟合
-float3 ToneMapACEAApprox(float3 color)
+float3 ToneMapACESApprox(float3 color)
 {
     const float a = 2.51f;
     const float b = 0.03f;
@@ -129,7 +129,7 @@ float3 ApplyToneMapping(float3 color)
 #elif TONEMAP_TYPE == TONEMAP_ACES_FITTED
 	return ToneMapACESFitted(color);
 #elif TONEMAP_TYPE == TONEMAP_ACES_APPROX
-    return ToneMapACEAApprox(color);
+    return ToneMapACESApprox(color);
 #elif TONEMAP_TYPE == TONEMAP_UNCHARTED2
 	return ToneMapUncharted2(color);
 #else

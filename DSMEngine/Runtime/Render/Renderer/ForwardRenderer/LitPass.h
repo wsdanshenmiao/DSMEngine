@@ -71,20 +71,14 @@ namespace DSM {
             float width = (float)fb->GetFramebufferInfo().width;
             float height = (float)fb->GetFramebufferInfo().height;
 
-            auto bindingSetDesc = BindingSetDesc{}
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(0, renderRes.GetMeshBuffer()))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(1, renderRes.GetMaterialBuffer()))
-                .AddItem(BindingSetItem::Texture_SRV(2, renderRes.GetCommonTexture(CommonTextureSlot::SSAO)))
-                .AddItem(BindingSetItem::ConstantBuffer(0, m_PassCB))
-                .AddItem(BindingSetItem::PushConstants(1, sizeof(int)))
-                .AddItem(BindingSetItem::ConstantBuffer(2, LightingPass::sm_LightDataBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(3, LightingPass::sm_DirLightDataBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_OtherLightDataBuffer))
-                .AddItem(BindingSetItem::ConstantBuffer(3, ShadowPass::sm_ShadowCB))
-                .AddItem(BindingSetItem::Texture_SRV(5, renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap)))
-                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), renderRes.GetCommonSampler(SamplerSlot::Shadow)))
-                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap)));
-            auto bindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);
+            if(m_CacheMeshBuffer != renderRes.GetMeshBuffer() ||
+                m_CacheMaterialBuffer != renderRes.GetMaterialBuffer() ||
+                m_CacheShadowMap != renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap)){
+                m_CacheMeshBuffer = renderRes.GetMeshBuffer();
+                m_CacheMaterialBuffer = renderRes.GetMaterialBuffer();
+                m_CacheShadowMap = renderRes.GetCommonTexture(CommonTextureSlot::ShadowMap);
+                CreateBindingSet(device);
+            }
 
             auto cmdListName = std::string{m_IsTransparentPass ? "Transparent" : "Opaque"} +"Lit Pass Command List";
             auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName(cmdListName));
@@ -121,7 +115,7 @@ namespace DSM {
                     .SetPipeline(GetPipelineState(renderer, *mesh))
                     .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                     .SetIndexBuffer(mesh->indexBufferViews)
-                    .AddBindingSet(bindingSet, 0)
+                    .AddBindingSet(m_BindingSet, 0)
                     .AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
                 if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
                     state.AddVertexBuffer(mesh->positionStream);
@@ -164,7 +158,10 @@ namespace DSM {
             return device->ExecuteCommandList(cmdList);
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }
+        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
+        {
+            CreateBindingSet(renderer.GetDevice());
+        }
 
     private:
         size_t GetPSOIndex(PSOFlags flags, bool reverseZ) const
@@ -296,11 +293,36 @@ namespace DSM {
             m_Shaders[ShaderSlot::LitPSNoTangentPCF7] = createShader(litPSNoTangentPCF7, "LitPassPSNoTangentPCF7");
         }
 
+        void CreateBindingSet(IDevice* device)
+        {
+            auto& renderRes = RenderResource::GetInstance();
+            auto bindingSetDesc = BindingSetDesc{}
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(0, m_CacheMeshBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(1, m_CacheMaterialBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(2, renderRes.GetCommonTexture(CommonTextureSlot::SSAO)))
+                .AddItem(BindingSetItem::ConstantBuffer(0, m_PassCB))
+                .AddItem(BindingSetItem::PushConstants(1, sizeof(int)))
+                .AddItem(BindingSetItem::ConstantBuffer(2, LightingPass::sm_LightDataBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(3, LightingPass::sm_DirLightDataBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_OtherLightDataBuffer))
+                .AddItem(BindingSetItem::ConstantBuffer(3, ShadowPass::sm_ShadowCB))
+                .AddItem(BindingSetItem::Texture_SRV(5, m_CacheShadowMap))
+                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), renderRes.GetCommonSampler(SamplerSlot::Shadow)))
+                .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap)));
+            m_BindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);
+        }
 
     private:
         BufferHandle m_PassCB{};
+        IBuffer* m_CacheMeshBuffer = nullptr;
+        IBuffer* m_CacheMaterialBuffer = nullptr;
+        ITexture* m_CacheShadowMap = nullptr;
+        
         BindingLayoutHandle m_BindingLayout{};
+        BindingSetHandle m_BindingSet{};
+        
         std::vector<GraphicsPipelineHandle> m_Pipelines{};
+
         std::array<ShaderHandle, ShaderSlot::Count> m_Shaders{};
 
         bool m_IsTransparentPass = false;

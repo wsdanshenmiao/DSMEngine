@@ -16,7 +16,6 @@
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Render/TextureManager.h"
 
-#include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <ImGuizmo.h>
 
@@ -24,6 +23,7 @@ namespace DSM {
     EditorUI::EditorUI(DSMEditor* editor)
         :m_Editor(editor), m_MenuBar(std::make_unique<EditorMenuBar>(this))
     {
+        IMGUI_CHECKVERSION();
         ImGui::CreateContext();
 
         ImGuiIO& io = ImGui::GetIO();
@@ -32,6 +32,7 @@ namespace DSM {
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
         io.ConfigWindowsResizeFromEdges  = true;
+        io.FontDefault = m_Font = ImGui::GetIO().Fonts->AddFontFromFileTTF("Assets/Fonts/Roboto.ttf", 12.f);
         
         ImGui_ImplGlfw_InitForOther(DSMEngine::sm_GlobalContext.window->GetNativeWindow(), true);
 
@@ -144,5 +145,6 @@ namespace DSM {
         DSMEngine::sm_GlobalContext.scene = m_InactiveScene;
         m_InactiveScene = nullptr;
     }
+
 
 } // namespace DSM

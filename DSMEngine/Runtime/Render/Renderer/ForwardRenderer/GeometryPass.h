@@ -84,10 +84,16 @@ namespace DSM {
             };
             cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
 
-            auto bindingSet = device->CreateBindingSet(BindingSetDesc()
-                .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB))
-                .AddItem(BindingSetItem().StructuredBuffer_SRV(0, RenderResource::GetInstance().GetMeshBuffer())),
-                m_Pipeline->GetDesc().bindingLayouts[0]);
+            if(auto meshBuffer = RenderResource::GetInstance().GetMeshBuffer(); 
+                m_BindingSet == nullptr || m_CacheMeshBuffer != meshBuffer)
+            {
+                auto bindingSet = device->CreateBindingSet(BindingSetDesc()
+                    .AddItem(BindingSetItem().ConstantBuffer(1, m_PassCB))
+                    .AddItem(BindingSetItem().StructuredBuffer_SRV(0, meshBuffer)),
+                    m_Pipeline->GetDesc().bindingLayouts[0]);
+                m_BindingSet = bindingSet;
+                m_CacheMeshBuffer = meshBuffer;
+            }
 
             for(const auto& [index, obj] : RenderResource::GetInstance().GetObjectInFrustum()){
                 auto mesh = obj->GetComponent<Mesh>();
@@ -101,7 +107,7 @@ namespace DSM {
                     .SetViewport(ViewportState().
                         AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
                     .SetIndexBuffer(mesh->indexBufferViews)
-                    .AddBindingSet(bindingSet, 0);
+                    .AddBindingSet(m_BindingSet, 0);
                 if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
                     state.AddVertexBuffer(mesh->positionStream);
                 }
@@ -163,13 +169,19 @@ namespace DSM {
 
     private:
         BufferHandle m_PassCB{};
+        IBuffer* m_CacheMeshBuffer = nullptr;
+
         FramebufferHandle m_Framebuffer{};
+
         GraphicsPipelineHandle m_Pipeline{};
         
         ShaderHandle m_VertexShader{};
         ShaderHandle m_PixelShader{};
+
         InputLayoutHandle m_InputLayout{};
         BindingLayoutHandle m_BindingLayout{};
+
+        BindingSetHandle m_BindingSet{};
     };
 } // namespace DSM
 

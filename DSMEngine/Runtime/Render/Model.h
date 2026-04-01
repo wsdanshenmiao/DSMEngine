@@ -20,7 +20,6 @@ namespace DSM {
         std::string filePath{};
         std::vector<std::shared_ptr<Mesh>> meshes{};
         std::vector<std::shared_ptr<ShaderResource::MaterialData>> materials{};
-        BufferHandle materialData{};
         Math::AxisAlignedBox boundingBox{};
     };
 

@@ -67,7 +67,7 @@ namespace DSM {
             };
 
             // 透明物体
-            auto transparentTex = TextureManager::LoadTextureFromFile("Textures/transparent_texture.psd");
+            auto transparentTex = TextureManager::LoadTextureFromFile("Assets/Textures/transparent_texture.psd");
             auto boxMesh = Geometry::GeometryGenerator::CreateBox(1, 1, 1, 0);
             auto boxModel = ModelLoader::LoadModelFromGeometry("TransparentBox", boxMesh);
             boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kAlphaBlend);
@@ -89,12 +89,12 @@ namespace DSM {
             // 不透明物体
             auto lihuazou = scene->CreateObject("Lihuazou");
             auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
-            auto lihuazouModel = ModelLoader::LoadModel("Models/AB/AliceADefault/AliceADefault.fbx");
+            auto lihuazouModel = ModelLoader::LoadModel("Assets/Models/AB/AliceADefault/AliceADefault.fbx");
             processModel(lihuazouPtr, lihuazouModel);
 
             auto sponza = scene->CreateObject("Sponza");
             auto sponzaPtr = scene->GetObjectByID(sponza).lock();
-            auto sponzaModel = ModelLoader::LoadModel("Models/Sponza/pbr/sponza2.gltf");
+            auto sponzaModel = ModelLoader::LoadModel("Assets/Models/Sponza/pbr/sponza2.gltf");
             processModel(sponzaPtr, sponzaModel);
         }
 

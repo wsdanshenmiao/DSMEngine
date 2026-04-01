@@ -12,9 +12,22 @@ namespace DSM {
     class EditorStyle : public Widget 
     {
     public:
-        EditorStyle(EditorUI* editorUI);
+        enum StyleType
+        {
+            Classic = 0,
+            Light,
+            Dark,
+            ImGuiClassic,
+            ImGuiLight,
+            ImGuiDark,
+            StyleTypeCount
+        };
 
+        EditorStyle(EditorUI* editorUI);
         void OnGUIEnabled() override;
+        StyleType GetStyleType() const { return m_StyleType; }
+        void UpdateStyle();
+
 
     public:
         inline static ImVec4 sm_ColorInfo{235.0f / 255.0f, 235.0f / 255.0f, 235.0f / 255.0f, 1.0f};
@@ -22,7 +35,8 @@ namespace DSM {
         inline static ImVec4 sm_ColorError{255.0f / 255.0f, 58.0f / 255.0f, 58.0f / 255.0f, 1.0f};
 
     private:
-        int m_StyleType = -1;
+        StyleType m_StyleType = StyleType::Classic;
+        ImGuiStyle m_OriginalStyle{};
         bool m_Changes = false;
     };
 

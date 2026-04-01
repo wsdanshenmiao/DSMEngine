@@ -154,6 +154,8 @@ namespace DSM{
                 s_DescriptorHeap->ReleaseDescriptor(s_DescriptorHeap->GetOffsetOfGpuHandle(gpu_handle.ptr));
             }
         };
+
+        ImGui_ImplWin32_EnableDpiAwareness();
         ImGui_ImplDX12_Init(&init_info);
     }
 

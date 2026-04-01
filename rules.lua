@@ -40,22 +40,12 @@ rule("EngineShaderCopy")
         end)
 rule_end()
 
-rule("ModelCopy")
+rule("AssetsCopy")
     after_build(
         function(target)
-            modelFiles = path.join(target:scriptdir(), "../Models")
-            if(os.exists(modelFiles)) then
-                os.cp(modelFiles, target:targetdir())
-            end
-        end)
-rule_end()
-
-rule("TextureCopy")
-    after_build(
-        function(target)
-            modelFiles = path.join(target:scriptdir(), "../Textures")
-            if(os.exists(modelFiles)) then
-                os.cp(modelFiles, target:targetdir())
+            assetsFiles = path.join(target:scriptdir(), "../Assets")
+            if(os.exists(assetsFiles)) then
+                os.cp(assetsFiles, target:targetdir())
             end
         end)
 rule_end()

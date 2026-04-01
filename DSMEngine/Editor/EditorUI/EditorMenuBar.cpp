@@ -16,8 +16,8 @@ namespace DSM {
     EditorMenuBar::EditorMenuBar(EditorUI* editorUI)
         :m_EditorUI(editorUI) 
     {
-        m_PlayIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\PlayButton.png");
-        m_StopIcon = TextureManager::LoadTextureFromFile("Textures\\Icons\\StopButton.png");
+        m_PlayIcon = TextureManager::LoadTextureFromFile("Assets/Textures/Icons/PlayButton.png");
+        m_StopIcon = TextureManager::LoadTextureFromFile("Assets/Textures/Icons/StopButton.png");
     }
 
     void EditorMenuBar::OnGUI()
