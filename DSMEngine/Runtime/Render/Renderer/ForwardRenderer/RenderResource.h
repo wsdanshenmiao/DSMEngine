@@ -2,8 +2,8 @@
 #ifndef __RENDERRESOURCE_H__
 #define __RENDERRESOURCE_H__
 
-#include "Runtime/Render/Light.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Framework/Component/Light.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Math/Collision/BVH.h"
 #include "Runtime/Utils/Singleton.h"
@@ -16,8 +16,8 @@ namespace DSM {
     struct IRenderPass
     {
         virtual ~IRenderPass() = default;
-        virtual uint64_t Render(DSM::Renderer& renderer, float deltaTime) = 0;
-        virtual void OnResize(Renderer& renderer, uint32_t width, uint32_t height) = 0;
+        virtual uint64_t Render(DSM::GraphicsRenderer& renderer, float deltaTime) = 0;
+        virtual void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
     enum class CommonTextureSlot : uint32_t
@@ -54,6 +54,7 @@ namespace DSM {
         Lit,
         Skybox,
         Transparent,
+        TAA,
         PostEffect,
         Final,
         Count
@@ -93,7 +94,7 @@ namespace DSM {
         inline DescriptorTableHandle& GetTextureBindlessTable() { return m_TextureBindlessTable; }
 
         inline auto& GetObjectInFrustum() { return m_ObjInFrustum; }
-        inline auto& GetQpaqueObjects() { return m_OpaqueObjects; }
+        inline auto& GetOpaqueObjects() { return m_OpaqueObjects; }
         inline auto& GetTransparentObjects() { return m_TransparentObjects; }
 
         inline Math::BVHTree& GetBVH() { return m_BVH; }
@@ -113,7 +114,7 @@ namespace DSM {
 
         void UpdateRenderResource(const Camera& camera);
 
-        void OnResize(DSM::Renderer& renderer, uint32_t width, uint32_t height);
+        void OnResize(DSM::GraphicsRenderer& renderer, uint32_t width, uint32_t height);
 
 
     private:

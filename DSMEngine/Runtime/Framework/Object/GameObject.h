@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_set>
 #include "Runtime/Framework/Scene.h"
+#include "Runtime/Framework/Component/Transform.h"
 
 
 namespace DSM {
@@ -17,6 +18,12 @@ namespace DSM {
         virtual void Update(float deltaTime) {}
 
         ObjectID GetID() const noexcept { return m_Handle; }
+        const std::string& GetTag() const noexcept { return m_Tag; }
+        std::string& GetTag() noexcept { return m_Tag; }
+        void SetTag(const std::string& tag) noexcept { m_Tag = tag; }
+
+        const std::shared_ptr<Transform> GetTransform() const noexcept { return m_Transform; }
+        std::shared_ptr<Transform> GetTransform() noexcept { return m_Transform; }
 
         bool IsEnabled() const noexcept { return m_Enabled; }
         void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
@@ -35,12 +42,12 @@ namespace DSM {
             if(HasComponent<T>()) 
                 return nullptr;
             else
-                return &m_World->m_Registry.emplace<T>(m_Handle, std::forward<Args>(args)...);
+                return &m_World->m_Registry.emplace<T>(m_Handle, shared_from_this(), std::forward<Args>(args)...);
         }
         template <typename T, typename... Args>
         T* AddOrReplaceComponent(Args&&... args) noexcept 
         { 
-            return &m_World->m_Registry.emplace_or_replace<T>(m_Handle, std::forward<Args>(args)...);
+            return &m_World->m_Registry.emplace_or_replace<T>(m_Handle, shared_from_this(), std::forward<Args>(args)...);
         }
         template <typename T>
         bool RemoveComponent() noexcept { if(HasComponent<T>()) { m_World->m_Registry.remove<T>(m_Handle); return true; } return false; }
@@ -61,8 +68,15 @@ namespace DSM {
     protected:
         std::unordered_set<std::shared_ptr<GameObject>> m_Children{};
         std::weak_ptr<GameObject> m_Parent{};
+
+        std::shared_ptr<Transform> m_Transform{};
+
+        std::string m_Tag{};
+        
         Scene* m_World;
+        
         ObjectID m_Handle;
+        
         bool m_Enabled = true;
     };
 } // namespace DSM

@@ -1,6 +1,6 @@
 #include "Editor/DSMEditor.h"
 #include "Runtime/DSMEngine.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Render/Geometry.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/ScriptableObject.h"

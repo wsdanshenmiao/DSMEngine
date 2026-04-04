@@ -20,7 +20,7 @@ namespace DSM {
     class SSAOPass : public IRenderPass 
     {
     public:
-        SSAOPass(Renderer& renderer)
+        SSAOPass(GraphicsRenderer& renderer)
             : m_SSAOTex(RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::SSAO)) 
         {
             auto device = renderer.GetDevice();
@@ -95,7 +95,7 @@ namespace DSM {
 
         }
 
-        uint64_t Render(Renderer& renderer, float deltaTime) override
+        uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
         {
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters()
                 .SetDebugName("SSAO Command List")
@@ -142,7 +142,7 @@ namespace DSM {
             return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
         {
             auto& renderRes = RenderResource::GetInstance();
             auto device = renderer.GetDevice();
@@ -189,7 +189,7 @@ namespace DSM {
         }
     
     private:
-        void BlurSSAO(Renderer& renderer, ICommandList* cmdList)
+        void BlurSSAO(GraphicsRenderer& renderer, ICommandList* cmdList)
         {
             if(sm_Settings.blurRadius < 1) 
                 return;

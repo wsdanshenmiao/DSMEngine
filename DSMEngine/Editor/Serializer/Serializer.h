@@ -6,8 +6,8 @@
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
-#include "Runtime/Math/Transform.h"
-#include "Runtime/Render/Camera/Camera.h"
+#include "Runtime/Framework/Component/Transform.h"
+#include "Runtime/Framework/Component/Camera.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Framework/Scene.h"
 
@@ -115,27 +115,14 @@ namespace nlohmann {
     };
 
     template<>
-    struct adl_serializer<DSM::TagComponent> {
-        static void to_json(json& j, const DSM::TagComponent& tag) {
-            j = json{{"tag", tag.tag}};
-        }
-
-        static void from_json(const json& j, DSM::TagComponent& tag) {
-            if(j.contains("tag")){
-                tag.tag = j.at("tag").get<std::string>();
-            }
-        }
-    };
-
-    template<>
-    struct adl_serializer<DSM::Math::Transform> {
-        static void to_json(json& j, const DSM::Math::Transform& trans) {
+    struct adl_serializer<DSM::Transform> {
+        static void to_json(json& j, const DSM::Transform& trans) {
             j = {{"position", trans.GetPosition()},
                 {"scale", trans.GetScale()},
                 {"rotation", trans.GetRotation()}};
         }
 
-        static void from_json(const json& j, DSM::Math::Transform& trans) {
+        static void from_json(const json& j, DSM::Transform& trans) {
             auto getData = [&j] <typename T> (const std::string& name, T& data){
                 data = j.contains(name) ? j.at(name).get<T>() : T{};
             };
@@ -178,22 +165,6 @@ namespace nlohmann {
     };
 
     template<>
-    struct adl_serializer<DSM::Model> {
-        static void to_json(json& j, const DSM::Model& model) {
-            j = { {"filePath", model.filePath} };
-        }
-        static void from_json(const json& j, DSM::Model& model) {
-            if(j.contains("filePath")){
-                model.filePath = j.at("filePath").get<std::string>();
-            }
-            auto newModel = DSM::ModelLoader::LoadModel(model.filePath);
-            if(newModel != nullptr){
-                model = std::move(*newModel);
-            }
-        }
-    };
-
-    template<>
     struct adl_serializer<DSM::Scene> {
         static void to_json(json& sceneJson, const DSM::Scene& scene) {
             sceneJson["objects"] = json::array();
@@ -201,17 +172,10 @@ namespace nlohmann {
                 auto& obj = *objectPtr;
                 json objJson{};
                 objJson["enabled"] = obj.IsEnabled();
-                if(obj.HasComponent<DSM::TagComponent>()){
-                    objJson["tag"] = *obj.GetComponent<DSM::TagComponent>();
-                }
-                if(obj.HasComponent<DSM::Math::Transform>()){
-                    objJson["transform"] = *obj.GetComponent<DSM::Math::Transform>();
-                }
+                objJson["tag"] = obj.GetTag();
+                objJson["transform"] = *obj.GetTransform();
                 if(obj.HasComponent<DSM::Camera>()){
                     objJson["camera"] = *obj.GetComponent<DSM::Camera>();
-                }
-                if(obj.HasComponent<DSM::Model>()){
-                    objJson["model"] = *obj.GetComponent<DSM::Model>();
                 }
                 sceneJson["objects"].push_back(objJson);
             }
@@ -222,18 +186,14 @@ namespace nlohmann {
                 auto objPtr = scene.GetObjectByID(objID).lock();
                 objPtr->SetEnabled(objJson.at("enabled").get<bool>());
                 if(objJson.contains("tag")){
-                    objPtr->GetComponent<DSM::TagComponent>()->tag = objJson.at("tag").get<DSM::TagComponent>().tag;
+                    objPtr->SetTag(objJson.at("tag").get<std::string>());
                 }
                 if(objJson.contains("transform")){
-                    *objPtr->GetComponent<DSM::Math::Transform>() = objJson.at("transform").get<DSM::Math::Transform>();
+                    *objPtr->GetComponent<DSM::Transform>() = objJson.at("transform").get<DSM::Transform>();
                 }
                 if(objJson.contains("camera")){
                     objPtr->AddComponent<DSM::Camera>();
                     *objPtr->GetComponent<DSM::Camera>() = objJson.at("camera").get<DSM::Camera>();
-                }
-                if(objJson.contains("model")){
-                    objPtr->AddComponent<DSM::Model>();
-                    *objPtr->GetComponent<DSM::Model>() = objJson.at("model").get<DSM::Model>();
                 }
             }
         }

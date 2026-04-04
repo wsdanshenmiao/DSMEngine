@@ -20,7 +20,7 @@ namespace DSM {
 	class GaussianBlurPass : public IRenderPass
 	{
 	public:
-		explicit GaussianBlurPass(Renderer& renderer)
+		explicit GaussianBlurPass(GraphicsRenderer& renderer)
 		{
 			auto device = renderer.GetDevice();
 
@@ -66,7 +66,7 @@ namespace DSM {
 			InvalidateCache();
 		}
 
-		void BlurTexture(Renderer& renderer, ICommandList* cmdList, ITexture* targetTexture, const GaussianBlurSettings& settings)
+		void BlurTexture(GraphicsRenderer& renderer, ICommandList* cmdList, ITexture* targetTexture, const GaussianBlurSettings& settings)
 		{
 			if (cmdList == nullptr || targetTexture == nullptr || settings.blurCount < 1) {
 				return;
@@ -131,7 +131,7 @@ namespace DSM {
             }
 		}
 
-		uint64_t Render(Renderer& renderer, float deltaTime) override
+		uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
 		{
 			if (m_TargetTexture == nullptr) {
 				return 0;
@@ -146,7 +146,7 @@ namespace DSM {
 			return renderer.GetDevice()->ExecuteCommandList(cmdList);
 		}
 
-		void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
+		void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override {}
 
 	private:
 		struct BlurConstants
@@ -166,7 +166,7 @@ namespace DSM {
 			m_BlurToTmpBindingSet = nullptr;
 		}
 
-		void EnsureResources(Renderer& renderer, ITexture* targetTexture)
+		void EnsureResources(GraphicsRenderer& renderer, ITexture* targetTexture)
 		{
 			if (targetTexture == nullptr) {
 				return;

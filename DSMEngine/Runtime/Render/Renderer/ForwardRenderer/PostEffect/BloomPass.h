@@ -22,7 +22,7 @@ namespace DSM{
     class BloomPass : public IPostEffect
     {
     public:
-        BloomPass(Renderer& renderer)
+        BloomPass(GraphicsRenderer& renderer)
             : m_GaussianBlurPass(std::make_unique<GaussianBlurPass>(renderer))
         {
             auto device = renderer.GetDevice();
@@ -55,7 +55,7 @@ namespace DSM{
 
         void SetSettings(const BloomSettings& settings) { m_Settings = settings; }
 
-        void Render(Renderer& renderer, ICommandList* cmdList, float deltaTime, ITexture* srcTex, ITexture* dstTex) override
+        void Render(GraphicsRenderer& renderer, ICommandList* cmdList, float deltaTime, ITexture* srcTex, ITexture* dstTex) override
         {
             auto device = renderer.GetDevice();
             if(srcTex != m_CacheSrcTex || dstTex != m_CacheDstTex){

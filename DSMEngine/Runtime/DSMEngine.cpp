@@ -1,6 +1,6 @@
 #include "DSMEngine.h"
 #include "Runtime/Core/Window.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Framework/Scene.h"
@@ -17,7 +17,7 @@ namespace DSM {
         RenderParameters renderParams{};
         renderParams.window = sm_GlobalContext.window.get();
         renderParams.enableDebugLayer = params.enableDebugLayer;
-        sm_GlobalContext.renderer = std::make_shared<Renderer>(renderParams);
+        sm_GlobalContext.renderer = std::make_shared<GraphicsRenderer>(renderParams);
         sm_GlobalContext.scene = std::make_shared<Scene>();
 
         sm_GlobalContext.window->SetEventCallback([this](Event& event){

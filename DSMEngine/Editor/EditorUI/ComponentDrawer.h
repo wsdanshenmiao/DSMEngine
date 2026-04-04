@@ -5,11 +5,13 @@
 #include <numbers>
 #include <imgui.h>
 #include <imgui_internal.h>
+
 #include "Runtime/Math/MathCommon.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
-#include "Runtime/Render/Camera/Camera.h"
+#include "Runtime/Framework/Component/Camera.h"
 #include "Runtime/Render/ModelLoader.h"
+#include "Runtime/Core/Macro.h"
 
 
 namespace DSM{
@@ -132,7 +134,7 @@ namespace DSM{
     {
         bool CanDraw(std::shared_ptr<GameObject> object) override
         {
-            return object->HasComponent<Math::Transform>();
+            return object->HasComponent<Transform>();
         }
         std::string GetName() override { return "Transform"; }
 
@@ -140,31 +142,31 @@ namespace DSM{
         {
             assert(object != nullptr);
 
-            const auto& component = object->GetComponent<Math::Transform>();
-            Math::Vector3 pos = component->GetPosition();
-            Math::Vector3 scale = component->GetScale();
-            Math::Vector3 degree = Math::RadiansToDegree(component->GetRotation().ToEulerAngles());
+            const auto& transform = object->GetTransform();
+            Math::Vector3 pos = transform->GetPosition();
+            Math::Vector3 scale = transform->GetScale();
+            Math::Vector3 degree = Math::RadiansToDegree(transform->GetRotation().ToEulerAngles());
             DrawVec3Control("Position", pos);
             DrawVec3Control("Rotation", degree);
             DrawVec3Control("Scale", scale, 1);
-            component->SetPosition(pos);
-            component->SetRotation(Math::Quaternion{Math::DegreeToRadians(degree)});
-            component->SetScale(scale);
+            transform->SetPosition(pos);
+            transform->SetRotation(Math::Quaternion{Math::DegreeToRadians(degree)});
+            transform->SetScale(scale);
         }
         void AddComponent(std::shared_ptr<GameObject> object) override
         {
             assert(object != nullptr);
 
-            if (!object->HasComponent<Math::Transform>()) {
-                object->AddComponent<Math::Transform>();
+            if (!object->HasComponent<Transform>()) {
+                object->AddComponent<Transform>();
             }
         }
         void RemoveComponent(std::shared_ptr<GameObject> object)
         {
             assert(object != nullptr);
 
-            if (object->HasComponent<Math::Transform>()) {
-                object->RemoveComponent<Math::Transform>();
+            if (object->HasComponent<Transform>()) {
+                object->RemoveComponent<Transform>();
             }
         }
     };
@@ -178,25 +180,26 @@ namespace DSM{
         std::string GetName() override { return "Camera"; }
         void DrawUI(const std::shared_ptr<GameObject> object) override
         {
-            assert(object != nullptr);
+            DSM_CORE_ASSERT(object != nullptr);
+            DSM_CORE_ASSERT(object->HasComponent<Camera>());
 
-            const auto& camera = object->GetComponent<Camera>();
+            auto& camera = *object->GetComponent<Camera>();
 
-            if(float cameraFov = Math::RadiansToDegree(camera->GetFovY());
+            if(float cameraFov = Math::RadiansToDegree(camera.GetFovY());
                 ImGui::DragFloat("Vertical Fov", &cameraFov, 1, 0, 360)){
-                camera->SetFovY(Math::DegreeToRadians(cameraFov));
+                camera.SetFovY(Math::DegreeToRadians(cameraFov));
             }
-            float nearZ = camera->GetNearZ();
+            float nearZ = camera.GetNearZ();
             if(ImGui::DragFloat("Near Plane", &nearZ, 1, 0.001, std::numeric_limits<float>::max())){
-                camera->SetNearZ(nearZ);
+                camera.SetNearZ(nearZ);
             }
-            if(float farZ = camera->GetFarZ();
+            if(float farZ = camera.GetFarZ();
                 ImGui::DragFloat("Far Plane", &farZ, 1, nearZ, std::numeric_limits<float>::max())){
-                camera->SetFarZ(std::max(nearZ, farZ));
+                camera.SetFarZ(std::max(nearZ, farZ));
             }
-            if(bool reverse = camera->IsReversedZ();
+            if(bool reverse = camera.IsReversedZ();
                 ImGui::Checkbox("Reverse Z", &reverse)){
-                camera->ReverseZ(reverse);
+                camera.ReverseZ(reverse);
             }
         }
         void AddComponent(std::shared_ptr<GameObject> object) override
@@ -215,65 +218,6 @@ namespace DSM{
         }
     };
 
-    struct ModelDrawer : public IComponentDrawer
-    {
-        bool CanDraw(std::shared_ptr<GameObject> object) override
-        {
-            return object->HasComponent<Model>();
-        }
-        std::string GetName() override { return "Model"; }
-        void DrawUI(const std::shared_ptr<GameObject> object) override
-        {
-            assert(object != nullptr);
-
-            const auto& model = object->GetComponent<Model>();
-            std::array<char, 256> buffer{};
-            if(model->name.size() > buffer.size()){
-                model->name.resize(buffer.size());
-            }
-            std::ranges::copy(model->name, buffer.begin());
-            if (ImGui::InputText("Model Name", buffer.data(), buffer.size())) {
-                model->name = std::string{buffer.data()};
-            }
-
-            std::string filePath = model->filePath;
-            if(model->filePath.size() > buffer.size()){
-                model->filePath.resize(buffer.size());
-            }
-            std::ranges::copy(model->filePath, buffer.begin());
-            if(ImGui::Button("Load Model")){
-                std::vector<Utility::FileDialogs::FilterOption> filterOptions{
-                    {"Model Files", "*.gltf;*.glb;*.obj;*.fbx"},
-                    {"All Files", "*.*"}
-                };
-                auto filepath = Utility::FileDialogs::OpenFile(filterOptions, "Load Model");
-                if(!filepath.empty()){
-                    auto newModel = ModelLoader::LoadModel(filepath[0]);
-                    if(newModel != nullptr){
-                        *model = std::move(*newModel);
-                    }
-                }
-            }
-
-            for(const auto& material : model->materials){
-                DrawMaterial(*material);
-            }
-        }
-        void AddComponent(std::shared_ptr<GameObject> object) override
-        {
-            assert(object != nullptr);
-            if (!object->HasComponent<Model>()) {
-                object->AddComponent<Model>();
-            }
-        }
-        void RemoveComponent(std::shared_ptr<GameObject> object)
-        {
-            assert(object != nullptr);
-            if (object->HasComponent<Model>()) {
-                object->RemoveComponent<Model>();
-            }
-        }
-    };
 
     class ComponentDrawerManager
     {
@@ -282,22 +226,20 @@ namespace DSM{
         {
             m_Drawers.push_back(std::make_unique<TransformComponentDrawer>());
             m_Drawers.push_back(std::make_unique<CameraComponentDrawer>());
-            m_Drawers.push_back(std::make_unique<ModelDrawer>());
         }
 
         void DrawComponentsUI(std::shared_ptr<GameObject> object)
         {
             // Draw the components of the GameObject
             // 实体的 Tag 组件
-            if (auto tagComponent = object->GetComponent<TagComponent>(); tagComponent != nullptr) {
-                std::array<char, 256> buffer{};
-                if(tagComponent->tag.size() > buffer.size()){
-                    tagComponent->tag.resize(buffer.size());
-                }
-                std::ranges::copy(tagComponent->tag, buffer.begin());
-                if (ImGui::InputText("##Tag", buffer.data(), buffer.size())) {
-                    tagComponent->tag = std::string{buffer.data()};
-                }
+            auto& tag = object->GetTag();
+            std::array<char, 256> buffer{};
+            if(tag.size() > buffer.size()){
+                tag.resize(buffer.size());
+            }
+            std::ranges::copy(tag, buffer.begin());
+            if (ImGui::InputText("##Tag", buffer.data(), buffer.size())) {
+                tag = std::string{buffer.data()};
             }
 
             ImGui::SameLine();

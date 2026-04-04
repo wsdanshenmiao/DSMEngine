@@ -1,12 +1,13 @@
 #include "ShadowPass.h"
 #include "Runtime/Render/ShaderCompiler.h"
 #include "Runtime/Render/Model.h"
-#include "Shaders/ForwardShader/ResourceData.h"
 #include "Runtime/Math/Collision/BoundingSphere.h"
+#include "Runtime/Framework/Component/Component.h"
 #include "Runtime/Core/InstrumentorTimer.h"
+#include "Shaders/ForwardShader/ResourceData.h"
 
 namespace DSM {
-    ShadowPass::ShadowPass(Renderer &renderer, ShadowSetting shadowSetting)
+    ShadowPass::ShadowPass(GraphicsRenderer &renderer, ShadowSetting shadowSetting)
     {
         sm_Setting = shadowSetting;
         auto device = renderer.GetDevice();
@@ -105,7 +106,7 @@ namespace DSM {
         sm_ShadowCB = nullptr;
     }
 
-    uint64_t ShadowPass::Render(Renderer &renderer, float deltaTime)
+    uint64_t ShadowPass::Render(GraphicsRenderer &renderer, float deltaTime)
     {
         auto& renderRes = RenderResource::GetInstance();
 
@@ -118,7 +119,7 @@ namespace DSM {
         // 从全局资源中获取所有的定向光
         m_DirectionalLights.clear();
         for(const auto& [id, light] : DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>().each()){
-            if(light.lightType == LightType::Directional){
+            if(light.GetType() == LightType::Directional){
                 m_DirectionalLights.push_back(light);
             }
         }
@@ -194,7 +195,7 @@ namespace DSM {
         return renderer.GetDevice()->ExecuteCommandList(m_CmdList);
     }
 
-    void ShadowPass::RenderDirectionalShadow(Renderer &renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize)
+    void ShadowPass::RenderDirectionalShadow(GraphicsRenderer &renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize)
     {
         auto device = renderer.GetDevice();
         
@@ -202,7 +203,7 @@ namespace DSM {
 
         Camera lightCamera{};
         float radius = boundingSphere.GetRadius();
-        auto lightPos = -dirLight.direction * 2 * radius;
+        auto lightPos = -dirLight.GetDirection() * 2 * radius;
         Math::Vector4 center{boundingSphere.GetCenter(), 1};
         lightCamera.SetPosition(Math::Vector3{center} + lightPos);
         lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
@@ -280,10 +281,13 @@ namespace DSM {
             .AddItem(BindingSetItem().Sampler(sampleIndex, renderRes.GetCommonSampler(sampleIndex)))
             , m_ShadowBindingLayout);
 
-        for(const auto& [obj, index] : renderRes.GetQpaqueObjects()){
-            auto [mesh, material, transfrom] = obj->GetComponent<Mesh, ShaderResource::MaterialData, Math::Transform>();
-
-            bool alphaClip = HasFlags(PSOFlags(mesh->psoFlags), PSOFlags::kAlphaBlend);
+        for(const auto& [obj, index] : renderRes.GetOpaqueObjects()){
+            auto meshRenderer = obj->GetComponent<MeshRenderer>();
+            if(meshRenderer == nullptr || meshRenderer->GetMesh() == nullptr)
+                continue;
+            auto& mesh = *meshRenderer->GetMesh();
+            
+            bool alphaClip = HasFlags(PSOFlags(mesh.psoFlags), PSOFlags::kAlphaBlend);
             size_t baseIndex = alphaClip ? 0 : ShadowSetting::FilterMode::Count;
             const auto& pipeline = m_ShadowPipeline[baseIndex + sm_Setting.directionalSetting.filter];
 
@@ -291,9 +295,9 @@ namespace DSM {
             state.SetFramebuffer(m_ShadowFramebuffer)
                 .SetPipeline(pipeline)
                 .SetViewport(ViewportState().AddViewportAndScissorRect(viewport))
-                .SetIndexBuffer(mesh->indexBufferViews)
-                .AddVertexBuffer(mesh->positionStream)
-                .AddVertexBuffer(mesh->uvStream)
+                .SetIndexBuffer(mesh.indexBufferViews)
+                .AddVertexBuffer(mesh.positionStream)
+                .AddVertexBuffer(mesh.uvStream)
                 .AddBindingSet(bindingSet, 0);
             if(alphaClip){
                 state.AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
@@ -305,9 +309,9 @@ namespace DSM {
             m_CmdList->SetPushConstants(&objectIndex, sizeof(int));
 
             m_CmdList->DrawIndexed(DrawArguments()
-                .SetVertexCount(mesh->indexCount)
-                .SetStartIndexLocation(mesh->indexOffset)
-                .SetStartVertexLocation(mesh->vertexOffset));
+                .SetVertexCount(mesh.indexCount)
+                .SetStartIndexLocation(mesh.indexOffset)
+                .SetStartVertexLocation(mesh.vertexOffset));
         }
     }
 

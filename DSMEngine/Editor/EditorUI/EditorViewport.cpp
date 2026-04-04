@@ -3,7 +3,7 @@
 #include "Editor/SceneManager.h"
 #include "Editor/AssertDefine.h"
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
@@ -21,6 +21,7 @@ namespace DSM {
         m_Size = Math::Vector2{400.0f, 300.0f};
         m_Flags |= ImGuiWindowFlags_NoScrollbar;
         m_Padding = Math::Vector2{2, 2};
+        UpdateDpiScale();
     }
 
     void EditorViewport::OnGUIEnabled()
@@ -63,12 +64,12 @@ namespace DSM {
 
         auto cameraView = camera.GetViewMatrix();
         auto cameraProj = camera.GetProjMatrix();
-        auto transfrom = selectedObject->GetComponent<Math::Transform>();
+        auto transfrom = selectedObject->GetTransform();
         Math::Matrix4 transMat = transfrom->GetLocalToWorld();
         ImGuizmo::Manipulate((float*)&cameraView, (float*)&cameraProj, 
             static_cast<ImGuizmo::OPERATION>(m_GizmoType), ImGuizmo::LOCAL, (float*)&transMat);
         if(ImGuizmo::IsUsing()){
-            *transfrom = Math::Transform{transMat};
+            *transfrom = Transform(transMat);
         }
     }
     
@@ -107,23 +108,28 @@ namespace DSM {
         });
         dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& e) {
             if(e.GetWidth() != 0 && e.GetHeight() != 0){
-                int window_width, window_height;
-                auto window = DSMEngine::sm_GlobalContext.window->GetNativeWindow();
-                glfwGetWindowSize(window, &window_width, &window_height);
-                int fb_width, fb_height;
-                glfwGetFramebufferSize(window, &fb_width, &fb_height);
-
-                ImGuiIO& io = ImGui::GetIO();
-                io.DisplaySize = ImVec2((float)window_width, (float)window_height);
-                io.DisplayFramebufferScale = ImVec2((float)fb_width / (float)window_width,
-                                                (float)fb_height / (float)window_height);
-
-                // 只缩放字体，不缩放样式
-                static const float base_width = 1200.f;
-                float scale = io.DisplaySize.x / base_width;
-                io.FontGlobalScale = scale;
+                UpdateDpiScale();
             }
             return false;
         });
+    }
+    
+    void EditorViewport::UpdateDpiScale()
+    {
+        int window_width, window_height;
+        auto window = DSMEngine::sm_GlobalContext.window->GetNativeWindow();
+        glfwGetWindowSize(window, &window_width, &window_height);
+        int fb_width, fb_height;
+        glfwGetFramebufferSize(window, &fb_width, &fb_height);
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize = ImVec2((float)window_width, (float)window_height);
+        io.DisplayFramebufferScale = ImVec2((float)fb_width / (float)window_width,
+                                        (float)fb_height / (float)window_height);
+
+        // 只缩放字体，不缩放样式
+        static const float base_width = 1200.f;
+        float scale = io.DisplaySize.x / base_width;
+        io.FontGlobalScale = scale;
     }
 }

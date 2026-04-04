@@ -11,7 +11,7 @@
 #include "Runtime/Core/Window.h"
 #include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Framework/Scene.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Render/TextureManager.h"

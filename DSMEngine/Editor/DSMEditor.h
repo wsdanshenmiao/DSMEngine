@@ -8,7 +8,7 @@
 namespace DSM {
     class DSMEngine;
     class Window;
-    class Renderer;
+    class GraphicsRenderer;
     class Widget;
 
     class DSMEditor

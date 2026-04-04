@@ -30,7 +30,7 @@ namespace DSM {
         };
         
     public:
-        LitPass(Renderer& renderer, bool isTransparentPass = false)
+        LitPass(GraphicsRenderer& renderer, bool isTransparentPass = false)
             :m_IsTransparentPass(isTransparentPass)
         {
             auto device = renderer.GetDevice();
@@ -59,7 +59,7 @@ namespace DSM {
             CreateShader(renderer);
         }
 
-        uint64_t Render(DSM::Renderer& renderer, float deltaTime) override
+        uint64_t Render(DSM::GraphicsRenderer& renderer, float deltaTime) override
         {
             auto device = renderer.GetDevice();
             auto& renderRes = RenderResource::GetInstance();
@@ -103,31 +103,35 @@ namespace DSM {
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(ShaderResource::PassConstants));
 
             for(const auto& [index, object] : renderRes.GetObjectInFrustum()) {
-                auto mesh = object->GetComponent<Mesh>();
+                auto meshRenderer = object->GetComponent<MeshRenderer>();
+                if(meshRenderer == nullptr || meshRenderer->GetMesh() == nullptr)
+                    continue;
+                auto& mesh = *meshRenderer->GetMesh();
+
                 // 透明物体在渲染天空盒后渲染
-                if((HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) && !m_IsTransparentPass) ||
-                    (!HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend) && m_IsTransparentPass)){
+                if((HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend) && !m_IsTransparentPass) ||
+                    (!HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend) && m_IsTransparentPass)){
                     continue;
                 }
 
                 GraphicsState state{};
                 state.SetFramebuffer(fb)
-                    .SetPipeline(GetPipelineState(renderer, *mesh))
+                    .SetPipeline(GetPipelineState(renderer, mesh))
                     .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                    .SetIndexBuffer(mesh->indexBufferViews)
+                    .SetIndexBuffer(mesh.indexBufferViews)
                     .AddBindingSet(m_BindingSet, 0)
                     .AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
-                    state.AddVertexBuffer(mesh->positionStream);
+                if(HasFlags(PSOFlags(mesh.psoFlags), kHasPosition)){
+                    state.AddVertexBuffer(mesh.positionStream);
                 }
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasUV)){
-                    state.AddVertexBuffer(mesh->uvStream);
+                if(HasFlags(PSOFlags(mesh.psoFlags), kHasUV)){
+                    state.AddVertexBuffer(mesh.uvStream);
                 }
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
-                    state.AddVertexBuffer(mesh->normalStream);
+                if(HasFlags(PSOFlags(mesh.psoFlags), kHasNormal)){
+                    state.AddVertexBuffer(mesh.normalStream);
                 }
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasTangent)){
-                    state.AddVertexBuffer(mesh->tangentStream);
+                if(HasFlags(PSOFlags(mesh.psoFlags), kHasTangent)){
+                    state.AddVertexBuffer(mesh.tangentStream);
                 }
                 
                 cmdList->SetGraphicsState(state);
@@ -137,9 +141,9 @@ namespace DSM {
 
                 // 绘制
                 cmdList->DrawIndexed(DrawArguments{}
-                    .SetStartIndexLocation(mesh->indexOffset)
-                    .SetStartVertexLocation(mesh->vertexOffset)
-                    .SetVertexCount(mesh->indexCount));
+                    .SetStartIndexLocation(mesh.indexOffset)
+                    .SetStartVertexLocation(mesh.vertexOffset)
+                    .SetVertexCount(mesh.indexCount));
             }
 
             if (m_IsTransparentPass) {
@@ -158,7 +162,7 @@ namespace DSM {
             return device->ExecuteCommandList(cmdList);
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
         {
             CreateBindingSet(renderer.GetDevice());
         }
@@ -180,7 +184,7 @@ namespace DSM {
             return index;
         }
 
-        GraphicsPipelineHandle GetPipelineState(Renderer& renderer, Mesh& mesh)
+        GraphicsPipelineHandle GetPipelineState(GraphicsRenderer& renderer, Mesh& mesh)
         {
             auto psoIndex = GetPSOIndex(PSOFlags(mesh.psoFlags), renderer.GetCamera().IsReversedZ());
             if(psoIndex >= std::size(m_Pipelines) || m_Pipelines[psoIndex] == nullptr){
@@ -191,7 +195,7 @@ namespace DSM {
             return m_Pipelines[psoIndex];
         }
 
-        GraphicsPipelineHandle CreatePipelineState(Renderer& renderer, Mesh& mesh)
+        GraphicsPipelineHandle CreatePipelineState(GraphicsRenderer& renderer, Mesh& mesh)
         {
             auto device = renderer.GetDevice();
 
@@ -249,7 +253,7 @@ namespace DSM {
             return device->CreateGraphicsPipeline(pipelineDesc, RenderResource::GetInstance().GetFramebuffer());
         }
 
-        void CreateShader(Renderer& renderer)
+        void CreateShader(GraphicsRenderer& renderer)
         {
             // 创建着色器
             ShaderCompileDesc litVSDesc{};

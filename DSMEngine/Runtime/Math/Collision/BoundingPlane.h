@@ -2,7 +2,7 @@
 #ifndef __BOUNDING_PLANE_H__
 #define __BOUNDING_PLANE_H__
 
-#include "Runtime/Math/Transform.h"
+#include "Runtime/Framework/Component/Transform.h"
 
 namespace DSM::Math {
     // 定义一个平面，法线沿着顶点朝向平面做垂线
@@ -42,7 +42,6 @@ namespace DSM::Math {
 
     inline BoundingPlane operator*(const BoundingPlane& plane, const Transform& transform) noexcept
     {
-        // 无缩放
         Vector3 normal = transform.GetRotation() * plane.GetNormal();
         float d = plane.m_Plane.Get(3) - Vector3::Dot(normal, transform.GetPosition());
         return BoundingPlane{normal, d};
@@ -50,7 +49,9 @@ namespace DSM::Math {
 
     inline BoundingPlane operator*(const BoundingPlane& plane, const Matrix4& matrix) noexcept
     {
-        return BoundingPlane{plane.m_Plane * Matrix4::InverseTranspose(matrix)};
+        Vector3 normal = Quaternion{matrix} * plane.GetNormal();
+        float d = plane.m_Plane.Get(3) - Vector3::Dot(normal, Vector3{matrix.Get(3)});
+        return BoundingPlane{normal, d};
     }
 } // namespace DSM::Math
 

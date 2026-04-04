@@ -30,8 +30,7 @@ namespace DSM{
         }
 
         // 右键打开工具栏
-        if (ImGui::BeginPopupContextWindow(0, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
-        {
+        if (ImGui::BeginPopupContextWindow(0, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
             if (ImGui::MenuItem("Create Empty GameObject"))
                 scene->CreateObject("Empty GameObject");
 
@@ -46,19 +45,21 @@ namespace DSM{
             return;
 
         const auto& children = object->GetChildren();
-        ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_AllowOverlap | 
-            ImGuiTreeNodeFlags_SpanFullWidth | 
+        ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_OpenOnDoubleClick |
+            ImGuiTreeNodeFlags_SpanAvailWidth | 
             ImGuiTreeNodeFlags_OpenOnArrow;
         if(children.empty()){
-            nodeFlags |= ImGuiTreeNodeFlags_Leaf;
+            nodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         }
     
-        const auto& name = object->GetComponent<TagComponent>()->tag;
+        const auto& name = object->GetTag();
 
         bool isSelected = m_SelectedObject.lock() == object;
         if(isSelected){
             nodeFlags |= ImGuiTreeNodeFlags_Selected;
         }
+
+        ImGui::PushID(object.get());
 
         bool opened = ImGui::TreeNodeEx(object.get(), nodeFlags, name.c_str());
         // 当前节点被选中 
@@ -74,11 +75,9 @@ namespace DSM{
             ImGui::EndPopup();
         }
 
-        if(opened){
-            if(!children.empty()){
-                for (const auto& child : children) {
-                    DrawEntityNode(child);
-                }
+        if(!children.empty() && opened){
+            for (const auto& child : children) {
+                DrawEntityNode(child);
             }
             ImGui::TreePop();
         }
@@ -89,6 +88,8 @@ namespace DSM{
                 m_SelectedObject.reset();
             }
         }
+
+        ImGui::PopID();
     }
 
     

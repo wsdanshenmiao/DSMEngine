@@ -190,7 +190,48 @@ namespace DSM::Math {
 #endif
     }
 
+    inline Vector3 GetPositionFromMatrix(const Matrix4& m){ return Math::Vector3{m.Get(3)}; }
+    inline Vector3 GetScaleFromMatrix(const Matrix4& m)
+    {
+        auto xAxis = Math::Vector3{m.Get(0)};
+        auto yAxis = Math::Vector3{m.Get(1)};
+        auto zAxis = Math::Vector3{m.Get(2)};
+        return Math::Vector3{xAxis.Magnitude(), yAxis.Magnitude(), zAxis.Magnitude()};
+    }
+    inline Quaternion GetRotationFromMatrix(const Matrix4& m) { return Math::Quaternion{Math::Matrix3{m}};}
 
+    inline Math::Vector3 GetRightAxisFromMatrix(const Matrix4& m) noexcept { return Vector3{m.Get(0)}; }
+    inline Math::Vector3 GetUpAxisFromMatrix(const Matrix4& m) noexcept { return Vector3{m.Get(1)}; }
+    inline Math::Vector3 GetForwardAxisFromMatrix(const Matrix4& m) noexcept { return Vector3{m.Get(2)}; }
+    inline Math::Vector3 GetRightAxisFromMatrix(const Matrix3& m) noexcept { return Vector3{m.Get(0)}; }
+    inline Math::Vector3 GetUpAxisFromMatrix(const Matrix3& m) noexcept { return Vector3{m.Get(1)}; }
+    inline Math::Vector3 GetForwardAxisFromMatrix(const Matrix3& m) noexcept { return Vector3{m.Get(2)}; }
+
+    inline Math::Vector3 GetRightAxis(const Quaternion& q) noexcept { return Math::Matrix3::GetRotate(q).Get(0); }
+    inline Math::Vector3 GetUpAxis(const Quaternion& q) noexcept { return Math::Matrix3::GetRotate(q).Get(1); }
+    inline Math::Vector3 GetForwardAxis(const Quaternion& q) noexcept { return Math::Matrix3::GetRotate(q).Get(2); }
+
+    // 根据 俯仰角、偏航角、滚动角 进行旋转
+    inline Quaternion Rotate(const Quaternion& q, const Math::Vector3& pyr) noexcept
+    {
+        Math::Vector3 angles = q.ToEulerAngles();
+        angles += pyr;
+        return Math::Quaternion{angles};
+    }
+    inline Quaternion Rotate(const Quaternion& q, float pitch, float yaw, float roll) noexcept
+    {
+        return Rotate(q, Math::Vector3{pitch, yaw, roll});
+    }
+    // 绕特定的点进行旋转
+    inline void Rotate(Quaternion& q, Math::Vector3& pos, Math::Vector3 point, Math::Vector3 axis, float angle) noexcept
+    {
+        // 计算新的旋转
+        Math::Quaternion rotate{axis, angle};
+        q = rotate * q;
+        // 先将向量旋转
+        Math::Vector3 rotateRelativePos = rotate * (pos - point);
+        pos = point + rotateRelativePos;
+    }
 
     template <std::unsigned_integral T>
     inline T NextPowerOf2(T val)

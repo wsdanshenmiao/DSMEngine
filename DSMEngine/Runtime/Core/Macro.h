@@ -18,12 +18,12 @@
 #define DSM_CORE_CRITICAL(...) DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Fatal, __VA_ARGS__)
 
 // Client log macros
-#define DSM_DEBUG(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Debug, __VA_ARGS__)
-#define DSM_TRACE(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Trace, __VA_ARGS__)
-#define DSM_INFO(...)          DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Info, __VA_ARGS__)
-#define DSM_WARN(...)          DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Warn, __VA_ARGS__)
-#define DSM_ERROR(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Error, __VA_ARGS__)
-#define DSM_CRITICAL(...)      DSM::DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(DSM::LogSystem::Fatal, __VA_ARGS__)
+#define DSM_DEBUG(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Debug, __VA_ARGS__)
+#define DSM_TRACE(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Trace, __VA_ARGS__)
+#define DSM_INFO(...)          DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Info, __VA_ARGS__)
+#define DSM_WARN(...)          DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Warn, __VA_ARGS__)
+#define DSM_ERROR(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Error, __VA_ARGS__)
+#define DSM_CRITICAL(...)      DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Fatal, __VA_ARGS__)
 #define DSM_ASSERT( isFalse, ... ) \
     if (!(bool)(isFalse)) { \
         auto error = std::format("\nAssertion failed in {} @ {}\n", __FILE__, __LINE__); \

@@ -20,11 +20,6 @@ namespace DSM {
             OnDestroy();
         }
 
-        template <typename T>
-        T* GetComponent() noexcept { return m_GameObject->GetComponent(); }
-        template <typename T>
-        const T* GetComponent() const noexcept { return m_GameObject->GetComponent(); }
-
         bool IsEnabled() const noexcept { return m_Enabled; }
         void SetEnabled(bool enabled) noexcept
         {
@@ -46,9 +41,8 @@ namespace DSM {
         virtual void OnDisable() {}
         virtual void OnDestroy() {}
 
-    protected:
-        bool m_Enabled = true;
-        std::shared_ptr<GameObject> m_GameObject;
+    private:
+        bool m_Enabled = false;
     };
 }
 

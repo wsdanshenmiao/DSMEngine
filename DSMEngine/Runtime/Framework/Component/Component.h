@@ -3,38 +3,38 @@
 #define __TRANSFORMCOMPONENT_H__
 
 #include <variant>
-#include "Runtime/Math/Transform.h"
-#include "Runtime/Render/Model.h"
+#include <memory>
 
 namespace DSM {
-    class ScriptableObject;
+    class Transform;
+    class Light;
+    class Camera;
+    class MeshRenderer;
+    class NativeScript;
+    class GameObject;
 
-    struct TagComponent
+    class IComponent
     {
-        std::string tag;
+    public:
+        IComponent() = default;
+        IComponent(std::shared_ptr<GameObject> gameObject)
+            : m_GameObject(gameObject) {}
+        virtual ~IComponent() = default;
+
+        bool IsDirty() const noexcept { return m_IsDirty; }
+        void SetDirty(bool dirty) noexcept { m_IsDirty = dirty; }
+
+    protected:
+        std::weak_ptr<GameObject> m_GameObject{};
+        bool m_IsDirty{true};
     };
-
-    struct NativeScriptComponent
-    {
-        std::shared_ptr<ScriptableObject> instance;
-        std::function<std::shared_ptr<ScriptableObject>()> InstantiateScript;
-
-        // 绑定初始化函数
-        template <typename T>
-        void BindInitFunc()
-        {
-            static_assert(std::is_base_of<ScriptableObject, T>::value, "T must be derived from ScriptableObject");
-            InstantiateScript = []() { return std::make_shared<T>(); };
-        }
-    };
-
 
     using AllComponents = std::variant<
-        Math::Transform,
-        TagComponent,
-        NativeScriptComponent,
-        Model
-    >;
+        Transform,
+        Camera,
+        MeshRenderer,
+        Light,
+        NativeScript>;
 } // namespace DSM
 
 

@@ -8,7 +8,7 @@
 namespace DSM {
     class SkyboxPass : public IRenderPass {
     public:
-        SkyboxPass(Renderer& renderer)
+        SkyboxPass(GraphicsRenderer& renderer)
         {
             auto& renderRes = RenderResource::GetInstance();
             auto device = renderer.GetDevice();
@@ -88,7 +88,7 @@ namespace DSM {
             sm_TimerQuery = device->CreateTimerQuery();
         }
 
-        uint64_t Render(DSM::Renderer& renderer, float deltaTime) override
+        uint64_t Render(DSM::GraphicsRenderer& renderer, float deltaTime) override
         {
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Skybox Pass Command List"));
             cmdList->Open();
@@ -117,7 +117,7 @@ namespace DSM {
             cmdList->Close();
             return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override {}
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override {}
     
     public:
         inline static TimerQueryHandle sm_TimerQuery{};

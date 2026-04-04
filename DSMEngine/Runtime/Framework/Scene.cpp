@@ -1,7 +1,8 @@
 #include "Scene.h"
 #include "Object/GameObject.h"
-#include "Runtime/Framework/Component/Component.h"
+#include "Runtime/Framework/Component/NativeScript.h"
 #include "Runtime/Framework/ScriptableObject.h"
+#include "Runtime/Core/Macro.h"
 
 #include <stack>
 
@@ -39,29 +40,23 @@ namespace DSM {
 
     void Scene::Update(float deltaTime)
     {
-        m_Registry.view<NativeScriptComponent>().each([this](entt::entity entity, NativeScriptComponent& script) {
-            if(script.instance == nullptr){
-                script.instance = script.InstantiateScript();
-                script.instance->m_GameObject = GetObjectByID(entity).lock();
-                script.instance->Awake();
-                script.instance->Start();
+        m_Registry.view<NativeScript>().each([this](entt::entity entity, NativeScript& script) {
+            auto scriptInstance = script.GetScript();
+            if(scriptInstance == nullptr){
+                return;
             }
-
-            script.instance->OnUpdate();
+            scriptInstance->OnUpdate();
         });
     }
 
     void Scene::OnGUI()
     {
-        m_Registry.view<NativeScriptComponent>().each([this](entt::entity entity, NativeScriptComponent& script) {
-            if(script.instance == nullptr){
-                script.instance = script.InstantiateScript();
-                script.instance->m_GameObject = GetObjectByID(entity).lock();
-                script.instance->Awake();
-                script.instance->Start();
+        m_Registry.view<NativeScript>().each([this](entt::entity entity, NativeScript& script) {
+            auto scriptInstance = script.GetScript();
+            if(scriptInstance == nullptr){
+                return;
             }
-
-            script.instance->OnGUI();
+            scriptInstance->OnGUI();
         });
     }
 
@@ -77,10 +72,9 @@ namespace DSM {
     {
         ObjectID id = m_Registry.create();
         auto object = std::make_shared<GameObject>(id, this);
-        assert(object != nullptr);
-        // 每个物体默认添加 Transform 组件
-        object->AddComponent<Math::Transform>();
-        object->AddComponent<TagComponent>(name.empty() ? "GameObject" : name);
+        DSM_CORE_ASSERT(object != nullptr);
+        object->SetTag(name.empty() ? "GameObject" : name);
+        object->AddComponent<Transform>();
         m_Objects[id] = object;
         m_RootObjects.insert(object);
         return id;
@@ -140,17 +134,6 @@ namespace DSM {
             }
         });
 
-        auto copyComponent = [&]<typename... Components>(std::variant<Components...>) {
-            (src.GetObjectsWithComponents<Components>().each(
-                [&](entt::entity entity, const Components& component) {
-                    if(auto it = idMap.find(entity); it != idMap.end()){
-                        if(auto obj = dest.GetObjectByID(it->second).lock(); obj != nullptr){
-                            obj->AddOrReplaceComponent<Components>(component);
-                        }
-                    }
-                }
-            ), ...);
-        };
-        copyComponent(AllComponents{}); 
+        // Keep copy of object hierarchy and transform state minimal while component migration is in progress.
     }
 }

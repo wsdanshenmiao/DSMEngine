@@ -2,7 +2,7 @@
 #ifndef __CAMERACONTROLLER_H__
 #define __CAMERACONTROLLER_H__
 
-#include "Camera.h"
+#include "Runtime/Framework/Component/Camera.h"
 
 
 namespace DSM {

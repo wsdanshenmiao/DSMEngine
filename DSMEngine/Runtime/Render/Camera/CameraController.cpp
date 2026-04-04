@@ -42,8 +42,7 @@ namespace DSM {
             }
         }
 
-        auto& transform = m_pCamera->GetTransform();
-        Math::Vector3 euler = transform.GetRotation().ToEulerAngles();
+        Math::Vector3 euler = m_pCamera->GetRotation().ToEulerAngles();
         euler += Math::Vector3{pitch, yaw, 0.0f};
         float pidiv2 = std::numbers::pi * 0.49f;
         euler.Set(0, std::min(pidiv2, float(euler.Get(0))));
@@ -55,8 +54,7 @@ namespace DSM {
             euler.Set(1, euler.Get(1) + float(std::numbers::pi) * 2);
         euler.Set(2, 0);
 
-        transform.SetRotation(euler);
-
+        m_pCamera->SetRotation(euler);
         m_pCamera->Translate(m_MoveDir * m_MoveVelocity * deltaTime);
     }
 

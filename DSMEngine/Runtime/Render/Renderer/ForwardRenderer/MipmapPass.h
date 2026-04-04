@@ -10,7 +10,7 @@ namespace DSM {
 	class MipmapPass : public IRenderPass
 	{
 	public:
-		explicit MipmapPass(Renderer& renderer)
+		explicit MipmapPass(GraphicsRenderer& renderer)
 		{
 			auto device = renderer.GetDevice();
 
@@ -50,7 +50,7 @@ namespace DSM {
 		}
 
 		// 生成 texture 的完整 mip 链（从 baseMipLevel 开始）。
-		void GenerateMips(Renderer& renderer, ICommandList* cmdList, ITexture* texture, uint32_t baseMipLevel = 0)
+		void GenerateMips(GraphicsRenderer& renderer, ICommandList* cmdList, ITexture* texture, uint32_t baseMipLevel = 0)
 		{
 			if (cmdList == nullptr || texture == nullptr) {
 				return;
@@ -92,7 +92,7 @@ namespace DSM {
 			}
 		}
 
-		uint64_t Render(Renderer& renderer, float deltaTime) override
+		uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
 		{
 			if (m_TargetTexture == nullptr) {
 				return 0;
@@ -109,7 +109,7 @@ namespace DSM {
 			return renderer.GetDevice()->ExecuteCommandList(cmdList);
 		}
 
-		void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }
+		void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override { }
 
 	private:
 		void InvalidateBindingSetCache()
@@ -118,7 +118,7 @@ namespace DSM {
 			m_BindingSetCache.clear();
 		}
 
-		void EnsureBindingSetCache(Renderer& renderer, ITexture* texture)
+		void EnsureBindingSetCache(GraphicsRenderer& renderer, ITexture* texture)
 		{
 			if (texture == nullptr) {
 				return;

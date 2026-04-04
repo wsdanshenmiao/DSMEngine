@@ -9,8 +9,9 @@
 #include "LightingPass.h"
 #include "LitPass.h"
 #include "SkyboxPass.h"
+#include "TaaPass.h"
 #include "FinalPass.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Render/Camera/CameraController.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Core/InstrumentorTimer.h"
@@ -41,6 +42,7 @@ namespace DSM {
             m_RenderPasses.push_back(std::make_unique<LitPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<LitPass>(renderer, true)); // 透明物体
+            m_RenderPasses.push_back(std::make_unique<TaaPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<PostEffectManager>(renderer));
             m_RenderPasses.push_back(std::make_unique<FinalPass>(renderer));
 
@@ -54,12 +56,13 @@ namespace DSM {
             auto scene = DSMEngine::sm_GlobalContext.scene;
             
             auto processModel = [scene](std::shared_ptr<GameObject> obj, const std::shared_ptr<Model>& model) {
+                auto shader = Shader::Find("Shaders/ForwardShader/Passes/LitPass.hlsl");
                 for (const auto& mesh : model->meshes) {
                     auto subObj = scene->CreateObject(mesh->name);
                     auto subObjPtr = scene->GetObjectByID(subObj).lock();
-                    subObjPtr->AddComponent<Mesh>(*mesh);
-                    subObjPtr->AddComponent<Math::AxisAlignedBox>(mesh->boundingBox);
-                    subObjPtr->AddComponent<ShaderResource::MaterialData>(*model->materials[mesh->materialIndex]);
+                    auto meshRenderer = subObjPtr->AddComponent<MeshRenderer>();
+                    meshRenderer->SetMesh(mesh);
+                    meshRenderer->SetMaterial(std::make_shared<Material>(shader));
                     if(obj != nullptr){
                         obj->AddChild(subObjPtr);
                     }
@@ -76,13 +79,13 @@ namespace DSM {
             boxModel->meshes[0]->textures[ShaderResource::kEmissive] = transparentTex;
             boxModel->materials[0]->emissiveColor = {0.8, 0.8, 0.8, 1};
             processModel(nullptr, boxModel);
-            auto transparentObj = scene->GetObjectsWithComponents<Mesh>();
+            auto transparentObj = scene->GetObjectsWithComponents<MeshRenderer>();
             for(auto [id, mesh] : transparentObj.each()){
 				auto obj = scene->GetObjectByID(id).lock();
                 if(obj != nullptr){
-					auto transform = obj->GetComponent<Math::Transform>();
-                    transform->SetPosition({-2, 0.5f, 0});
-                    transform->SetRotation({0, 45, 0});
+					auto& transform = *obj->GetComponent<Transform>();
+                    transform.SetPosition({-2, 0.5f, 0});
+                    transform.SetRotation({0, 45, 0});
 				}
 			}
 
@@ -104,7 +107,7 @@ namespace DSM {
         }
 
 
-        void Render(DSM::Renderer& renderer, float deltaTime) override
+        void Render(DSM::GraphicsRenderer& renderer, float deltaTime) override
         {
             m_CameraController->Update(deltaTime);
             InstrumentationTimer timer0{"Update Render Resource"};
@@ -117,7 +120,7 @@ namespace DSM {
             }
         }
 
-        void RenderUI(DSM::Renderer& renderer) override
+        void RenderUI(DSM::GraphicsRenderer& renderer) override
         {
             static float lightDir[3] = {-0.3, -1, 0.08};
             static float lightColor[3] = {1.0f, 1.0f, 1.0f};
@@ -152,15 +155,15 @@ namespace DSM {
 
             auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
             for(auto [id, light] : lights.each()){
-                if(light.lightType == LightType::Directional){
-                    light.direction = {lightDir[0], lightDir[1], lightDir[2]};
-                    light.color = {lightColor[0], lightColor[1], lightColor[2], 1.0f};
+                if(light.GetType() == LightType::Directional){
+                    light.SetDirection({lightDir[0], lightDir[1], lightDir[2]});
+                    light.SetColor({lightColor[0], lightColor[1], lightColor[2], 1.0f});
                     break; // only update the first directional light
                 }
             }
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
         {
             RenderResource::GetInstance().OnResize(renderer, width, height);
             for (auto& renderPass : m_RenderPasses) {
@@ -174,8 +177,8 @@ namespace DSM {
             auto scene = DSMEngine::sm_GlobalContext.scene;
             auto lightsObject = scene->CreateObject("Lights");
             auto dirLightPtr = scene->GetObjectByID(scene->CreateObject("Directional Light")).lock();
-            dirLightPtr->AddComponent<Light>()
-                ->SetType(LightType::Directional)
+            auto& dirLight = *dirLightPtr->AddComponent<Light>();
+            dirLight.SetType(LightType::Directional)
                 .SetDirection(Math::Vector3{0.5f, -0.8f, 0.5f}.Normalized())
                 .SetColor({1,1,1,1});
             dirLightPtr->SetParent(lightsObject);
@@ -240,7 +243,9 @@ namespace DSM {
                 float coneInner = (randFloat() * .2f + .025f) * pi;
                 float coneOuter = coneInner + randFloat() * .1f * pi;
                 
-                Light light{};
+                auto otherLight = scene->CreateObject(typeid(Light).name() + std::to_string(n));
+                auto otherLightPtr = scene->GetObjectByID(otherLight).lock();
+                auto& light = *otherLightPtr->AddComponent<Light>();
                 light.SetType(LightType(type))
                     .SetPosition(pos)
                     .SetRange(lightRadius)
@@ -249,9 +254,6 @@ namespace DSM {
                     .SetInnerAngle(coneInner)
                     .SetOuterAngle(coneOuter);
                 
-                auto otherLight = scene->CreateObject(typeid(Light).name() + std::to_string(n));
-                auto otherLightPtr = scene->GetObjectByID(otherLight).lock();
-                otherLightPtr->AddComponent<Light>(light);
                 otherLightPtr->SetParent(lightsObject);
             }
         }

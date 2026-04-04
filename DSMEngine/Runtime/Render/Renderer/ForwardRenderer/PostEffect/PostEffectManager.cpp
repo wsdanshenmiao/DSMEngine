@@ -5,7 +5,7 @@
 #include "Runtime/Render/Renderer/ForwardRenderer/GaussianBlurPass.h"
 
 namespace DSM{
-    PostEffectManager::PostEffectManager(Renderer& renderer)
+    PostEffectManager::PostEffectManager(GraphicsRenderer& renderer)
     {
         AddPostEffect(std::make_unique<BloomPass>(renderer));
         AddPostEffect(std::make_unique<ToneMappingPass>(renderer));
@@ -24,7 +24,7 @@ namespace DSM{
         });
     }
 
-    uint64_t PostEffectManager::Render(Renderer &renderer, float deltaTime)
+    uint64_t PostEffectManager::Render(GraphicsRenderer &renderer, float deltaTime)
     {
         auto device = renderer.GetDevice();
         std::vector<IPostEffect*> enabledEffects{};
@@ -64,7 +64,7 @@ namespace DSM{
         return device->ExecuteCommandList(cmdList);
     }
     
-    void PostEffectManager::OnResize(Renderer &renderer, uint32_t width, uint32_t height)
+    void PostEffectManager::OnResize(GraphicsRenderer &renderer, uint32_t width, uint32_t height)
     {
         auto device = renderer.GetDevice();
         const auto backBufferFormat = renderer.GetCurrentBackBuffer()->GetDesc().format;

@@ -2,9 +2,8 @@
 
 namespace DSM {
     GameObject::GameObject(ObjectID handle, Scene *world)
-        : m_Handle(handle), m_World(world)
+        : m_Handle(handle), m_World(world), m_Transform(std::make_shared<Transform>())
     {
-
     }
     
     void GameObject::AddChild(const std::shared_ptr<GameObject> &child)

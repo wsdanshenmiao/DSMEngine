@@ -1,4 +1,4 @@
-#include "Renderer.h"
+#include "GraphicsRenderer.h"
 #include "RendererDX12.h"
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Window.h"
@@ -7,7 +7,7 @@
 
 namespace DSM{
 
-    Renderer::Renderer(RenderParameters renderDesc)
+    GraphicsRenderer::GraphicsRenderer(RenderParameters renderDesc)
     {
         switch (renderDesc.api) {
         case GraphicsAPI::D3D12:
@@ -21,14 +21,14 @@ namespace DSM{
         ResizeRenderTexture(renderDesc.window->GetWidth(), renderDesc.window->GetHeight());
     }
 
-    Renderer::~Renderer()
+    GraphicsRenderer::~GraphicsRenderer()
     {
         m_RenderPipeline = nullptr;
         m_Internal = nullptr;
     }
 
 
-    void Renderer::OnEvent(Event &event)
+    void GraphicsRenderer::OnEvent(Event &event)
     {
         EventDispatcher dispatcher{event};
         dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& event){
@@ -43,7 +43,7 @@ namespace DSM{
         m_Internal->OnEvent(event);
     }
 
-    void Renderer::ResizeRenderTexture(uint32_t width, uint32_t height)
+    void GraphicsRenderer::ResizeRenderTexture(uint32_t width, uint32_t height)
     {
         m_Internal->device->WaitForIdle();
 
@@ -65,17 +65,17 @@ namespace DSM{
         }
     }
 
-    IFramebuffer *Renderer::GetFramebuffer(uint32_t index)
+    IFramebuffer *GraphicsRenderer::GetFramebuffer(uint32_t index)
     {
         return index < m_Internal->swapChainFramebuffers.size() ? m_Internal->swapChainFramebuffers[index] : nullptr;
     }
 
-    void Renderer::InitWindowUI(WindowUI *windowUI)
+    void GraphicsRenderer::InitWindowUI(WindowUI *windowUI)
     {
         m_Internal->InitWindowUI(windowUI);
     }
 
-    void Renderer::Render(float deltaTime)
+    void GraphicsRenderer::Render(float deltaTime)
     {
         auto callback = [this](const auto& func){
             if(func != nullptr){

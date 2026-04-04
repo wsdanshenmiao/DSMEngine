@@ -10,7 +10,7 @@ namespace DSM {
     class LightingPass : public IRenderPass
     {
     public:
-        LightingPass(Renderer& renderer)
+        LightingPass(GraphicsRenderer& renderer)
         {
             auto device = renderer.GetDevice();
             sm_LightDataBuffer = device->CreateBuffer(BufferDesc()
@@ -36,17 +36,17 @@ namespace DSM {
             sm_OtherLightDataBuffer = nullptr;
         }
 
-        uint64_t Render(Renderer& renderer, float deltaTime) override
+        uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
         {
             auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
             if(lights.empty())
-            return 0;
+                return 0;
 
             std::vector<ShaderResource::DirectionalLightData> dirLightData{};
             std::vector<ShaderResource::OtherLightData> otherLightData{};
 
             for (const auto& [id, light] : lights.each()) {
-                switch(light.lightType){
+                switch(light.GetType()){
                 case LightType::Directional:
                     dirLightData.push_back(CreateDirLightData(light));
                     break;
@@ -80,23 +80,23 @@ namespace DSM {
             return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) {}
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) {}
 
     private:
         ShaderResource::DirectionalLightData CreateDirLightData(const Light& light)
         {
             ShaderResource::DirectionalLightData data;
-            data.color = light.color;
-            data.direction = -Math::Vector4(light.direction).Normalized();
+            data.color = light.GetColor();
+            data.direction = -Math::Vector4(light.GetDirection()).Normalized();
             return data;
         }
 
         ShaderResource::OtherLightData CreatePointLightData(const Light& light)
         {
             ShaderResource::OtherLightData data;
-            data.color = light.color;
+            data.color = light.GetColor();
             data.direction = Math::Vector4::Zero();
-            data.positionAndRange = Math::Vector4{light.position, 1 / light.range};
+            data.positionAndRange = Math::Vector4{light.GetPosition(), 1 / light.GetRange()};
             float angle = std::numbers::pi;
             data.spotAngle = Math::Vector4{angle * 0.5f, angle};   // 计算出的聚光灯衰减为 1
             return data;
@@ -105,10 +105,10 @@ namespace DSM {
         ShaderResource::OtherLightData CreateSpotLightData(const Light& light)
         {
             ShaderResource::OtherLightData data;
-            data.color = light.color;
-            data.direction = -Math::Vector4(light.direction).Normalized();
-            data.positionAndRange = Math::Vector4{light.position, 1 / light.range};
-            data.spotAngle = Math::Vector4{light.innerAngle, light.outerAngle};
+            data.color = light.GetColor();
+            data.direction = -Math::Vector4(light.GetDirection()).Normalized();
+            data.positionAndRange = Math::Vector4{light.GetPosition(), 1 / light.GetRange()};
+            data.spotAngle = Math::Vector4{light.GetInnerAngle(), light.GetOuterAngle()};
             return data;
         }
 

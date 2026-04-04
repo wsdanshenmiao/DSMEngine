@@ -10,7 +10,7 @@ namespace DSM {
     // 在该 Pass 中进行着色
     class GeometryPass : public IRenderPass {
     public:
-        GeometryPass(Renderer& renderer)
+        GeometryPass(GraphicsRenderer& renderer)
         {
             IDevice* device = renderer.GetDevice();
 
@@ -63,7 +63,7 @@ namespace DSM {
             sm_TimerQuery = device->CreateTimerQuery();
         }
 
-        uint64_t Render(DSM::Renderer& renderer, float deltaTime) override
+        uint64_t Render(DSM::GraphicsRenderer& renderer, float deltaTime) override
         {
             auto device = renderer.GetDevice();
 
@@ -96,9 +96,13 @@ namespace DSM {
             }
 
             for(const auto& [index, obj] : RenderResource::GetInstance().GetObjectInFrustum()){
-                auto mesh = obj->GetComponent<Mesh>();
+                auto meshRenderer = obj->GetComponent<MeshRenderer>();
+                if(meshRenderer == nullptr || meshRenderer->GetMesh() == nullptr)
+                    continue;
+                auto& mesh = *meshRenderer->GetMesh();
+
                 // 透明物体不需要渲染深度
-                if(HasFlags(PSOFlags(mesh->psoFlags), kAlphaBlend))
+                if(HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend))
                     continue;
 
                 GraphicsState state = GraphicsState()
@@ -106,14 +110,14 @@ namespace DSM {
                     .SetPipeline(m_Pipeline)
                     .SetViewport(ViewportState().
                         AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                    .SetIndexBuffer(mesh->indexBufferViews)
+                    .SetIndexBuffer(mesh.indexBufferViews)
                     .AddBindingSet(m_BindingSet, 0);
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasPosition)){
-                    state.AddVertexBuffer(mesh->positionStream);
+                if(HasFlags(PSOFlags(mesh.psoFlags), kHasPosition)){
+                    state.AddVertexBuffer(mesh.positionStream);
                 }
-                auto vertexBinding = mesh->normalStream;
+                auto vertexBinding = mesh.normalStream;
                 vertexBinding.SetSlot(1);
-                if(HasFlags(PSOFlags(mesh->psoFlags), kHasNormal)){
+                if(HasFlags(PSOFlags(mesh.psoFlags), kHasNormal)){
                     state.AddVertexBuffer(vertexBinding);
                 }
 
@@ -124,9 +128,9 @@ namespace DSM {
 
                 // 绘制
                 cmdList->DrawIndexed(DrawArguments{}
-                    .SetStartIndexLocation(mesh->indexOffset)
-                    .SetStartVertexLocation(mesh->vertexOffset)
-                    .SetVertexCount(mesh->indexCount));
+                    .SetStartIndexLocation(mesh.indexOffset)
+                    .SetStartVertexLocation(mesh.vertexOffset)
+                    .SetVertexCount(mesh.indexCount));
             }
 
             cmdList->SetTextureState(fbDesc.colorAttachments[0].texture, AllSubresources, ResourceStates::ShaderResource);
@@ -139,7 +143,7 @@ namespace DSM {
             return device->ExecuteCommandList(cmdList);
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
         {
             // 创建法线法线纹理等资源
             IDevice* device = renderer.GetDevice();

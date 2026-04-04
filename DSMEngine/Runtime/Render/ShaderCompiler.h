@@ -82,6 +82,7 @@ namespace DSM {
         ShaderCompileDesc& SetMode(ShaderMode _mode) { mode = _mode; return *this; }
         ShaderCompileDesc& SetFilename(const std::string& name) { fileName = name; return *this; }
         ShaderCompileDesc& SetEnterPoint(const std::string& _enterPoint) { enterPoint = _enterPoint; return *this; }
+        ShaderCompileDesc& SetDefine(ShaderDefines _defines) { defines = std::move(_defines); return *this; }
         ShaderCompileDesc& AddDefine(const std::string& name, const std::string& val) { defines.AddDefine(name, val); return *this; }
     
         bool operator==(const ShaderCompileDesc& other) const = default;

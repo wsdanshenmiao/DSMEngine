@@ -51,15 +51,15 @@ namespace DSM {
     class ShadowPass : public IRenderPass
     {
     public:
-        ShadowPass(Renderer& renderer, ShadowSetting shadowSetting);
+        ShadowPass(GraphicsRenderer& renderer, ShadowSetting shadowSetting);
         virtual ~ShadowPass();
 
-        uint64_t Render(Renderer& renderer, float deltaTime) override;
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override{}
+        uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override;
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override{}
 
 
     private:
-        void RenderDirectionalShadow(Renderer& renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize);
+        void RenderDirectionalShadow(GraphicsRenderer& renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize);
 
         void DrawModelShadow(IDevice* device, const Math::Matrix4& viewProj, Viewport viewport, size_t cascadeIndex);
 

@@ -15,6 +15,9 @@ namespace DSM {
         void OnEvent(Event& event) override;
     
     private:
+        void UpdateDpiScale();
+
+    private:
         int m_GizmoType = -1;
         float m_ImguiDpiScale = 1.0f;
     };

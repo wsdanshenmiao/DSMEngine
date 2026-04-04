@@ -2,7 +2,7 @@
 #include "assimp/postprocess.h"
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
-#include "Renderer/Renderer.h"
+#include "Renderer/GraphicsRenderer.h"
 #include "Geometry.h"
 #include "Runtime/Math/MathCommon.h"
 #include "Runtime/Graphics/CommandList.h"
@@ -55,10 +55,16 @@ namespace DSM::ModelLoader {
 	}
 
 	
-    void ProcessNode(Model& model, aiNode* node, const aiScene* scene);
-    void ProcessMaterial(Model& model,const std::string& filename,const aiScene* scene);
-    MeshData ProcessMesh(aiMesh* mesh);
-    std::vector<std::shared_ptr<Mesh>> CreateMesh(const std::span<MeshData>& meshDatas);
+    void ProcessNode(Model& model, aiNode* node, const aiScene* scene, ICommandList* cmdList, 
+		const std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>>& matTextures);
+    std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>> ProcessMaterial(
+		Model& model,const std::string& filename,const aiScene* scene);
+    std::vector<std::shared_ptr<Mesh>> CreateMesh(
+		aiNode* node, 
+		const aiScene* scene, 
+		ICommandList* cmdList, 
+		const std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>>& matTextures);
+    std::vector<std::shared_ptr<Mesh>> CreateMesh(const std::span<MeshData>& meshDatas, ICommandList* cmdList);
 
 	std::shared_ptr<Model> LoadModelFromGeometry(
 		const std::string& name,
@@ -107,7 +113,11 @@ namespace DSM::ModelLoader {
 		}
 		meshData.boundingBox = Math::AxisAlignedBox(minVertex, maxVertex);
 
-		model->meshes = CreateMesh({&meshData, 1});
+		auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("LoadModelFromGeometry"));
+		cmdList->Open();
+		model->meshes = CreateMesh({&meshData, 1}, cmdList);
+		cmdList->Close();
+		s_GraphicsDevice->ExecuteCommandList(cmdList);
 
 		for(const auto& mesh : model->meshes){
 			mesh->textures = std::vector<TextureHandle>{s_CommonTextures.begin(), s_CommonTextures.end()};
@@ -141,8 +151,15 @@ namespace DSM::ModelLoader {
 			model = std::make_shared<Model>();
 			model->name = pScene->mRootNode->mName.C_Str();
 
-			ProcessNode(*model, pScene->mRootNode, pScene);
-			ProcessMaterial(*model, filename, pScene);
+			DSM_CORE_ASSERT(s_GraphicsDevice != nullptr);
+			auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("LoadModel"));
+			cmdList->Open();
+			
+			auto matTextures = ProcessMaterial(*model, filename, pScene);
+			ProcessNode(*model, pScene->mRootNode, pScene, cmdList, matTextures);
+
+			cmdList->Close();
+			s_GraphicsDevice->ExecuteCommandList(cmdList);
 
 			Math::AxisAlignedBox boundingBox{};
 			for (const auto& mesh : model->meshes) {
@@ -155,85 +172,95 @@ namespace DSM::ModelLoader {
 		return model;
 	}
 
-	void ProcessNode(Model& model, aiNode* node, const aiScene* scene)
+	void ProcessNode(
+		Model& model, 
+		aiNode* node, 
+		const aiScene* scene, 
+		ICommandList* cmdList, 
+		const std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>>& matTextures)
 	{
 		// 导入当前节点的网格
-		std::vector<MeshData> meshDatas{};
-		meshDatas.reserve(node->mNumMeshes);
-		for (UINT i = 0; i < node->mNumMeshes; ++i) {
-			meshDatas.emplace_back(ProcessMesh(scene->mMeshes[node->mMeshes[i]]));
-		}
-
-		if (!meshDatas.empty()) {
-			auto meshes = CreateMesh(meshDatas);
+		auto meshes = CreateMesh(node, scene, cmdList, matTextures);
+		if(!meshes.empty()) {
 			model.meshes.append_range(meshes);
 		}
 
 		// 导入子节点的网格
 		for (UINT i = 0; i < node->mNumChildren; ++i) {
-			ProcessNode(model, node->mChildren[i], scene);
+			ProcessNode(model, node->mChildren[i], scene, cmdList, matTextures);
 		}
 	}
 
-	MeshData ProcessMesh(aiMesh* mesh)
+	void CreateMeshData(std::vector<std::shared_ptr<Mesh>>& meshes,
+		const std::vector<Math::Vector3>& positions,
+		const std::vector<Math::Vector3>& normals,
+		const std::vector<Math::Vector2>& uvs,
+		const std::vector<Math::Vector4>& tangents,
+		const std::vector<uint32_t>& indices,
+		ICommandList* cmdList)
 	{
-		MeshData meshData{};
-		meshData.name = mesh->mName.C_Str();
-
-		// 获取顶点数据
-		DSM_CORE_ASSERT(mesh->HasPositions());
-		meshData.positions.resize(mesh->mNumVertices);
-		meshData.psoFlags |= kHasPosition;
-		if (mesh->HasNormals()) {
-			meshData.normals.resize(mesh->mNumVertices);
-			meshData.psoFlags |= kHasNormal;
-		}
-		if (mesh->HasTextureCoords(0)) {
-			meshData.texcoords.resize(mesh->mNumVertices);
-			meshData.psoFlags |= kHasUV;
-		}
-		if (mesh->HasTangentsAndBitangents()) {
-			meshData.tangents.resize(mesh->mNumVertices);
-			meshData.bitangents.resize(mesh->mNumVertices);
-			meshData.psoFlags |= kHasTangent;
-		}
-		for (UINT i = 0; i < mesh->mNumVertices; ++i) {
-			meshData.positions[i] = {mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
-			if (!meshData.normals.empty()) {
-				meshData.normals[i] = {mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
-			}
-			if (!meshData.texcoords.empty()) {
-				meshData.texcoords[i] = {mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
-			}
-			if (!meshData.tangents.empty()) {
-				meshData.tangents[i] = {mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z, 1.0f};
-				meshData.bitangents[i] = {mesh->mBitangents[i].x, mesh->mBitangents[i].y, mesh->mBitangents[i].z};
-			}
+		if(meshes.empty() || cmdList == nullptr) {
+			return;
 		}
 
-		// 获取索引
-		auto numIndex = mesh->mFaces->mNumIndices;
-		meshData.indices.resize(mesh->mNumFaces * numIndex);
-		for (size_t i = 0; i < mesh->mNumFaces; ++i) {
-			memcpy(meshData.indices.data() + i * numIndex, mesh->mFaces[i].mIndices, sizeof(uint32_t) * numIndex);
+		std::uint32_t posByteSize = positions.size() * sizeof(Math::Vector3);
+		std::uint32_t normalByteSize = normals.size() * sizeof(Math::Vector3);
+		std::uint32_t uvsByteSize = uvs.size() * sizeof(Math::Vector2);
+		std::uint32_t tangentsByteSize = tangents.size() * sizeof(Math::Vector4);
+		std::uint32_t indexByteSize = indices.size() * sizeof(std::uint32_t);
+
+		auto meshDataBufferSize = posByteSize + normalByteSize + uvsByteSize + tangentsByteSize + indexByteSize;
+		auto meshData = s_GraphicsDevice->CreateBuffer(
+			BufferDesc().SetByteSize(meshDataBufferSize).SetDebugName("MeshData" + meshes[0]->name));
+		
+		std::uint32_t offset = 0;
+		cmdList->WriteBuffer(meshData, positions.data(), posByteSize, offset);
+		auto positionStream = VertexBufferBinding().
+			SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Position);
+		offset += posByteSize;
+
+		VertexBufferBinding normalStream{};
+		if (normals.size() > 0) {
+			cmdList->WriteBuffer(meshData, normals.data(), normalByteSize, offset);
+			normalStream = VertexBufferBinding().
+				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Normal);
+			offset += normalByteSize;
+		}
+		VertexBufferBinding uvStream{};
+		if (uvs.size() > 0) {
+			cmdList->WriteBuffer(meshData, uvs.data(), uvsByteSize, offset);
+			uvStream = VertexBufferBinding().
+				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::TexCoord);
+			offset += uvsByteSize;
+		}
+		VertexBufferBinding tangentStream{};
+		if (tangents.size() > 0) {
+			cmdList->WriteBuffer(meshData, tangents.data(), tangentsByteSize, offset);
+			tangentStream = VertexBufferBinding().
+				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Tangent);
+			offset += tangentsByteSize;
 		}
 
-		const auto& aabb = mesh->mAABB;
-		Math::Vector3 boxMin{aabb.mMin.x, aabb.mMin.y, aabb.mMin.z};
-		Math::Vector3 boxMax{aabb.mMax.x, aabb.mMax.y, aabb.mMax.z};
-		meshData.boundingBox = Math::AxisAlignedBox{boxMin, boxMax};
+		assert(indices.size() > 0);
+		cmdList->WriteBuffer(meshData, indices.data(), indexByteSize, offset);
+		auto indexBufferViews = IndexBufferBinding().
+			SetBuffer(meshData).SetOffset(offset).SetFormat(Format::R32_UINT);
+		offset += indexByteSize;
 
-		meshData.materialIndex = mesh->mMaterialIndex;
-
-		return meshData;
+		for(auto& mesh : meshes) {
+			mesh->meshData = meshData;
+			mesh->positionStream = positionStream;
+			mesh->normalStream = normalStream;
+			mesh->uvStream = uvStream;
+			mesh->tangentStream = tangentStream;
+			mesh->indexBufferViews = indexBufferViews;
+		}
 	}
 
-	std::vector<std::shared_ptr<Mesh>> CreateMesh(const std::span<MeshData>& meshDatas)
+	std::vector<std::shared_ptr<Mesh>> CreateMesh(const std::span<MeshData>& meshDatas, ICommandList* cmdList)
 	{
-		if (meshDatas.empty()) 
+		if (meshDatas.empty() || cmdList == nullptr) 
 			return {};
-
-		std::string meshName = meshDatas.empty() ? "" : meshDatas[0].name;
 		
 		std::vector<Math::Vector3> positions{};
 		std::vector<Math::Vector3> normals{};
@@ -270,75 +297,109 @@ namespace DSM::ModelLoader {
 			meshes.push_back(std::make_shared<Mesh>(std::move(mesh)));
 		}
 
-		std::uint32_t posByteSize = positions.size() * sizeof(Math::Vector3);
-		std::uint32_t normalByteSize = normals.size() * sizeof(Math::Vector3);
-		std::uint32_t uvsByteSize = uvs.size() * sizeof(Math::Vector2);
-		std::uint32_t tangentsByteSize = tangents.size() * sizeof(Math::Vector4);
-		std::uint32_t indexByteSize = indices.size() * sizeof(std::uint32_t);
-
-		assert(s_GraphicsDevice != nullptr);
-		auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("CreateMesh"));
-		cmdList->Open();
-
-		auto meshDataBufferSize = posByteSize + normalByteSize + uvsByteSize + tangentsByteSize + indexByteSize;
-		auto meshData = s_GraphicsDevice->CreateBuffer(
-			BufferDesc().SetByteSize(meshDataBufferSize).SetDebugName("MeshData" + meshName));
-		
-		std::uint32_t offset = 0;
-		cmdList->WriteBuffer(meshData, positions.data(), posByteSize, offset);
-		auto positionStream = VertexBufferBinding().
-			SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Position);
-		offset += posByteSize;
-
-		VertexBufferBinding normalStream{};
-		if (normals.size() > 0) {
-			cmdList->WriteBuffer(meshData, normals.data(), normalByteSize, offset);
-			normalStream = VertexBufferBinding().
-				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Normal);
-			offset += normalByteSize;
-		}
-		VertexBufferBinding uvStream{};
-		if (uvs.size() > 0) {
-			cmdList->WriteBuffer(meshData, uvs.data(), uvsByteSize, offset);
-			uvStream = VertexBufferBinding().
-				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::TexCoord);
-			offset += uvsByteSize;
-		}
-		VertexBufferBinding tangentStream{};
-		if (tangents.size() > 0) {
-			cmdList->WriteBuffer(meshData, tangents.data(), tangentsByteSize, offset);
-			tangentStream = VertexBufferBinding().
-				SetBuffer(meshData).SetOffset(offset).SetSlot(VertexAttributeSlot::Tangent);
-			offset += tangentsByteSize;
-		}
-
-		assert(indices.size() > 0);
-		cmdList->WriteBuffer(meshData, indices.data(), indexByteSize, offset);
-		auto indexBufferViews = IndexBufferBinding().
-			SetBuffer(meshData).SetOffset(offset).SetFormat(Format::R32_UINT);
-		offset += indexByteSize;
-
-		cmdList->Close();
-		s_GraphicsDevice->ExecuteCommandList(cmdList);
-
-		for(auto& mesh : meshes) {
-			mesh->meshData = meshData;
-			mesh->positionStream = positionStream;
-			mesh->normalStream = normalStream;
-			mesh->uvStream = uvStream;
-			mesh->tangentStream = tangentStream;
-			mesh->indexBufferViews = indexBufferViews;
-		}
+		CreateMeshData(meshes, positions, normals, uvs, tangents, indices, cmdList);
 
 		return meshes;
 	}
 
-	void ProcessMaterial(
-		Model& model,
-		const std::string& filename,
-		const aiScene* scene)
+	std::vector<std::shared_ptr<Mesh>> CreateMesh(
+		aiNode* node, 
+		const aiScene* scene, 
+		ICommandList* cmdList,
+		const std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>>& matTextures)
 	{
-		std::vector<std::vector<TextureHandle>> matTextures(scene->mNumMaterials, std::vector<TextureHandle>(ShaderResource::kNumTextures, nullptr));
+		if (node == nullptr || node->mNumMeshes <= 0 || scene == nullptr || cmdList == nullptr) 
+			return {};
+		
+		std::vector<Math::Vector3> positions{};
+		std::vector<Math::Vector3> normals{};
+		std::vector<Math::Vector2> uvs{};
+		std::vector<Math::Vector4> tangents{};
+		std::vector<uint32_t> indices{};
+		auto firstMesh = scene->mMeshes[node->mMeshes[0]];
+		positions.reserve(node->mNumMeshes * firstMesh->mNumVertices);
+		normals.reserve(node->mNumMeshes * firstMesh->mNumVertices);
+		uvs.reserve(node->mNumMeshes * firstMesh->mNumVertices);
+		indices.reserve(node->mNumMeshes * firstMesh->mNumFaces * 3);
+
+		UINT preIndexCount = 0;
+		UINT preVertexCount = 0;
+		std::vector<std::shared_ptr<Mesh>> meshes;
+		meshes.reserve(node->mNumMeshes);
+		for(size_t i = 0; i < node->mNumMeshes; ++i) {
+			auto aiMesh = scene->mMeshes[node->mMeshes[i]];
+			// 设置网格使用的顶点数据类型
+			uint16_t psoFlags = 0;
+			auto reserveAndSetFlag = [&aiMesh, &psoFlags](bool hasData, PSOFlags flag, auto& data) {
+				if (hasData) {
+					psoFlags |= flag;
+					data.reserve(data.size() + aiMesh->mNumVertices);
+				}
+			};
+			reserveAndSetFlag(aiMesh->HasPositions(), kHasPosition, positions);
+			DSM_CORE_ASSERT((psoFlags & kHasPosition) != 0);
+			reserveAndSetFlag(aiMesh->HasNormals(), kHasNormal, normals);
+			reserveAndSetFlag(aiMesh->HasTextureCoords(0), kHasUV, uvs);
+			reserveAndSetFlag(aiMesh->HasTangentsAndBitangents(), kHasTangent, tangents);
+			int flag = 0;
+			uint32_t num = 1;
+			auto& material = scene->mMaterials[aiMesh->mMaterialIndex];
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &flag, &num)) {
+				psoFlags |= (flag == 0) ? psoFlags : kBothSide;
+			}
+			if(aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, &flag, &num)) {
+				psoFlags |= (flag == 1) ? psoFlags : kAlphaBlend;
+			}
+
+			// 创建网格
+			std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+			mesh->name = aiMesh->mName.C_Str();
+			mesh->materialIndex = aiMesh->mMaterialIndex;
+			mesh->indexOffset = preIndexCount;
+			mesh->vertexOffset = preVertexCount;
+			mesh->psoFlags = psoFlags;
+			auto numIndex = aiMesh->mFaces->mNumIndices;
+			mesh->indexCount = aiMesh->mNumFaces * numIndex;
+			const auto& aabb = aiMesh->mAABB;
+			mesh->boundingBox = Math::AxisAlignedBox{
+				Math::Vector3{aabb.mMin.x, aabb.mMin.y, aabb.mMin.z},
+				Math::Vector3{aabb.mMax.x, aabb.mMax.y, aabb.mMax.z}};
+			const auto& textures = matTextures[mesh->materialIndex];
+			mesh->textures = std::vector<TextureHandle>{textures.begin(), textures.end()};
+
+			preIndexCount += mesh->indexCount;
+			preVertexCount += aiMesh->mNumVertices;
+			
+			// 获取顶点数据和索引数据
+			for(size_t i = 0; i < aiMesh->mNumVertices; ++i){
+				positions.emplace_back(Math::Vector3{aiMesh->mVertices[i].x, aiMesh->mVertices[i].y, aiMesh->mVertices[i].z});
+				if (HasFlags(PSOFlags{mesh->psoFlags}, kHasNormal)) {
+					normals.emplace_back(Math::Vector3{aiMesh->mNormals[i].x, aiMesh->mNormals[i].y, aiMesh->mNormals[i].z});
+				}
+				if (HasFlags(PSOFlags{mesh->psoFlags}, kHasUV)) {
+					uvs.emplace_back(Math::Vector2{aiMesh->mTextureCoords[0][i].x, aiMesh->mTextureCoords[0][i].y});
+				}
+				if (HasFlags(PSOFlags{mesh->psoFlags}, kHasTangent)) {
+					tangents.emplace_back(Math::Vector4{aiMesh->mTangents[i].x, aiMesh->mTangents[i].y, aiMesh->mTangents[i].z, 1.0f});
+				}
+			}
+			indices.resize(indices.size() + mesh->indexCount);
+			for (size_t i = 0; i < aiMesh->mNumFaces; ++i) {
+				memcpy(indices.data() + i * numIndex, aiMesh->mFaces[i].mIndices, sizeof(uint32_t) * numIndex);
+			}
+
+			meshes.push_back(mesh);
+		}
+
+		CreateMeshData(meshes, positions, normals, uvs, tangents, indices, cmdList);
+
+		return meshes;
+	}
+
+	std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>> ProcessMaterial(Model& model, const std::string& filename, const aiScene* scene)
+	{
+		std::vector<std::array<TextureHandle, ShaderResource::kNumTextures>> matTextures(
+			scene->mNumMaterials, s_CommonTextures);
 		std::map<std::string, TextureHandle> uniqueTextures{};
 
 		model.materials.resize(scene->mNumMaterials);
@@ -433,18 +494,7 @@ namespace DSM::ModelLoader {
 			tryCreateTexture(aiTextureType_NORMALS);
 		}
 
-		for (auto& mesh : model.meshes) {
-			int psoFlags = 0;
-			std::uint32_t num = 1;
-			mesh->textures = matTextures[mesh->materialIndex];
-			auto& material = scene->mMaterials[mesh->materialIndex];
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, &psoFlags, &num)) {
-				mesh->psoFlags |= (psoFlags == 0) ? mesh->psoFlags : kBothSide;
-			}
-			if(aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, &psoFlags, &num)) {
-				mesh->psoFlags |= (psoFlags == 1) ? mesh->psoFlags : kAlphaBlend;
-			}
-		}
+		return matTextures;
 	}
 	
 }

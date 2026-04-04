@@ -13,11 +13,11 @@
 
 namespace DSM {
     class Window;
-    class Renderer;
+    class GraphicsRenderer;
 
     struct EditorUIDesc
     {
-        std::shared_ptr<Renderer> renderer;
+        std::shared_ptr<GraphicsRenderer> renderer;
         std::shared_ptr<Window> window;
     };
 

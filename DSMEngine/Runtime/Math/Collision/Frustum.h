@@ -149,20 +149,20 @@ namespace DSM::Math {
 
         BoundingPlane GetPlane( PlaneID id ) const
         {
-            Transform transform{Transform{m_Origin, {1,1,1,1}, m_Orientation}};
+            Math::Matrix4 matrix = Math::GetLocalToWorld(m_Origin, {1,1,1}, m_Orientation);
             switch (id) {
             case NearPlane:
-                return BoundingPlane{Vector3{0.0f, 0.0f, 1.0f}, -m_NearPlane} * transform; break;
+                return BoundingPlane{Vector3{0.0f, 0.0f, 1.0f}, -m_NearPlane} * matrix; break;
             case FarPlane:
-                return BoundingPlane{Vector3{0.0f, 0.0f, -1.0f}, m_FarPlane} * transform; break;
+                return BoundingPlane{Vector3{0.0f, 0.0f, -1.0f}, m_FarPlane} * matrix; break;
             case RightPlane:
-                return BoundingPlane{Vector3{-1.0f, 0.0f, m_RightSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{-1.0f, 0.0f, m_RightSlope}, 0.0f} * matrix; break;
             case LeftPlane:
-                return BoundingPlane{Vector3{1.0f, 0.0f, -m_LeftSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{1.0f, 0.0f, -m_LeftSlope}, 0.0f} * matrix; break;
             case TopPlane:
-                return BoundingPlane{Vector3{0.0f, -1.0f, m_TopSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{0.0f, -1.0f, m_TopSlope}, 0.0f} * matrix; break;
             case BottomPlane:
-                return BoundingPlane{Vector3{0.0f, 1.0f, -m_BottomSlope}, 0.0f} * transform; break;
+                return BoundingPlane{Vector3{0.0f, 1.0f, -m_BottomSlope}, 0.0f} * matrix; break;
             default:
                 assert(!"Invalid frustum plane ID");
                 break;

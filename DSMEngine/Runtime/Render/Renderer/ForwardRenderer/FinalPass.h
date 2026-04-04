@@ -8,12 +8,12 @@ namespace DSM {
     class FinalPass : public IRenderPass
     {
     public:
-        FinalPass(Renderer& renderer)
+        FinalPass(GraphicsRenderer& renderer)
         {
             sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
-        uint64_t Render(Renderer& renderer, float deltaTime) override
+        uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
         {
             auto device = renderer.GetDevice();
             device->QueueWaitForCommandList(
@@ -24,7 +24,7 @@ namespace DSM {
             return 0;
         }
 
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override { }
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override { }
 
     public:
         inline static TimerQueryHandle sm_TimerQuery{};

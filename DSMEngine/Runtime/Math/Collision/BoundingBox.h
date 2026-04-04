@@ -3,7 +3,7 @@
 #define __BOUNDING_BOX_H__
 
 #include <span>
-#include "Runtime/Math/Transform.h"
+#include "Runtime/Framework/Component/Transform.h"
 
 namespace DSM::Math {
     class AxisAlignedBox
@@ -38,6 +38,8 @@ namespace DSM::Math {
         {
             return Vector2{m_Min.Get(index), m_Max.Get(index)};
         }
+
+        bool IsValid() const noexcept { return Math::Vector3::Min(m_Min, m_Max) == m_Min; }
 
         bool Hit(const Vector3& origin, const Vector3& dir, const Vector2& tRange, Vector2& time) const
         {

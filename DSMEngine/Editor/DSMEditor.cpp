@@ -1,7 +1,7 @@
 #include "DSMEditor.h"
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Core/Macro.h"
-#include "Runtime/Render/Renderer/Renderer.h"
+#include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Core/Window.h"
 #include "Editor/EditorUI/EditorUI.h"
 

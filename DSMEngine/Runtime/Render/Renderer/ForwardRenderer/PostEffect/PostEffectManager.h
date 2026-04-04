@@ -9,7 +9,7 @@ namespace DSM {
     {
         virtual ~IPostEffect() = default;
         virtual void Render(
-            Renderer& renderer, 
+            GraphicsRenderer& renderer, 
             ICommandList* cmdList, 
             float deltaTime, 
             ITexture* srcTex, 
@@ -22,11 +22,11 @@ namespace DSM {
     class PostEffectManager final : public IRenderPass
     {
     public:
-        PostEffectManager(Renderer& renderer);
+        PostEffectManager(GraphicsRenderer& renderer);
 
         void AddPostEffect(std::unique_ptr<IPostEffect> postEffect);
-        uint64_t Render(Renderer& renderer, float deltaTime) override;
-        void OnResize(Renderer& renderer, uint32_t width, uint32_t height) override;
+        uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override;
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override;
         
     private:
         std::vector<std::unique_ptr<IPostEffect>> m_PostEffects;

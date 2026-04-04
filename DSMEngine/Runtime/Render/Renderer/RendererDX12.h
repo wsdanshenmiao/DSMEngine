@@ -4,11 +4,11 @@
 
 
 #include <dxgi1_6.h>
-#include "Renderer.h"
+#include "GraphicsRenderer.h"
 #include <Runtime/Graphics/D3D12.h>
 
 namespace DSM{
-    class RendererDX12 : public Renderer::IRendererInternal
+    class RendererDX12 : public GraphicsRenderer::IRendererInternal
     {
     public:
         RendererDX12(const RenderParameters& renderDesc);

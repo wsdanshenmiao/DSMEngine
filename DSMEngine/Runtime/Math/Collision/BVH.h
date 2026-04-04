@@ -3,8 +3,9 @@
 #define __BVH_H__
 
 #include <stack>
-#include "Runtime/Math/Collision/BoundingBox.h"
 #include "Runtime/Framework/Object/GameObject.h"
+#include "Runtime/Framework/Component/MeshRenderer.h"
+#include "Runtime/Framework/Component/Transform.h"
 
 namespace DSM::Math {
     class BVHTree
@@ -55,7 +56,7 @@ namespace DSM::Math {
                 return;
 
             for (const auto& obj : objs) {
-                if(obj->GetComponent<AxisAlignedBox>() != nullptr)
+                if(obj->GetComponent<MeshRenderer>() != nullptr)
                     InsertNode(obj);
             }
         }
@@ -93,12 +94,14 @@ namespace DSM::Math {
         {
             if (object == nullptr)
                 return nullptr;
-            auto [transform, objBounds] = object->GetComponent<Transform, AxisAlignedBox>();
-            if(objBounds == nullptr || transform == nullptr)
+            auto [transform, renderer] = object->GetComponent<Transform, MeshRenderer>();
+            if(transform == nullptr || renderer == nullptr)
                 return nullptr;
+            
+            auto& objBounds = renderer->GetBounds();
 
             // 变换到世界空间的包围盒
-            auto bounds = *objBounds * *transform;
+            auto bounds = objBounds * *transform;
 
             // 搜索合适的插入位置
             std::shared_ptr<BVHNode> sibling = FindBestNode(bounds);
@@ -196,11 +199,16 @@ namespace DSM::Math {
 
         void UpdateNode(std::shared_ptr<BVHNode> node)
         {
-            auto nodeBounds = node == nullptr ? nullptr : node->object->GetComponent<AxisAlignedBox>();
-            if(nodeBounds == nullptr)
+            auto object = node == nullptr ? nullptr : node->object;
+            if(node->object == nullptr)
+                return;
+            
+            auto renderer = object->GetComponent<MeshRenderer>();
+            auto transform = object->GetComponent<Transform>();
+            if(renderer == nullptr || transform == nullptr)
                 return;
 
-            auto bounds = *nodeBounds * *node->object->GetComponent<Math::Transform>();
+            auto bounds = renderer->GetBounds() * transform->GetLocalToWorld();
             // 仅在包围盒不再被父节点包含时才需要调整树结构
             if(auto checkNode = node->parent.expired() ? node : node->parent.lock();
                 checkNode != nullptr && checkNode->bounds.Contains(bounds)){

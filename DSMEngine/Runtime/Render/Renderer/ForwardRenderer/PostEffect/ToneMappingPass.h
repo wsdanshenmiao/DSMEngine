@@ -32,7 +32,7 @@ namespace DSM {
 	class ToneMappingPass : public IPostEffect
 	{
 	public:
-		ToneMappingPass(Renderer& renderer)
+		ToneMappingPass(GraphicsRenderer& renderer)
 		{
 			m_Priority = std::numeric_limits<size_t>::max();
 
@@ -68,7 +68,7 @@ namespace DSM {
 
 		void SetSettings(const ToneMappingSettings& settings) { m_Settings = settings; }
 
-		void Render(Renderer& renderer, ICommandList* cmdList, float deltaTime, ITexture* srcTex, ITexture* dstTex) override
+		void Render(GraphicsRenderer& renderer, ICommandList* cmdList, float deltaTime, ITexture* srcTex, ITexture* dstTex) override
 		{
 			auto device = renderer.GetDevice();
 			if (srcTex != m_CacheSrcTex || dstTex != m_CacheDstTex) {

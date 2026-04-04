@@ -1,18 +1,18 @@
 #pragma once
-#ifndef __RENDERER_H__
-#define __RENDERER_H__
+#ifndef __GRAPHICS_RENDERER_H__
+#define __GRAPHICS_RENDERER_H__
 
 #include <set>
 #include "Runtime/Graphics/GraphicsCommon.h"
 #include "Runtime/Graphics/Device.h"
 #include "Runtime/Core/Macro.h"
-#include "Runtime/Render/Camera/Camera.h"
+#include "Runtime/Framework/Component/Camera.h"
 
 namespace DSM {
     class Window;
     class Event;
     struct WindowUI;
-    class Renderer;
+    class GraphicsRenderer;
     
     class DefaultMessageCallback : public IMessageCallback
     {
@@ -42,9 +42,9 @@ namespace DSM {
     struct IRenderPipeline
     {
         virtual ~IRenderPipeline() = default;
-        virtual void Render(Renderer& renderer, float deltaTime) = 0;
-        virtual void RenderUI(Renderer& renderer) = 0;
-        virtual void OnResize(Renderer& renderer, uint32_t width, uint32_t height) = 0;
+        virtual void Render(GraphicsRenderer& renderer, float deltaTime) = 0;
+        virtual void RenderUI(GraphicsRenderer& renderer) = 0;
+        virtual void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
     struct RenderParameters
@@ -65,14 +65,14 @@ namespace DSM {
         IMessageCallback* callback;
     };
 
-    class Renderer
+    class GraphicsRenderer
     {
         friend class RendererDX12;
     public:
-        using RenderCallbackFunc = std::function<void(Renderer&, uint32_t)>;
+        using RenderCallbackFunc = std::function<void(GraphicsRenderer&, uint32_t)>;
 
-        Renderer(RenderParameters renderDesc);
-        ~Renderer();
+        GraphicsRenderer(RenderParameters renderDesc);
+        ~GraphicsRenderer();
 
         // 各个图形后端初始化 UI
         void InitWindowUI(WindowUI* windowUI);
