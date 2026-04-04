@@ -16,11 +16,11 @@ namespace DSM {
 
     struct EngineGlobalContext
     {
-        std::shared_ptr<InputSystem> inputSystem;
-        std::shared_ptr<LogSystem> loggerSystem;
-        std::shared_ptr<Window> window;
         std::shared_ptr<GraphicsRenderer> renderer;
+        std::shared_ptr<InputSystem> inputSystem;
+        std::shared_ptr<Window> window;
         std::shared_ptr<Scene> scene;
+        std::shared_ptr<LogSystem> loggerSystem;
     };
 
     struct EngineParameters

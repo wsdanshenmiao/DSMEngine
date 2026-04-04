@@ -2,7 +2,7 @@
 
 namespace DSM {
     GameObject::GameObject(ObjectID handle, Scene *world)
-        : m_Handle(handle), m_World(world), m_Transform(std::make_shared<Transform>())
+        : m_Handle(handle), m_World(world)
     {
     }
     

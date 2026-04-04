@@ -64,7 +64,7 @@ namespace DSM {
 
         auto cameraView = camera.GetViewMatrix();
         auto cameraProj = camera.GetProjMatrix();
-        auto transfrom = selectedObject->GetTransform();
+        auto transfrom = selectedObject->GetComponent<Transform>();
         Math::Matrix4 transMat = transfrom->GetLocalToWorld();
         ImGuizmo::Manipulate((float*)&cameraView, (float*)&cameraProj, 
             static_cast<ImGuizmo::OPERATION>(m_GizmoType), ImGuizmo::LOCAL, (float*)&transMat);

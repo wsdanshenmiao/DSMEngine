@@ -173,7 +173,8 @@ namespace nlohmann {
                 json objJson{};
                 objJson["enabled"] = obj.IsEnabled();
                 objJson["tag"] = obj.GetTag();
-                objJson["transform"] = *obj.GetTransform();
+                objJson["name"] = obj.GetName();
+                objJson["transform"] = *obj.GetComponent<DSM::Transform>();
                 if(obj.HasComponent<DSM::Camera>()){
                     objJson["camera"] = *obj.GetComponent<DSM::Camera>();
                 }
@@ -187,6 +188,9 @@ namespace nlohmann {
                 objPtr->SetEnabled(objJson.at("enabled").get<bool>());
                 if(objJson.contains("tag")){
                     objPtr->SetTag(objJson.at("tag").get<std::string>());
+                }
+                if(objJson.contains("name")){
+                    objPtr->SetName(objJson.at("name").get<std::string>());
                 }
                 if(objJson.contains("transform")){
                     *objPtr->GetComponent<DSM::Transform>() = objJson.at("transform").get<DSM::Transform>();

@@ -22,6 +22,8 @@ namespace DSM{
         uint32_t GetBackBufferCount() override { return m_SwapChainDesc.BufferCount; }
 
         void InitWindowUI(WindowUI* windowUI) override;
+        void DestroyWindowUI() override;
+
         void BeginWindowUI() override;
         void RenderWindowUI() override;
 

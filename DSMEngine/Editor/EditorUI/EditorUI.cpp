@@ -47,6 +47,13 @@ namespace DSM {
         m_Widgets.push_back(std::make_unique<EditorContentBrowser>(this));
     }
 
+    EditorUI::~EditorUI()
+    {
+        DSMEngine::sm_GlobalContext.renderer->DestroyWindowUI();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+    }
+
     void EditorUI::OnGUI()
     {
         // Begin dockspace window

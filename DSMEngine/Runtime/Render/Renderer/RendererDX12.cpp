@@ -107,11 +107,6 @@ namespace DSM{
     {
         TextureManager::Destroy();
         ModelLoader::Destroy();
-        if(m_WindowUI != nullptr){
-            ImGui_ImplDX12_Shutdown();
-            ImGui_ImplGlfw_Shutdown();
-            ImGui::DestroyContext();
-        }
         s_DescriptorHeap = nullptr;
         
         // 需要等待GPU处理完所有事件，否则交换链的资源无法正常释放
@@ -120,7 +115,6 @@ namespace DSM{
         m_SwapChainBuffers.clear();
 
         for(UINT bufferIndex = 0; bufferIndex < m_SwapChainDesc.BufferCount; bufferIndex++) {
-            WaitForSingleObject(m_FrameFenceEvents[bufferIndex], INFINITE);
             CloseHandle(m_FrameFenceEvents[bufferIndex]);
         }
         m_FrameFenceEvents.clear();
@@ -155,8 +149,14 @@ namespace DSM{
             }
         };
 
-        ImGui_ImplWin32_EnableDpiAwareness();
         ImGui_ImplDX12_Init(&init_info);
+    }
+
+    void RendererDX12::DestroyWindowUI()
+    {
+        if(m_WindowUI != nullptr){
+            ImGui_ImplDX12_Shutdown();
+        }
     }
 
     void RendererDX12::BeginWindowUI()

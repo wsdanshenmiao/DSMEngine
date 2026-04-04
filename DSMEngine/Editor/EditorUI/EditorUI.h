@@ -26,6 +26,7 @@ namespace DSM {
         friend class DSMEditor;
     public:
         EditorUI(DSMEditor* editor);
+        ~EditorUI() override;
 
         void OnGUI() override;
         void OnEvent(Event& event) override;

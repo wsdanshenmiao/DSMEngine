@@ -61,8 +61,8 @@ namespace DSM {
                     auto subObj = scene->CreateObject(mesh->name);
                     auto subObjPtr = scene->GetObjectByID(subObj).lock();
                     auto meshRenderer = subObjPtr->AddComponent<MeshRenderer>();
-                    meshRenderer->SetMesh(mesh);
                     meshRenderer->SetMaterial(std::make_shared<Material>(shader));
+                    meshRenderer->SetMesh(mesh);
                     if(obj != nullptr){
                         obj->AddChild(subObjPtr);
                     }

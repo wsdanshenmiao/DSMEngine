@@ -18,12 +18,14 @@ namespace DSM {
         virtual void Update(float deltaTime) {}
 
         ObjectID GetID() const noexcept { return m_Handle; }
+
+        const std::string& GetName() const noexcept { return m_Name; }
+        std::string& GetName() noexcept { return m_Name; }
+        void SetName(const std::string& name) noexcept { m_Name = name; }
+
         const std::string& GetTag() const noexcept { return m_Tag; }
         std::string& GetTag() noexcept { return m_Tag; }
         void SetTag(const std::string& tag) noexcept { m_Tag = tag; }
-
-        const std::shared_ptr<Transform> GetTransform() const noexcept { return m_Transform; }
-        std::shared_ptr<Transform> GetTransform() noexcept { return m_Transform; }
 
         bool IsEnabled() const noexcept { return m_Enabled; }
         void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
@@ -69,9 +71,8 @@ namespace DSM {
         std::unordered_set<std::shared_ptr<GameObject>> m_Children{};
         std::weak_ptr<GameObject> m_Parent{};
 
-        std::shared_ptr<Transform> m_Transform{};
-
-        std::string m_Tag{};
+        std::string m_Name{"GameObject"};
+        std::string m_Tag{"Untagged"};
         
         Scene* m_World;
         

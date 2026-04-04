@@ -23,11 +23,15 @@ namespace DSM {
         void SetMaterial(const std::shared_ptr<Material>& material) noexcept { m_Material = material; }
 
         uint32_t GetRenderLayer() const noexcept { return m_RenderLayer; }
+        void SetRenderLayer(uint32_t layer) noexcept { m_RenderLayer = layer; }
         
         bool CastShadow() const noexcept { return m_CastShadow; }
+        void SetCastShadow(bool castShadow) noexcept { m_CastShadow = castShadow; }
         bool ReceiveShadow() const noexcept { return m_ReceiveShadow; }
+        void SetReceiveShadow(bool receiveShadow) noexcept { m_ReceiveShadow = receiveShadow; }
         
         bool IsEnabled() const noexcept { return m_Enabled; }
+        void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
 
     protected:
         // 世界空间的包围盒

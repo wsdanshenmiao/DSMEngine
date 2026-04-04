@@ -52,7 +52,7 @@ namespace DSM{
             nodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         }
     
-        const auto& name = object->GetTag();
+        const auto& name = object->GetName();
 
         bool isSelected = m_SelectedObject.lock() == object;
         if(isSelected){

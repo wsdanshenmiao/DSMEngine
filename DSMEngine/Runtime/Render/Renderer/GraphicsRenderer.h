@@ -72,10 +72,11 @@ namespace DSM {
         using RenderCallbackFunc = std::function<void(GraphicsRenderer&, uint32_t)>;
 
         GraphicsRenderer(RenderParameters renderDesc);
-        ~GraphicsRenderer();
+        virtual ~GraphicsRenderer();
 
         // 各个图形后端初始化 UI
         void InitWindowUI(WindowUI* windowUI);
+		void DestroyWindowUI();
 
         void SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline) { m_RenderPipeline = std::move(renderPipeline); }
 
@@ -119,6 +120,8 @@ namespace DSM {
             TextureHandle colorTex;
             uint32_t frameIndex = 1;
 
+            virtual ~IRendererInternal() = default;
+
             [[nodiscard]] virtual GraphicsAPI GetGraphicsAPI() const = 0;
 
             virtual ITexture* GetCurrentBackBuffer() = 0;
@@ -128,6 +131,8 @@ namespace DSM {
             virtual void ResizeSwapChain(uint32_t width, uint32_t height) = 0;
 
             virtual void InitWindowUI(WindowUI* windowUI) = 0;
+            virtual void DestroyWindowUI() = 0;
+
             virtual void BeginWindowUI() = 0;
             virtual void RenderWindowUI() = 0;
 

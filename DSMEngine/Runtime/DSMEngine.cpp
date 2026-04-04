@@ -30,7 +30,12 @@ namespace DSM {
 
     void DSMEngine::ShutDownEngine()
     {
-        DSMEngine::sm_GlobalContext = {};
+		// 需要注意资源释放的顺序
+        DSMEngine::sm_GlobalContext.scene = nullptr;
+        DSMEngine::sm_GlobalContext.renderer = nullptr;
+        DSMEngine::sm_GlobalContext.inputSystem = nullptr;
+        DSMEngine::sm_GlobalContext.window = nullptr;
+        DSMEngine::sm_GlobalContext.loggerSystem = nullptr;
     }
 
     void DSMEngine::Run()

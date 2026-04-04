@@ -75,6 +75,11 @@ namespace DSM{
         m_Internal->InitWindowUI(windowUI);
     }
 
+    void GraphicsRenderer::DestroyWindowUI()
+    {
+        m_Internal->DestroyWindowUI();
+    }
+
     void GraphicsRenderer::Render(float deltaTime)
     {
         auto callback = [this](const auto& func){
