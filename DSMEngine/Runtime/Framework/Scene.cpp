@@ -1,10 +1,11 @@
 #include "Scene.h"
 #include "Object/GameObject.h"
-#include "Runtime/Framework/Component/Camera.h"
 #include "Runtime/Framework/Component/Light.h"
-#include "Runtime/Framework/Component/MeshRenderer.h"
 #include "Runtime/Framework/Component/NativeScript.h"
 #include "Runtime/Framework/ScriptableObject.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
+#include "Runtime/Framework/Component/CameraComponent.h"
+#include "Runtime/Framework/Component/MeshRenderer.h"
 #include "Runtime/Core/Macro.h"
 
 #include <stack>
@@ -63,12 +64,25 @@ namespace DSM {
         });
     }
 
-    std::weak_ptr<GameObject> Scene::GetObjectByID(ObjectID objectID) const
+    const std::weak_ptr<GameObject> Scene::GetObjectByID(ObjectID objectID) const
     {
-        if(auto it = m_Objects.find(objectID); it != m_Objects.end())
+        if(auto it = m_Objects.find(objectID); it != m_Objects.end()){
             return it->second;
-        else
-            return std::weak_ptr<GameObject>();
+        }
+        else{
+            return {};
+        }
+    }
+
+    std::weak_ptr<GameObject> Scene::GetObjectByID(ObjectID objectID)
+    {
+        if(auto it = m_Objects.find(objectID); it != m_Objects.end()){
+            m_IsDirty = true;
+            return it->second;
+        }
+        else{
+            return {};
+        }
     }
 
     ObjectID Scene::CreateObject(const std::string &name)
@@ -77,9 +91,12 @@ namespace DSM {
         auto object = std::make_shared<GameObject>(id, this);
         DSM_CORE_ASSERT(object != nullptr);
         object->SetName(name.empty() ? "GameObject" : name);
-        object->AddComponent<Transform>();
+        object->AddComponent<TransformComponent>();
         m_Objects[id] = object;
+        
         m_RootObjects.insert(object);
+        
+        m_IsDirty = true;
         return id;
     }
 
@@ -110,6 +127,8 @@ namespace DSM {
             m_Objects.erase(node->GetID());
             m_Registry.destroy(node->GetID());
         }
+
+        m_IsDirty = true;
     }
     
     void Scene::CopyScene(Scene &dest, const Scene &src)
@@ -134,21 +153,21 @@ namespace DSM {
             return nullptr;
         };
 
-        src.GetObjectsWithComponents<Transform>().each([&](entt::entity entity, const Transform& transform) {
+        src.GetObjectsWithComponents<TransformComponent>().each([&](entt::entity entity, const TransformComponent& transform) {
             auto destObj = getDestBySrcID(entity);
             if (destObj == nullptr) return;
-            if (auto dstTransform = destObj->GetComponent<Transform>(); dstTransform != nullptr) {
+            if (auto dstTransform = destObj->GetComponent<TransformComponent>(); dstTransform != nullptr) {
                 *dstTransform = transform;
             }
         });
 
-        src.GetObjectsWithComponents<Camera>().each([&](entt::entity entity, const Camera& camera) {
+        src.GetObjectsWithComponents<CameraComponent>().each([&](entt::entity entity, const CameraComponent& camera) {
             auto destObj = getDestBySrcID(entity);
             if (destObj == nullptr) return;
 
-            auto dstCamera = destObj->AddComponent<Camera>();
+            auto dstCamera = destObj->AddComponent<CameraComponent>();
             if (dstCamera == nullptr) {
-                dstCamera = destObj->GetComponent<Camera>();
+                dstCamera = destObj->GetComponent<CameraComponent>();
             }
             if (dstCamera == nullptr) return;
 

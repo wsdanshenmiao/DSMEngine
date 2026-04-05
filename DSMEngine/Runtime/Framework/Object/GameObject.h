@@ -5,7 +5,6 @@
 #include <memory>
 #include <unordered_set>
 #include "Runtime/Framework/Scene.h"
-#include "Runtime/Framework/Component/Transform.h"
 
 
 namespace DSM {

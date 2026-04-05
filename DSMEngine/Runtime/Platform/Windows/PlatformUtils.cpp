@@ -1,5 +1,7 @@
 #include "Runtime/Platform/PlatformUtils.h"
 
+#include <array>
+
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
@@ -106,8 +108,8 @@ namespace DSM::Utility {
         }
         filter += '\0';
 
-        const size_t bufferSize = 65536;
-        std::vector<char> szFile(bufferSize, 0);
+        constexpr size_t bufferSize = 65536;
+        std::array<char, bufferSize> szFile{};
 
         OPENFILENAMEA ofn;       // common dialog box structure
         ZeroMemory(&ofn, sizeof(ofn));
@@ -129,6 +131,7 @@ namespace DSM::Utility {
         CHAR currentDir[MAX_PATH] = { 0 };
 		if (GetCurrentDirectoryA(MAX_PATH, currentDir))
 			ofn.lpstrInitialDir = currentDir;
+
         if(!isOpenDialog){
             // Sets the default extension by extracting it from the filter
             ofn.lpstrDefExt = strchr(filter.c_str(), '\0') + 1;

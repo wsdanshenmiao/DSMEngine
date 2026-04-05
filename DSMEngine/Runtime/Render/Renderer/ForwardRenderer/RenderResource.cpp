@@ -1,6 +1,5 @@
 #include "RenderResource.h"
 #include "Shaders/ForwardShader/ResourceData.h"
-#include "Runtime/Core/InstrumentorTimer.h"
 #include "Runtime/Framework/Component/MeshRenderer.h"
 
 #include <random>
@@ -14,13 +13,13 @@ namespace DSM{
 
         GetInstance().m_Device = device;
 
-        // 鍒涘缓绾圭悊 Bindless 鎻忚堪绗﹀竷灞€
+        // 创建纹理 Bindless 描述符布局
         auto bindlessDesc = BindlessLayoutDesc()
             .SetVisibility(ShaderType::Pixel)
             .SetFirstSlot(0)
             .AddRegisterSpace(BindingLayoutItem::Texture_SRV(1));
         GetInstance().m_TextureBindlessLayout = device->CreateBindlessLayout(bindlessDesc);
-        // 鍒涘缓绾圭悊 Bindless 鎻忚堪绗﹁〃
+        // 创建纹理 Bindless 描述符表
         GetInstance().m_TextureBindlessTable = device->CreateDescriptorTable(GetInstance().m_TextureBindlessLayout);
         
         GetInstance().m_CmdList = device->CreateCommandList(CommandListParameters{}.SetDebugName("RenderResource CmdList"));
@@ -51,7 +50,10 @@ namespace DSM{
         m_TransparentObjects.clear();
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
-        auto objView = scene->GetObjectsWithComponents<MeshRenderer, Transform>();
+        auto objView = scene->GetObjectsWithComponents<MeshRenderer, TransformComponent>();
+        if(objView.size_hint() == 0){
+            return;
+        }
 
         // 为所有的物体生成 MeshBuffer 和 MaterialBuffer
         auto resizeBuffer = [this, &objView] <typename T> (BufferHandle& buffer){
@@ -216,7 +218,7 @@ namespace DSM{
             .SetAllFilters(true));
         samplers[uint8_t(SamplerSlot::Shadow)] = device->CreateSampler(SamplerDesc()
             .SetAllAddressModes(SamplerAddressMode::Border)
-            .SetAllFilters(false)   // 鐐归噰鏍?
+            .SetAllFilters(false)   // 点采样
             .SetComparisonFunc(ComparisonFunc::LessOrEqual)
             .SetReductionType(SamplerReductionType::Comparison));
     }
@@ -229,7 +231,7 @@ namespace DSM{
             .SetHeight(256)
             .SetFormat(Format::RGBA8_UNORM)
             .SetDebugName("NoiseTex")));
-        // 鑾峰彇闅忔満鍊?
+        // 获取随机值
         std::array<uint8_t, 256 * 256 * 4> noiseData;
         std::mt19937 gen{std::random_device{}()};
         std::uniform_int_distribution<int> dist(0, std::numeric_limits<uint8_t>::max());

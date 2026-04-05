@@ -5,15 +5,19 @@
 
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Framework/Object/GameObject.h"
-#include "Runtime/Framework/Component/Component.h"
-#include "Runtime/Framework/Component/Transform.h"
-#include "Runtime/Framework/Component/Camera.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
+#include "Runtime/Framework/Component/CameraComponent.h"
+#include "Runtime/Framework/Component/Light.h"
+#include "Runtime/Framework/Component/MeshRenderer.h"
+#include "Runtime/Framework/Component/NativeScript.h"
 #include "Runtime/Render/ModelLoader.h"
 #include "Runtime/Framework/Scene.h"
+#include "Editor/Project.h"
 
 
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <queue>
 
 
 namespace DSM {
@@ -31,7 +35,7 @@ namespace DSM {
         template <typename T>
         static void Deserialize(const nlohmann::json& j, T& obj) 
         {
-            obj = j.get<T>();
+            j.get_to(obj);
         }
 
         template <typename T>
@@ -115,14 +119,14 @@ namespace nlohmann {
     };
 
     template<>
-    struct adl_serializer<DSM::Transform> {
-        static void to_json(json& j, const DSM::Transform& trans) {
+    struct adl_serializer<DSM::TransformComponent> {
+        static void to_json(json& j, const DSM::TransformComponent& trans) {
             j = {{"position", trans.GetPosition()},
                 {"scale", trans.GetScale()},
                 {"rotation", trans.GetRotation()}};
         }
 
-        static void from_json(const json& j, DSM::Transform& trans) {
+        static void from_json(const json& j, DSM::TransformComponent& trans) {
             auto getData = [&j] <typename T> (const std::string& name, T& data){
                 data = j.contains(name) ? j.at(name).get<T>() : T{};
             };
@@ -138,14 +142,14 @@ namespace nlohmann {
     };
 
     template<>
-    struct adl_serializer<DSM::Camera> {
-        static void to_json(json& j, const DSM::Camera& camera) {
+    struct adl_serializer<DSM::CameraComponent> {
+        static void to_json(json& j, const DSM::CameraComponent& camera) {
             j = { {"fovY", camera.GetFovY()},
                 {"nearZ", camera.GetNearZ()},
                 {"farZ", camera.GetFarZ()},
                 {"reversedZ", camera.IsReversedZ()} };
         }
-        static void from_json(const json& j, DSM::Camera& camera) {
+        static void from_json(const json& j, DSM::CameraComponent& camera) {
             auto getData = [&j] <typename T> (const std::string& name, T& data){
                 data = j.contains(name) ? j.at(name).get<T>() : T{};
             };
@@ -165,26 +169,130 @@ namespace nlohmann {
     };
 
     template<>
-    struct adl_serializer<DSM::Scene> {
-        static void to_json(json& sceneJson, const DSM::Scene& scene) {
-            sceneJson["objects"] = json::array();
-            for (const auto& [id, objectPtr] : scene.GetAllObjects()) {
-                auto& obj = *objectPtr;
-                json objJson{};
-                objJson["enabled"] = obj.IsEnabled();
-                objJson["tag"] = obj.GetTag();
-                objJson["name"] = obj.GetName();
-                objJson["transform"] = *obj.GetComponent<DSM::Transform>();
-                if(obj.HasComponent<DSM::Camera>()){
-                    objJson["camera"] = *obj.GetComponent<DSM::Camera>();
-                }
-                sceneJson["objects"].push_back(objJson);
+    struct adl_serializer<DSM::Light> {
+        static void to_json(json& j, const DSM::Light& light) {
+            j = { {"type", light.GetType()},
+                {"color", light.GetColor()},
+                {"direction", light.GetDirection()},
+                {"position", light.GetPosition()},
+                {"range", light.GetRange()},
+                {"innerAngle", light.GetInnerAngle()},
+                {"outerAngle", light.GetOuterAngle()} };
+        }
+        static void from_json(const json& j, DSM::Light& light) {
+            auto getData = [&j] <typename T> (const std::string& name, T& data){
+                data = j.contains(name) ? j.at(name).get<T>() : T{};
+            };
+            DSM::LightType type;
+            getData("type", type);
+            light.SetType(type);
+            DSM::Math::Vector4 color;
+            getData("color", color);
+            light.SetColor(color);
+            DSM::Math::Vector3 direction;
+            getData("direction", direction);
+            light.SetDirection(direction);
+            DSM::Math::Vector3 position;
+            getData("position", position);
+            light.SetPosition(position);
+            float range;
+            getData("range", range);
+            light.SetRange(range);
+            float innerAngle;
+            getData("innerAngle", innerAngle);
+            light.SetInnerAngle(innerAngle);
+            float outerAngle;
+            getData("outerAngle", outerAngle);
+            light.SetOuterAngle(outerAngle);
+        }
+    };
+
+    template<>
+    struct adl_serializer<DSM::MeshRenderer> {
+        static void to_json(json& j, const DSM::MeshRenderer& renderer) {
+        }
+        static void from_json(const json& j, DSM::MeshRenderer& renderer) {
+        }
+    };
+
+    template<>
+    struct adl_serializer<DSM::NativeScript> {
+        static void to_json(json& j, const DSM::NativeScript& script) {
+            j = { {"enabled", script.IsEnabled()} };
+        }
+        static void from_json(const json& j, DSM::NativeScript& script) {
+            if(j.contains("enabled")){
+                script.SetEnabled(j.at("enabled").get<bool>());
             }
         }
+    };
+
+    template<>
+    struct adl_serializer<DSM::Scene> {
+        static void to_json(json& sceneJson, const DSM::Scene& scene) {
+            auto travalAllComponents = [&]<typename... Components>(DSM::type_list<Components...>, auto obj, json& objJson){
+                auto saveComponentForObject = [&objJson] <typename T> (auto objectPtr){
+                    if(objectPtr != nullptr && objectPtr->HasComponent<T>()){
+                        objJson[typeid(T).name()] = *objectPtr->GetComponent<T>();
+                    }
+                };
+                (saveComponentForObject.template operator()<Components>(obj), ...);
+            };
+
+            auto& objects = sceneJson["objects"] = json::array();
+            // 需要先遍历父物体，以保存物体的层级关系，否则在反序列化时无法正确设置父子关系
+            for(const auto& objPtr : scene.GetRootObjects()){
+                // 广度优先遍历物体层级
+                std::queue<std::pair<std::shared_ptr<DSM::GameObject>, ptrdiff_t>> objQueue{};
+                objQueue.push({objPtr, -1});
+                while(!objQueue.empty()){
+                    auto [obj, parentIndex] = objQueue.front();
+                    objQueue.pop();
+
+                    for(const auto& child : obj->GetChildren()){
+                        objQueue.emplace(child, objects.size());
+                    }
+
+                    json objJson{};
+                    objJson["enabled"] = obj->IsEnabled();
+                    objJson["tag"] = obj->GetTag();
+                    objJson["name"] = obj->GetName();
+                    objJson["parent"] = parentIndex;
+                    travalAllComponents(DSM::AllComponents{}, obj, objJson); 
+                    objects.push_back(objJson);
+                }
+            }
+            
+            sceneJson["sceneFilePath"] = scene.GetSceneFilePath();
+            sceneJson["isDirty"] = false;
+        }
+
         static void from_json(const json& sceneJson, DSM::Scene& scene) {
-            for (const auto& objJson : sceneJson.at("objects")) {
+            auto travalAllComponents = [] <typename... Component> 
+                (DSM::type_list<Component...>, const auto& objJson, auto obj){
+                auto getData = [&objJson, &obj] <typename T> (){
+                    if(objJson.contains(typeid(T).name())){
+                        auto component = obj->AddOrReplaceComponent<T>();
+                        objJson.at(typeid(T).name()).get_to(*component);
+                    }
+                };
+                (getData.operator()<Component>(), ...);
+            };
+            scene.SetSceneFilePath(sceneJson.value("sceneFilePath", std::string{}));
+            scene.SetDirty(sceneJson.value("isDirty", false));
+            if(!sceneJson.contains("objects") || !sceneJson.at("objects").is_array()){
+                return;
+            }
+
+            std::vector<DSM::ObjectID> parentIndices{};
+            auto& objects = sceneJson.at("objects");
+            for (const auto& objJson : objects) {
                 auto objID = scene.CreateObject();
                 auto objPtr = scene.GetObjectByID(objID).lock();
+                ptrdiff_t parentIndex = objJson.value("parent", -1);
+                if(0 <= parentIndex && parentIndex < parentIndices.size()){
+                    objPtr->SetParent(scene.GetObjectByID(parentIndices[parentIndex]).lock());
+                }
                 objPtr->SetEnabled(objJson.at("enabled").get<bool>());
                 if(objJson.contains("tag")){
                     objPtr->SetTag(objJson.at("tag").get<std::string>());
@@ -192,14 +300,24 @@ namespace nlohmann {
                 if(objJson.contains("name")){
                     objPtr->SetName(objJson.at("name").get<std::string>());
                 }
-                if(objJson.contains("transform")){
-                    *objPtr->GetComponent<DSM::Transform>() = objJson.at("transform").get<DSM::Transform>();
-                }
-                if(objJson.contains("camera")){
-                    objPtr->AddComponent<DSM::Camera>();
-                    *objPtr->GetComponent<DSM::Camera>() = objJson.at("camera").get<DSM::Camera>();
-                }
+				travalAllComponents(DSM::AllComponents{}, objJson, objPtr);
+                parentIndices.push_back(objID);
             }
+        }
+    };
+
+    template<>
+    struct adl_serializer<DSM::Project> {
+        static void to_json(json& j, const DSM::Project& project) {
+            j = {{"name", project.GetProjectName()},
+                {"filePath", project.GetFilePath()},
+                {"sceneFilePath", project.GetSceneFilePath()}};
+        }
+
+        static void from_json(const json& j, DSM::Project& project) {
+            project.SetProjectName(j.value("name", std::string{}));
+            project.SetFilePath(j.value("filePath", std::string{}));
+            project.SetSceneFilePath(j.value("sceneFilePath", std::string{}));
         }
     };
 }

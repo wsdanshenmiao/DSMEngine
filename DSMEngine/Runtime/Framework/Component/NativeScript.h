@@ -5,9 +5,7 @@
 #include <memory>
 #include <utility>
 
-#include "Runtime/Framework/Component/Transform.h"
 #include "Runtime/Framework/Component/Component.h"
-#include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/ScriptableObject.h"
 
 namespace DSM {

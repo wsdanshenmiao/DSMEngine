@@ -18,6 +18,7 @@ namespace DSM {
         EditorSceneHierarchy(EditorUI* editorUI);
 
         void OnGUIEnabled() override;
+        void OnEvent(Event& event) override;
 
         std::weak_ptr<GameObject> GetSelectedObject() const { return m_SelectedObject; }
         void SetSelectedObject(std::weak_ptr<GameObject> object) { m_SelectedObject = object; }
@@ -27,6 +28,7 @@ namespace DSM {
 
     private:
         std::weak_ptr<GameObject> m_SelectedObject;
+        std::vector<ObjectID> m_ObjShouldDeleted{};
     };
     
 } // namespace DSM

@@ -3,7 +3,7 @@
 #define __BOUNDING_BOX_H__
 
 #include <span>
-#include "Runtime/Framework/Component/Transform.h"
+#include "Runtime/Math/Transform.h"
 
 namespace DSM::Math {
     class AxisAlignedBox

@@ -1,7 +1,6 @@
 #include "EditorUI.h"
 #include "Editor/DSMEditor.h"
-#include "Editor/AssertDefine.h"
-#include "Editor/SceneManager.h"
+#include "Editor/Project.h"
 #include "Editor/EditorUI/EditorStyle.h"
 #include "Editor/EditorUI/EditorConsole.h"
 #include "Editor/EditorUI/EditorViewport.h"
@@ -14,10 +13,12 @@
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Core/Input/InputSystem.h"
+#include "Runtime/Platform/PlatformUtils.h"
 #include "Runtime/Render/TextureManager.h"
 
 #include <backends/imgui_impl_glfw.h>
 #include <ImGuizmo.h>
+#include <filesystem>
 
 namespace DSM {
     EditorUI::EditorUI(DSMEditor* editor)
@@ -52,6 +53,73 @@ namespace DSM {
         DSMEngine::sm_GlobalContext.renderer->DestroyWindowUI();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
+    }
+
+    bool EditorUI::DrawProjectGateModal()
+    {
+        auto& project = Project::GetInstance();
+        if(project.IsProjectOpen()) {
+            return false;
+        }
+
+        auto projectFilters = std::vector<Utility::FileDialogs::FilterOption>{
+            {"DSM Project Files", "*" + std::string(Project::s_ProjectFileExtension)}
+        };
+
+        auto applyProjectPathAndEnsureFolders = [](const std::filesystem::path& projectFilePath) {
+            const std::filesystem::path projectDir = projectFilePath.parent_path();
+            std::filesystem::create_directories(projectDir / Project::s_AssetsFolderName);
+            std::filesystem::create_directories(projectDir / Project::s_LibraryFolderName);
+        };
+
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::OpenPopup("##ProjectGateModal");
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(420.0f, 170.0f), ImGuiCond_Always);
+
+        constexpr ImGuiWindowFlags modalFlags =
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoSavedSettings;
+
+        if(ImGui::BeginPopupModal("##ProjectGateModal", nullptr, modalFlags)) {
+            ImGui::TextUnformatted("No project is loaded");
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::TextUnformatted("Please create a new project or load an existing one");
+            ImGui::Spacing();
+            ImGui::Spacing();
+
+            const float buttonWidth = 140.0f;
+            const float totalButtonsWidth = buttonWidth * 2.0f + ImGui::GetStyle().ItemSpacing.x;
+            const float startX = (ImGui::GetWindowSize().x - totalButtonsWidth) * 0.5f;
+            ImGui::SetCursorPosX(startX > 0.0f ? startX : 0.0f);
+
+            if(ImGui::Button("Create Project", ImVec2(buttonWidth, 0.0f))) {
+                auto projPath = Utility::FileDialogs::SaveFile(projectFilters, "Create Project");
+                if(!projPath.empty()) {
+                    std::filesystem::path projectFilePath = projPath[0];
+                    applyProjectPathAndEnsureFolders(projectFilePath);
+                    project.SaveProject(projPath[0]);
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+
+            ImGui::SameLine();
+            if(ImGui::Button("Load Project", ImVec2(buttonWidth, 0.0f))) {
+                auto projPath = Utility::FileDialogs::OpenFile(projectFilters, "Load Project");
+                if(!projPath.empty()) {
+                    applyProjectPathAndEnsureFolders(std::filesystem::path(projPath[0]));
+                    project.LoadProject(projPath[0]);
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+
+            ImGui::EndPopup();
+        }
+
+        return !project.IsProjectOpen();
     }
 
     void EditorUI::OnGUI()
@@ -95,6 +163,11 @@ namespace DSM {
             ImGui::PopStyleVar();
         }
 
+        if(DrawProjectGateModal()) {
+            ImGui::End();
+            return;
+        }
+
         for(auto& widget : m_Widgets){
             widget->OnGUI();
         }
@@ -114,20 +187,6 @@ namespace DSM {
                 inputSystem->IsKeyPressed(KeyCode::RightControl);
             switch (e.GetKeyCode()) {
             case KeyCode::S:{
-                // // Ctrl + S 保存场景
-                // if(isCtrlPressed){
-                //     // 检测当前是否打开项目
-                //     if(g_ProjectFilePath.empty()){
-                //         Utility::FileDialogs::FilterOption filterOption{"DSM Project Files", "*" + std::string(g_ProjectFileExtension)};
-                //         auto filepath = Utility::FileDialogs::SaveFile({filterOption}, "Save Project As");
-                //         if(filepath.empty()){
-                //             m_Editor->GetEngine()->Close();
-                //         }
-                //     }
-                //     else{
-                //         SceneManager::SaveScene(g_ProjectFilePath);
-                //     }
-                // }
                 break;
             }
             default:

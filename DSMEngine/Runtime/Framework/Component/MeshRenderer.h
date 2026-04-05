@@ -4,6 +4,8 @@
 
 #include "Runtime/Framework/Component/Renderer.h"
 #include "Runtime/Render/Mesh.h"
+#include "Runtime/Framework/Object/GameObject.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
 
 namespace DSM {
     class MeshRenderer : public Renderer
@@ -23,7 +25,7 @@ namespace DSM {
             }
             SetLocalBounds(mesh->boundingBox);
             if(auto obj = m_GameObject.lock(); obj != nullptr){
-                auto transform = obj->GetComponent<Transform>();
+                auto transform = obj->GetComponent<TransformComponent>();
                 if(transform != nullptr){
                     auto worldBounds = mesh->boundingBox * *transform;
                     SetBounds(worldBounds);

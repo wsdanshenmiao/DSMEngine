@@ -383,9 +383,10 @@ namespace DSM::ModelLoader {
 					tangents.emplace_back(Math::Vector4{aiMesh->mTangents[i].x, aiMesh->mTangents[i].y, aiMesh->mTangents[i].z, 1.0f});
 				}
 			}
-			indices.resize(indices.size() + mesh->indexCount);
+			auto preIndexSize = indices.size();
+			indices.resize(preIndexSize + mesh->indexCount);
 			for (size_t i = 0; i < aiMesh->mNumFaces; ++i) {
-				memcpy(indices.data() + i * numIndex, aiMesh->mFaces[i].mIndices, sizeof(uint32_t) * numIndex);
+				memcpy(indices.data() + preIndexSize + i * numIndex, aiMesh->mFaces[i].mIndices, sizeof(uint32_t) * numIndex);
 			}
 
 			meshes.push_back(mesh);

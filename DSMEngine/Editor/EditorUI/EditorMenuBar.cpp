@@ -1,7 +1,6 @@
 #include "EditorMenuBar.h"
 #include "Editor/DSMEditor.h"
-#include "Editor/SceneManager.h"
-#include "Editor/AssertDefine.h"
+#include "Editor/Project.h"
 #include "Editor/EditorUI/EditorUI.h"
 #include "Editor/EditorUI/EditorStyle.h"
 #include "Editor/EditorUI/EditorConsole.h"
@@ -10,6 +9,7 @@
 #include "Editor/EditorUI/EditorContentBrowser.h"
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/TextureManager.h"
+#include "Runtime/Platform/PlatformUtils.h"
 #include <imgui.h>
 
 namespace DSM {
@@ -27,7 +27,7 @@ namespace DSM {
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{style.FramePadding.x, 8});
         
         if(ImGui::BeginMainMenuBar()){
-            ProjectMenuGUI();
+            FileMenuGUI();
             WorldMenuGUI();
             ViewMenuGUI();
             ButtonToolBar();
@@ -38,21 +38,50 @@ namespace DSM {
         ImGui::PopStyleVar();  
     }
 
-    void EditorMenuBar::ProjectMenuGUI()
+    void EditorMenuBar::FileMenuGUI()
     {
-        if(ImGui::BeginMenu("Project")){
+        if(ImGui::BeginMenu("File")){
+            auto& project = Project::GetInstance();
+
+            if(ImGui::MenuItem("New Scene")){
+                project.NewScene();
+            }
+            ImGui::Separator();
+            if(ImGui::MenuItem("Open Scene")){
+                auto scenePath = Utility::FileDialogs::OpenFile({{"DSM Scene Files", "*" + std::string(Project::s_SceneFileExtension)}}, "Open Scene");
+                if (!scenePath.empty()) {
+                    project.LoadScene(scenePath[0]);
+                }
+            }
+            ImGui::Separator();
+
+
             if(ImGui::MenuItem("New Project")){
-                
+                project.NewProject();
             }
             ImGui::Separator();
-
             if(ImGui::MenuItem("Open Project")){
-                
+                auto projPath = Utility::FileDialogs::OpenFile({{"DSM Project Files", "*" + std::string(Project::s_ProjectFileExtension)}}, "Open Project");
+                if (!projPath.empty()) {
+                    project.LoadProject(projPath[0]);
+                }
             }
             ImGui::Separator();
-
             if(ImGui::MenuItem("Save Project")){
-                
+                auto projPath = Utility::FileDialogs::SaveFile({{"DSM Project Files", "*" + std::string(Project::s_ProjectFileExtension)}}, "Save Project");
+                if (!projPath.empty()) {
+                    project.SaveProject(projPath[0]);
+                }
+            }
+
+            if(ImGui::MenuItem("Exit")){
+                if(project.GetFilePath().empty()){
+                    auto projPath = Utility::FileDialogs::SaveFile({{"DSM Project Files", "*" + std::string(Project::s_ProjectFileExtension)}}, "Save Project");
+                    if (!projPath.empty()) {
+                        project.SaveProject(projPath[0]);
+                    }
+                }
+                m_EditorUI->GetEditor()->GetEngine()->Close();
             }
 
             ImGui::EndMenu();
@@ -61,34 +90,34 @@ namespace DSM {
 
     void EditorMenuBar::WorldMenuGUI()
     {
-        if (ImGui::BeginMenu("Scene")){
-            if(ImGui::MenuItem("New Scene")){
-                SceneManager::NewScene();
-            }
-            ImGui::Separator();
+        // if (ImGui::BeginMenu("Scene")){
+        //     if(ImGui::MenuItem("New Scene")){
+        //         ProjectManager::NewScene();
+        //     }
+        //     ImGui::Separator();
 
-            std::string fileExtension = g_SceneFileExtension;
-            if(ImGui::MenuItem("Load Scene")){
-                std::string filter = "DSM Scene Files (*" + fileExtension + ")\0*" + fileExtension + "\0";
-                Utility::FileDialogs::FilterOption filterOption{"DSM Scene Files", "*" + fileExtension};
-                auto filepath = Utility::FileDialogs::OpenFile({filterOption}, "Load Scene");
-                if(!filepath.empty()){
-                    SceneManager::LoadScene(filepath[0]);
-                }
-            }
-            ImGui::Separator();
+        //     std::string fileExtension = g_SceneFileExtension;
+        //     if(ImGui::MenuItem("Load Scene")){
+        //         std::string filter = "DSM Scene Files (*" + fileExtension + ")\0*" + fileExtension + "\0";
+        //         Utility::FileDialogs::FilterOption filterOption{"DSM Scene Files", "*" + fileExtension};
+        //         auto filepath = Utility::FileDialogs::OpenFile({filterOption}, "Load Scene");
+        //         if(!filepath.empty()){
+        //             ProjectManager::LoadScene(filepath[0]);
+        //         }
+        //     }
+        //     ImGui::Separator();
 
-            if(ImGui::MenuItem("Save Scene")){
-                std::string filter = "DSM Scene Files (*" + fileExtension + ")\0*" + fileExtension + "\0";
-                Utility::FileDialogs::FilterOption filterOption{"DSM Scene Files", "*" + fileExtension};
-                auto filepath = Utility::FileDialogs::SaveFile({filterOption}, "Save Scene");
-                if(!filepath.empty()){
-                    SceneManager::SaveScene(filepath[0]);
-                }
-            }
+        //     if(ImGui::MenuItem("Save Scene")){
+        //         std::string filter = "DSM Scene Files (*" + fileExtension + ")\0*" + fileExtension + "\0";
+        //         Utility::FileDialogs::FilterOption filterOption{"DSM Scene Files", "*" + fileExtension};
+        //         auto filepath = Utility::FileDialogs::SaveFile({filterOption}, "Save Scene");
+        //         if(!filepath.empty()){
+        //             ProjectManager::SaveScene(filepath[0]);
+        //         }
+        //     }
 
-            ImGui::EndMenu();
-        }
+        //     ImGui::EndMenu();
+        // }
     }
     
     void EditorMenuBar::ViewMenuGUI()

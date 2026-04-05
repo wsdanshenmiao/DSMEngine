@@ -7,7 +7,7 @@
 #include "Runtime/Math/MathCommon.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
-#include "Runtime/Framework/Component/Camera.h"
+#include "Runtime/Framework/Component/CameraComponent.h"
 #include "Runtime/Framework/Component/Light.h"
 #include "Runtime/Framework/Component/MeshRenderer.h"
 #include "Runtime/Framework/Component/NativeScript.h"
@@ -275,7 +275,7 @@ namespace DSM{
     {
         bool CanDraw(const std::shared_ptr<GameObject>& object) override
         {
-            return object->HasComponent<Transform>();
+            return object->HasComponent<TransformComponent>();
         }
         const char* GetName() override { return "Transform"; }
 
@@ -283,7 +283,7 @@ namespace DSM{
         {
             assert(object != nullptr);
 
-            const auto& transform = object->GetComponent<Transform>();
+            const auto& transform = object->GetComponent<TransformComponent>();
             Math::Vector3 pos = transform->GetPosition();
             Math::Vector3 scale = transform->GetScale();
             Math::Vector3 degree = Math::RadiansToDegree(transform->GetRotation().ToEulerAngles());
@@ -298,16 +298,16 @@ namespace DSM{
         {
             assert(object != nullptr);
 
-            if (!object->HasComponent<Transform>()) {
-                object->AddComponent<Transform>();
+            if (!object->HasComponent<TransformComponent>()) {
+                object->AddComponent<TransformComponent>();
             }
         }
         void RemoveComponent(const std::shared_ptr<GameObject>& object)
         {
             assert(object != nullptr);
 
-            if (object->HasComponent<Transform>()) {
-                object->RemoveComponent<Transform>();
+            if (object->HasComponent<TransformComponent>()) {
+                object->RemoveComponent<TransformComponent>();
             }
         }
     };
@@ -316,15 +316,15 @@ namespace DSM{
     {
         bool CanDraw(const std::shared_ptr<GameObject>& object) override
         {
-            return object->HasComponent<Camera>();
+            return object->HasComponent<CameraComponent>();
         }
         const char* GetName() override { return "Camera"; }
         void DrawUI(const std::shared_ptr<GameObject>& object) override
         {
             DSM_CORE_ASSERT(object != nullptr);
-            DSM_CORE_ASSERT(object->HasComponent<Camera>());
+            DSM_CORE_ASSERT(object->HasComponent<CameraComponent>());
 
-            auto& camera = *object->GetComponent<Camera>();
+            auto& camera = *object->GetComponent<CameraComponent>();
             ImGui::PushItemWidth(-FLT_MIN);
 
             float cameraFov = Math::RadiansToDegree(camera.GetFovY());
@@ -355,15 +355,15 @@ namespace DSM{
         void AddComponent(const std::shared_ptr<GameObject>& object) override
         {
             assert(object != nullptr);
-            if (!object->HasComponent<Camera>()) {
-                object->AddComponent<Camera>();
+            if (!object->HasComponent<CameraComponent>()) {
+                object->AddComponent<CameraComponent>();
             }
         }
         void RemoveComponent(const std::shared_ptr<GameObject>& object)
         {
             assert(object != nullptr);
-            if (object->HasComponent<Camera>()) {
-                object->RemoveComponent<Camera>();
+            if (object->HasComponent<CameraComponent>()) {
+                object->RemoveComponent<CameraComponent>();
             }
         }
     };

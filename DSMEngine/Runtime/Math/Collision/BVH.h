@@ -5,7 +5,7 @@
 #include <stack>
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/MeshRenderer.h"
-#include "Runtime/Framework/Component/Transform.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
 
 namespace DSM::Math {
     class BVHTree

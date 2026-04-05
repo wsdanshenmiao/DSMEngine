@@ -13,6 +13,7 @@ namespace DSM {
     class GameObject;
 
     using ObjectID = entt::entity;
+	constexpr ObjectID c_InvalidObjectID = entt::null;
 
     class Scene
     {
@@ -32,7 +33,14 @@ namespace DSM {
         void Update(float deltaTime);
         void OnGUI();
 
-        std::weak_ptr<GameObject> GetObjectByID(ObjectID objectID) const;
+        bool IsDirty() const noexcept { return m_IsDirty; }
+        void SetDirty(bool dirty) { m_IsDirty = dirty; }
+
+        const std::string& GetSceneFilePath() const noexcept { return m_SceneFilePath; }
+        void SetSceneFilePath(const std::string& path) { m_SceneFilePath = path; }
+
+        const std::weak_ptr<GameObject> GetObjectByID(ObjectID objectID) const;
+        std::weak_ptr<GameObject> GetObjectByID(ObjectID objectID);
         
         ObjectID CreateObject(const std::string& name = {});
         void DestroyObject(ObjectID objectID);
@@ -58,8 +66,13 @@ namespace DSM {
 
     private:
         entt::registry m_Registry{};
+
         std::unordered_map<ObjectID, std::shared_ptr<GameObject>> m_Objects{};
         std::unordered_set<std::shared_ptr<GameObject>> m_RootObjects{};
+
+        std::string m_SceneFilePath{};
+
+        bool m_IsDirty{ false };
     };
 } // namespace DSM
 

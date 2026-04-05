@@ -1,7 +1,6 @@
 #include "EditorViewport.h"
 #include "Editor/DSMEditor.h"
-#include "Editor/SceneManager.h"
-#include "Editor/AssertDefine.h"
+#include "Editor/Project.h"
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Event/KeyEvent.h"
@@ -43,9 +42,9 @@ namespace DSM {
         ImGui::Image(ImTextureRef{gpuHandle}, viewportSize);
 
         if(ImGui::BeginDragDropTarget()){
-            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(g_ContentBrowserDragDropPayload)){
+            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(Project::s_ContentBrowserDragDropPayload)){
                 const char* path = static_cast<const char*>(payload->Data);
-                SceneManager::LoadScene(path);
+                // ProjectManager::LoadScene(path);
             }
             ImGui::EndDragDropTarget();
         }
@@ -64,12 +63,12 @@ namespace DSM {
 
         auto cameraView = camera.GetViewMatrix();
         auto cameraProj = camera.GetProjMatrix();
-        auto transfrom = selectedObject->GetComponent<Transform>();
+        auto transfrom = selectedObject->GetComponent<TransformComponent>();
         Math::Matrix4 transMat = transfrom->GetLocalToWorld();
         ImGuizmo::Manipulate((float*)&cameraView, (float*)&cameraProj, 
             static_cast<ImGuizmo::OPERATION>(m_GizmoType), ImGuizmo::LOCAL, (float*)&transMat);
         if(ImGuizmo::IsUsing()){
-            *transfrom = Transform(transMat);
+            *transfrom = TransformComponent(selectedObject, transMat);
         }
     }
     

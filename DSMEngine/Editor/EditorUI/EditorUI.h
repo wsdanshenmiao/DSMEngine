@@ -33,6 +33,8 @@ namespace DSM {
 
         const EditorMenuBar& GetMenuBar() const { return *m_MenuBar; }
 
+        DSMEditor* GetEditor() const { return m_Editor; }
+
         template <typename T>
         T* GetWidget()
         {
@@ -45,6 +47,7 @@ namespace DSM {
         }
 
     private:
+        bool DrawProjectGateModal();
         void OnScenePlay();
         void OnSceneStop();
 

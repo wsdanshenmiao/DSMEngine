@@ -2,7 +2,7 @@
 #ifndef __BOUNDING_PLANE_H__
 #define __BOUNDING_PLANE_H__
 
-#include "Runtime/Framework/Component/Transform.h"
+#include "Runtime/Math/Transform.h"
 
 namespace DSM::Math {
     // 定义一个平面，法线沿着顶点朝向平面做垂线

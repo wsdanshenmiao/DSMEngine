@@ -3,6 +3,7 @@
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Framework/Component/Component.h"
 #include "Runtime/DSMEngine.h"
+#include "Runtime/Event/KeyEvent.h"
 #include <numbers>
 
 namespace DSM{
@@ -36,6 +37,29 @@ namespace DSM{
 
             ImGui::EndPopup();
         }
+
+        for(const auto& objID : m_ObjShouldDeleted){
+            scene->DestroyObject(objID);
+        }
+    }
+
+    void EditorSceneHierarchy::OnEvent(Event &event)
+    {
+        EventDispatcher dispatcher(event);
+        dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e){
+            switch(e.GetKeyCode()){
+                case KeyCode::Delete:{
+                    if(auto selectedObject = m_SelectedObject.lock()){
+                        DSMEngine::sm_GlobalContext.scene->DestroyObject(selectedObject->GetID());
+                        m_SelectedObject.reset();
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+            return false;
+        });
     }
 
     // 绘制场景中实体的 UI 节点
@@ -44,6 +68,7 @@ namespace DSM{
         if(object == nullptr)
             return;
 
+        auto scene = DSMEngine::sm_GlobalContext.scene;
         const auto& children = object->GetChildren();
         ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_OpenOnDoubleClick |
             ImGuiTreeNodeFlags_SpanAvailWidth | 
@@ -67,11 +92,17 @@ namespace DSM{
             m_SelectedObject = object;
         }
 
+        // 右键打开工具栏
         bool entityDelete = false;
+        ObjectID newChild = c_InvalidObjectID;
         if(ImGui::BeginPopupContextItem()){
             if(ImGui::MenuItem("Delete GameObject")){
                 entityDelete = true;
             }
+            if (ImGui::MenuItem("Create Empty GameObject")){
+				newChild = scene->CreateObject("Empty GameObject");
+            }
+
             ImGui::EndPopup();
         }
 
@@ -82,14 +113,20 @@ namespace DSM{
             ImGui::TreePop();
         }
 
-        if(entityDelete){
-            DSMEngine::sm_GlobalContext.scene->DestroyObject(object->GetID());
-            if(isSelected){
+        ImGui::PopID();
+
+        if (entityDelete) {
+            m_ObjShouldDeleted.push_back(object->GetID());
+            if (isSelected) {
                 m_SelectedObject.reset();
             }
         }
 
-        ImGui::PopID();
+        if(newChild != c_InvalidObjectID){
+            if(auto childObject = scene->GetObjectByID(newChild).lock()){
+                childObject->SetParent(object);
+            }
+		}
     }
 
     

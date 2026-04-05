@@ -33,8 +33,6 @@ namespace DSM {
             auto& backBufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
             RenderResource::GetInstance().OnResize(renderer, backBufferDesc.width, backBufferDesc.height);
 
-            CreateLight();
-
             m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SSAOPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}));
@@ -53,52 +51,54 @@ namespace DSM {
             m_CameraController->InitCamera(&camera);
 
             // TODO: 这里先创建一个测试用的场景，后续应该将场景的创建放到外部，由用户根据需要创建不同的场景
-            auto scene = DSMEngine::sm_GlobalContext.scene;
+
+            // CreateLight();
+            // auto scene = DSMEngine::sm_GlobalContext.scene;
             
-            auto processModel = [scene](std::shared_ptr<GameObject> obj, const std::shared_ptr<Model>& model) {
-                auto shader = Shader::Find("Shaders/ForwardShader/Passes/LitPass.hlsl");
-                for (const auto& mesh : model->meshes) {
-                    auto subObj = scene->CreateObject(mesh->name);
-                    auto subObjPtr = scene->GetObjectByID(subObj).lock();
-                    auto meshRenderer = subObjPtr->AddComponent<MeshRenderer>();
-                    meshRenderer->SetMaterial(std::make_shared<Material>(shader));
-                    meshRenderer->SetMesh(mesh);
-                    if(obj != nullptr){
-                        obj->AddChild(subObjPtr);
-                    }
-                }
-            };
+            // auto processModel = [scene](std::shared_ptr<GameObject> obj, const std::shared_ptr<Model>& model) {
+            //     auto shader = Shader::Find("Shaders/ForwardShader/Passes/LitPass.hlsl");
+            //     for (const auto& mesh : model->meshes) {
+            //         auto subObj = scene->CreateObject(mesh->name);
+            //         auto subObjPtr = scene->GetObjectByID(subObj).lock();
+            //         auto meshRenderer = subObjPtr->AddComponent<MeshRenderer>();
+            //         meshRenderer->SetMaterial(std::make_shared<Material>(shader));
+            //         meshRenderer->SetMesh(mesh);
+            //         if(obj != nullptr){
+            //             obj->AddChild(subObjPtr);
+            //         }
+            //     }
+            // };
 
-            // 透明物体
-            auto transparentTex = TextureManager::LoadTextureFromFile("Assets/Textures/transparent_texture.psd");
-            auto boxMesh = Geometry::GeometryGenerator::CreateBox(1, 1, 1, 0);
-            auto boxModel = ModelLoader::LoadModelFromGeometry("TransparentBox", boxMesh);
-            boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kAlphaBlend);
-            boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kBothSide);
-            boxModel->meshes[0]->textures[ShaderResource::kBaseColor] = transparentTex;
-            boxModel->meshes[0]->textures[ShaderResource::kEmissive] = transparentTex;
-            boxModel->materials[0]->emissiveColor = {0.8, 0.8, 0.8, 1};
-            processModel(nullptr, boxModel);
-            auto transparentObj = scene->GetObjectsWithComponents<MeshRenderer>();
-            for(auto [id, mesh] : transparentObj.each()){
-				auto obj = scene->GetObjectByID(id).lock();
-                if(obj != nullptr){
-					auto& transform = *obj->GetComponent<Transform>();
-                    transform.SetPosition({-2, 0.5f, 0});
-                    transform.SetRotation({0, 45, 0});
-				}
-			}
+            // // 透明物体
+            // auto transparentTex = TextureManager::LoadTextureFromFile("Assets/Textures/transparent_texture.psd");
+            // auto boxMesh = Geometry::GeometryGenerator::CreateBox(1, 1, 1, 0);
+            // auto boxModel = ModelLoader::LoadModelFromGeometry("TransparentBox", boxMesh);
+            // boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kAlphaBlend);
+            // boxModel->meshes[0]->psoFlags |= uint32_t(PSOFlags::kBothSide);
+            // boxModel->meshes[0]->textures[ShaderResource::kBaseColor] = transparentTex;
+            // boxModel->meshes[0]->textures[ShaderResource::kEmissive] = transparentTex;
+            // boxModel->materials[0]->emissiveColor = {0.8, 0.8, 0.8, 1};
+            // processModel(nullptr, boxModel);
+            // auto transparentObj = scene->GetObjectsWithComponents<MeshRenderer>();
+            // for(auto [id, mesh] : transparentObj.each()){
+			// 	auto obj = scene->GetObjectByID(id).lock();
+            //     if(obj != nullptr){
+			// 		auto& transform = *obj->GetComponent<Transform>();
+            //         transform.SetPosition({-2, 0.5f, 0});
+            //         transform.SetRotation({0, 45, 0});
+			// 	}
+			// }
 
-            // 不透明物体
-            auto lihuazou = scene->CreateObject("Lihuazou");
-            auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
-            auto lihuazouModel = ModelLoader::LoadModel("Assets/Models/AB/AliceADefault/AliceADefault.fbx");
-            processModel(lihuazouPtr, lihuazouModel);
+            // // 不透明物体
+            // auto lihuazou = scene->CreateObject("Lihuazou");
+            // auto lihuazouPtr = scene->GetObjectByID(lihuazou).lock();
+            // auto lihuazouModel = ModelLoader::LoadModel("Assets/Models/AB/AliceADefault/AliceADefault.fbx");
+            // processModel(lihuazouPtr, lihuazouModel);
 
-            auto sponza = scene->CreateObject("Sponza");
-            auto sponzaPtr = scene->GetObjectByID(sponza).lock();
-            auto sponzaModel = ModelLoader::LoadModel("Assets/Models/Sponza/pbr/sponza2.gltf");
-            processModel(sponzaPtr, sponzaModel);
+            // auto sponza = scene->CreateObject("Sponza");
+            // auto sponzaPtr = scene->GetObjectByID(sponza).lock();
+            // auto sponzaModel = ModelLoader::LoadModel("Assets/Models/Sponza/pbr/sponza2.gltf");
+            // processModel(sponzaPtr, sponzaModel);
         }
 
         ~ForwardRenderPipeline() override

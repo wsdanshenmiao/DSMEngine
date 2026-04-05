@@ -3,6 +3,7 @@
 #define _DSM_EDITOR_H_
 
 #include <memory>
+#include <string>
 #include "EditorUI/EditorUI.h"
 
 namespace DSM {
@@ -19,7 +20,7 @@ namespace DSM {
         void ShutDownEditor();
 
         DSMEngine* GetEngine() const { return m_Engine; }
-
+        
     private:
         std::unique_ptr<EditorUI> m_EditorUI;
         DSMEngine* m_Engine;

@@ -2,10 +2,8 @@
 #ifndef __MESH_H__
 #define __MESH_H__
 
-#include <map>
 #include <string>
 #include "Runtime/Graphics/PipelineState.h"
-#include "Runtime/Graphics/ResourceBindings.h"
 #include "Runtime/Math/Collision/BoundingBox.h"
 
 namespace DSM {

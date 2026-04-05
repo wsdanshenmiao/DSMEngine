@@ -6,7 +6,7 @@
 #include "Runtime/Graphics/GraphicsCommon.h"
 #include "Runtime/Graphics/Device.h"
 #include "Runtime/Core/Macro.h"
-#include "Runtime/Framework/Component/Camera.h"
+#include "Runtime/Render/Camera/Camera.h"
 
 namespace DSM {
     class Window;

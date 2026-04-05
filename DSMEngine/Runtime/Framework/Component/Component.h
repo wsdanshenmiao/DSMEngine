@@ -1,14 +1,13 @@
 #pragma once
-#ifndef __TRANSFORMCOMPONENT_H__
-#define __TRANSFORMCOMPONENT_H__
+#ifndef __COMPONENT_H__
+#define __COMPONENT_H__
 
-#include <variant>
 #include <memory>
 
 namespace DSM {
-    class Transform;
+    class TransformComponent;
     class Light;
-    class Camera;
+    class CameraComponent;
     class MeshRenderer;
     class NativeScript;
     class GameObject;
@@ -16,9 +15,12 @@ namespace DSM {
     class IComponent
     {
     public:
-        IComponent() = default;
         IComponent(std::shared_ptr<GameObject> gameObject)
             : m_GameObject(gameObject) {}
+        IComponent(const IComponent&) = default;
+        IComponent& operator=(const IComponent&) = default;
+        IComponent(IComponent&&) = default;
+        IComponent& operator=(IComponent&&) = default;
         virtual ~IComponent() = default;
 
         bool IsDirty() const noexcept { return m_IsDirty; }
@@ -29,9 +31,12 @@ namespace DSM {
         bool m_IsDirty{true};
     };
 
-    using AllComponents = std::variant<
-        Transform,
-        Camera,
+    template <typename... Ts>
+    struct type_list {};
+
+    using AllComponents = type_list<
+        TransformComponent,
+        CameraComponent,
         MeshRenderer,
         Light,
         NativeScript>;

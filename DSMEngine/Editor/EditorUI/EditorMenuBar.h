@@ -23,7 +23,7 @@ namespace DSM {
         SceneState GetSceneState() const { return m_SceneState; }
 
     private:
-        void ProjectMenuGUI();
+        void FileMenuGUI();
         void WorldMenuGUI();
         void ViewMenuGUI();
         void ButtonToolBar();

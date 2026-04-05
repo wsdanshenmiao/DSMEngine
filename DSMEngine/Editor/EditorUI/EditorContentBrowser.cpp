@@ -1,7 +1,7 @@
 #include "EditorContentBrowser.h"
-#include "Editor/AssertDefine.h"
+#include "Editor/DSMEditor.h"
+#include "Editor/Project.h"
 #include "Runtime/Render/TextureManager.h"
-#include "Runtime/Core/Macro.h"
 
 #include <imgui.h>
 
@@ -17,13 +17,16 @@ namespace DSM {
         // 加载文件夹和文件图标
         m_FolderIcon = TextureManager::LoadTextureFromFile("Assets/Textures/Icons/ContentBrowser/DirectoryIcon.png");
         m_FileIcon = TextureManager::LoadTextureFromFile("Assets/Textures/Icons/ContentBrowser/FileIcon.png");
-        DSM_CORE_ASSERT(m_FolderIcon != nullptr, "Failed to load folder icon texture!");
-        DSM_CORE_ASSERT(m_FileIcon != nullptr, "Failed to load file icon texture!");
     }
 
     void EditorContentBrowser::OnGUIEnabled()
     {
         if(m_CurrDirectory.empty()){
+            return;
+        }
+
+        if(m_FolderIcon == nullptr || m_FileIcon == nullptr){
+            ImGui::TextUnformatted("Content Browser icons failed to load.");
             return;
         }
 
@@ -61,7 +64,7 @@ namespace DSM {
             // 拖拽源，可以拖拽文件到其他面板
             if(ImGui::BeginDragDropSource()){
                 auto filepath = path.string();
-                ImGui::SetDragDropPayload(g_ContentBrowserDragDropPayload, filepath.c_str(), filepath.size() + 1);
+                ImGui::SetDragDropPayload(Project::s_ContentBrowserDragDropPayload, filepath.c_str(), filepath.size() + 1);
                 ImGui::EndDragDropSource();
             }
 
