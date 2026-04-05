@@ -4,6 +4,8 @@
 
 #include <string>
 #include <functional>
+#include <vector>
+#include <filesystem>
 
 struct GLFWwindow;
 
@@ -37,6 +39,9 @@ namespace DSM{
 		bool IsVSync() const { return m_Desc.VSync; }
         GLFWwindow* GetNativeWindow() const { return m_Window; }
 
+        // Consume OS-level dropped file/folder paths captured by GLFW drop callback.
+        std::vector<std::filesystem::path> ConsumeDroppedPaths();
+
         bool IsMinimized() const;
         bool IsFullScreen() const;
 
@@ -48,6 +53,7 @@ namespace DSM{
             bool VSync = false;
             EventCallbackFunc callback;
             std::string title;
+            std::vector<std::filesystem::path> droppedPaths{};
         } m_Desc;
     };
 

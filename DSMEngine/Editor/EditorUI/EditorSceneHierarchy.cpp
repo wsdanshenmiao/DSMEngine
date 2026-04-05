@@ -26,7 +26,7 @@ namespace DSM{
             DrawEntityNode(rootObject);
         }
 
-        if(ImGui::IsMouseDown(0) && ImGui::IsWindowHovered()){
+        if(ImGui::IsMouseDown(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()){
             m_SelectedObject.reset();
         }
 

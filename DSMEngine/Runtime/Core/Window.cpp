@@ -124,6 +124,20 @@ namespace DSM {
 			KeyTypedEvent event((KeyCode)keycode);
 			data->callback(event);
 		});
+
+        // 设置文件拖入回调
+        glfwSetDropCallback(m_Window, [](GLFWwindow* window, int count, const char** paths){
+            auto data = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+            if(data == nullptr || paths == nullptr || count <= 0){
+                return;
+            }
+
+            for(int i = 0; i < count; ++i){
+                if(paths[i] != nullptr){
+                    data->droppedPaths.emplace_back(paths[i]);
+                }
+            }
+        });
     }
 
     Window::~Window()
@@ -168,6 +182,13 @@ namespace DSM {
     bool Window::IsFullScreen() const
     {
         return glfwGetWindowAttrib(m_Window, GLFW_MAXIMIZED) == GLFW_TRUE;
+    }
+
+    std::vector<std::filesystem::path> Window::ConsumeDroppedPaths()
+    {
+        auto result = std::move(m_Desc.droppedPaths);
+        m_Desc.droppedPaths.clear();
+        return result;
     }
 
 } // namespace DSM
