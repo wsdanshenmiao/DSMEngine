@@ -147,17 +147,17 @@ namespace DSM {
         {
             // 创建法线法线纹理等资源
             IDevice* device = renderer.GetDevice();
-            auto normalTex = device->CreateTexture(TextureDesc()
+            auto& renderRes = RenderResource::GetInstance();
+            renderRes.SetCommonTexture(CommonTextureSlot::Normal, device->CreateTexture(TextureDesc()
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetFormat(Format::RG32_FLOAT)
                 .SetIsRenderTarget(true)
                 .SetClearValue({})
-                .SetDebugName("NormalTexture"));
-            RenderResource::GetInstance().SetCommonTexture(CommonTextureSlot::Normal, normalTex);
+                .SetDebugName("NormalTexture")));
             m_Framebuffer = device->CreateFramebuffer(FramebufferDesc()
-                .AddColorAttachment(normalTex)
-                .SetDepthAttachment(RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::Depth)));
+                .AddColorAttachment(renderRes.GetCommonTexture(CommonTextureSlot::Normal))
+                .SetDepthAttachment(renderRes.GetCommonTexture(CommonTextureSlot::Depth)));
 
             m_Pipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc()
                 .SetVertexShader(m_VertexShader)

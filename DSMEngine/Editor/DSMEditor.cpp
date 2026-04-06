@@ -21,6 +21,12 @@ namespace DSM{
     void DSMEditor::Run()
     {
         while (m_Engine->IsRunning()) {
+            if(m_ShouldResizeRenderer && m_ResizeWidth > 0 && m_ResizeHeight > 0) {
+                if (auto renderer = DSMEngine::sm_GlobalContext.renderer) {
+                    renderer->ResizeRenderTexture(m_ResizeWidth, m_ResizeHeight);
+                }
+                m_ShouldResizeRenderer = false;
+            }
             m_Engine->Run();
         }
     }

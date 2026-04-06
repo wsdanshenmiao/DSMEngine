@@ -127,6 +127,11 @@ namespace DSM::D3D12 {
             releaseDescriptor(m_DepthStencilViews, resources->depthStencilViewHeap);
             releaseDescriptor(m_CustomSRVs, resources->shaderResourceViewHeap);
             releaseDescriptor(m_CustomUAVs, resources->shaderResourceViewHeap);
+            for(const auto& index : m_ClearMipLevelUAVs){
+                if(index != c_InvalidDescriptorIndex){
+                    resources->shaderResourceViewHeap.ReleaseDescriptor(index);
+                }
+            }
         }
 
         resource = nullptr;
@@ -165,7 +170,7 @@ namespace DSM::D3D12 {
         uint64_t descriptor{};
         subresources = subresources.Resolve(m_Desc, false);
         TextureBindingKey key = TextureBindingKey(subresources, format);
-        uint32_t descriptorIndex;
+        uint32_t descriptorIndex{};
         switch (objType)
         {
         case ObjectTypes::D3D12_ShaderResourceViewCpuDescriptor:

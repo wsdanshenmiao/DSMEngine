@@ -38,6 +38,9 @@ namespace DSM{
 
             // 最小为1
             ResizeFrameBuffer(std::max(event.GetWidth(), 1u), std::max(event.GetHeight(), 1u));
+            if(m_RenderPipeline != nullptr){
+                m_RenderPipeline->OnResizeFrameBuffer(*this, event.GetWidth(), event.GetHeight());
+            }
             return true;
         });
         m_Internal->OnEvent(event);
@@ -61,7 +64,7 @@ namespace DSM{
 
         // 由于交换链改变大小时所有额外的 Buffer 引用都需要释放
         if(m_RenderPipeline != nullptr){
-            m_RenderPipeline->OnResize(*this, width, height);
+            m_RenderPipeline->OnResizeRenderTexture(*this, width, height);
         }
     }
 

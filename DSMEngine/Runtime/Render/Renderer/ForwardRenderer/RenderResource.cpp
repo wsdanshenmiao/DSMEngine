@@ -174,15 +174,15 @@ namespace DSM{
     void RenderResource::OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height)
     {
         auto device = renderer.GetDevice();
-        m_CommonTextures[(size_t)CommonTextureSlot::Color] = renderer.GetColorTexture();
-        m_CommonTextures[(size_t)CommonTextureSlot::Depth] = device->CreateTexture(TextureDesc()
+        SetCommonTexture(CommonTextureSlot::Color, renderer.GetColorTexture());
+        SetCommonTexture(CommonTextureSlot::Depth, device->CreateTexture(TextureDesc()
             .SetWidth(width)
             .SetHeight(height)
             .SetFormat(Format::D32)
             .SetClearValue(Color{1, 0, 0, 0})
             .SetInitialState(ResourceStates::DepthWrite)
             .SetIsRenderTarget(true)    // 娣卞害绾圭悊涔熼渶瑕佽缃?
-            .SetDebugName("DepthTex"));
+            .SetDebugName("DepthTex")));
         m_Framebuffer = device->CreateFramebuffer(FramebufferDesc()
             .AddColorAttachment(GetCommonTexture(CommonTextureSlot::Color))
             .SetDepthAttachment(GetCommonTexture(CommonTextureSlot::Depth)));

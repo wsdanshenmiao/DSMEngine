@@ -32,7 +32,7 @@ namespace DSM {
         auto& renderer = DSMEngine::sm_GlobalContext.renderer;
         Viewport cameraViewport = renderer->GetCamera().GetViewPort();
         if(cameraViewport.Width() != width || cameraViewport.Height() != height){
-            renderer->ResizeRenderTexture(std::max(width, 1.f), std::max(height, 1.f));
+            m_EditorUI->GetEditor()->SetShouldResizeRenderer(width, height);
         }
 
         // 设置渲染图像

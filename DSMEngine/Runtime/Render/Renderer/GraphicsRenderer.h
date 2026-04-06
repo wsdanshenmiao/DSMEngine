@@ -44,7 +44,8 @@ namespace DSM {
         virtual ~IRenderPipeline() = default;
         virtual void Render(GraphicsRenderer& renderer, float deltaTime) = 0;
         virtual void RenderUI(GraphicsRenderer& renderer) = 0;
-        virtual void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) = 0;
+        virtual void OnResizeFrameBuffer(GraphicsRenderer& renderer, uint32_t width, uint32_t height) = 0;
+        virtual void OnResizeRenderTexture(GraphicsRenderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
     struct RenderParameters

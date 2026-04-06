@@ -161,13 +161,15 @@ namespace DSM {
             // }
         }
 
-        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
+        void OnResizeRenderTexture(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
         {
             RenderResource::GetInstance().OnResize(renderer, width, height);
             for (auto& renderPass : m_RenderPasses) {
                 renderPass->OnResize(renderer, width, height);
             }
         }
+
+        void OnResizeFrameBuffer(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override {}
 
     private:
         // void CreateLight()

@@ -66,23 +66,26 @@ namespace DSM {
 
         for(auto& directory : std::filesystem::directory_iterator(m_CurrDirectory)){
             const auto& path = directory.path();
+            const bool isSelected = (m_SelectedPath == path);
 
             auto filename = path.filename().string();
             ImGui::PushID(filename.c_str());
-
-            const bool isSelected = (m_SelectedPath == path);
-            const ImVec4 buttonColor = isSelected ? ImVec4{0.14f, 0.34f, 0.74f, 0.45f} : ImVec4{0.0f, 0.0f, 0.0f, 0.0f};
-            const ImVec4 buttonHoverColor = isSelected ? ImVec4{0.16f, 0.38f, 0.80f, 0.58f} : ImVec4{0.12f, 0.12f, 0.12f, 0.20f};
-            const ImVec4 buttonActiveColor = isSelected ? ImVec4{0.10f, 0.28f, 0.64f, 0.80f} : ImVec4{0.18f, 0.18f, 0.18f, 0.30f};
-            ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, buttonHoverColor);
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, buttonActiveColor);
             
             // 判断是否是文件夹，选择不同的图标
             ITexture* tex = directory.is_directory() ? m_FolderIcon.Get() : m_FileIcon.Get();
             // TODO: 后续需要改为各 API 相关的纹理句柄
             auto gpuHandle = tex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
+
+            // 选中项使用持续高亮样式，和左侧树节点的选中体验保持一致。
+            if(isSelected){
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_Header));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive));
+            }
             ImGui::ImageButton(filename.c_str(), ImTextureRef{gpuHandle}, ImVec2(64, 64));
+            if(isSelected){
+                ImGui::PopStyleColor(3);
+            }
 
             // 拖拽源，可以拖拽文件到其他面板
             if(ImGui::BeginDragDropSource()){
@@ -91,23 +94,27 @@ namespace DSM {
                 ImGui::EndDragDropSource();
             }
 
-            ImGui::PopStyleColor(3);
-
             const bool itemHovered = ImGui::IsItemHovered();
             anyItemHovered |= itemHovered;
             if(itemHovered){
-                if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)){
-                    // 单击选择文件
-                    m_SelectedPath = path;
-                }
-                else if(ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && directory.is_directory()){
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && directory.is_directory()) {
                     // 双击进入文件夹
                     m_CurrDirectory /= path.filename();
+                }
+                else if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)){
+                    // 单击选择文件
+                    m_SelectedPath = path;
                 }
             }
 
             // 文件名自动换行
+            if(isSelected){
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text));
+            }
             ImGui::TextWrapped(filename.c_str());
+            if(isSelected){
+                ImGui::PopStyleColor();
+            }
             
             ImGui::NextColumn();
             ImGui::PopID();

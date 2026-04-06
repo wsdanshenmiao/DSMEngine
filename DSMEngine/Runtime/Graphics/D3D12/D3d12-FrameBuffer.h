@@ -14,17 +14,6 @@ namespace DSM::D3D12
 
         ~Framebuffer()
         {
-            auto resource = m_Resources.lock();
-            if(!resource) 
-                return;
-            
-            // 释放描述符
-            for(const auto& rtv : RTVs){
-                resource->renderTargetViewHeap.ReleaseDescriptor(rtv);
-            }
-            if(m_Desc.depthAttachment.Valid()){
-                resource->depthStencilViewHeap.ReleaseDescriptor(DSV);
-            }
         }
 
         const FramebufferDesc& GetDesc() const override { return m_Desc; }
