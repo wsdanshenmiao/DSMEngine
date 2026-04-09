@@ -3,7 +3,7 @@
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Window.h"
 #include "Runtime/Render/TextureManager.h"
-#include "Runtime/Render/ModelLoader.h"
+#include "Runtime/Render/Model.h"
 #include "Runtime/Render/WindowUI.h"
 #include "Runtime/Core/InstrumentorTimer.h"
 
@@ -32,7 +32,7 @@ namespace DSM{
         device = CreateDevice(deviceDesc);
 
         TextureManager::Init(device);
-        ModelLoader::Init(device);
+        Model::Create(device);
 
         GLFWwindow* window = static_cast<GLFWwindow*>(desc.window->GetNativeWindow());
 
@@ -106,7 +106,7 @@ namespace DSM{
     RendererDX12::~RendererDX12()
     {
         TextureManager::Destroy();
-        ModelLoader::Destroy();
+        Model::Destroy();
         s_DescriptorHeap = nullptr;
         
         // 需要等待GPU处理完所有事件，否则交换链的资源无法正常释放

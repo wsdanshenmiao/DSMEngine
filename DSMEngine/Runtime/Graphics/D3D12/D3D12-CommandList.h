@@ -2,6 +2,7 @@
 #ifndef __D3D12_COMMANDLIST_H__
 #define __D3D12_COMMANDLIST_H__
 
+#include <mutex>
 #include <set>
 #include <unordered_map>
 #include "Runtime/Graphics/D3D12.h"
@@ -71,6 +72,7 @@ namespace DSM::D3D12 {
         inline static std::set<std::unique_ptr<InternalCommandList>> sm_CmdListPool{};
         inline static std::array<FencevalueAndListPairQueue, (size_t)CommandQueueType::Count> sm_RetiredCmdLists{};
         inline static std::array<std::queue<InternalCommandList*>, (size_t)CommandQueueType::Count> sm_AvailableCmdLists{};
+        inline static std::mutex sm_Mutex{};
     };
 
     struct CommandListInstance

@@ -2,24 +2,46 @@
 #ifndef __MODEL_H__
 #define __MODEL_H__
 
-#include <string>
-#include <vector>
-#include <memory>
-#include "Mesh.h"
+#include "Runtime/Render/Material.h"
 #include "Shaders/ForwardShader/ResourceData.h"
 
+struct aiScene;
+struct aiNode;
 
 namespace DSM {
     class MeshRenderer;
+    class Material;
+    class Mesh;
 
-    // 模型的数据
+    namespace Geometry {
+        struct GeometryMesh;
+    }
+
     struct Model
     {
         std::string name{};
         std::string filePath{};
         std::vector<std::shared_ptr<Mesh>> meshes{};
-        std::vector<std::shared_ptr<ShaderResource::MaterialData>> materials{};
+        std::vector<std::vector<uint32_t>> meshMaterialIndices{};
+        std::vector<std::shared_ptr<Material>> materials{};
         Math::AxisAlignedBox boundingBox{};
+
+        static std::shared_ptr<Model> LoadModel(const std::string& filename);
+        static std::shared_ptr<Model> LoadModelFromGeometry(
+            const std::string& name, 
+            Geometry::GeometryMesh geometryMesh,
+            std::shared_ptr<Material> material = nullptr);
+
+        static void Create(IDevice* device);
+        static void Destroy();
+
+    private:
+		static void ProcessMaterial(Model& model, const std::string& filename, const aiScene* scene);
+		static auto ProcessNode(const Model& model, const aiNode* node, const aiScene* scene);
+
+    private:
+        inline static IDevice* sm_Device{};
+    	inline static std::array<TextureHandle, ShaderResource::kNumTextures> sm_CommonTextures{};
     };
 
 }

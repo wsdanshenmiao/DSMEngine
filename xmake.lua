@@ -3,7 +3,6 @@ set_project("DSMEngine")
 if is_os("windows") then 
     add_defines("UNICODE")
     add_defines("_UNICODE")
-    add_cxflags("/Zc:preprocessor", {tools = "cl"})  -- 仅对 MSVC 生效
 end
 
 add_rules("mode.debug", "mode.release")

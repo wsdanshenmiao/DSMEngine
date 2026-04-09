@@ -7,6 +7,7 @@
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Core/Window.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
 
 #include <imgui.h>
 #include <ImGuizmo.h>

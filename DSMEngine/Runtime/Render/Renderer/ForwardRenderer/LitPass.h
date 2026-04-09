@@ -46,7 +46,7 @@ namespace DSM {
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(1))
                 .AddItem(BindingLayoutItem::Texture_SRV(2))
                 .AddItem(BindingLayoutItem::VolatileConstantBuffer(0))
-                .AddItem(BindingLayoutItem::PushConstants(1, sizeof(int)))
+                .AddItem(BindingLayoutItem::PushConstants(1, sizeof(PushConstants)))
                 .AddItem(BindingLayoutItem::ConstantBuffer(2))
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(3))
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(4))
@@ -102,48 +102,58 @@ namespace DSM {
 
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(ShaderResource::PassConstants));
 
-            for(const auto& [index, object] : renderRes.GetObjectInFrustum()) {
+            auto state = GraphicsState{}
+                .SetFramebuffer(fb)
+                .AddBindingSet(m_BindingSet, 0)
+                .AddBindingSet(renderRes.GetTextureBindlessTable(), 1)
+                .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()));
+            for(const auto& object : renderRes.GetObjectInFrustum()) {
+                PushConstants pushConstants{};
+                pushConstants.objectIndex = (int)renderRes.GetObjectIndex().at(object);
+                const auto& materialIndex = renderRes.GetObjectMaterialIndex().at(object);
                 auto meshRenderer = object->GetComponent<MeshRenderer>();
-                if(meshRenderer == nullptr || meshRenderer->GetMesh() == nullptr)
+                if(meshRenderer == nullptr)
                     continue;
-                auto& mesh = *meshRenderer->GetMesh();
-
-                // 透明物体在渲染天空盒后渲染
-                if((HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend) && !m_IsTransparentPass) ||
-                    (!HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend) && m_IsTransparentPass)){
+                auto mesh = meshRenderer->GetMesh();
+                if(mesh == nullptr)
                     continue;
-                }
 
-                GraphicsState state{};
-                state.SetFramebuffer(fb)
-                    .SetPipeline(GetPipelineState(renderer, mesh))
-                    .SetViewport(ViewportState{}.AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                    .SetIndexBuffer(mesh.indexBufferViews)
-                    .AddBindingSet(m_BindingSet, 0)
-                    .AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
-                if(HasFlags(PSOFlags(mesh.psoFlags), kHasPosition)){
-                    state.AddVertexBuffer(mesh.positionStream);
-                }
-                if(HasFlags(PSOFlags(mesh.psoFlags), kHasUV)){
-                    state.AddVertexBuffer(mesh.uvStream);
-                }
-                if(HasFlags(PSOFlags(mesh.psoFlags), kHasNormal)){
-                    state.AddVertexBuffer(mesh.normalStream);
-                }
-                if(HasFlags(PSOFlags(mesh.psoFlags), kHasTangent)){
-                    state.AddVertexBuffer(mesh.tangentStream);
-                }
-                
-                cmdList->SetGraphicsState(state);
+                for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
+                    auto matIndex = meshRenderer->GetMaterialIndex(subMeshIndex);
+                    auto material = meshRenderer->GetMaterial(matIndex);
+                    // 透明物体在渲染天空盒后渲染
+                    if((material->IsTransparent() && !m_IsTransparentPass) ||
+                        (!material->IsTransparent() && m_IsTransparentPass)){
+                        continue;
+                    }
 
-                int objIndex = (int)index;
-                cmdList->SetPushConstants(&objIndex, sizeof(int));
+                    state.vertexBuffers.resize(0);
+                    state.SetPipeline(GetPipelineState(renderer, *mesh, *material))
+                        .SetIndexBuffer(mesh->GetIndexBufferBinding(subMeshIndex));
+                    if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)) {
+                        state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                    }
+                    if(auto slot = Mesh::VertexAttributeSlot::UV; mesh->HasVertexAttribute(slot)) {
+                        state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                    }
+                    if(auto slot = Mesh::VertexAttributeSlot::Normal; mesh->HasVertexAttribute(slot)) {
+                        state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                    }
+                    if(auto slot = Mesh::VertexAttributeSlot::Tangent; mesh->HasVertexAttribute(slot)) {
+                        state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                    }
+                    
+                    cmdList->SetGraphicsState(state);
+                    
+                    pushConstants.materialIndex = materialIndex[subMeshIndex];
+                    cmdList->SetPushConstants(&pushConstants, sizeof(pushConstants));
 
-                // 绘制
-                cmdList->DrawIndexed(DrawArguments{}
-                    .SetStartIndexLocation(mesh.indexOffset)
-                    .SetStartVertexLocation(mesh.vertexOffset)
-                    .SetVertexCount(mesh.indexCount));
+                    // 绘制
+                    cmdList->DrawIndexed(DrawArguments{}
+                        .SetStartIndexLocation(mesh->GetIndexOffset(subMeshIndex))
+                        .SetStartVertexLocation(mesh->GetVertexOffset(subMeshIndex))
+                        .SetVertexCount(mesh->GetIndexCount(subMeshIndex)));
+                }
             }
 
             if (m_IsTransparentPass) {
@@ -168,34 +178,34 @@ namespace DSM {
         }
 
     private:
-        size_t GetPSOIndex(PSOFlags flags, bool reverseZ) const
+        size_t GetPSOIndex(Mesh& mesh, Material& material, bool reverseZ) const
         {
             size_t index = 0;
             auto filterMode = ShadowPass::sm_Setting.directionalSetting.filter;
-            if(!HasFlags(flags, kHasPosition)) index |= 1 << 0;
-            if(!HasFlags(flags, kHasNormal)) index |= 1 << 1;
-            if(!HasFlags(flags, kHasUV)) index |= 1 << 2;
-            if(HasFlags(flags, kHasTangent)) index |= 1 << 3;
+            if(!mesh.HasVertexAttribute(Mesh::VertexAttributeSlot::Position)) index |= 1 << 0;
+            if(!mesh.HasVertexAttribute(Mesh::VertexAttributeSlot::Normal)) index |= 1 << 1;
+            if(!mesh.HasVertexAttribute(Mesh::VertexAttributeSlot::UV)) index |= 1 << 2;
+            if(mesh.HasVertexAttribute(Mesh::VertexAttributeSlot::Tangent)) index |= 1 << 3;
             if(!HasFlags(filterMode, ShadowSetting::_PCF3x3)) index |= 1 << 4;
             if(HasFlags(filterMode, ShadowSetting::_PCF5x5)) index |= 1 << 5;
-            if(HasFlags(flags, kAlphaBlend)) index |= 1 << 6;
-            if(HasFlags(flags, kBothSide)) index |= 1 << 7;
+            if(material.IsTransparent()) index |= 1 << 6;
+            if(material.IsBothSide()) index |= 1 << 7;
             if(reverseZ) index |= 1 << 8;
             return index;
         }
 
-        GraphicsPipelineHandle GetPipelineState(GraphicsRenderer& renderer, Mesh& mesh)
+        GraphicsPipelineHandle GetPipelineState(GraphicsRenderer& renderer, Mesh& mesh, Material& material)
         {
-            auto psoIndex = GetPSOIndex(PSOFlags(mesh.psoFlags), renderer.GetCamera().IsReversedZ());
+            auto psoIndex = GetPSOIndex(mesh, material, renderer.GetCamera().IsReversedZ());
             if(psoIndex >= std::size(m_Pipelines) || m_Pipelines[psoIndex] == nullptr){
                 m_Pipelines.resize(std::max(m_Pipelines.size() * 2, psoIndex + 1));
                 // 创建对应的 PSO
-                m_Pipelines[psoIndex] = CreatePipelineState(renderer, mesh);
+                m_Pipelines[psoIndex] = CreatePipelineState(renderer, mesh, material);
             }
             return m_Pipelines[psoIndex];
         }
 
-        GraphicsPipelineHandle CreatePipelineState(GraphicsRenderer& renderer, Mesh& mesh)
+        GraphicsPipelineHandle CreatePipelineState(GraphicsRenderer& renderer, Mesh& mesh, Material& material)
         {
             auto device = renderer.GetDevice();
 
@@ -218,26 +228,24 @@ namespace DSM {
             auto litVSNoTangent = m_Shaders[ShaderSlot::LitVSNoTangent];
 
             std::vector<VertexAttributeDesc> attributes{};
-            auto addAttribute = [&attributes](auto currFlag, auto flag, 
-                const std::string& name, auto index, auto format, auto size) {
-                if (HasFlags(PSOFlags(currFlag), flag)) {
-                    attributes.push_back(VertexAttributeDesc()
-                        .SetName(name)
-                        .SetBufferIndex(index)
-                        .SetFormat(format)
-                        .SetElementStride(size));
-                }
-            };
-            addAttribute(mesh.psoFlags, kHasPosition, "POSITION", 0, Format::RGB32_FLOAT, sizeof(Math::Vector3));
-            addAttribute(mesh.psoFlags, kHasUV, "TEXCOORD", 1, Format::RG32_FLOAT, sizeof(Math::Vector2));
-            addAttribute(mesh.psoFlags, kHasNormal, "NORMAL", 2, Format::RGB32_FLOAT, sizeof(Math::Vector3));
-            addAttribute(mesh.psoFlags, kHasTangent, "TANGENT", 3, Format::RGBA32_FLOAT, sizeof(Math::Vector4));
-            bool hasTangent = HasFlags(PSOFlags(mesh.psoFlags), kHasTangent);
+            if(auto slot = Mesh::VertexAttributeSlot::Position; mesh.HasVertexAttribute(slot)) {
+                attributes.push_back(mesh.GetVertexAttribute(slot));
+            }
+            if(auto slot = Mesh::VertexAttributeSlot::UV; mesh.HasVertexAttribute(slot)) {
+                attributes.push_back(mesh.GetVertexAttribute(slot));
+            }
+            if(auto slot = Mesh::VertexAttributeSlot::Normal; mesh.HasVertexAttribute(slot)) {
+                attributes.push_back(mesh.GetVertexAttribute(slot));
+            }
+            bool hasTangent = mesh.HasVertexAttribute(Mesh::VertexAttributeSlot::Tangent);
+            if(hasTangent) {
+                attributes.push_back(mesh.GetVertexAttribute(Mesh::VertexAttributeSlot::Tangent));
+            }
             InputLayoutHandle layout = device->CreateInputLayout(attributes, hasTangent ? litVS : litVSNoTangent);
 
-            const auto& blendState = HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend) ? hasBlend : noBlend;
+            const auto& blendState = material.IsTransparent() ? hasBlend : noBlend;
             const auto& depthState = readDepth;
-            const auto& rasterState = HasFlags(PSOFlags(mesh.psoFlags), kBothSide) ? twoSided : defaultRaster;
+            const auto& rasterState = material.IsBothSide() ? twoSided : defaultRaster;
             // 创建渲染配置
             auto shadowFilter = ShadowPass::sm_Setting.directionalSetting.filter;
             ShaderHandle ps = hasTangent ? m_Shaders[size_t(ShaderSlot::LitPS) + shadowFilter] : 
@@ -305,7 +313,7 @@ namespace DSM {
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(1, m_CacheMaterialBuffer))
                 .AddItem(BindingSetItem::Texture_SRV(2, renderRes.GetCommonTexture(CommonTextureSlot::SSAO)))
                 .AddItem(BindingSetItem::ConstantBuffer(0, m_PassCB))
-                .AddItem(BindingSetItem::PushConstants(1, sizeof(int)))
+                .AddItem(BindingSetItem::PushConstants(1, sizeof(PushConstants)))
                 .AddItem(BindingSetItem::ConstantBuffer(2, LightingPass::sm_LightDataBuffer))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(3, LightingPass::sm_DirLightDataBuffer))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_OtherLightDataBuffer))
@@ -317,6 +325,12 @@ namespace DSM {
         }
 
     private:
+        struct PushConstants
+        {
+            int objectIndex;
+            int materialIndex;
+        };
+
         BufferHandle m_PassCB{};
         IBuffer* m_CacheMeshBuffer = nullptr;
         IBuffer* m_CacheMaterialBuffer = nullptr;

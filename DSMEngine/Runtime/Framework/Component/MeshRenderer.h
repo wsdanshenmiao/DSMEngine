@@ -14,28 +14,40 @@ namespace DSM {
         MeshRenderer(std::shared_ptr<GameObject> gameObject)
             : Renderer(gameObject) {}
         virtual ~MeshRenderer() = default;
-    
+
+        const std::shared_ptr<Mesh>& GetMesh() const noexcept { return m_Mesh; }
         void SetMesh(const std::shared_ptr<Mesh>& mesh) noexcept
         { 
             m_Mesh = mesh;
-            if (m_Material != nullptr) {
-                for(size_t i = 0; i < mesh->textures.size(); i++){
-                    m_Material->SetTexture(ShaderResource::MaterialTex(i), mesh->textures[i]);
-				}
-            }
-            SetLocalBounds(mesh->boundingBox);
+            SetLocalBounds(mesh->bounds);
             if(auto obj = m_GameObject.lock(); obj != nullptr){
                 auto transform = obj->GetComponent<TransformComponent>();
                 if(transform != nullptr){
-                    auto worldBounds = mesh->boundingBox * *transform;
+                    auto worldBounds = mesh->bounds * *transform;
                     SetBounds(worldBounds);
                 }
 			}
         }
-        const std::shared_ptr<Mesh>& GetMesh() const noexcept { return m_Mesh; }
+        
+        size_t GetMaterialIndex(size_t subMeshIndex) const noexcept
+        {
+            if(subMeshIndex >= m_SubMeshMaterialIndices.size()) {
+                DSM_CORE_ASSERT(subMeshIndex < m_SubMeshMaterialIndices.size(), "subMeshIndex out of range");
+                return 0;
+            }
+            return m_SubMeshMaterialIndices[subMeshIndex];
+        }
+        void SetMaterialIndex(size_t subMeshIndex, size_t materialIndex) noexcept
+        {
+            if(subMeshIndex >= m_SubMeshMaterialIndices.size()) {
+                m_SubMeshMaterialIndices.resize(subMeshIndex + 1, 0);
+            }
+            m_SubMeshMaterialIndices[subMeshIndex] = materialIndex;
+        }
 
     private:
         std::shared_ptr<Mesh> m_Mesh{};
+        std::vector<size_t> m_SubMeshMaterialIndices{};
     };
 } // namespace DSM
 

@@ -15,6 +15,8 @@ namespace DSM::D3D12{
         const Context& context = device.GetContext();
         assert(queue != nullptr);
 
+        std::lock_guard lock{sm_Mutex};
+
         InternalCommandList* cmdList = nullptr;
         auto& retiredQueue = sm_RetiredCmdLists[(size_t)desc.queueType];
         auto& availedQueue = sm_AvailableCmdLists[(size_t)desc.queueType];
@@ -66,6 +68,8 @@ namespace DSM::D3D12{
     {
         assert(cmdList != nullptr);
 
+        std::lock_guard lock{sm_Mutex};
+
         auto it = std::find_if(sm_CmdListPool.begin(), sm_CmdListPool.end(), 
             [cmdList](const auto& list) {  return list.get() == cmdList; });
         if(it == sm_CmdListPool.end()) return false;
@@ -80,6 +84,8 @@ namespace DSM::D3D12{
 
     void InternalCommandList::Cleanup()
     {
+        std::lock_guard lock{sm_Mutex};
+
         for(int i = 0; i < (int)CommandQueueType::Count; ++i){
             while (!sm_AvailableCmdLists[i].empty()){
                 sm_AvailableCmdLists[i].pop();
@@ -1088,8 +1094,9 @@ namespace DSM::D3D12{
             | D3D12_RESOURCE_STATE_COPY_DEST
             | D3D12_RESOURCE_STATE_COPY_SOURCE );
 
-        const auto& texBarrier = m_StateTracker.GetTextureBarriers();
-        const auto& bufferBarrier = m_StateTracker.GetBufferBarriers();
+        std::vector<TextureBarrier> texBarrier{};
+        std::vector<BufferBarrier> bufferBarrier{};
+        m_StateTracker.ConsumeBarriers(texBarrier, bufferBarrier);
         size_t barrierCount = texBarrier.size() + bufferBarrier.size();
         if(barrierCount == 0) return;
 
@@ -1159,8 +1166,6 @@ namespace DSM::D3D12{
         if(barriers.size() > 0){
             m_CurrCmdList->cmdList->ResourceBarrier(barriers.size(), barriers.data());
         }
-
-        m_StateTracker.ClearBarriers();
     }
 
     IDevice *CommandList::GetDevice()

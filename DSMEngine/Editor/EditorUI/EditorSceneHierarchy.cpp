@@ -1,9 +1,11 @@
 #include "EditorSceneHierarchy.h"
 #include "Editor/EditorUI/EditorUI.h"
 #include "Runtime/Framework/Scene.h"
+#include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Event/KeyEvent.h"
+
 #include <numbers>
 
 namespace DSM{

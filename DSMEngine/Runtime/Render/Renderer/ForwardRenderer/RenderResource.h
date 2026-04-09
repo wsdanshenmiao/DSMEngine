@@ -85,19 +85,21 @@ namespace DSM {
             return m_CommonTextures[slot];
         }
 
-        inline BufferHandle& GetMeshBuffer() { return m_MeshBuffer; }
-        inline BufferHandle& GetMaterialBuffer() { return m_MaterialBuffer; }
+        inline BufferHandle& GetMeshBuffer() noexcept { return m_MeshBuffer; }
+        inline BufferHandle& GetMaterialBuffer() noexcept { return m_MaterialBuffer; }
 
-        inline FramebufferHandle& GetFramebuffer() { return m_Framebuffer; }
+        inline FramebufferHandle& GetFramebuffer() noexcept { return m_Framebuffer; }
 
-        inline BindingLayoutHandle& GetTextureBindlessLayout() { return m_TextureBindlessLayout; }
-        inline DescriptorTableHandle& GetTextureBindlessTable() { return m_TextureBindlessTable; }
+        inline BindingLayoutHandle& GetTextureBindlessLayout() noexcept { return m_TextureBindlessLayout; }
+        inline DescriptorTableHandle& GetTextureBindlessTable() noexcept { return m_TextureBindlessTable; }
 
-        inline auto& GetObjectInFrustum() { return m_ObjInFrustum; }
-        inline auto& GetOpaqueObjects() { return m_OpaqueObjects; }
-        inline auto& GetTransparentObjects() { return m_TransparentObjects; }
+        inline const auto& GetObjectInFrustum() noexcept { return m_ObjInFrustum; }
+        inline const auto& GetOpaqueObjects() noexcept { return m_OpaqueObjects; }
+        inline const auto& GetTransparentObjects() noexcept { return m_TransparentObjects; }
+        inline const auto& GetObjectIndex() noexcept { return m_ObjectIndex; }
+        inline const auto& GetObjectMaterialIndex() noexcept { return m_ObjectMaterialIndex; }
 
-        inline Math::BVHTree& GetBVH() { return m_BVH; }
+        inline Math::BVHTree& GetBVH() noexcept { return m_BVH; }
 
         inline uint64_t GetRenderPassFinishFence(RenderPass pass) const { return m_RenderPassFinishFence[(size_t)pass]; }
 
@@ -131,9 +133,11 @@ namespace DSM {
 
         // 场景中的物体
         Math::BVHTree m_BVH;
-        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_OpaqueObjects{};
-        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_TransparentObjects{};
-        std::vector<std::pair<size_t, std::shared_ptr<GameObject>>> m_ObjInFrustum{};
+        std::vector<std::shared_ptr<GameObject>> m_OpaqueObjects{};
+        std::vector<std::shared_ptr<GameObject>> m_TransparentObjects{};
+        std::vector<std::shared_ptr<GameObject>> m_ObjInFrustum{};
+        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_ObjectIndex{};
+        std::unordered_map<std::shared_ptr<GameObject>, std::vector<size_t>> m_ObjectMaterialIndex{};
         
         BufferHandle m_MeshBuffer{};
         BufferHandle m_MaterialBuffer{};

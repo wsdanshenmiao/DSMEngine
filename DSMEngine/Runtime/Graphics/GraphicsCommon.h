@@ -838,7 +838,7 @@ namespace DSM {
 
     public:
         // 通过该接口传递消息
-        virtual void Message(MessageSeverity severity, const char* messageText) = 0;
+        virtual void Message(MessageSeverity severity, const char* messageText) const = 0;
 
         IMessageCallback(const IMessageCallback&) = delete;
         IMessageCallback(const IMessageCallback&&) = delete;

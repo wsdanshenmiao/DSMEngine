@@ -209,7 +209,7 @@ namespace DSM {
             dstRenderer->SetCastShadow(meshRenderer.CastShadow());
             dstRenderer->SetReceiveShadow(meshRenderer.ReceiveShadow());
             dstRenderer->SetEnabled(meshRenderer.IsEnabled());
-            dstRenderer->SetMaterial(meshRenderer.GetMaterial());
+            dstRenderer->SetMaterials(meshRenderer.GetMaterials());
             if (auto mesh = meshRenderer.GetMesh(); mesh != nullptr) {
                 dstRenderer->SetMesh(mesh);
             }

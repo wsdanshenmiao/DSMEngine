@@ -4,14 +4,14 @@
 
 
 #include "Runtime/Framework/Scene.h"
-#include "Runtime/Framework/Object/GameObject.h"
-#include "Runtime/Framework/Component/TransformComponent.h"
-#include "Runtime/Framework/Component/CameraComponent.h"
+#include "Runtime/Framework/Scene.h"
+#include "Runtime/Render/Model.h"
 #include "Runtime/Framework/Component/Light.h"
+#include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/MeshRenderer.h"
 #include "Runtime/Framework/Component/NativeScript.h"
-#include "Runtime/Render/ModelLoader.h"
-#include "Runtime/Framework/Scene.h"
+#include "Runtime/Framework/Component/CameraComponent.h"
+#include "Runtime/Framework/Component/TransformComponent.h"
 #include "Editor/Project.h"
 
 

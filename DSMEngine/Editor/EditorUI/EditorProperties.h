@@ -3,7 +3,7 @@
 #define __EDITOR_PROPERTIES_H__
 
 #include "Editor/EditorUI/Widget.h"
-#include "Editor/EditorUI/ComponentDrawer.h"
+#include "Editor/EditorUI/ComponentDrawer/CameraDrawer.h"
 
 namespace DSM {
     class EditorProperties : public Widget

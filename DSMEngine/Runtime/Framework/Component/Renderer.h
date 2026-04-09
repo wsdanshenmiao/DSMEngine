@@ -19,8 +19,16 @@ namespace DSM {
 		void SetBounds(const Math::AxisAlignedBox& bounds) noexcept { m_Bouns = bounds; }
 		void SetLocalBounds(const Math::AxisAlignedBox& localBounds) noexcept { m_LocalBounds = localBounds; }
 
-        std::shared_ptr<Material> GetMaterial() const noexcept { return m_Material; }
-        void SetMaterial(const std::shared_ptr<Material>& material) noexcept { m_Material = material; }
+        std::shared_ptr<Material> GetMaterial(size_t index) const noexcept { return m_Materials[index]; }
+        const std::vector<std::shared_ptr<Material>>& GetMaterials() const noexcept { return m_Materials; }
+        void SetMaterial(size_t index, const std::shared_ptr<Material>& material) noexcept
+        { 
+            if(index >= m_Materials.size()) {
+                m_Materials.resize(index + 1);
+            }
+            m_Materials[index] = material;
+        }
+        void SetMaterials(std::vector<std::shared_ptr<Material>> materials) noexcept { m_Materials = std::move(materials); }
 
         uint32_t GetRenderLayer() const noexcept { return m_RenderLayer; }
         void SetRenderLayer(uint32_t layer) noexcept { m_RenderLayer = layer; }
@@ -38,7 +46,7 @@ namespace DSM {
         Math::AxisAlignedBox m_Bouns{};
         // 局部空间的包围盒
         Math::AxisAlignedBox m_LocalBounds{};
-        std::shared_ptr<Material> m_Material{};
+        std::vector<std::shared_ptr<Material>> m_Materials{};
         uint32_t m_RenderLayer = 0;
         bool m_CastShadow = true;
         bool m_ReceiveShadow = true;

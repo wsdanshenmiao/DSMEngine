@@ -4,6 +4,7 @@
 
 #include "Runtime/Graphics/Texture.h"
 #include "Runtime/Graphics/Buffer.h"
+#include <mutex>
 #include <unordered_map>
 
 
@@ -64,16 +65,19 @@ namespace DSM {
         void KeepTextureInitialStates();
         void KeepBufferInitialStates();
 
-        [[nodiscard]] const std::vector<TextureBarrier>& GetTextureBarriers() const { return m_TextureBarriers; }
-        [[nodiscard]] const std::vector<BufferBarrier>& GetBufferBarriers() const { return m_BufferBarriers; }
-        void ClearBarriers();
+        void ConsumeBarriers(std::vector<TextureBarrier>& textureBarriers, std::vector<BufferBarrier>& bufferBarriers);
 
     private:
-        TesxtureState* GetInternalTextureState(ITexture* texture);
-        BufferState* GetInternalBufferState(IBuffer* buffer);
+        TesxtureState* GetInternalTextureStateNoLock(ITexture* texture) const;
+        BufferState* GetInternalBufferStateNoLock(IBuffer* buffer) const;
+        void RequireTextureStateNoLock(ITexture* texture, TextureSubresourceSet subresources, ResourceStates state);
+        void RequireBufferStateNoLock(IBuffer* buffer, ResourceStates state);
 
     private:
         IMessageCallback* m_Callback;
+
+        mutable std::mutex m_TextureMutex{};
+        mutable std::mutex m_BufferMutex{};
 
         // 记录各个资源的状态
         std::unordered_map<ITexture*, std::unique_ptr<TesxtureState>> m_TextureStates{};

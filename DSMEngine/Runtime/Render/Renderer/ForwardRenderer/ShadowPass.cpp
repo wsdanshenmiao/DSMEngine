@@ -62,9 +62,9 @@ namespace DSM {
         std::array<VertexAttributeDesc, 2> vertexDescs = {
             VertexAttributeDesc()
                 .SetName("POSITION")
-                .SetFormat(Format::RGBA32_FLOAT)
+                .SetFormat(Format::RGB32_FLOAT)
                 .SetBufferIndex(0)
-                .SetElementStride(sizeof(Math::Vector4)),
+                .SetElementStride(sizeof(Math::Vector3)),
             VertexAttributeDesc()
                 .SetName("TEXCOORD")
                 .SetFormat(Format::RG32_FLOAT)
@@ -281,37 +281,51 @@ namespace DSM {
             .AddItem(BindingSetItem().Sampler(sampleIndex, renderRes.GetCommonSampler(sampleIndex)))
             , m_ShadowBindingLayout);
 
-        for(const auto& [obj, index] : renderRes.GetOpaqueObjects()){
+        auto allObj = std::array{renderRes.GetOpaqueObjects(), renderRes.GetTransparentObjects()} | std::views::join;
+        auto state = GraphicsState{}
+            .AddBindingSet(bindingSet, 0)
+            .SetFramebuffer(m_ShadowFramebuffer)
+            .SetViewport(ViewportState().AddViewportAndScissorRect(viewport));
+        for(const auto& obj : allObj){
             auto meshRenderer = obj->GetComponent<MeshRenderer>();
-            if(meshRenderer == nullptr || meshRenderer->GetMesh() == nullptr)
+            if(meshRenderer == nullptr)
                 continue;
-            auto& mesh = *meshRenderer->GetMesh();
-            
-            bool alphaClip = HasFlags(PSOFlags(mesh.psoFlags), PSOFlags::kAlphaBlend);
-            size_t baseIndex = alphaClip ? 0 : ShadowSetting::FilterMode::Count;
-            const auto& pipeline = m_ShadowPipeline[baseIndex + sm_Setting.directionalSetting.filter];
 
-            GraphicsState state{};
-            state.SetFramebuffer(m_ShadowFramebuffer)
-                .SetPipeline(pipeline)
-                .SetViewport(ViewportState().AddViewportAndScissorRect(viewport))
-                .SetIndexBuffer(mesh.indexBufferViews)
-                .AddVertexBuffer(mesh.positionStream)
-                .AddVertexBuffer(mesh.uvStream)
-                .AddBindingSet(bindingSet, 0);
-            if(alphaClip){
-                state.AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
+            auto mesh = meshRenderer->GetMesh();
+            if(mesh == nullptr)
+                continue;
+
+            for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
+                auto matIndex = meshRenderer->GetMaterialIndex(subMeshIndex);
+                auto material = meshRenderer->GetMaterial(matIndex);
+                if(material == nullptr)
+                    continue;
+                size_t baseIndex = material->IsTransparent() ? 0 : ShadowSetting::FilterMode::Count;
+                const auto& pipeline = m_ShadowPipeline[baseIndex + sm_Setting.directionalSetting.filter];
+
+                state.vertexBuffers.resize(0);
+                state.SetPipeline(pipeline)
+                    .SetIndexBuffer(mesh->GetIndexBufferBinding(subMeshIndex));
+                if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)){
+                    state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                }
+                if(auto slot = Mesh::VertexAttributeSlot::UV; mesh->HasVertexAttribute(slot)){
+                    state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                }
+                if(material->IsTransparent()){
+                    state.AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
+                }
+
+                m_CmdList->SetGraphicsState(state);
+
+                int objectIndex = int(renderRes.GetObjectIndex().at(obj));
+                m_CmdList->SetPushConstants(&objectIndex, sizeof(int));
+
+                m_CmdList->DrawIndexed(DrawArguments()
+                    .SetVertexCount(mesh->GetIndexCount(subMeshIndex))
+                    .SetStartIndexLocation(mesh->GetIndexOffset(subMeshIndex))
+                    .SetStartVertexLocation(mesh->GetVertexOffset(subMeshIndex)));
             }
-
-            m_CmdList->SetGraphicsState(state);
-
-            int objectIndex = int(index);
-            m_CmdList->SetPushConstants(&objectIndex, sizeof(int));
-
-            m_CmdList->DrawIndexed(DrawArguments()
-                .SetVertexCount(mesh.indexCount)
-                .SetStartIndexLocation(mesh.indexOffset)
-                .SetStartVertexLocation(mesh.vertexOffset));
         }
     }
 

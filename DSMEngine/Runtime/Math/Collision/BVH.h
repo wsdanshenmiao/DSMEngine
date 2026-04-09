@@ -94,7 +94,7 @@ namespace DSM::Math {
         {
             if (object == nullptr)
                 return nullptr;
-            auto [transform, renderer] = object->GetComponent<Transform, MeshRenderer>();
+            auto [transform, renderer] = object->GetComponent<TransformComponent, MeshRenderer>();
             if(transform == nullptr || renderer == nullptr)
                 return nullptr;
             
@@ -204,7 +204,7 @@ namespace DSM::Math {
                 return;
             
             auto renderer = object->GetComponent<MeshRenderer>();
-            auto transform = object->GetComponent<Transform>();
+            auto transform = object->GetComponent<TransformComponent>();
             if(renderer == nullptr || transform == nullptr)
                 return;
 

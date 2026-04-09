@@ -16,7 +16,7 @@ namespace DSM{
 
     void PostEffectManager::AddPostEffect(std::unique_ptr<IPostEffect> postEffect)
     {
-        DSM_ASSERT(postEffect != nullptr, "Post effect cannot be null");
+        DSM_CORE_ASSERT(postEffect != nullptr, "Post effect cannot be null");
         m_PostEffects.push_back(std::move(postEffect));
 
         std::sort(m_PostEffects.begin(), m_PostEffects.end(), [](const std::unique_ptr<IPostEffect>& lhs, const std::unique_ptr<IPostEffect>& rhs) {

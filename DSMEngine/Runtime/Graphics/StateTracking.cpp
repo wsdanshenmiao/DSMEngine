@@ -6,13 +6,16 @@ namespace DSM{
         return mipLevel + arraySlice * desc.mipLevels;
     }
 
-    void ResourceStateTracker::ClearBarriers()
+    void ResourceStateTracker::ConsumeBarriers(std::vector<TextureBarrier>& textureBarriers, std::vector<BufferBarrier>& bufferBarriers)
     {
+        std::scoped_lock lock(m_TextureMutex, m_BufferMutex);
+        textureBarriers = std::move(m_TextureBarriers);
+        bufferBarriers = std::move(m_BufferBarriers);
         m_TextureBarriers.clear();
         m_BufferBarriers.clear();
     }
 
-    TesxtureState *ResourceStateTracker::GetInternalTextureState(ITexture *texture)
+    TesxtureState *ResourceStateTracker::GetInternalTextureStateNoLock(ITexture *texture) const
     {
         TesxtureState* ret{};
         if(auto it = m_TextureStates.find(texture); it != m_TextureStates.end()){
@@ -25,7 +28,7 @@ namespace DSM{
         return ret;
     }
     
-    BufferState *ResourceStateTracker::GetInternalBufferState(IBuffer *buffer)
+    BufferState *ResourceStateTracker::GetInternalBufferStateNoLock(IBuffer *buffer) const
     {
         BufferState* ret{};
         if(auto it = m_BufferStates.find(buffer); it != m_BufferStates.end()){
@@ -41,6 +44,7 @@ namespace DSM{
     void ResourceStateTracker::RegisterBuffer(IBuffer *buffer)
     {
         assert(buffer != nullptr);
+        std::lock_guard lock(m_BufferMutex);
         if(!m_BufferStates.contains(buffer)){
             m_BufferStates[buffer] = std::make_unique<BufferState>();
             m_BufferStates[buffer]->state = buffer->GetDesc().initialState;
@@ -54,6 +58,7 @@ namespace DSM{
     void ResourceStateTracker::RegisterTexture(ITexture *texture)
     {
         assert(texture != nullptr);
+        std::lock_guard lock(m_TextureMutex);
         if(!m_TextureStates.contains(texture)){
             m_TextureStates[texture] = std::make_unique<TesxtureState>();
             m_TextureStates[texture]->state = texture->GetDesc().initialState;
@@ -67,6 +72,7 @@ namespace DSM{
     void ResourceStateTracker::UnregisterBuffer(IBuffer *buffer)
     {
         assert(buffer != nullptr);
+        std::lock_guard lock(m_BufferMutex);
         if(m_BufferStates.contains(buffer)){
             m_BufferStates.erase(buffer);
             if(const auto& desc = buffer->GetDesc(); desc.keepInitialState && !desc.isVolatile){
@@ -78,6 +84,7 @@ namespace DSM{
     void ResourceStateTracker::UnregisterTexture(ITexture *texture)
     {
         assert(texture != nullptr);
+        std::lock_guard lock(m_TextureMutex);
         if(m_TextureStates.contains(texture)){
             m_TextureStates.erase(texture);
             if(const auto& desc = texture->GetDesc(); desc.keepInitialState){
@@ -89,7 +96,8 @@ namespace DSM{
     ResourceStates ResourceStateTracker::GetTextureSubresourceState(ITexture *texture, uint32_t mipLevel, uint32_t arraySlice)
     {
         const auto& desc = texture->GetDesc();
-        TesxtureState* texState = GetInternalTextureState(texture);
+        std::lock_guard lock(m_TextureMutex);
+        TesxtureState* texState = GetInternalTextureStateNoLock(texture);
         if(texState == nullptr){
             return desc.keepInitialState ? desc.initialState : ResourceStates::Unknown;
         }
@@ -103,7 +111,8 @@ namespace DSM{
     
     ResourceStates ResourceStateTracker::GetBufferState(IBuffer *buffer)
     {
-        BufferState* bufferState = GetInternalBufferState(buffer);
+        std::lock_guard lock(m_BufferMutex);
+        BufferState* bufferState = GetInternalBufferStateNoLock(buffer);
         if(bufferState == nullptr){
             return buffer->GetDesc().keepInitialState ? 
                 buffer->GetDesc().initialState : ResourceStates::Unknown;
@@ -113,24 +122,32 @@ namespace DSM{
     
     void ResourceStateTracker::SetEnableUavBarrierForTexture(ITexture *texture, bool enable)
     {
-        TesxtureState* state = GetInternalTextureState(texture);
+        std::lock_guard lock(m_TextureMutex);
+        TesxtureState* state = GetInternalTextureStateNoLock(texture);
         state->enableUavBarriers = enable;
         state->firstUavBarrierPlaced = false;
     }
 
     void ResourceStateTracker::SetEnableUavBarrierForBuffer(IBuffer * buffer, bool enable)
     {
-        BufferState* state = GetInternalBufferState(buffer);
+        std::lock_guard lock(m_BufferMutex);
+        BufferState* state = GetInternalBufferStateNoLock(buffer);
         state->enableUavBarriers = enable;
         state->firstUavBarrierPlaced = false;
     }
     
     void ResourceStateTracker::RequireTextureState(ITexture *texture, TextureSubresourceSet subresources, ResourceStates state)
     {
+        std::lock_guard lock(m_TextureMutex);
+        RequireTextureStateNoLock(texture, subresources, state);
+    }
+
+    void ResourceStateTracker::RequireTextureStateNoLock(ITexture *texture, TextureSubresourceSet subresources, ResourceStates state)
+    {
         const auto& desc = texture->GetDesc();
         subresources = subresources.Resolve(desc, false);
 
-        TesxtureState* texState = GetInternalTextureState(texture);
+        TesxtureState* texState = GetInternalTextureStateNoLock(texture);
 
         if(subresources.IsEntireTexture(desc) && texState->subresourceStates.empty()){
             bool needTransition = texState->state != state;
@@ -198,13 +215,19 @@ namespace DSM{
     
     void ResourceStateTracker::RequireBufferState(IBuffer *buffer, ResourceStates state)
     {
+        std::lock_guard lock(m_BufferMutex);
+        RequireBufferStateNoLock(buffer, state);
+    }
+
+    void ResourceStateTracker::RequireBufferStateNoLock(IBuffer *buffer, ResourceStates state)
+    {
         assert(buffer != nullptr);
         const auto& desc = buffer->GetDesc();
         
         // Cpu 可见的 Buffer 不可转换状态
         if(desc.cpuAccess != CpuAccessMode::None) return;
 
-        BufferState* bufferState = GetInternalBufferState(buffer);
+        BufferState* bufferState = GetInternalBufferStateNoLock(buffer);
         
         bool needTransition = bufferState->state != state;
         bool needUav = HasFlags(state, ResourceStates::UnorderedAccess) &&
@@ -238,15 +261,17 @@ namespace DSM{
 
     void ResourceStateTracker::KeepTextureInitialStates()
     {
+        std::lock_guard stateLock(m_TextureMutex);
         for(auto& texture : m_KeepInitialStatesTextures){
-            RequireTextureState(texture, AllSubresources, texture->GetDesc().initialState);
+            RequireTextureStateNoLock(texture, AllSubresources, texture->GetDesc().initialState);
         }
     }
 
     void ResourceStateTracker::KeepBufferInitialStates()
     {
+            std::lock_guard stateLock(m_BufferMutex);
         for(auto& buffer : m_KeepInitialStatesBuffers){
-            RequireBufferState(buffer, buffer->GetDesc().initialState);
+            RequireBufferStateNoLock(buffer, buffer->GetDesc().initialState);
         }
     }
 }

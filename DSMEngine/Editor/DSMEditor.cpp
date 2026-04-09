@@ -26,6 +26,7 @@ namespace DSM{
                     renderer->ResizeRenderTexture(m_ResizeWidth, m_ResizeHeight);
                 }
                 m_ShouldResizeRenderer = false;
+                m_ResizeWidth = m_ResizeHeight = 0;
             }
             m_Engine->Run();
         }

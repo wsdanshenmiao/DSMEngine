@@ -45,9 +45,11 @@ namespace DSM{
 
     void RenderResource::UpdateRenderResource(const Camera& camera)
     {
+        m_ObjectIndex.clear();
         m_ObjInFrustum.clear();
         m_OpaqueObjects.clear();
         m_TransparentObjects.clear();
+        m_ObjectMaterialIndex.clear();
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
         auto objView = scene->GetObjectsWithComponents<MeshRenderer, TransformComponent>();
@@ -55,29 +57,17 @@ namespace DSM{
             return;
         }
 
-        // 为所有的物体生成 MeshBuffer 和 MaterialBuffer
-        auto resizeBuffer = [this, &objView] <typename T> (BufferHandle& buffer){
-            auto bufferSize = sizeof(T) * objView.size_hint();
-            bool isNull = buffer == nullptr;
-            if(isNull || bufferSize > buffer->GetDesc().byteSize){
-                buffer = m_Device->CreateBuffer(BufferDesc()
-                    .SetByteSize(isNull ? bufferSize : std::max(1zu, buffer->GetDesc().byteSize * 2))
-                    .SetStructStride(sizeof(T))
-                    .SetDebugName(typeid(T).name()));
-            }
-        };
-        resizeBuffer.operator()<ShaderResource::MeshData>(m_MeshBuffer);
-        resizeBuffer.operator()<ShaderResource::MaterialData>(m_MaterialBuffer);
-
         // 保存需要从 BVH 中删除的物体，当当前物体在 BVH 中存在时，从 BVH 中删除
         auto objShouldBeErase = m_BVH.GetLeafNodes();
         std::vector<ShaderResource::MeshData> meshDataArr{};
         std::vector<ShaderResource::MaterialData> matDataArr{};
+        std::unordered_map<std::shared_ptr<Material>, size_t> matMap{};
         meshDataArr.reserve(objView.size_hint());
         matDataArr.reserve(objView.size_hint());
         for(auto [id, meshRenderer, transform] : objView.each()){
             auto obj = scene->GetObjectByID(id).lock();
-            if (obj == nullptr || meshRenderer.GetMesh() == nullptr)
+            auto mesh = meshRenderer.GetMesh();
+            if (obj == nullptr || mesh == nullptr)
                 continue;
 
             auto objIndex = std::size(m_OpaqueObjects) + std::size(m_TransparentObjects);
@@ -93,44 +83,57 @@ namespace DSM{
                 }
             }
             else {
-                m_ObjInFrustum.push_back({objIndex, obj});
-            }
-
-            ShaderResource::MaterialData material{};
-            if(auto meshMat = meshRenderer.GetMaterial(); meshMat != nullptr){
-                material.baseColor = meshMat->GetBaseColor();
-                material.emissiveColor = meshMat->GetEmissiveColor();
-                material.normalTexScale = meshMat->GetNormalTexScale();
-                material.metallicFactor = meshMat->GetMetallicFactor();
-                material.roughnessFactor = meshMat->GetRoughnessFactor();
-            }
-            else{
-                material.baseColor = {1, 1, 1, 1};
-                material.emissiveColor = {0, 0, 0, 0};
-                material.normalTexScale = 1.0f;
-                material.metallicFactor = 0.0f;
-                material.roughnessFactor = 1.0f;
-            }
-            for (const auto& [index, tex] : meshRenderer.GetMesh()->textures | std::views::enumerate) {
-                if (auto texSize = std::size(m_Textures); !m_Textures.contains(tex)) {
-                    m_Textures[tex] = texSize;
-                    if (m_TextureBindlessTable->GetCapacity() < std::size(m_Textures)) {
-                        // 扩大描述符表的大小
-                        m_Device->ResizeDescriptorTable(m_TextureBindlessTable, std::max(texSize * 2, 1zu));
-                    }
-                    m_Device->WriteDescriptorTable(m_TextureBindlessTable, BindingSetItem::Texture_SRV(texSize, tex));
-                }
-                material.textureIndex[index] = m_Textures[tex];
+                m_ObjInFrustum.push_back(obj);
             }
 
             ShaderResource::MeshData meshData{};
             meshData.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
             meshData.worldIT = Math::Matrix4::Inverse(meshData.world);
             meshDataArr.push_back(std::move(meshData));
-            matDataArr.push_back(material);
+            m_ObjectIndex[obj] = objIndex;
 
-            auto& objects = HasFlags(PSOFlags{meshRenderer.GetMesh()->psoFlags}, kAlphaBlend) ? m_TransparentObjects : m_OpaqueObjects;
-            objects[obj] = objIndex;
+            bool isTransparent = false;
+            for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
+                size_t matIndex = meshRenderer.GetMaterialIndex(subMeshIndex);
+                auto material = meshRenderer.GetMaterial(matIndex);
+                if(material == nullptr){
+                    material = std::make_shared<Material>(Shader::Find("Shaders/ForwardShader/Passes/LitPass.hlsl"));
+                    meshRenderer.SetMaterial(matIndex, material);
+                }
+
+                if(auto it = matMap.find(material); it != std::end(matMap)){
+                    m_ObjectMaterialIndex[obj].push_back(it->second);
+                }
+                else{
+                    matIndex = matMap[material] = matMap.size();
+                    m_ObjectMaterialIndex[obj].push_back(matIndex);
+
+                    ShaderResource::MaterialData matData{};
+                    matData.baseColor = material->GetBaseColor();
+                    matData.emissiveColor = material->GetEmissiveColor();
+                    matData.normalTexScale = material->GetNormalTexScale();
+                    matData.metallicFactor = material->GetMetallicFactor();
+                    matData.roughnessFactor = material->GetRoughnessFactor();
+
+                    for (const auto& [index, tex] : material->GetTextures() | std::views::enumerate) {
+                        if (auto texSize = std::size(m_Textures); !m_Textures.contains(tex)) {
+                            m_Textures[tex] = texSize;
+                            if (m_TextureBindlessTable->GetCapacity() < std::size(m_Textures)) {
+                                // 扩大描述符表的大小
+                                m_Device->ResizeDescriptorTable(m_TextureBindlessTable, std::max(texSize * 2, 1zu));
+                            }
+                            m_Device->WriteDescriptorTable(m_TextureBindlessTable, BindingSetItem::Texture_SRV(texSize, tex));
+                        }
+                        matData.textureIndex[index] = m_Textures[tex];
+                    }
+                    matDataArr.push_back(matData);
+                }
+
+                isTransparent |= material->IsTransparent();
+            }
+
+            auto& objects = isTransparent ? m_TransparentObjects : m_OpaqueObjects;
+            objects.push_back(obj);
         }
 
         // 移除不在场景中的物体
@@ -150,12 +153,7 @@ namespace DSM{
 
             if (cameraFrustum.Intersects(node->bounds)) {
                 if (node->object != nullptr) {
-                    if(auto it = m_OpaqueObjects.find(node->object); it != std::end(m_OpaqueObjects)){
-                        m_ObjInFrustum.push_back({it->second, node->object});
-                    }
-                    else if(auto it = m_TransparentObjects.find(node->object); it != std::end(m_TransparentObjects)){
-                        m_ObjInFrustum.push_back({it->second, node->object});
-                    }
+                    m_ObjInFrustum.push_back(node->object);
                 }
                 if(node->left != nullptr)
                     stack.push(node->left);
@@ -163,6 +161,20 @@ namespace DSM{
                     stack.push(node->right);
             }
         }
+
+        // 为所有的物体生成 MeshBuffer 和 MaterialBuffer
+        auto resizeBuffer = [this] <typename T> (BufferHandle& buffer, const std::vector<T>& dataArr) {
+            auto bufferSize = sizeof(T) * dataArr.size();
+            bool isNull = buffer == nullptr;
+            if(isNull || bufferSize > buffer->GetDesc().byteSize){
+                buffer = m_Device->CreateBuffer(BufferDesc()
+                    .SetByteSize(isNull ? bufferSize : std::max(1zu, buffer->GetDesc().byteSize * 2))
+                    .SetStructStride(sizeof(T))
+                    .SetDebugName(typeid(T).name()));
+            }
+        };
+        resizeBuffer(m_MeshBuffer, meshDataArr);
+        resizeBuffer(m_MaterialBuffer, matDataArr);
 
         m_CmdList->Open();
         m_CmdList->WriteBuffer(m_MeshBuffer, meshDataArr.data(), meshDataArr.size() * sizeof(ShaderResource::MeshData));

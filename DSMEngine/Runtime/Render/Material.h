@@ -52,6 +52,15 @@ namespace DSM {
         TextureHandle GetTexture(ShaderResource::MaterialTex index) const noexcept { return m_Textures[index]; }
         void SetTexture(ShaderResource::MaterialTex index, const TextureHandle& texture) noexcept { m_Textures[index] = texture; }
 
+        inline auto GetTextures() const noexcept { return m_Textures; }
+        inline void SetTextures(std::array<TextureHandle, ShaderResource::kNumTextures> tex) noexcept { m_Textures = std::move(tex); }
+
+        inline bool IsBothSide() const noexcept { return m_BothSide; }
+        inline void SetBothSide(bool bothSide) noexcept { m_BothSide = bothSide; }
+
+        inline bool IsTransparent() const noexcept { return m_Transparent; }
+        inline void SetTransparent(bool transparent) noexcept { m_Transparent = transparent; }
+
     private:
         std::shared_ptr<Shader> m_Shader{};
         
@@ -61,6 +70,9 @@ namespace DSM {
         float m_NormalTexScale{1.0f};
         float m_MetallicFactor{0.0f};
         float m_RoughnessFactor{1.0f};
+
+        bool m_BothSide{false};
+        bool m_Transparent{false};
     };
 } // namespace DSM
 

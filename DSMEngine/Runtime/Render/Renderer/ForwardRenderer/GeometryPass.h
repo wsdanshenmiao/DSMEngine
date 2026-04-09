@@ -24,9 +24,9 @@ namespace DSM {
             std::array<VertexAttributeDesc, 2> attributes = {
                 VertexAttributeDesc()
                     .SetName("POSITION")
-                    .SetFormat(Format::RGBA32_FLOAT)
+                    .SetFormat(Format::RGB32_FLOAT)
                     .SetBufferIndex(0)
-                    .SetElementStride(sizeof(Math::Vector4)),
+                    .SetElementStride(sizeof(Math::Vector3)),
                 VertexAttributeDesc()
                     .SetName("NORMAL")
                     .SetFormat(Format::RGB32_FLOAT)
@@ -95,42 +95,45 @@ namespace DSM {
                 m_CacheMeshBuffer = meshBuffer;
             }
 
-            for(const auto& [index, obj] : RenderResource::GetInstance().GetObjectInFrustum()){
+            GraphicsState state = GraphicsState()
+                .SetPipeline(m_Pipeline)
+                .SetFramebuffer(m_Framebuffer)
+                .AddBindingSet(m_BindingSet, 0)
+                .SetViewport(ViewportState().
+                    AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()));
+            for(const auto& obj : RenderResource::GetInstance().GetObjectInFrustum()){
+                int objIndex = RenderResource::GetInstance().GetObjectIndex().at(obj);
                 auto meshRenderer = obj->GetComponent<MeshRenderer>();
-                if(meshRenderer == nullptr || meshRenderer->GetMesh() == nullptr)
+                if(meshRenderer == nullptr)
                     continue;
-                auto& mesh = *meshRenderer->GetMesh();
-
-                // 透明物体不需要渲染深度
-                if(HasFlags(PSOFlags(mesh.psoFlags), kAlphaBlend))
+                auto mesh = meshRenderer->GetMesh();
+                if(mesh == nullptr)
                     continue;
 
-                GraphicsState state = GraphicsState()
-                    .SetFramebuffer(m_Framebuffer)
-                    .SetPipeline(m_Pipeline)
-                    .SetViewport(ViewportState().
-                        AddViewportAndScissorRect(renderer.GetCamera().GetViewPort()))
-                    .SetIndexBuffer(mesh.indexBufferViews)
-                    .AddBindingSet(m_BindingSet, 0);
-                if(HasFlags(PSOFlags(mesh.psoFlags), kHasPosition)){
-                    state.AddVertexBuffer(mesh.positionStream);
+                for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
+                    auto matIndex = meshRenderer->GetMaterialIndex(subMeshIndex);
+                    auto material = meshRenderer->GetMaterial(matIndex);
+                    // 透明物体不需要渲染深度
+                    if(material->IsTransparent())
+                        continue;
+
+                    state.vertexBuffers.resize(0);
+                    state.SetIndexBuffer(mesh->GetIndexBufferBinding(subMeshIndex));
+                    if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)){
+                        state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+                    }
+                    if(auto slot = Mesh::VertexAttributeSlot::Normal; mesh->HasVertexAttribute(slot)){
+                        state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot).SetSlot(1));
+                    }
+                    cmdList->SetGraphicsState(state);
+                    cmdList->SetPushConstants(&objIndex, sizeof(int));
+
+                    // 绘制
+                    cmdList->DrawIndexed(DrawArguments{}
+                        .SetStartIndexLocation(mesh->GetIndexOffset(subMeshIndex))
+                        .SetStartVertexLocation(mesh->GetVertexOffset(subMeshIndex))
+                        .SetVertexCount(mesh->GetIndexCount(subMeshIndex)));
                 }
-                auto vertexBinding = mesh.normalStream;
-                vertexBinding.SetSlot(1);
-                if(HasFlags(PSOFlags(mesh.psoFlags), kHasNormal)){
-                    state.AddVertexBuffer(vertexBinding);
-                }
-
-                cmdList->SetGraphicsState(state);
-
-                int objIndex = index;
-                cmdList->SetPushConstants(&objIndex, sizeof(int));
-
-                // 绘制
-                cmdList->DrawIndexed(DrawArguments{}
-                    .SetStartIndexLocation(mesh.indexOffset)
-                    .SetStartVertexLocation(mesh.vertexOffset)
-                    .SetVertexCount(mesh.indexCount));
             }
 
             cmdList->SetTextureState(fbDesc.colorAttachments[0].texture, AllSubresources, ResourceStates::ShaderResource);

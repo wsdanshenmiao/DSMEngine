@@ -12,7 +12,8 @@ Texture2D gTextures[] : register(t0, space1);
 
 cbuffer ObjectConstants : register(b1)
 {
-    int objIndex;
+    int gObjIndex;
+    int gMaterialIndex;
 }
 
 
@@ -44,7 +45,7 @@ Varyings LitPassVS(Attributes i)
 {
     Varyings o;
 
-    ShaderResource::MeshData meshData = gMeshBuffer[objIndex];
+    ShaderResource::MeshData meshData = gMeshBuffer[gObjIndex];
     float4x4 viewProj = mul(gPassConstants.view, gPassConstants.proj);
 
     float4 posWS = mul(float4(i.posOS, 1), meshData.world);
@@ -65,7 +66,7 @@ Varyings LitPassVS(Attributes i)
 float4 LitPassPS(Varyings i) : SV_TARGET0
 {
     // 获取纹理数据
-    ShaderResource::MaterialData matData = gMaterialBuffer[objIndex];
+    ShaderResource::MaterialData matData = gMaterialBuffer[gMaterialIndex];
     Texture2D baseColorTex = gTextures[matData.textureIndex[ShaderResource::kBaseColor]];
     Texture2D diffuseRoughnessTex = gTextures[matData.textureIndex[ShaderResource::kDiffuseRoughness]];
     Texture2D metalnessTex = gTextures[matData.textureIndex[ShaderResource::kMetalness]];

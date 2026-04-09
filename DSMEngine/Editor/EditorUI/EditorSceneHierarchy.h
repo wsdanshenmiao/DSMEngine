@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "Editor/EditorUI/Widget.h"
-#include "Editor/EditorUI/ComponentDrawer.h"
+#include "Runtime/Framework/Scene.h"
 
 namespace DSM {
     class Scene;

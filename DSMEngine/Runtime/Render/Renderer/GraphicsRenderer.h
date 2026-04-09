@@ -17,7 +17,7 @@ namespace DSM {
     class DefaultMessageCallback : public IMessageCallback
     {
     public:
-        void Message(MessageSeverity severity, const char* messageText) override
+        void Message(MessageSeverity severity, const char* messageText) const override
         {
             std::string msg{messageText};
             switch (severity) {
