@@ -37,7 +37,8 @@ namespace DSM {
 
     private:
 		static void ProcessMaterial(Model& model, const std::string& filename, const aiScene* scene);
-		static auto ProcessNode(const Model& model, const aiNode* node, const aiScene* scene);
+		static void ProcessNode(Model& model, const aiScene* scene);
+        static std::pair<std::shared_ptr<Mesh>, std::vector<uint32_t>> GetMeshFromNode(const aiNode* node, const aiScene* scene);
 
     private:
         inline static IDevice* sm_Device{};

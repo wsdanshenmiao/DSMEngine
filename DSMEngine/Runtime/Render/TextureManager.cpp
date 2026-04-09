@@ -3,6 +3,7 @@
 #include "TextureManager.h"
 #include "stb_image.h"
 #include "Runtime/Core/PlatformDetection.h"
+#include <condition_variable>
 #include <unordered_map>
 
 #if defined(DSM_PLATFORM_WINDOWS)
@@ -13,7 +14,15 @@ using namespace DirectX;
 
 namespace DSM::TextureManager {
 	DeviceHandle s_GraphicsDevice;
-	std::unordered_map<std::string, std::pair<bool, TextureHandle>> s_Textures;
+	struct TextureCacheEntry
+	{
+		std::mutex mutex{};
+		std::condition_variable cv{};
+		bool ready = false;
+		TextureHandle texture = nullptr;
+	};
+
+	std::unordered_map<std::string, std::shared_ptr<TextureCacheEntry>> s_Textures;
 	std::array<TextureHandle, kNumDefaultTexture> s_DefaultTextures;
 	std::mutex s_Mutex;
 
@@ -176,52 +185,71 @@ namespace DSM::TextureManager {
 
 	TextureHandle LoadTextureFromFile(const std::string& fileName, bool forceSRGB)
 	{
-		std::pair<bool, TextureHandle>* ppTex = nullptr;
 		std::string key = forceSRGB ? (fileName + "_SRGB") : fileName;
+		std::shared_ptr<TextureCacheEntry> entry{};
+		bool shouldLoad = false;
 
-		std::unique_lock lock{s_Mutex};
-
-		// 防止多线程的情况
-		if (auto it = s_Textures.find(key); it != s_Textures.end()) {
-			ppTex = &it->second;
-			std::condition_variable cv;
-			cv.wait(lock, [&] { return ppTex->first; });
-			return ppTex->second;
+		{
+			std::lock_guard lock{s_Mutex};
+			if (auto it = s_Textures.find(key); it != s_Textures.end()) {
+				entry = it->second;
+			}
+			else {
+				entry = std::make_shared<TextureCacheEntry>();
+				s_Textures.emplace(key, entry);
+				shouldLoad = true;
+			}
 		}
-		else {
-			ppTex = &s_Textures[key];
+
+		if (!shouldLoad) {
+			std::unique_lock entryLock(entry->mutex);
+			entry->cv.wait(entryLock, [&] { return entry->ready; });
+			return entry->texture;
 		}
-		
-		lock.unlock();
 
-		ppTex->second = CreateTextureFromFile(key, fileName, forceSRGB);
-		ppTex->first = true;
+		TextureHandle texture = CreateTextureFromFile(key, fileName, forceSRGB);
+		{
+			std::lock_guard entryLock(entry->mutex);
+			entry->texture = texture;
+			entry->ready = true;
+		}
+		entry->cv.notify_all();
 
-		return ppTex->second;
+		return texture;
 	}
 	
 	TextureHandle LoadTextureFromMemory(const std::string& name, const TextureDesc& texDesc, const void* data)
 	{
-		std::pair<bool, TextureHandle>* ppTex = nullptr;
-		std::unique_lock lock{s_Mutex};
+		std::shared_ptr<TextureCacheEntry> entry{};
+		bool shouldLoad = false;
 
-		// 防止多线程的情况
-		if (auto it = s_Textures.find(name); it != s_Textures.end()) {
-			ppTex = &it->second;
-			std::condition_variable cv;
-			cv.wait(lock, [&] { return ppTex->first; });
-			return ppTex->second;
+		{
+			std::lock_guard lock{s_Mutex};
+			if (auto it = s_Textures.find(name); it != s_Textures.end()) {
+				entry = it->second;
+			}
+			else {
+				entry = std::make_shared<TextureCacheEntry>();
+				s_Textures.emplace(name, entry);
+				shouldLoad = true;
+			}
 		}
-		else {
-			ppTex = &s_Textures[name];
+
+		if (!shouldLoad) {
+			std::unique_lock entryLock(entry->mutex);
+			entry->cv.wait(entryLock, [&] { return entry->ready; });
+			return entry->texture;
 		}
 
-		lock.unlock();
+		TextureHandle texture = CreateTextureFromMemory(name, texDesc, data);
+		{
+			std::lock_guard entryLock(entry->mutex);
+			entry->texture = texture;
+			entry->ready = true;
+		}
+		entry->cv.notify_all();
 
-		ppTex->second =  CreateTextureFromMemory(name, texDesc, data);
-		ppTex->first = true;
-
-		return ppTex->second;
+		return texture;
 	}
 
 	bool TextureManager::DestroyTexture(const std::string& name)

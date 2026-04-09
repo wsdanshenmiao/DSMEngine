@@ -10,6 +10,9 @@
 #include <map>
 #include <thread>
 #include <future>
+#include <stack>
+#include <execution>
+#include <ranges>
 
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
@@ -18,11 +21,11 @@
 namespace DSM {
 	void Model::ProcessMaterial(Model& model, const std::string& filename, const aiScene* scene)
 	{
-		std::map<std::string, TextureHandle> uniqueTextures{};
+		if(scene->mNumMaterials == 0){
+			return;
+		}
 
-		model.materials.reserve(scene->mNumMaterials);
-		for (size_t i = 0; i < scene->mNumMaterials; ++i) {
-			auto& material = scene->mMaterials[i];
+		auto processMaterialFunc = [&filename, &scene](const aiMaterial* material) {
 			auto modelMat = std::make_shared<Material>(Shader::Find("Shaders/ForwardShader/Passes/LitPass.hlsl"));
 
 			Math::Vector3 vector{};
@@ -68,7 +71,6 @@ namespace DSM {
 
 				aiString aiPath{};
 				material->GetTexture(type, 0, &aiPath);
-
 				TextureHandle texHandle = nullptr;
 				if (aiPath.data[0] == '*') {
 					auto texName = filename;
@@ -84,13 +86,7 @@ namespace DSM {
 				else {
 					auto texFilename = std::filesystem::path(filename).parent_path() / aiPath.C_Str();
 					const auto texKey = texFilename.string();
-					if (uniqueTextures.contains(texKey)) {
-						texHandle = uniqueTextures[texKey];
-					}
-					else {
-						texHandle = TextureManager::LoadTextureFromFile(texKey);
-						uniqueTextures[texKey] = texHandle;
-					}
+					texHandle = TextureManager::LoadTextureFromFile(texKey);
 				}
 
 				textures[materialTex] = texHandle;
@@ -107,107 +103,171 @@ namespace DSM {
 			tryCreateTexture(aiTextureType_NORMALS);
 			modelMat->SetTextures(std::move(textures));
 
-			model.materials.push_back(modelMat);
+			return modelMat;
+		};
+		
+		// 并行处理所有材质，避免处理复杂材质时阻塞主线程过久
+		const auto maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u) - 1;
+		std::vector<std::future<std::shared_ptr<Material>>> materialFutures{};
+		auto begin = scene->mNumMaterials - std::min(maxThreadCount, scene->mNumMaterials);
+		for (size_t i = begin; i < scene->mNumMaterials; ++i) {
+			materialFutures.emplace_back(std::async(std::launch::async, processMaterialFunc, scene->mMaterials[i]));
+		}
+
+		// 需要保持顺序，因为mesh中material索引是有序的
+		model.materials.resize(scene->mNumMaterials);
+		for(size_t i = 0; i < begin; ++i) {
+			model.materials[i] = processMaterialFunc(scene->mMaterials[i]);
+		}
+		for(size_t i = begin; i < scene->mNumMaterials; ++i) {
+			model.materials[i] = materialFutures[i - begin].get();
 		}
 	}
 
-	auto Model::ProcessNode(const Model& model, const aiNode* node, const aiScene* scene)
-	{
-		using MeshMaterialPair = std::pair<std::vector<std::shared_ptr<Mesh>>, std::vector<std::vector<uint32_t>>>;
-		MeshMaterialPair result{};
-		if (node == nullptr || scene == nullptr) {
-			return result;
-		}
+    void Model::ProcessNode(Model &model, const aiScene *scene)
+    {
+		using MeshResult = std::pair<std::shared_ptr<Mesh>, std::vector<uint32_t>>;
 
-		std::vector<std::future<MeshMaterialPair>> childFutures(node->mNumChildren);
-		for (size_t i = 0; i < node->mNumChildren; ++i) {
-			childFutures[i] = std::async(std::launch::async, [&, i]() {
-				return ProcessNode(model, node->mChildren[i], scene);
-			});
-		}
+		auto consumeMeshFunc = [&model](MeshResult&& meshResult) {
+			auto [mesh, materialIndices] = std::move(meshResult);
+			if(mesh != nullptr) {
+				model.meshMaterialIndices.emplace_back(std::move(materialIndices));
+				Math::AxisAlignedBox::Union(model.boundingBox, mesh->bounds);
+				model.meshes.emplace_back(std::move(mesh));
+			}
+		};
 
-		if (node->mNumMeshes > 0) {
-			std::vector<Math::Vector3> positions{};
-			std::vector<Math::Vector3> normals{};
-			std::vector<Math::Vector2> uvs{};
-			std::vector<Math::Vector4> tangents{};
-			std::vector<uint32_t> indices{};
-			auto mesh = std::make_shared<Mesh>();
-			mesh->SetName(std::string(node->mName.C_Str()));
-			mesh->SetIndexFormat(Format::R32_UINT);
-			std::vector<uint32_t> materialIndices{};
-			for (size_t meshIndex = 0; meshIndex < node->mNumMeshes; ++meshIndex) {
-				auto aiMesh = scene->mMeshes[node->mMeshes[meshIndex]];
-				if (aiMesh == nullptr || !aiMesh->HasPositions()) {
-					continue;
-				}
-				indices.clear();
+		const size_t maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u) - 1;
+		std::list<std::future<MeshResult>> meshFutures{};
 
-				const bool hasNormal = aiMesh->HasNormals();
-				const bool hasUV = aiMesh->HasTextureCoords(0);
-				const bool hasTangent = aiMesh->HasTangentsAndBitangents();
-				positions.reserve(positions.size() + aiMesh->mNumVertices);
-				if (hasNormal) {
-					normals.reserve(normals.size() + aiMesh->mNumVertices);
-				}
-				if (hasUV) {
-					uvs.reserve(uvs.size() + aiMesh->mNumVertices);
-				}
-				if (hasTangent) {
-					tangents.reserve(tangents.size() + aiMesh->mNumVertices);
-				}
-
-				for (size_t i = 0; i < aiMesh->mNumVertices; ++i) {
-					positions.emplace_back(Math::Vector3{ aiMesh->mVertices[i].x, aiMesh->mVertices[i].y, aiMesh->mVertices[i].z });
-					if (hasNormal) {
-						normals.emplace_back(Math::Vector3{ aiMesh->mNormals[i].x, aiMesh->mNormals[i].y, aiMesh->mNormals[i].z });
-					}
-					if (hasUV) {
-						uvs.emplace_back(Math::Vector2{ aiMesh->mTextureCoords[0][i].x, aiMesh->mTextureCoords[0][i].y });
-					}
-					if (hasTangent) {
-						tangents.emplace_back(Math::Vector4{ aiMesh->mTangents[i].x, aiMesh->mTangents[i].y, aiMesh->mTangents[i].z, 1.0f });
-					}
-				}
-
-				const auto& aabb = aiMesh->mAABB;
-				auto bounds = Math::AxisAlignedBox{
-					Math::Vector3{aabb.mMin.x, aabb.mMin.y, aabb.mMin.z},
-					Math::Vector3{aabb.mMax.x, aabb.mMax.y, aabb.mMax.z}
-				};
-
-				for (size_t i = 0; i < aiMesh->mNumFaces; ++i) {
-					const auto& face = aiMesh->mFaces[i];
-					for (size_t j = 0; j < face.mNumIndices; ++j) {
-						indices.emplace_back(face.mIndices[j]);
-					}
-				}
-
-				mesh->SetIndices<uint32_t>(indices, PrimitiveType::TriangleList, meshIndex, bounds, positions.size() - aiMesh->mNumVertices);
-
-				materialIndices.emplace_back(aiMesh->mMaterialIndex);
+		std::stack<const aiNode*> nodeStack{};
+		nodeStack.push(scene->mRootNode);
+		while (!nodeStack.empty()) {
+			const auto* node = nodeStack.top();
+			nodeStack.pop();
+			if (node == nullptr) {
+				continue;
 			}
 
-			mesh->SetVertices(std::move(positions));
-			mesh->SetNormals(std::move(normals));
-			mesh->SetUVs(std::move(uvs));
-			mesh->SetTangents(std::move(tangents));
-			mesh->UploadBuffer();
+			if(node->mNumMeshes > 0) {
+				// 回收已经完成的任务
+				if(meshFutures.size() >= maxThreadCount) {
+					bool collected = false;
+					for(auto it = meshFutures.begin(); it != meshFutures.end();) {
+						if(it->wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+							consumeMeshFunc(it->get());
+							it = meshFutures.erase(it);
+							collected = true;
+						}
+						else {
+							++it;
+						}
+					}
+					// 如果没有任务完成，则等待最早的一个任务完成
+					if(!collected){
+						consumeMeshFunc(meshFutures.front().get());
+						meshFutures.pop_front();
+					}
+				}
+				meshFutures.emplace_back(std::async(GetMeshFromNode, node, scene));
+			}
 
-			result.first.push_back(mesh);
-			result.second.push_back(materialIndices);
+			nodeStack.push_range(std::span(node->mChildren, node->mNumChildren));
 		}
 
-		for(auto& future : childFutures) {
-			auto childResult = future.get();
-			result.first.append_range(std::move(childResult.first));
-			result.second.append_range(std::move(childResult.second));
+		// 等待剩余的任务完成
+		for (auto& meshFuture : meshFutures) {
+			consumeMeshFunc(meshFuture.get());
+		}
+    }
+
+    std::pair<std::shared_ptr<Mesh>, std::vector<uint32_t>> Model::GetMeshFromNode(const aiNode *node, const aiScene *scene)
+    {
+		using MeshResult = std::pair<std::shared_ptr<Mesh>, std::vector<uint32_t>>;
+		if (node == nullptr || scene == nullptr || node->mNumMeshes <= 0) {
+			return MeshResult{nullptr, std::vector<uint32_t>{}};
 		}
 
-		return result;
-	}
+		std::vector<Math::Vector3> positions{};
+		std::vector<Math::Vector3> normals{};
+		std::vector<Math::Vector2> uvs{};
+		std::vector<Math::Vector4> tangents{};
+		std::vector<uint32_t> indices{};
+		auto mesh = std::make_shared<Mesh>();
+		std::vector<uint32_t> materialIndices{};
+		mesh->SetName(std::string(node->mName.C_Str()));
+		mesh->SetIndexFormat(Format::R32_UINT);
+		for (size_t meshIndex = 0; meshIndex < node->mNumMeshes; ++meshIndex) {
+			auto aiMesh = scene->mMeshes[node->mMeshes[meshIndex]];
+			if (aiMesh == nullptr || !aiMesh->HasPositions()) {
+				continue;
+			}
+			indices.clear();
 
-	std::shared_ptr<Model> Model::LoadModelFromGeometry(
+			const auto baseVertex = positions.size();
+			const auto baseNormal = normals.size();
+			const auto baseUV = uvs.size();
+			const auto baseTangent = tangents.size();
+			positions.resize(positions.size() + aiMesh->mNumVertices);
+			if (aiMesh->HasNormals()) {
+				normals.resize(normals.size() + aiMesh->mNumVertices);
+			}
+			if (aiMesh->HasTextureCoords(0)) {
+				uvs.resize(uvs.size() + aiMesh->mNumVertices);
+			}
+			if (aiMesh->HasTangentsAndBitangents()) {
+				tangents.resize(tangents.size() + aiMesh->mNumVertices);
+			}
+
+			auto processVertexFunc = [&](size_t i) {
+				positions[baseVertex + i] = Math::Vector3{ aiMesh->mVertices[i].x, aiMesh->mVertices[i].y, aiMesh->mVertices[i].z };
+				if (aiMesh->HasNormals()) {
+					normals[baseNormal + i] = Math::Vector3{ aiMesh->mNormals[i].x, aiMesh->mNormals[i].y, aiMesh->mNormals[i].z };
+				}
+				if (aiMesh->HasTextureCoords(0)) {
+					uvs[baseUV + i] = Math::Vector2{ aiMesh->mTextureCoords[0][i].x, aiMesh->mTextureCoords[0][i].y };
+				}
+				if (aiMesh->HasTangentsAndBitangents()) {
+					tangents[baseTangent + i] = Math::Vector4{ aiMesh->mTangents[i].x, aiMesh->mTangents[i].y, aiMesh->mTangents[i].z, 1.0f };
+				}
+			};
+			auto indexView = std::views::iota(size_t{0}, static_cast<size_t>(aiMesh->mNumVertices));
+			constexpr size_t parallelThreshold = 10000;
+			if (aiMesh->mNumVertices >= parallelThreshold) {
+				std::for_each(std::execution::par, indexView.begin(), indexView.end(), processVertexFunc);
+			}
+			else {	
+				std::for_each(indexView.begin(), indexView.end(), processVertexFunc);
+			}
+
+			const auto& aabb = aiMesh->mAABB;
+			auto bounds = Math::AxisAlignedBox{
+				Math::Vector3{aabb.mMin.x, aabb.mMin.y, aabb.mMin.z},
+				Math::Vector3{aabb.mMax.x, aabb.mMax.y, aabb.mMax.z}
+			};
+
+			for (size_t i = 0; i < aiMesh->mNumFaces; ++i) {
+				const auto& face = aiMesh->mFaces[i];
+				for (size_t j = 0; j < face.mNumIndices; ++j) {
+					indices.emplace_back(face.mIndices[j]);
+				}
+			}
+
+			mesh->SetIndices<uint32_t>(indices, PrimitiveType::TriangleList, meshIndex, bounds, positions.size() - aiMesh->mNumVertices);
+
+			materialIndices.emplace_back(aiMesh->mMaterialIndex);
+		}
+
+		mesh->SetVertices(std::move(positions))
+			.SetNormals(std::move(normals))
+			.SetUVs(std::move(uvs))
+			.SetTangents(std::move(tangents));
+		mesh->UploadBuffer();
+
+		return MeshResult{mesh, materialIndices};
+    }
+
+    std::shared_ptr<Model> Model::LoadModelFromGeometry(
 		const std::string& name,
 		Geometry::GeometryMesh geometryMesh,
 		std::shared_ptr<Material> material)
@@ -225,9 +285,9 @@ namespace DSM {
 		model->materials.emplace_back(material);
 
 		auto mesh = std::make_shared<Mesh>();
-		mesh->SetName(name);
-		mesh->SetIndexFormat(Format::R32_UINT);
-		mesh->SetIndices<uint32_t>(geometryMesh.indices32, PrimitiveType::TriangleList, 0);
+		mesh->SetName(name)
+			.SetIndexFormat(Format::R32_UINT)
+			.SetIndices<uint32_t>(geometryMesh.indices32, PrimitiveType::TriangleList, 0);
 
 		for(const auto& vertex : geometryMesh.vertices){
 			mesh->vertices.emplace_back(vertex.position);
@@ -267,19 +327,8 @@ namespace DSM {
 		model->name = scene->mRootNode != nullptr ? scene->mRootNode->mName.C_Str() : "";
 		model->filePath = filename;
 
-		InstrumentationTimer timer("Material Loading");
 		ProcessMaterial(*model, filename, scene);
-		timer.Stop();
-
-		InstrumentationTimer timer2("Mesh Loading");
-		auto result = ProcessNode(*model, scene->mRootNode, scene);
-
-		model->meshes = std::move(result.first);
-		model->meshMaterialIndices = std::move(result.second);
-		for(const auto& mesh : model->meshes) {
-			Math::AxisAlignedBox::Union(model->boundingBox, mesh->bounds);
-		}
-		timer2.Stop();
+		ProcessNode(*model, scene);
 
 		return model;
 	}
