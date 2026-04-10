@@ -1,0 +1,590 @@
+{
+    "isDirty": false,
+    "objects": [
+        {
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "RootNode",
+            "parent": -1,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 6,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "LipSync_Mesh_Mouth3_LipSync_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 8,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "LipSync_Mesh_Mouth1_LipSync_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 0,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Wing_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 11,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_Endure_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 4,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_WorldEyeClose_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 10,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Mouth_Mesh_Endure_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 1,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Head_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 12,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Mouth_Mesh_Damage_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 19,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Body_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 3,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_WorldNeutral_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 13,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_Damage_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 17,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Mouth_Mesh_Attack_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 16,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_BattleEyeClose_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 14,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Mouth_Mesh_BattleNeutral_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 5,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Mouth_Mesh_Smile_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 15,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_BattleNeutral_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 7,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "LipSync_Mesh_Mouth2_LipSync_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 2,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Mouth_Mesh_WorldNeutral_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 18,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "Eye_Mesh_Attack_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        },
+        {
+            "class DSM::MeshRenderer": {
+                "meshIndex": 9,
+                "modelFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Models\\AB\\AliceADefault\\AliceADefault.fbx"
+            },
+            "class DSM::TransformComponent": {
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "enabled": true,
+            "name": "LipSync_Mesh_Close_LipSync_Mesh",
+            "parent": 0,
+            "tag": "Untagged"
+        }
+    ],
+    "sceneFilePath": "E:\\Code\\DSMEngine\\Projects\\Assets\\Scene\\test0.dsmscene"
+}

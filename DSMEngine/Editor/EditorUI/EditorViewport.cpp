@@ -3,11 +3,15 @@
 #include "Editor/Project.h"
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
+#include "Runtime/Render/Model.h"
+#include "Runtime/Render/Mesh.h"
 #include "Runtime/Event/KeyEvent.h"
 #include "Runtime/Event/ApplicationEvent.h"
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Core/Window.h"
 #include "Runtime/Framework/Component/TransformComponent.h"
+#include "Runtime/Framework/Component/MeshRenderer.h"
+#include "Runtime/Framework/Object/GameObject.h"
 
 #include <imgui.h>
 #include <ImGuizmo.h>
@@ -42,11 +46,30 @@ namespace DSM {
         auto gpuHandle = colorTex->GetNativeView(ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor);
         ImGui::Image(ImTextureRef{gpuHandle}, viewportSize);
 
+        // 处理拖放资源到视口的情况
         if(ImGui::BeginDragDropTarget()){
+            // 从资源管理器拖放文件到视口
             if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(Project::s_ContentBrowserDragDropPayload)){
                 const char* path = static_cast<const char*>(payload->Data);
-                // ProjectManager::LoadScene(path);
+                auto filePath = std::filesystem::path(path);
+                auto extension = filePath.extension().string();
+                std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
+                    return static_cast<char>(std::tolower(ch));
+                });
+                
+                // 根据文件类型进行不同的处理 
+                if(extension == Project::s_SceneFileExtension){
+                    Project::GetInstance().LoadScene(path);
+                }
+                else if(Project::s_ModelFileExtensions.contains(extension.c_str())){
+                    auto scene = DSMEngine::sm_GlobalContext.scene;
+                    auto model = Model::LoadModel(path);
+                    if(scene != nullptr && model != nullptr){
+                        ConvertModelToGameObject(model, *scene);
+                    }
+                }
             }
+
             ImGui::EndDragDropTarget();
         }
         

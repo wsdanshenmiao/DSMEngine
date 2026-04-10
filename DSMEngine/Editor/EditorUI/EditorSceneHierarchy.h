@@ -3,6 +3,7 @@
 #define __EDITORSCENEHIERARCHY_h__
 
 #include <memory>
+#include <vector>
 
 #include "Editor/EditorUI/Widget.h"
 #include "Runtime/Framework/Scene.h"
@@ -16,6 +17,7 @@ namespace DSM {
     {
     public:
         EditorSceneHierarchy(EditorUI* editorUI);
+        ~EditorSceneHierarchy() noexcept override = default;
 
         void OnGUIEnabled() override;
         void OnEvent(Event& event) override;

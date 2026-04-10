@@ -51,10 +51,14 @@ namespace DSM::Math {
         
         void LookAt(const Math::Vector3& target, Math::Vector3 up = Math::Vector3{0, 1, 0}) noexcept
         {
+            if((target - m_Position).NearZero())
+                return;
             m_Rotation = Math::LookAt(m_Position, target, up);
         }
         void LookTo(const Math::Vector3& dir, Math::Vector3 up = Math::Vector3{0, 1, 0}) noexcept
         {
+            if(dir.NearZero())
+                return;
             m_Rotation = Math::LookTo(m_Position, dir, up);
         }
 

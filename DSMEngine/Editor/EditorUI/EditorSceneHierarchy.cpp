@@ -1,5 +1,6 @@
 #include "EditorSceneHierarchy.h"
 #include "Editor/EditorUI/EditorUI.h"
+#include "Editor/Project.h"
 #include "Runtime/Framework/Scene.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/Component.h"
@@ -7,8 +8,13 @@
 #include "Runtime/Event/KeyEvent.h"
 
 #include <numbers>
+#include <filesystem>
+#include <algorithm>
+#include <cctype>
 
-namespace DSM{
+#include <imgui_internal.h>
+
+namespace DSM {
     EditorSceneHierarchy::EditorSceneHierarchy(EditorUI* editorUI)
         : Widget(editorUI)
     {
@@ -19,9 +25,9 @@ namespace DSM{
     void EditorSceneHierarchy::OnGUIEnabled()
     {
         bool isPlayMode = m_EditorUI->GetMenuBar().GetSceneState() == EditorMenuBar::SceneState::Play;
-        ImGui::BeginDisabled(isPlayMode);
-
-        ImGui::EndDisabled();
+        if(isPlayMode){
+            ImGui::BeginDisabled();
+        }
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
         for(const auto& rootObject : scene->GetRootObjects()){
@@ -30,6 +36,33 @@ namespace DSM{
 
         if(ImGui::IsMouseDown(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()){
             m_SelectedObject.reset();
+        }
+
+        // 处理拖放资源到层级面板的情况
+        auto center = Math::Vector2(ImGui::GetWindowViewport()->GetCenter().x, ImGui::GetWindowViewport()->GetCenter().y);
+        auto size = Math::Vector2(ImGui::GetWindowViewport()->Size.x, ImGui::GetWindowViewport()->Size.y);
+        auto rectMin = center - size * 0.5f;
+        auto rectMax = center + size * 0.5f;
+        ImRect rect(ImVec2{rectMin.Get(0), rectMin.Get(1)}, ImVec2{rectMax.Get(0), rectMax.Get(1)});
+        if(ImGui::BeginDragDropTargetCustom(rect, ImGui::GetID("HierarchyViewport"))){
+            if(auto payload = ImGui::AcceptDragDropPayload(Project::s_ContentBrowserDragDropPayload)){
+                const char* path = static_cast<const char*>(payload->Data);
+                auto filePath = std::filesystem::path(path);
+                auto extension = filePath.extension().string();
+                std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
+                    return static_cast<char>(std::tolower(ch));
+                });
+
+                if(Project::s_ModelFileExtensions.contains(extension)) {
+                    auto scene = DSMEngine::sm_GlobalContext.scene;
+                    auto model = Model::LoadModel(path);
+                    if(scene != nullptr && model != nullptr) {
+                        ConvertModelToGameObject(model, *scene);
+                    }
+                }
+            }
+
+            ImGui::EndDragDropTarget();
         }
 
         // 右键打开工具栏
@@ -42,6 +75,10 @@ namespace DSM{
 
         for(const auto& objID : m_ObjShouldDeleted){
             scene->DestroyObject(objID);
+        }
+
+        if(isPlayMode){
+            ImGui::EndDisabled();
         }
     }
 

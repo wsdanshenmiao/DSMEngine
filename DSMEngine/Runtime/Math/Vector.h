@@ -106,13 +106,13 @@ namespace DSM{
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
     constexpr Vector<T, N>::Vector(const Vector<T, N - 1>& data) requires (N > 1)
     {
-        memcpy(m_Data.data(), data.m_Data.data(), (N - 1) * sizeof(T));
+        memcpy(m_Data.data(), &data, (N - 1) * sizeof(T));
     }
 
     template<typename T, std::size_t N> requires std::is_arithmetic_v<T>
     constexpr Vector<T, N>::Vector(const Vector<T, N - 1> &v, T val) requires (N > 1)
     {
-        memcpy(m_Data.data(), v.m_Data.data(), (N - 1) * sizeof(T));
+        memcpy(m_Data.data(), &v, (N - 1) * sizeof(T));
         m_Data[N - 1] = val;
     }
 

@@ -16,8 +16,8 @@ namespace DSM {
 
         const Math::AxisAlignedBox& GetBounds() const noexcept { return m_Bouns; }
         const Math::AxisAlignedBox& GetLocalBounds() const noexcept { return m_LocalBounds; }
-		void SetBounds(const Math::AxisAlignedBox& bounds) noexcept { m_Bouns = bounds; }
-		void SetLocalBounds(const Math::AxisAlignedBox& localBounds) noexcept { m_LocalBounds = localBounds; }
+		void SetBounds(const Math::AxisAlignedBox& bounds) noexcept { m_Bouns = bounds; m_IsDirty = true; }
+		void SetLocalBounds(const Math::AxisAlignedBox& localBounds) noexcept { m_LocalBounds = localBounds; m_IsDirty = true; }
 
         std::shared_ptr<Material> GetMaterial(size_t index) const noexcept { return m_Materials[index]; }
         const std::vector<std::shared_ptr<Material>>& GetMaterials() const noexcept { return m_Materials; }
@@ -27,19 +27,24 @@ namespace DSM {
                 m_Materials.resize(index + 1);
             }
             m_Materials[index] = material;
+            m_IsDirty = true;
         }
-        void SetMaterials(std::vector<std::shared_ptr<Material>> materials) noexcept { m_Materials = std::move(materials); }
+        void SetMaterials(std::vector<std::shared_ptr<Material>> materials) noexcept
+        { 
+            m_Materials = std::move(materials); 
+            m_IsDirty = true;
+        }
 
         uint32_t GetRenderLayer() const noexcept { return m_RenderLayer; }
-        void SetRenderLayer(uint32_t layer) noexcept { m_RenderLayer = layer; }
+        void SetRenderLayer(uint32_t layer) noexcept { m_RenderLayer = layer; m_IsDirty = true; }
         
         bool CastShadow() const noexcept { return m_CastShadow; }
-        void SetCastShadow(bool castShadow) noexcept { m_CastShadow = castShadow; }
+        void SetCastShadow(bool castShadow) noexcept { m_CastShadow = castShadow; m_IsDirty = true; }
         bool ReceiveShadow() const noexcept { return m_ReceiveShadow; }
-        void SetReceiveShadow(bool receiveShadow) noexcept { m_ReceiveShadow = receiveShadow; }
+        void SetReceiveShadow(bool receiveShadow) noexcept { m_ReceiveShadow = receiveShadow; m_IsDirty = true; }
         
         bool IsEnabled() const noexcept { return m_Enabled; }
-        void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
+        void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; m_IsDirty = true; }
 
     protected:
         // 世界空间的包围盒

@@ -16,10 +16,10 @@ namespace DSM {
             : IComponent(gameObject) {}
 
         bool IsEnabled() const noexcept { return m_Enabled; }
-        void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
+        void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; m_IsDirty = true; }
 
         ScriptableObject* GetScript() const noexcept { return m_Script.get(); }
-        void SetScript(std::unique_ptr<ScriptableObject> script) { m_Script = std::move(script); }
+        void SetScript(std::unique_ptr<ScriptableObject> script) { m_Script = std::move(script); m_IsDirty = true; }
     
     private:
         bool m_Enabled = true;

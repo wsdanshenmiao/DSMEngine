@@ -34,31 +34,32 @@ namespace DSM {
         float GetAspectRatio() const noexcept { return m_Aspect; }
         Math::Frustum GetFrustum() const noexcept { return Math::Frustum{GetProjMatrix()}; }
 
-        void SetPosition(float x, float y, float z) noexcept { m_Transform->SetPosition(x, y, z); }
-        void SetPosition(Math::Vector3 position) noexcept { m_Transform->SetPosition(position); }
-        void SetRotation(float pitch, float yaw, float roll) noexcept { m_Transform->SetRotation(pitch, yaw, roll); }
-        void SetRotation(Math::Quaternion rotation) noexcept { m_Transform->SetRotation(rotation); }
+        void SetPosition(float x, float y, float z) noexcept { m_Transform->SetPosition(x, y, z); m_IsDirty = true; }
+        void SetPosition(Math::Vector3 position) noexcept { m_Transform->SetPosition(position); m_IsDirty = true; }
+        void SetRotation(float pitch, float yaw, float roll) noexcept { m_Transform->SetRotation(pitch, yaw, roll); m_IsDirty = true; }
+        void SetRotation(Math::Quaternion rotation) noexcept { m_Transform->SetRotation(rotation); m_IsDirty = true; }
 
-        void LookAt(Math::Vector3 target,Math::Vector3 up) noexcept { m_Transform->LookAt(target, up); }
-        void LookTo(Math::Vector3 to, Math::Vector3 up) noexcept { m_Transform->LookTo(to, up); }
-        void RotateX(float angle) noexcept { m_Transform->Rotate(angle, 0, 0); }
-        void RotateY(float angle) noexcept { m_Transform->Rotate(0, angle, 0); }
+        void LookAt(Math::Vector3 target,Math::Vector3 up) noexcept { m_Transform->LookAt(target, up); m_IsDirty = true; }
+        void LookTo(Math::Vector3 to, Math::Vector3 up) noexcept { m_Transform->LookTo(to, up); m_IsDirty = true; }
+        void RotateX(float angle) noexcept { m_Transform->Rotate(angle, 0, 0); m_IsDirty = true; }
+        void RotateY(float angle) noexcept { m_Transform->Rotate(0, angle, 0); m_IsDirty = true; }
 
-        void Translate(Math::Vector3 translation) noexcept { m_Transform->Translate(translation); }
+        void Translate(Math::Vector3 translation) noexcept { m_Transform->Translate(translation); m_IsDirty = true; }
 
         // 设置视口
-        void SetViewPort(const Viewport& viewport) noexcept { m_Viewport = viewport; }
+        void SetViewPort(const Viewport& viewport) noexcept { m_Viewport = viewport; m_IsDirty = true; }
         void SetViewPort(
             float topLeftX, float topLeftY,
             float width, float height,
             float minDepth = 0.0f, float maxDepth = 1.0f) noexcept
         {
             m_Viewport = {topLeftX, topLeftY, width, height, minDepth, maxDepth};
+            m_IsDirty = true;
         }
 
-        void SetFovY(float fovY) noexcept { m_FovY = fovY; }
-        void SetNearZ(float nearZ) noexcept { m_NearZ = nearZ; }
-        void SetFarZ(float farZ) noexcept { m_FarZ = farZ; }
+        void SetFovY(float fovY) noexcept { m_FovY = fovY; m_IsDirty = true; }
+        void SetNearZ(float nearZ) noexcept { m_NearZ = nearZ; m_IsDirty = true; }
+        void SetFarZ(float farZ) noexcept { m_FarZ = farZ; m_IsDirty = true; }
 
         void SetFrustum(float fovY, float aspect, float nearZ, float farZ) 
         {
@@ -66,9 +67,10 @@ namespace DSM {
 			m_Aspect = aspect;
 			m_NearZ = nearZ;
 			m_FarZ = farZ;
+            m_IsDirty = true;
         }
 
-        void ReverseZ(bool enable) { m_ReversedZ = enable; }
+        void ReverseZ(bool enable) { m_ReversedZ = enable; m_IsDirty = true; }
         bool IsReversedZ() const { return m_ReversedZ; }
     
     protected:

@@ -210,8 +210,54 @@ namespace nlohmann {
     template<>
     struct adl_serializer<DSM::MeshRenderer> {
         static void to_json(json& j, const DSM::MeshRenderer& renderer) {
+            if(auto model = renderer.GetModel(); model != nullptr){
+                j["modelFilePath"] = model->filePath;
+                size_t index = 0;
+                for(; index < model->meshes.size(); ++index){
+                    if(model->meshes[index] == renderer.GetMesh()){
+                        j["meshIndex"] = index;
+                        break;
+                    }
+                }
+            }
         }
         static void from_json(const json& j, DSM::MeshRenderer& renderer) {
+            if(j.contains("modelFilePath")){
+                std::string modelFilePath = j.at("modelFilePath").get<std::string>();
+                auto model = DSM::Model::LoadModel(modelFilePath);
+                if(model == nullptr){
+                    DSM_CORE_ERROR("Failed to load model from file: {}", modelFilePath);
+                    return;
+                }
+                
+                size_t meshIndex = j.value("meshIndex", size_t(-1));
+                if(meshIndex >= model->meshes.size()){
+                    return;
+                }
+
+                renderer.SetMesh(model->meshes[meshIndex]);
+
+                auto modelMats = model->materials;
+                std::map<std::shared_ptr<DSM::Material>, size_t> materials{};
+                std::vector<std::shared_ptr<DSM::Material>> meshMaterials{};
+                for(const auto& [i, matIndex] : model->meshMaterialIndices[meshIndex] | std::views::enumerate){
+                    if(matIndex >= model->materials.size()){
+                        continue;
+                    }
+                    size_t index = 0;
+                    if(materials.contains(modelMats[matIndex])){
+                        index = materials[modelMats[matIndex]];
+                    }
+                    else{
+                        index = materials.size();
+                        materials[modelMats[matIndex]] = index;
+                        meshMaterials.push_back(modelMats[matIndex]);
+                    }
+                    renderer.SetMaterialIndex(i, index);
+                }
+                renderer.SetMaterials(std::move(meshMaterials));
+                renderer.SetModel(model);
+            }
         }
     };
 

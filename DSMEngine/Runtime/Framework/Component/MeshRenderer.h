@@ -2,8 +2,9 @@
 #ifndef __MESHRENDERER_H__
 #define __MESHRENDERER_H__
 
-#include "Runtime/Framework/Component/Renderer.h"
 #include "Runtime/Render/Mesh.h"
+#include "Runtime/Render/Model.h"
+#include "Runtime/Framework/Component/Renderer.h"
 #include "Runtime/Framework/Object/GameObject.h"
 #include "Runtime/Framework/Component/TransformComponent.h"
 
@@ -27,7 +28,11 @@ namespace DSM {
                     SetBounds(worldBounds);
                 }
 			}
+            m_IsDirty = true;
         }
+
+        std::shared_ptr<Model> GetModel() const noexcept { return m_Model; }
+        void SetModel(const std::shared_ptr<Model>& model) noexcept{ m_Model = model; m_IsDirty = true; }
         
         size_t GetMaterialIndex(size_t subMeshIndex) const noexcept
         {
@@ -43,10 +48,12 @@ namespace DSM {
                 m_SubMeshMaterialIndices.resize(subMeshIndex + 1, 0);
             }
             m_SubMeshMaterialIndices[subMeshIndex] = materialIndex;
+            m_IsDirty = true;
         }
 
     private:
         std::shared_ptr<Mesh> m_Mesh{};
+        std::shared_ptr<Model> m_Model{};
         std::vector<size_t> m_SubMeshMaterialIndices{};
     };
 } // namespace DSM

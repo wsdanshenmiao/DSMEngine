@@ -150,7 +150,7 @@ namespace DSM {
 		
 		DSM_CORE_ASSERT(sm_Device != nullptr, "Device not initialized. Call Mesh::Create() first.");
 		CommandListHandle cmdList = sm_Device->CreateCommandList(
-			CommandListParameters{}.SetDebugName("Mesh_SetIndexBufferData"));
+			CommandListParameters{}.SetDebugName(name + "_SetIndexBufferData"));
 		cmdList->Open();
 
 		size_t byteSize = _indices.size() * sizeof(T);
@@ -161,7 +161,7 @@ namespace DSM {
 				.SetIsIndexBuffer(true)
 				.SetFormat(indexFormat)
 				.SetStructStride(sizeof(T))
-				.SetDebugName("Mesh_IndexBuffer"));
+				.SetDebugName(name + "_IndexBuffer"));
 			if(preBuffer != nullptr) {
 				cmdList->CopyBuffer(m_IndexBuffer, 0, preBuffer, 0, std::min(byteSize, preBuffer->GetDesc().byteSize));
 			}
@@ -241,7 +241,7 @@ namespace DSM {
 
 		DSM_CORE_ASSERT(sm_Device != nullptr, "Device not initialized. Call Mesh::Create() first.");
 		CommandListHandle cmdList = sm_Device->CreateCommandList(
-			CommandListParameters{}.SetDebugName("Mesh_SetVertexBufferData"));
+			CommandListParameters{}.SetDebugName(name + "_SetVertexBufferData"));
 		cmdList->Open();
 
 		size_t byteSize = vertices.size() * sizeof(T);
@@ -249,7 +249,7 @@ namespace DSM {
 			auto preBuffer = m_VertexBuffer;
 			m_VertexBuffer = sm_Device->CreateBuffer(BufferDesc{}
 				.SetByteSize(byteSize + bufferOffset)
-				.SetDebugName("Mesh_VertexBuffer"));
+				.SetDebugName(name + "_VertexBuffer"));
 			if(preBuffer != nullptr) {
 				cmdList->CopyBuffer(m_VertexBuffer, 0, preBuffer, 0, std::min(byteSize + bufferOffset, preBuffer->GetDesc().byteSize));
 			}

@@ -161,7 +161,9 @@ namespace DSM::TextureManager {
 			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::PixelShaderResource);
 			cmdList->Close();
 			s_GraphicsDevice->ExecuteCommandList(cmdList);
+		}
 
+		if(imgData != nullptr) {
 			stbi_image_free(imgData);
 		}
 

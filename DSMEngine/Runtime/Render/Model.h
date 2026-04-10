@@ -43,6 +43,7 @@ namespace DSM {
     private:
         inline static IDevice* sm_Device{};
     	inline static std::array<TextureHandle, ShaderResource::kNumTextures> sm_CommonTextures{};
+        inline static std::unordered_map<std::string, std::shared_ptr<Model>> sm_ModelCache{};
     };
 
 }

@@ -189,7 +189,7 @@ namespace DSM {
             if(!HasFlags(filterMode, ShadowSetting::_PCF3x3)) index |= 1 << 4;
             if(HasFlags(filterMode, ShadowSetting::_PCF5x5)) index |= 1 << 5;
             if(material.IsTransparent()) index |= 1 << 6;
-            if(material.IsBothSide()) index |= 1 << 7;
+            if(material.IsBothSide() && material.IsTransparent()) index |= 1 << 7;
             if(reverseZ) index |= 1 << 8;
             return index;
         }
@@ -243,9 +243,9 @@ namespace DSM {
             }
             InputLayoutHandle layout = device->CreateInputLayout(attributes, hasTangent ? litVS : litVSNoTangent);
 
-            const auto& blendState = material.IsTransparent() ? hasBlend : noBlend;
             const auto& depthState = readDepth;
-            const auto& rasterState = material.IsBothSide() ? twoSided : defaultRaster;
+            const auto& blendState = material.IsTransparent() ? hasBlend : noBlend;
+            const auto& rasterState = (material.IsBothSide() && material.IsTransparent()) ? twoSided : defaultRaster;
             // 创建渲染配置
             auto shadowFilter = ShadowPass::sm_Setting.directionalSetting.filter;
             ShaderHandle ps = hasTangent ? m_Shaders[size_t(ShaderSlot::LitPS) + shadowFilter] : 

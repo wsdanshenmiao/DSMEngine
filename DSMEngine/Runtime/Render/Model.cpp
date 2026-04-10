@@ -306,6 +306,10 @@ namespace DSM {
 
 	std::shared_ptr<Model> Model::LoadModel(const std::string& filename)
 	{
+		if(auto it = sm_ModelCache.find(filename); it != sm_ModelCache.end()) {
+			return it->second;
+		}
+
 		Assimp::Importer importer;
 		const aiScene* scene = importer.ReadFile(
 			filename,
@@ -330,6 +334,7 @@ namespace DSM {
 		ProcessMaterial(*model, filename, scene);
 		ProcessNode(*model, scene);
 
+		sm_ModelCache[filename] = model;
 		return model;
 	}
 
@@ -352,5 +357,6 @@ namespace DSM {
 		Mesh::Destroy();
 		sm_Device = nullptr;
 		sm_CommonTextures.fill(nullptr);
+		sm_ModelCache.clear();
 	}
 }
