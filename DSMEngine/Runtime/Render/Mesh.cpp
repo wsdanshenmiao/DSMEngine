@@ -17,15 +17,6 @@ namespace DSM {
 		m_IndexBuffer = nullptr;
 	}
 
-	size_t Mesh::GetBaseVertex(size_t subMeshIndex) const
-	{
-		if (subMeshIndex >= m_SubMeshes.size()) {
-			DSM_CORE_ASSERT(subMeshIndex < m_SubMeshes.size(), "subMeshIndex out of range");
-			return 0;
-		}
-		return m_SubMeshes[subMeshIndex].vertexOffset;
-	}
-
 	BufferHandle Mesh::GetIndexBuffer() const noexcept
 	{
 		return m_IndexBuffer;
@@ -56,10 +47,7 @@ namespace DSM {
 			return IndexBufferBinding{};
 		}
 		size_t indexStr = (indexFormat == Format::R16_UINT) ? sizeof(uint16_t) : sizeof(uint32_t);
-		return IndexBufferBinding{}
-			.SetBuffer(m_IndexBuffer)
-			.SetFormat(indexFormat)
-			.SetOffset(GetIndexOffset(subMeshIndex) * indexStr);
+		return IndexBufferBinding{}.SetBuffer(m_IndexBuffer).SetFormat(indexFormat);
     }
 
     BufferHandle Mesh::GetVertexBuffer() const noexcept

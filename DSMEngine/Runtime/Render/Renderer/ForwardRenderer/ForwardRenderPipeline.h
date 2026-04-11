@@ -62,7 +62,7 @@ namespace DSM {
             RenderResource::GetInstance().UpdateRenderResource(renderer.GetCamera());
             timer0.Stop();
             for (auto [index, renderPass] : m_RenderPasses | std::views::enumerate) {
-                InstrumentationTimer timer0{typeid(*renderPass).name()};
+                InstrumentationTimer timer{typeid(*renderPass).name()};
                 uint64_t passFrameTime = renderPass->Render(renderer, deltaTime);
                 RenderResource::GetInstance().SetRenderPassFinishFence(RenderPass(index), passFrameTime);
             }

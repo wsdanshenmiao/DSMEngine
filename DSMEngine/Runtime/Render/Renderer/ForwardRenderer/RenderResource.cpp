@@ -72,6 +72,7 @@ namespace DSM{
 
             auto objIndex = std::size(m_OpaqueObjects) + std::size(m_TransparentObjects);
 
+            // 更新 BVH 树
             if(meshRenderer.GetBounds().IsValid()){
                 // 有包围盒，检测是否在 BVH 中
                 if(auto it = objShouldBeErase.find(obj); it != std::end(objShouldBeErase)){
@@ -90,7 +91,6 @@ namespace DSM{
             meshData.world = Math::Matrix4::Transpose(transform.GetLocalToWorld());
             meshData.worldIT = Math::Matrix4::Inverse(meshData.world);
             meshDataArr.push_back(std::move(meshData));
-            m_ObjectIndex[obj] = objIndex;
 
             bool isTransparent = false;
             for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
@@ -101,12 +101,13 @@ namespace DSM{
                     meshRenderer.SetMaterial(matIndex, material);
                 }
 
+                // 如果材质已经存在，直接使用已有的材质索引，否则创建新的材质数据并分配新的材质索引
                 if(auto it = matMap.find(material); it != std::end(matMap)){
                     m_ObjectMaterialIndex[obj].push_back(it->second);
                 }
                 else{
-                    matIndex = matMap[material] = matMap.size();
-                    m_ObjectMaterialIndex[obj].push_back(matIndex);
+                    matMap[material] = matMap.size();
+                    m_ObjectMaterialIndex[obj].push_back(matMap[material]);
 
                     ShaderResource::MaterialData matData{};
                     matData.baseColor = material->GetBaseColor();
@@ -132,6 +133,7 @@ namespace DSM{
                 isTransparent |= material->IsTransparent();
             }
 
+            m_ObjectIndex[obj] = objIndex;
             auto& objects = isTransparent ? m_TransparentObjects : m_OpaqueObjects;
             objects.push_back(obj);
         }
@@ -168,7 +170,7 @@ namespace DSM{
             bool isNull = buffer == nullptr;
             if(isNull || bufferSize > buffer->GetDesc().byteSize){
                 buffer = m_Device->CreateBuffer(BufferDesc()
-                    .SetByteSize(isNull ? bufferSize : std::max(1zu, buffer->GetDesc().byteSize * 2))
+                    .SetByteSize(isNull ? bufferSize : std::max(bufferSize, buffer->GetDesc().byteSize * 2))
                     .SetStructStride(sizeof(T))
                     .SetDebugName(typeid(T).name()));
             }

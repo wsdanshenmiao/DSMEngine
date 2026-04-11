@@ -71,7 +71,6 @@ namespace DSM::D3D12 {
             std::string msg = std::format("Failed to create texture {}, error msg: {}", 
                 DebugNameToString(desc.debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
-            m_Context.stateTracker->UnregisterTexture(this);
             return false;
         }
 
@@ -83,7 +82,6 @@ namespace DSM::D3D12 {
                 std::string msg = std::format("Failed to create shared handle for texture {}, error msg: {}", 
                 DebugNameToString(desc.debugName), GetHRErrorMessage(hr));
                 m_Context.Error(msg);
-                m_Context.stateTracker->UnregisterTexture(this);
                 return false;
             }
         }

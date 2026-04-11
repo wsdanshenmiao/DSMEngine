@@ -6,13 +6,35 @@ namespace DSM{
         return mipLevel + arraySlice * desc.mipLevels;
     }
 
+    std::shared_ptr<PendingBarriers> ResourceStateTracker::GetCurrentThreadPendingBarriers()
+    {
+        const std::thread::id threadId = std::this_thread::get_id();
+        std::lock_guard lock(m_PendingBarriersMutex);
+        auto& pending = m_PendingBarriers[threadId];
+        if (pending == nullptr) {
+            pending = std::make_shared<PendingBarriers>();
+        }
+        return pending;
+    }
+
     void ResourceStateTracker::ConsumeBarriers(std::vector<TextureBarrier>& textureBarriers, std::vector<BufferBarrier>& bufferBarriers)
     {
-        std::scoped_lock lock(m_TextureMutex, m_BufferMutex);
-        textureBarriers = std::move(m_TextureBarriers);
-        bufferBarriers = std::move(m_BufferBarriers);
-        m_TextureBarriers.clear();
-        m_BufferBarriers.clear();
+        std::shared_ptr<PendingBarriers> pending{};
+        {
+            std::lock_guard lock(m_PendingBarriersMutex);
+            const std::thread::id threadId = std::this_thread::get_id();
+            if (auto it = m_PendingBarriers.find(threadId); it != m_PendingBarriers.end()) {
+                pending = it->second;
+            }
+        }
+
+        if (pending != nullptr) {
+            std::lock_guard pendingLock(pending->mutex);
+            textureBarriers = std::move(pending->textureBarriers);
+            bufferBarriers = std::move(pending->bufferBarriers);
+            pending->textureBarriers.clear();
+            pending->bufferBarriers.clear();
+        }
     }
 
     TesxtureState *ResourceStateTracker::GetInternalTextureStateNoLock(ITexture *texture) const
@@ -96,7 +118,7 @@ namespace DSM{
     ResourceStates ResourceStateTracker::GetTextureSubresourceState(ITexture *texture, uint32_t mipLevel, uint32_t arraySlice)
     {
         const auto& desc = texture->GetDesc();
-        std::lock_guard lock(m_TextureMutex);
+        std::shared_lock lock(m_TextureMutex);
         TesxtureState* texState = GetInternalTextureStateNoLock(texture);
         if(texState == nullptr){
             return desc.keepInitialState ? desc.initialState : ResourceStates::Unknown;
@@ -111,7 +133,7 @@ namespace DSM{
     
     ResourceStates ResourceStateTracker::GetBufferState(IBuffer *buffer)
     {
-        std::lock_guard lock(m_BufferMutex);
+        std::shared_lock lock(m_BufferMutex);
         BufferState* bufferState = GetInternalBufferStateNoLock(buffer);
         if(bufferState == nullptr){
             return buffer->GetDesc().keepInitialState ? 
@@ -146,6 +168,8 @@ namespace DSM{
     {
         const auto& desc = texture->GetDesc();
         subresources = subresources.Resolve(desc, false);
+        std::shared_ptr<PendingBarriers> pendingBarriers = GetCurrentThreadPendingBarriers();
+        std::lock_guard pendingLock(pendingBarriers->mutex);
 
         TesxtureState* texState = GetInternalTextureStateNoLock(texture);
 
@@ -161,7 +185,7 @@ namespace DSM{
                 barrier.entireTexture = true;
                 barrier.stateBefore = texState->state;
                 barrier.stateAfter = state;
-                m_TextureBarriers.push_back(std::move(barrier));
+                pendingBarriers->textureBarriers.push_back(std::move(barrier));
             }
 
             texState->state = state;
@@ -199,7 +223,7 @@ namespace DSM{
                         barrier.arraySlice = arraySlices;
                         barrier.stateBefore = subresourceState;
                         barrier.stateAfter = state;
-                        m_TextureBarriers.push_back(std::move(barrier));
+                        pendingBarriers->textureBarriers.push_back(std::move(barrier));
                     }
 
                     subresourceState = state;
@@ -223,6 +247,8 @@ namespace DSM{
     {
         assert(buffer != nullptr);
         const auto& desc = buffer->GetDesc();
+        std::shared_ptr<PendingBarriers> pendingBarriers = GetCurrentThreadPendingBarriers();
+        std::lock_guard pendingLock(pendingBarriers->mutex);
         
         // Cpu 可见的 Buffer 不可转换状态
         if(desc.cpuAccess != CpuAccessMode::None) return;
@@ -234,12 +260,12 @@ namespace DSM{
             (bufferState->enableUavBarriers || !bufferState->firstUavBarrierPlaced);
 
         if(needTransition){
-            auto it = std::find_if(m_BufferBarriers.begin(), m_BufferBarriers.end(), 
+            auto it = std::find_if(pendingBarriers->bufferBarriers.begin(), pendingBarriers->bufferBarriers.end(), 
                 [buffer](const BufferBarrier& barrier){
                     return barrier.buffer == buffer;
                 });
             // 一个 Buffer 可能充当多种资源，因此将两个状态合并
-            if(it != m_BufferBarriers.end()){
+            if(it != pendingBarriers->bufferBarriers.end()){
                 it->stateAfter |= state;
                 bufferState->state = it->stateAfter;
                 return;
@@ -251,7 +277,7 @@ namespace DSM{
             barrier.buffer = buffer;
             barrier.stateBefore = bufferState->state;
             barrier.stateAfter = state;
-            m_BufferBarriers.push_back(std::move(barrier));
+            pendingBarriers->bufferBarriers.push_back(std::move(barrier));
         }
         if(needUav && !needTransition){
             bufferState->firstUavBarrierPlaced = true;

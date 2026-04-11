@@ -54,7 +54,6 @@ namespace DSM {
 		};
 
 		void Clear() noexcept;
-		size_t GetBaseVertex(size_t subMeshIndex) const;
 
 		inline const std::string& GetName() const noexcept { return name; }
 

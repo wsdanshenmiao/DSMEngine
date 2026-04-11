@@ -131,12 +131,17 @@ namespace DSM {
         std::array<TextureHandle, (size_t)CommonTextureSlot::Count> m_CommonTextures;
         std::array<SamplerHandle, (size_t)SamplerSlot::Count> m_CommonSamplers;
 
-        // 场景中的物体
+        // BVH 树，包含场景中所有的 MeshRenderer 组件对应的物体
         Math::BVHTree m_BVH;
+        // 不透明的物体列表
         std::vector<std::shared_ptr<GameObject>> m_OpaqueObjects{};
+        // 透明的物体列表
         std::vector<std::shared_ptr<GameObject>> m_TransparentObjects{};
+        // 当前帧在相机视锥内的物体列表
         std::vector<std::shared_ptr<GameObject>> m_ObjInFrustum{};
+        // 物体的全局索引
         std::unordered_map<std::shared_ptr<GameObject>, size_t> m_ObjectIndex{};
+        // 物体对应的材质索引列表
         std::unordered_map<std::shared_ptr<GameObject>, std::vector<size_t>> m_ObjectMaterialIndex{};
         
         BufferHandle m_MeshBuffer{};

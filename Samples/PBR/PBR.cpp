@@ -19,7 +19,7 @@ int main()
     Instrumentor::BeginSession("PBR Profiling");
     DSM::DSMEngine engine;
     DSM::EngineParameters params{};
-    params.enableDebugLayer = true;
+    params.enableDebugLayer = false;
     engine.StartEngine(params);
     engine.SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
 

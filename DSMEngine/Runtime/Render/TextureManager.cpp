@@ -3,6 +3,7 @@
 #include "TextureManager.h"
 #include "stb_image.h"
 #include "Runtime/Core/PlatformDetection.h"
+#include "Runtime/Core/Macro.h"
 #include <condition_variable>
 #include <unordered_map>
 
@@ -37,7 +38,7 @@ namespace DSM::TextureManager {
         // 创建默认纹理
         TextureDesc texDesc{};
 		texDesc.format = Format::RGBA8_UNORM;
-		texDesc.initialState = ResourceStates::PixelShaderResource;
+		texDesc.initialState = ResourceStates::ShaderResource;
 		texDesc.debugName = "Magenta2D";
         uint32_t MagentaPixel = 0xFFFF00FF;
 		s_DefaultTextures[kMagenta2D] = s_GraphicsDevice->CreateTexture(texDesc);
@@ -61,7 +62,7 @@ namespace DSM::TextureManager {
 		texDesc.debugName = "WhiteTransparent2D";
         uint32_t WhiteTransparentTexel = 0x00FFFFFF;
         s_DefaultTextures[kWhiteTransparent2D] = s_GraphicsDevice->CreateTexture(texDesc);
-        cmdList->WriteTexture(s_DefaultTextures[kWhiteTransparent2D], 0, 0, &WhiteTransparentTexel, 4);
+		cmdList->WriteTexture(s_DefaultTextures[kWhiteTransparent2D], 0, 0, &WhiteTransparentTexel, 4);
 
 		texDesc.debugName = "DefaultNormalTex";
 		uint32_t FlatNormalTexel = 0x00FF8080;
@@ -125,14 +126,15 @@ namespace DSM::TextureManager {
 			texDesc = D3D12::ConvertD3D12TextureDesc(d3dDesc, texName, isCubeMap);
 			texture = s_GraphicsDevice->CreateHandleForNativeTexture(ObjectTypes::D3D12_Resource, resource, texDesc);
 			
-			auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("Init Texture"));
+			auto debugName = "Init DDSTexture: " + texName;
+			auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName(debugName));
 			cmdList->Open();	
 			for(size_t i = 0; i < subResources.size(); ++i){
 				size_t arraySlice = i / std::max(texDesc.mipLevels, 1u);
 				size_t mipLevel = i % texDesc.mipLevels;
 				cmdList->WriteTexture(texture, arraySlice, mipLevel, subResources[i].pData, subResources[i].RowPitch, subResources[i].SlicePitch);
 			}
-			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::PixelShaderResource);
+			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::ShaderResource);
 			cmdList->Close();
 			s_GraphicsDevice->ExecuteCommandList(cmdList);
 
@@ -149,16 +151,17 @@ namespace DSM::TextureManager {
 		texDesc.width = static_cast<uint32_t>(width);
 		texDesc.height = static_cast<uint32_t>(height);
 		texDesc.debugName = texName;
-		texDesc.initialState = ResourceStates::Common;
+		texDesc.initialState = ResourceStates::CopyDest;
 
 		texture = s_GraphicsDevice->CreateTexture(texDesc);
 		if(texture != nullptr) {
-			auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName("Init Texture"));
+			auto debugName = "Init Texture: " + texName;
+			auto cmdList = s_GraphicsDevice->CreateCommandList(CommandListParameters().SetDebugName(debugName));
 			cmdList->Open();
 			uint32_t rowPitch = GetRowPitch(texDesc.format, texDesc.width);
 			uint32_t slicePitch = GetSlicePitch(texDesc.format, texDesc.width, texDesc.height);
 			cmdList->WriteTexture(texture, 0, 0, imgData, rowPitch, slicePitch);
-			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::PixelShaderResource);
+			cmdList->SetTextureState(texture, AllSubresources, ResourceStates::ShaderResource);
 			cmdList->Close();
 			s_GraphicsDevice->ExecuteCommandList(cmdList);
 		}
@@ -179,6 +182,7 @@ namespace DSM::TextureManager {
 		uint32_t rowPitch = GetRowPitch(texDesc.format, texDesc.width);
 		uint32_t slicePitch = GetSlicePitch(texDesc.format, texDesc.width, texDesc.height);
 		cmdList->WriteTexture(texture, 0, 0, data, rowPitch, slicePitch);
+		cmdList->SetTextureState(texture, AllSubresources, ResourceStates::ShaderResource);
 		cmdList->Close();
 		s_GraphicsDevice->ExecuteCommandList(cmdList);
 

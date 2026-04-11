@@ -105,22 +105,41 @@ namespace DSM {
 
 			return modelMat;
 		};
-		
+
 		// 并行处理所有材质，避免处理复杂材质时阻塞主线程过久
 		const auto maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u) - 1;
-		std::vector<std::future<std::shared_ptr<Material>>> materialFutures{};
-		auto begin = scene->mNumMaterials - std::min(maxThreadCount, scene->mNumMaterials);
-		for (size_t i = begin; i < scene->mNumMaterials; ++i) {
-			materialFutures.emplace_back(std::async(std::launch::async, processMaterialFunc, scene->mMaterials[i]));
-		}
-
+		std::list<std::pair<size_t, std::future<std::shared_ptr<Material>>>> materialFutures{};
 		// 需要保持顺序，因为mesh中material索引是有序的
 		model.materials.resize(scene->mNumMaterials);
-		for(size_t i = 0; i < begin; ++i) {
-			model.materials[i] = processMaterialFunc(scene->mMaterials[i]);
+		for (size_t i = 0; i < scene->mNumMaterials; ++i) {
+			// 回收已经完成的任务，保持任务队列长度不超过maxThreadCount
+			if(materialFutures.size() >= maxThreadCount) {
+				bool collected = false;
+				for(auto it = materialFutures.begin(); it != materialFutures.end();) {
+					auto& [index, future] = *it;
+					if(future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+						model.materials[index] = future.get();
+						it = materialFutures.erase(it);
+						collected = true;
+					}
+					else {
+						++it;
+					}
+				}
+				// 若没有任务完成，则等待最早的一个任务完成并回收
+				if(!collected) {
+					auto& [index, future] = materialFutures.front();
+					model.materials[index] = future.get();
+					materialFutures.pop_front();
+				}
+			}
+			materialFutures.emplace_back(i, std::async(std::launch::async, processMaterialFunc, scene->mMaterials[i]));
 		}
-		for(size_t i = begin; i < scene->mNumMaterials; ++i) {
-			model.materials[i] = materialFutures[i - begin].get();
+
+		// 等待剩余的任务完成
+		for(auto& future : materialFutures) {
+			auto& [index, matFuture] = future;
+			model.materials[index] = matFuture.get();
 		}
 	}
 

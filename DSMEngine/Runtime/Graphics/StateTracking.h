@@ -4,7 +4,10 @@
 
 #include "Runtime/Graphics/Texture.h"
 #include "Runtime/Graphics/Buffer.h"
+#include <memory>
 #include <mutex>
+#include <shared_mutex>
+#include <thread>
 #include <unordered_map>
 
 
@@ -41,6 +44,13 @@ namespace DSM {
         ResourceStates stateAfter = ResourceStates::Unknown;
     };
 
+    struct PendingBarriers
+    {
+        std::mutex mutex{};
+        std::vector<TextureBarrier> textureBarriers{};
+        std::vector<BufferBarrier> bufferBarriers{};
+    };
+
     // 追踪资源状态的辅助类
     class ResourceStateTracker
     {
@@ -74,10 +84,13 @@ namespace DSM {
         void RequireBufferStateNoLock(IBuffer* buffer, ResourceStates state);
 
     private:
+        std::shared_ptr<PendingBarriers> GetCurrentThreadPendingBarriers();
+
+    private:
         IMessageCallback* m_Callback;
 
-        mutable std::mutex m_TextureMutex{};
-        mutable std::mutex m_BufferMutex{};
+        mutable std::shared_mutex m_TextureMutex{};
+        mutable std::shared_mutex m_BufferMutex{};
 
         // 记录各个资源的状态
         std::unordered_map<ITexture*, std::unique_ptr<TesxtureState>> m_TextureStates{};
@@ -86,8 +99,8 @@ namespace DSM {
         std::vector<ITexture*> m_KeepInitialStatesTextures{};
         std::vector<IBuffer*> m_KeepInitialStatesBuffers{};
 
-        std::vector<TextureBarrier> m_TextureBarriers{};
-        std::vector<BufferBarrier> m_BufferBarriers{};
+        mutable std::mutex m_PendingBarriersMutex{};
+        std::unordered_map<std::thread::id, std::shared_ptr<PendingBarriers>> m_PendingBarriers{};
     };
 } // namespace DSM 
 

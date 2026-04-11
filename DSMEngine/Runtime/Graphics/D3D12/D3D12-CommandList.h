@@ -198,7 +198,7 @@ namespace DSM::D3D12 {
             uint64_t offset = 0;
             D3D12_GPU_VIRTUAL_ADDRESS address{};
         };
-            
+        
         Device& m_Device;
         std::weak_ptr<DeviceResources> m_Resources;
         ResourceStateTracker& m_StateTracker;
