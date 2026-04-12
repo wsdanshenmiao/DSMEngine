@@ -45,8 +45,8 @@ namespace ShaderResource{
         float4x4 viewInv;
         float4x4 proj;
         float4x4 projInv;
-        float2 renderTargetSize;
-        float2 nearFarZ;
+        float4 renderTargetSize;
+        float4 nearFarZ;
         float3 cameraPos;
         float deltaTime;
     };
@@ -67,7 +67,7 @@ namespace ShaderResource{
         float ssaoThreshold;
         float fadeEnd;
         uint contrast;
-        float3 pad;
+        float pad[3];
     };
 
     struct SSAOBlurConstants
@@ -75,7 +75,7 @@ namespace ShaderResource{
         float4x4 proj;
         float blurRadius;
         bool isHorizontal;
-        float2 pad;
+        float pad[2];
     };
 
     struct LightData

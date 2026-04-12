@@ -8,7 +8,134 @@
 #include "XMScalar.h"
 
 namespace DSM {
+    class XMVector3;
     class XMVector4;
+
+    class XMVector2
+    {
+        friend class XMMatrix3;
+        friend class XMMatrix4;
+        friend class XMQuaternion;
+    public:
+        inline XMVector2() noexcept : m_Vector(DirectX::XMVectorReplicate(0)) {}
+        inline XMVector2(float s) noexcept : m_Vector(XMScalar{s}) {}
+        inline XMVector2(XMScalar s) noexcept : m_Vector(s) {}
+        inline XMVector2(std::span<const float, 2> data) : XMVector2(DirectX::XMFLOAT2{data[0], data[1]}) {}
+        inline XMVector2(std::initializer_list<float> initList)
+        {
+            DirectX::XMFLOAT2 tmp{};
+            memcpy(&tmp, initList.begin(), sizeof(float) * (std::min)(initList.size(), 2llu));
+            m_Vector = DirectX::XMLoadFloat2(&tmp);
+        }
+        inline explicit XMVector2(const XMVector3& v);
+        inline explicit XMVector2(const XMVector4& v);
+
+        inline XMVector2 operator-() const noexcept { return DirectX::XMVectorNegate(m_Vector); }
+
+        inline XMVector2& operator+=(XMVector2 other) noexcept
+        {
+            m_Vector = DirectX::XMVectorAdd(m_Vector, other);
+            return *this;
+        }
+        inline XMVector2& operator-=(XMVector2 other) noexcept
+        {
+            m_Vector = DirectX::XMVectorSubtract(m_Vector, other);
+            return *this;
+        }
+        inline XMVector2& operator*=(XMVector2 scalar) noexcept
+        {
+            m_Vector = DirectX::XMVectorMultiply(m_Vector, scalar);
+            return *this;
+        }
+        inline XMVector2& operator*=(XMScalar scalar) noexcept { return operator*=(XMVector2(scalar)); }
+        inline XMVector2& operator*=(float v) noexcept { return operator*=(XMScalar{v}); }
+        inline XMVector2& operator/=(XMVector2 scalar) noexcept
+        {
+            m_Vector = DirectX::XMVectorDivide(m_Vector, scalar);
+            return *this;
+        }
+        inline XMVector2& operator/=(XMScalar scalar) noexcept { return operator/=(XMVector2(scalar)); }
+        inline XMVector2& operator/=(float v) noexcept { return operator/=(XMScalar{v}); }
+
+        inline bool operator==(const XMVector2& other) const noexcept { return DirectX::XMVector2Equal(m_Vector, other); }
+
+        inline XMScalar Get(size_t index) const
+        {
+            switch (index) {
+            case 0: return XMScalar{DirectX::XMVectorSplatX(m_Vector)};
+            case 1: return XMScalar{DirectX::XMVectorSplatY(m_Vector)};
+            default:
+                throw std::out_of_range("Index out of range.");
+            }
+            return XMScalar{};
+        }
+        inline void Set(size_t index, XMScalar x)
+        {
+            switch (index) {
+            case 0: m_Vector = DirectX::XMVectorPermute<4, 1, 2, 3>(m_Vector, x); break;
+            case 1: m_Vector = DirectX::XMVectorPermute<0, 5, 2, 3>(m_Vector, x); break;
+            default:
+                throw std::out_of_range("Index out of range.");
+            }
+        }
+        inline void Set(size_t index, float val) { Set(index, XMScalar{val}); }
+
+        std::size_t Size() const noexcept { return 2; }
+        void Fill(float v) noexcept { m_Vector = DirectX::XMVectorReplicate(v); }
+        XMScalar SqrMagnitude() const noexcept { return XMScalar{DirectX::XMVector2LengthSq(m_Vector)}; }
+        XMScalar Magnitude() const noexcept { return XMScalar{DirectX::XMVector2Length(m_Vector)}; }
+        XMVector2 Normalized() const noexcept { return XMVector2{DirectX::XMVector2Normalize(m_Vector)}; }
+        bool NearZero() const
+        {
+            return std::abs(float(Get(0))) < 1e-6f && std::abs(float(Get(1))) < 1e-6f;
+        }
+
+        inline operator DirectX::XMVECTOR() const noexcept { return m_Vector; }
+
+        static inline XMVector2 Abs(XMVector2 v) noexcept { return DirectX::XMVectorAbs(v); }
+        static inline void Normalize(XMVector2& v) noexcept { v.m_Vector = DirectX::XMVector2Normalize(v.m_Vector); }
+        static inline XMScalar Distance(const XMVector2& v1, const XMVector2& v2) noexcept;
+        static inline XMVector2 Zero() noexcept { return XMVector2{}; }
+        static inline XMVector2 One() noexcept { return XMVector2{1}; }
+        static inline XMVector2 NegativeInfinity() noexcept { return XMVector2{std::numeric_limits<float>::lowest()}; }
+        static inline XMVector2 PositiveInfinity() noexcept { return XMVector2{(std::numeric_limits<float>::max)()}; }
+        static inline XMVector2 ClampMagnitude(XMVector2 v, XMScalar maxLen) noexcept
+        {
+            return DirectX::XMVector2ClampLengthV(v, XMScalar{0}, maxLen);
+        }
+        static inline XMVector2 Lerp(XMVector2 v1, XMVector2 v2, XMScalar t) noexcept
+        {
+            return DirectX::XMVectorLerp(v1, v2, t);
+        }
+        static inline XMVector2 Max(XMVector2 v1, XMVector2 v2) noexcept { return DirectX::XMVectorMax(v1, v2); }
+        static inline XMVector2 Min(XMVector2 v1, XMVector2 v2) noexcept { return DirectX::XMVectorMin(v1, v2); }
+        static inline XMVector2 Project(const XMVector2& v1, const XMVector2& v2) noexcept;
+        static inline XMVector2 Reflect(XMVector2 v, XMVector2 n) noexcept { return DirectX::XMVector2Reflect(v, n); }
+        static inline XMVector2 Refract(XMVector2 v, XMVector2 n, float refractiveIndex) noexcept { return DirectX::XMVector2Refract(v, n, refractiveIndex); }
+        static inline XMScalar Dot(XMVector2 v1, XMVector2 v2) noexcept { return DirectX::XMVector2Dot(v1, v2); }
+        static inline XMVector2 Floor(XMVector2 v) noexcept { return DirectX::XMVectorFloor(v); }
+
+    private:
+        inline XMVector2(const DirectX::XMFLOAT2& v) noexcept : m_Vector(DirectX::XMLoadFloat2(&v)) {}
+        inline XMVector2(DirectX::FXMVECTOR v) noexcept : m_Vector(v) {}
+
+    private:
+        DirectX::XMVECTOR m_Vector{};
+    };
+
+    inline XMVector2 operator+(XMVector2 v0, XMVector2 v1) noexcept { return v0 += v1; }
+    inline XMVector2 operator-(XMVector2 v0, XMVector2 v1) noexcept { return v0 -= v1; }
+    inline XMVector2 operator*(XMVector2 v0, XMVector2 v1) noexcept { return v0 *= v1; }
+    inline XMVector2 operator*(XMVector2 v0, XMScalar scalar) noexcept { return v0 *= scalar; }
+    inline XMVector2 operator*(XMScalar scalar, XMVector2 v) noexcept { return v *= scalar; }
+    inline XMVector2 operator*(XMVector2 v0, float scalar) noexcept { return v0 *= scalar; }
+    inline XMVector2 operator*(float scalar, XMVector2 v) noexcept { return v *= scalar; }
+    inline XMVector2 operator/(XMVector2 v0, XMVector2 v1) noexcept { return v0 /= v1; }
+    inline XMVector2 operator/(XMVector2 v0, XMScalar scalar) noexcept { return v0 /= scalar; }
+    inline XMVector2 operator/(XMVector2 v, float scalar) noexcept { return v /= scalar; }
+
+    inline XMScalar XMVector2::Distance(const XMVector2& v1, const XMVector2& v2) noexcept { return (v2 - v1).Magnitude(); }
+    inline XMVector2 XMVector2::Project(const XMVector2& v1, const XMVector2& v2) noexcept { return (XMVector2::Dot(v1, v2) / v2.SqrMagnitude()) * v2; }
     
     class XMVector3
     {
@@ -270,7 +397,22 @@ namespace DSM {
 
 
     inline XMVector3::XMVector3(const XMVector4& v) : m_Vector(DirectX::XMVECTOR(v)) {}
+    inline XMVector2::XMVector2(const XMVector3& v) : m_Vector(DirectX::XMVECTOR(v)) {}
+    inline XMVector2::XMVector2(const XMVector4& v) : m_Vector(DirectX::XMVECTOR(v)) {}
 }
+
+template<>
+struct std::formatter<DSM::XMVector2>
+{
+    template<typename Context>
+    constexpr auto parse(Context& ctx) { return ctx.begin(); }
+
+    template<typename Context>
+    auto format(const DSM::XMVector2& k, Context& ctx) const
+    {
+        return std::format_to(ctx.out(), "{}, {}/n", k.Get(0), k.Get(1));
+    }
+};
 
 template<>
 struct std::formatter<DSM::XMVector3>

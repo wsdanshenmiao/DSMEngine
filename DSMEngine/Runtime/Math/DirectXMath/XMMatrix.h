@@ -32,7 +32,12 @@ namespace DSM {
         inline XMVector3 Get(size_t index) const noexcept{ return m_Matrix[index];}
         inline XMScalar Get(size_t row, size_t col) const noexcept { return Get(row).Get(col); }
         inline void Set(size_t index, XMVector3 x) noexcept { m_Matrix[index] = std::move(x); }
-        inline void Set(size_t row, size_t col, XMScalar val) noexcept { Get(row).Set(col, std::move(val)); }
+        inline void Set(size_t row, size_t col, XMScalar val) noexcept
+        {
+            XMVector3 rowVec = Get(row);
+            rowVec.Set(col, val);
+            Set(row, rowVec);
+        }
         
         inline operator DirectX::XMMATRIX() const noexcept
         {
@@ -124,7 +129,12 @@ namespace DSM {
         inline XMVector4 Get(size_t index) const noexcept{ return XMVector4{m_Matrix.r[index]};}
         inline XMScalar Get(size_t row, size_t col) const noexcept { return Get(row).Get(col); }
         inline void Set(size_t index, XMVector4 v) noexcept { m_Matrix.r[index] = v; }
-        inline void Set(size_t row, size_t col, XMScalar val) noexcept { Get(row).Set(col, std::move(val)); }
+        inline void Set(size_t row, size_t col, XMScalar val) noexcept
+        {
+            XMVector4 rowVec = Get(row);
+            rowVec.Set(col, val);
+            Set(row, rowVec);
+        }
 
         inline operator DirectX::XMMATRIX() const noexcept { return m_Matrix; }
 

@@ -44,7 +44,7 @@ namespace DSM {
         inline RowType Get(size_t index) const noexcept{ return m_Matrix[index];}
         inline Scalar<T> Get(size_t row, size_t col) const noexcept { return Get(row).Get(col); }
         inline void Set(size_t index, RowType x) noexcept { m_Matrix[index] = std::move(x); }
-        inline void Set(size_t row, size_t col, Scalar<T> val) noexcept { Get(row).Set(col, std::move(val)); }
+        inline void Set(size_t row, size_t col, Scalar<T> val) noexcept { m_Matrix[row].Set(col, val); }
 
         static inline Matrix GetRotate(Quaternion<T> q) noexcept requires Matrix3or4<Row, Col> { return Matrix{q}; }
         static Matrix GetRotateX(float angle) noexcept requires Matrix3or4<Row, Col>;

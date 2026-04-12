@@ -30,7 +30,7 @@ namespace DSM {
 
     void DSMEngine::ShutDownEngine()
     {
-		// 需要注意资源释放的顺序
+		// 锟斤拷要注锟斤拷锟斤拷源锟酵放碉拷顺锟斤拷
         DSMEngine::sm_GlobalContext.scene = nullptr;
         DSMEngine::sm_GlobalContext.renderer = nullptr;
         DSMEngine::sm_GlobalContext.inputSystem = nullptr;

@@ -54,8 +54,8 @@ namespace DSM::Math {
                 if(t0 > t1) 
                     std::swap(t0, t1);
 
-                tMin = std::max(tMin, t0);
-                tMax = std::min(tMax, t1);
+                tMin = std::max(tMin, float{t0});
+                tMax = std::min(tMax, float{t1});
 
                 if (tMax <= tMin)
                     return false;

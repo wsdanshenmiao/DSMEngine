@@ -99,7 +99,7 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
 
     float3 color = ShadeLighting(surface);
 
-    float2 uv = i.posCS.xy / gPassConstants.renderTargetSize;
+    float2 uv = i.posCS.xy * gPassConstants.renderTargetSize.zw;
     float ssao = gSSAOTex.Sample(gAnisoWrapSampler, uv).r;
     color *= occlusion * ssao;
     color += emissive;

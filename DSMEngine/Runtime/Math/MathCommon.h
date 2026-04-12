@@ -29,36 +29,22 @@ namespace DSM::Math {
 
 #if defined(DSM_PLATFORM_WINDOWS)
     using Scalar = XMScalar;
+    using Vector2 = XMVector2;
     using Vector3 = XMVector3;
     using Vector4 = XMVector4;
     using Quaternion = XMQuaternion;
     using Matrix3 = XMMatrix3;
     using Matrix4 = XMMatrix4;
 
-    inline float operator-(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) - float(rhs); }
-    inline float operator-(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) - float(rhs); }
-    inline float operator+(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) + float(rhs); }
-    inline float operator+(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) + float(rhs); }
-    inline float operator*(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) * float(rhs); }
-    inline float operator*(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) * float(rhs); }
-    inline float operator/(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) / float(rhs); }
-    inline float operator/(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) / float(rhs); }
-
-    inline std::partial_ordering operator<=>(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) <=> float(rhs); }
-    inline std::partial_ordering operator<=>(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) <=> float(rhs); }
-
-    inline bool operator==(const XMScalar& lhs, const DSM::Scalar<float>& rhs) { return float(lhs) == float(rhs); }
-    inline bool operator==(const DSM::Scalar<float>& lhs, const XMScalar& rhs) { return float(lhs) == float(rhs); }
-
 #else
     using Scalar = DSM::Scalar<float>;
+    using Vector2 = DSM::Vector2f;
     using Vector3 = DSM::Vector3f;
     using Vector4 = DSM::Vector4f;
     using Quaternion = DSM::Quaternionf;
     using Matrix3 = Matrix<float, 3, 3>;
     using Matrix4 = Matrix<float, 4, 4>;
 #endif
-    using Vector2 = DSM::Vector2f;
 
     inline Matrix4 GetLocalToWorld(const Vector3& pos, const Vector3& scale, const Quaternion& q)
     {
@@ -272,6 +258,7 @@ namespace DSM::Math {
         return radians * (180.f / std::numbers::pi_v<float>);
     }
 
-} // namespace DSM 
+} // namespace DSM::Math
+
 
 #endif

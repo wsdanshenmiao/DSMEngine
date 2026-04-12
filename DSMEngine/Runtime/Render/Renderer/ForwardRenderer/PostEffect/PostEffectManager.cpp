@@ -48,7 +48,7 @@ namespace DSM{
         device->QueueWaitForCommandList(
             CommandQueueType::Compute, 
             CommandQueueType::Graphics, 
-            RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::Transparent));
+            RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::TAA));
         device->ExecuteCommandList(cmdList);
 
         for(size_t i = 0; i < std::size(enabledEffects); ++i){

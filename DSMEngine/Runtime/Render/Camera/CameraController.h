@@ -22,6 +22,7 @@ namespace DSM {
 
         void InitCamera(Camera* pCamera);
 
+        float GetMoveSpeed() const { return m_MoveSpeed; }
         void SetMouseSensitivity(float x, float y);
         void SetMoveSpeed(float speed);
 

@@ -14,6 +14,24 @@ SamplerState gLinearBorderSampler : register(s7);
 SamplerComparisonState gShadowSampler : register(s8);
 
 
+
+/*
+ *  2
+ *  |\
+ *  | \
+ *  |  \
+ *  |___ \
+ *  0       1
+ */
+// 覆盖全屏的三角形
+void GetFullscreenTriangle(uint vertexID, out float4 posCS, out float2 uv)
+{
+    uv = float2(vertexID & 2, (vertexID << 1) & 2);
+    posCS = float4(uv * float2(2, -2) + float2(-1, 1), 0, 1);
+
+}
+
+
 float2 EncodeFloat3ToFloat2(float3 normal)
 {
     normal /= abs(normal.x) + abs(normal.y) + abs(normal.z);
@@ -56,6 +74,27 @@ float DistanceSquared(float3 p1, float3 p2)
 float GetLinearDepth(float depth, float4x4 projMatrix)
 {
     return projMatrix[3][2] / (depth - projMatrix[2][2]);
+}
+
+
+float4 GetWorldPosition(float2 uv, float4x4 invViewProj, float depth)
+{
+    float4 posCS = float4(uv * 2 - 1, depth, 1);
+    posCS.y *= -1;
+    float4 posWS = mul(posCS, invViewProj);
+    posWS /= posWS.w;
+    
+    return posWS;
+}
+
+float4 GetViewPosition(float2 uv, float4x4 invProj, float depth)
+{
+    float4 posCS = float4(uv * 2 - 1, depth, 1);
+    posCS.y *= -1;
+    float4 posVS = mul(posCS, invProj);
+    posVS /= posVS.w;
+
+    return posVS;
 }
 
 

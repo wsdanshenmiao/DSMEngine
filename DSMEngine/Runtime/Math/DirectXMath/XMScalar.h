@@ -10,6 +10,7 @@ namespace DSM {
     
     class XMScalar
     {
+        friend class XMVector2;
         friend class XMVector3;
         friend class XMVector4;
         friend class XMQuaternion;

@@ -39,8 +39,8 @@ namespace DSM {
         }
 
         // 处理拖放资源到层级面板的情况
-        auto center = Math::Vector2(ImGui::GetWindowViewport()->GetCenter().x, ImGui::GetWindowViewport()->GetCenter().y);
-        auto size = Math::Vector2(ImGui::GetWindowViewport()->Size.x, ImGui::GetWindowViewport()->Size.y);
+        auto center = Math::Vector2{ImGui::GetWindowViewport()->GetCenter().x, ImGui::GetWindowViewport()->GetCenter().y};
+        auto size = Math::Vector2{ImGui::GetWindowViewport()->Size.x, ImGui::GetWindowViewport()->Size.y};
         auto rectMin = center - size * 0.5f;
         auto rectMax = center + size * 0.5f;
         ImRect rect(ImVec2{rectMin.Get(0), rectMin.Get(1)}, ImVec2{rectMax.Get(0), rectMax.Get(1)});

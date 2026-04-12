@@ -90,15 +90,21 @@ namespace DSM {
                 cmdList->ClearTextureFloat(rendertarget.texture, AllSubresources, Color{0.0f, 0.0f, 0.0f, 1.0f});
             }
 
+            float cameraNear = renderer.GetCamera().GetNearZ();
+            float cameraFar = renderer.GetCamera().GetFarZ();
+            auto proj = renderer.GetCamera().GetProjMatrix();
+            auto offset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{width, height};
+            proj.Set(2, 0, proj.Get(2, 0) + offset.Get(0) * 2.f);
+            proj.Set(2, 1, proj.Get(2, 1) + offset.Get(1) * 2.f);
             ShaderResource::PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());
             passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
-            passCB.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
+            passCB.proj = Math::Matrix4::Transpose(proj);
             passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
             passCB.cameraPos = renderer.GetCamera().GetPosition();
             passCB.deltaTime = deltaTime;
-            passCB.renderTargetSize = Math::Vector2{ width, height };
-            passCB.nearFarZ = Math::Vector2{ renderer.GetCamera().GetNearZ(), renderer.GetCamera().GetFarZ() };
+            passCB.renderTargetSize = Math::Vector4{ width, height, 1.0f / width, 1.0f / height };
+            passCB.nearFarZ = Math::Vector4{ cameraNear, cameraFar, 1.0f / cameraNear, 1.0f / cameraFar };
 
             cmdList->WriteBuffer(m_PassCB, &passCB, sizeof(ShaderResource::PassConstants));
 
