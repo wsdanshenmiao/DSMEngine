@@ -28,7 +28,7 @@ namespace DSM{
                 m_ShouldResizeRenderer = false;
                 m_ResizeWidth = m_ResizeHeight = 0;
             }
-            m_Engine->Run();
+			m_Engine->Update();
         }
     }
     

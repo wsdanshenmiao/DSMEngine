@@ -26,6 +26,8 @@ namespace DSM {
 
             DSMEngine::sm_GlobalContext.renderer->OnEvent(event);
         });
+
+        m_Timer.Reset();
     }
 
     void DSMEngine::ShutDownEngine()
@@ -40,15 +42,14 @@ namespace DSM {
 
     void DSMEngine::Run()
     {
-        m_Timer.Reset();
         while (m_Running) {
-            m_Timer.Tick();
             Update();
         }
     }
 
     void DSMEngine::Update()
     {
+        m_Timer.Tick();
         float deltaTime = m_Timer.DeltaTime();
         CalculateFPS();
 

@@ -15,13 +15,12 @@ cbuffer gTaaConstants : register(b0)
 {
 	float gHistoryWeight;
 	float gVarianceClip;
-	uint gResetHistory;
-    float pad;
+    float pad[2];
 }
 
 Texture2D<float4> gCurrColor : register(t0);
 Texture2D<float4> gHistoryColor : register(t1);
-Texture2D<float> gMotionVec : register(t2);
+Texture2D<float2> gMotionVec : register(t2);
 
 Varyings TaaPassVS(uint vertexID : SV_VertexID)
 {
@@ -34,11 +33,6 @@ Varyings TaaPassVS(uint vertexID : SV_VertexID)
 float4 TaaPassPS(Varyings input) : SV_TARGET
 {
     float4 currCol = gCurrColor.Sample(gLinearClampSampler, input.uv);
-
-    // 重置历史帧
-    if(gResetHistory != 0){
-        return currCol;
-    }
 
     float2 motionVec = gMotionVec.Sample(gPointClampSampler, input.uv);
     float2 prevUV = input.uv - motionVec;

@@ -67,8 +67,14 @@ namespace DSM {
 
             auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("TAA Command List"));
             cmdList->Open();
-            ExecuteMotionVectorPass(renderer, cmdList);
-            ExecuteTaaPass(renderer, cmdList, colorTex);
+            if(m_ResetHistory){
+                m_PreViewProjMatrix = Math::Matrix4::Transpose(renderer.GetCamera().GetViewProjMatrix());
+                cmdList->CopyTexture(m_HistoryColorTex, {}, colorTex, {});
+            }
+            else{
+                ExecuteMotionVectorPass(renderer, cmdList);
+                ExecuteTaaPass(renderer, cmdList, colorTex);
+            }
             cmdList->Close();
 
             m_ResetHistory = false;
@@ -160,7 +166,7 @@ namespace DSM {
 
             auto currViewProj = Math::Matrix4::Transpose(view * proj);
             TaaConstants constants{};
-            constants.prevViewProj = m_ResetHistory ? currViewProj : m_PreViewProjMatrix;
+            constants.prevViewProj = m_PreViewProjMatrix;
             constants.currInvViewProj = Math::Matrix4::Inverse(currViewProj);
             cmdList->WriteBuffer(m_ConstantBuffer, &constants, sizeof(constants));
             cmdList->ClearTextureFloat(m_MotionVecTex, AllSubresources, {0, 0, 0, 0});
@@ -190,7 +196,6 @@ namespace DSM {
             TaaConstants constants{};
             constants.historyWeight = blendFactor;
             constants.varianceClip = std::max(sm_Settings.varianceClip, 0.0f);
-            constants.resetHistory = m_ResetHistory ? 1u : 0u;
             cmdList->WriteBuffer(m_ConstantBuffer, &constants, sizeof(constants));
 
             cmdList->SetGraphicsState(GraphicsState()
@@ -214,8 +219,7 @@ namespace DSM {
                 {
                     float historyWeight;
                     float varianceClip;
-                    uint resetHistory;
-                    float pad;
+                    float pad[2];
                 };
                 struct
                 {
