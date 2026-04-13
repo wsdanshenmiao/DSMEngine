@@ -333,6 +333,7 @@ namespace DSM::D3D12 {
                 else{
                     // 没有采样器则创建一个默认采样器
                     D3D12_SAMPLER_DESC samplerDesc{};
+                    samplerDesc.AddressU = samplerDesc.AddressV = samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
                     context.device->CreateSampler(&samplerDesc, handle);
                 }
             }

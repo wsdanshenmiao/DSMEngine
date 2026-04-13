@@ -25,7 +25,9 @@ namespace DSM {
                 .AddItem(BindingLayoutItem::VolatileConstantBuffer(0))
                 .AddItem(BindingLayoutItem::Texture_SRV(0))
                 .AddItem(BindingLayoutItem::Texture_SRV(1))
-                .AddItem(BindingLayoutItem::Sampler((uint32_t)SamplerSlot::LinearClamp)));
+                .AddItem(BindingLayoutItem::Texture_SRV(2))
+                .AddItem(BindingLayoutItem::Sampler((uint32_t)SamplerSlot::LinearClamp))
+                .AddItem(BindingLayoutItem::Sampler((uint32_t)SamplerSlot::PointClamp)));
             m_ConstantBuffer = device->CreateBuffer(BufferDesc()
                 .SetDebugName("TAA Constant Buffer")
                 .SetByteSize(sizeof(TaaConstants))
@@ -63,18 +65,9 @@ namespace DSM {
                 return 0;
             }
 
-            if (m_CacheColorTex != colorTex || m_TaaBindingSet == nullptr) {
-                m_TaaBindingSet = device->CreateBindingSet(BindingSetDesc()
-                    .AddItem(BindingSetItem::ConstantBuffer(0, m_ConstantBuffer))
-                    .AddItem(BindingSetItem::Texture_SRV(0, m_CurrTex))
-                    .AddItem(BindingSetItem::Texture_SRV(1, m_HistoryColorTex))
-                    .AddItem(BindingSetItem::Sampler((uint32_t)SamplerSlot::LinearClamp, renderRes.GetCommonSampler(SamplerSlot::LinearClamp)))
-                    , m_TaaPipeline->GetDesc().bindingLayouts[0]);
-                m_CacheColorTex = colorTex;
-            }
-
             auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("TAA Command List"));
             cmdList->Open();
+            ExecuteMotionVectorPass(renderer, cmdList);
             ExecuteTaaPass(renderer, cmdList, colorTex);
             cmdList->Close();
 
@@ -88,10 +81,14 @@ namespace DSM {
             auto colorTexDesc = RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::Color)->GetDesc();
             m_HistoryColorTex = device->CreateTexture(colorTexDesc.SetDebugName("TAA History Color Texture"));
             m_CurrTex = device->CreateTexture(colorTexDesc.SetDebugName("TAA Output Texture"));
-            auto motinVecDesc = colorTexDesc.SetDebugName("TAA Motion Vector Texture")
+            auto motinVecDesc = colorTexDesc;
+            m_MotionVecTex = device->CreateTexture(motinVecDesc
+                .SetDebugName("TAA Motion Vector Texture")
                 .SetFormat(Format::RG16_FLOAT)
-                .SetIsRenderTarget(true);
-            m_MotionVecTex = device->CreateTexture(motinVecDesc);
+                .SetClearValue({0, 0, 0, 0})
+                .SetIsRenderTarget(true));
+
+            m_MotionVecFB = device->CreateFramebuffer(FramebufferDesc().AddColorAttachment(m_MotionVecTex, AllSubresources));
 
             auto pipelineDesc = GraphicsPipelineDesc{}
                 .SetVertexShader(m_VertexShader)
@@ -103,10 +100,24 @@ namespace DSM {
                     .SetRasterState(RasterState().SetCullMode(RasterCullMode::None)));
             auto fb = RenderResource::GetInstance().GetFramebuffer();
             m_TaaPipeline = device->CreateGraphicsPipeline(pipelineDesc.SetPixelShader(m_TaaPS), fb);
-            m_MotionVecPipeline = device->CreateGraphicsPipeline(pipelineDesc.SetPixelShader(m_MotionVecPS), fb);
+            m_MotionVecPipeline = device->CreateGraphicsPipeline(pipelineDesc.SetPixelShader(m_MotionVecPS), m_MotionVecFB);
 
-            m_TaaBindingSet = nullptr;
-            m_CacheColorTex = nullptr;
+            auto linearClampSampler = RenderResource::GetInstance().GetCommonSampler(SamplerSlot::LinearClamp);
+            m_TaaBindingSet = device->CreateBindingSet(BindingSetDesc()
+                .AddItem(BindingSetItem::ConstantBuffer(0, m_ConstantBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(0, m_CurrTex))
+                .AddItem(BindingSetItem::Texture_SRV(1, m_HistoryColorTex))
+                .AddItem(BindingSetItem::Texture_SRV(2, m_MotionVecTex))
+                .AddItem(BindingSetItem::Sampler((uint32_t)SamplerSlot::LinearClamp, linearClampSampler))
+                , m_TaaPipeline->GetDesc().bindingLayouts[0]);
+            
+            auto pointClampSampler = RenderResource::GetInstance().GetCommonSampler(SamplerSlot::PointClamp);
+            m_MotionVecBindingSet = device->CreateBindingSet(BindingSetDesc()
+                .AddItem(BindingSetItem::ConstantBuffer(0, m_ConstantBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(0, fb->GetDesc().depthAttachment.texture))
+                .AddItem(BindingSetItem::Sampler((uint32_t)SamplerSlot::PointClamp, pointClampSampler))
+                , m_MotionVecPipeline->GetDesc().bindingLayouts[0]);
+
             m_ResetHistory = true;
         }
 
@@ -140,7 +151,29 @@ namespace DSM {
     private:
         void ExecuteMotionVectorPass(GraphicsRenderer& renderer, ICommandList* cmdList)
         {
+            auto view = renderer.GetCamera().GetViewMatrix();
+            auto proj = renderer.GetCamera().GetProjMatrix();
+            auto viewport = renderer.GetCamera().GetViewPort();
+            auto jitter = GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{viewport.Width(), viewport.Height()};
+            proj.Set(2, 0, proj.Get(2, 0) + jitter.Get(0) * 2.f);
+            proj.Set(2, 1, proj.Get(2, 1) + jitter.Get(1) * 2.f);
 
+            auto currViewProj = Math::Matrix4::Transpose(view * proj);
+            TaaConstants constants{};
+            constants.prevViewProj = m_ResetHistory ? currViewProj : m_PreViewProjMatrix;
+            constants.currInvViewProj = Math::Matrix4::Inverse(currViewProj);
+            cmdList->WriteBuffer(m_ConstantBuffer, &constants, sizeof(constants));
+            cmdList->ClearTextureFloat(m_MotionVecTex, AllSubresources, {0, 0, 0, 0});
+
+            cmdList->SetGraphicsState(GraphicsState()
+                .SetPipeline(m_MotionVecPipeline)
+                .AddBindingSet(m_MotionVecBindingSet, 0)
+                .SetFramebuffer(m_MotionVecFB)
+                .SetViewport(ViewportState().AddViewportAndScissorRect(renderer.GetCamera().GetViewPort())));
+
+            cmdList->Draw(DrawArguments().SetVertexCount(3));
+
+            m_PreViewProjMatrix = currViewProj;
         }
 
         void ExecuteTaaPass(GraphicsRenderer& renderer, ICommandList* cmdList, ITexture* colorTex)
@@ -165,7 +198,7 @@ namespace DSM {
                 .AddBindingSet(m_TaaBindingSet, 0)
                 .SetFramebuffer(RenderResource::GetInstance().GetFramebuffer())
                 .SetViewport(ViewportState().AddViewportAndScissorRect(renderer.GetCamera().GetViewPort())));
-            cmdList->SetPushConstants(&constants, sizeof(constants));
+
             cmdList->Draw(DrawArguments().SetVertexCount(3));
 
             // 拷贝历史帧
@@ -205,7 +238,6 @@ namespace DSM {
         ShaderHandle m_TaaPS{};
         ShaderHandle m_MotionVecPS{};
 
-        ITexture* m_CacheColorTex = nullptr;
         bool m_ResetHistory = true;
 
         // 缓存的历史帧
@@ -213,6 +245,8 @@ namespace DSM {
         TextureHandle m_CurrTex{};
         TextureHandle m_MotionVecTex{};
         BufferHandle m_ConstantBuffer{};
+        
+        FramebufferHandle m_MotionVecFB{};
 
         Math::Matrix4 m_PreViewProjMatrix = Math::Matrix4::Identity;
     };
