@@ -28,6 +28,7 @@ namespace DSM {
         Noise,
         SSAO,
         ShadowMap,
+        MotionVector,
         Count
     };
 
@@ -48,6 +49,7 @@ namespace DSM {
     enum class RenderPass : uint8_t
     {
         Geometry = 0,
+        MotionVector,
         SSAO,
         Shadow,
         Lighting,
@@ -86,6 +88,7 @@ namespace DSM {
         }
 
         inline BufferHandle& GetMeshBuffer() noexcept { return m_MeshBuffer; }
+        inline BufferHandle& GetLastFrameMeshBuffer() noexcept { return m_LastFrameMeshBuffer; }
         inline BufferHandle& GetMaterialBuffer() noexcept { return m_MaterialBuffer; }
 
         inline FramebufferHandle& GetFramebuffer() noexcept { return m_Framebuffer; }
@@ -97,6 +100,7 @@ namespace DSM {
         inline const auto& GetOpaqueObjects() noexcept { return m_OpaqueObjects; }
         inline const auto& GetTransparentObjects() noexcept { return m_TransparentObjects; }
         inline const auto& GetObjectIndex() noexcept { return m_ObjectIndex; }
+        inline const auto& GetLastFrameObjectIndex() noexcept { return m_LastFrameObjectIndex; }
         inline const auto& GetObjectMaterialIndex() noexcept { return m_ObjectMaterialIndex; }
 
         inline Math::BVHTree& GetBVH() noexcept { return m_BVH; }
@@ -141,10 +145,13 @@ namespace DSM {
         std::vector<std::shared_ptr<GameObject>> m_ObjInFrustum{};
         // 物体的全局索引
         std::unordered_map<std::shared_ptr<GameObject>, size_t> m_ObjectIndex{};
+        // 物体上一帧的全局索引
+        std::unordered_map<std::shared_ptr<GameObject>, size_t> m_LastFrameObjectIndex{};
         // 物体对应的材质索引列表
         std::unordered_map<std::shared_ptr<GameObject>, std::vector<size_t>> m_ObjectMaterialIndex{};
         
         BufferHandle m_MeshBuffer{};
+        BufferHandle m_LastFrameMeshBuffer{};
         BufferHandle m_MaterialBuffer{};
 
         std::unordered_map<TextureHandle, size_t> m_Textures{};

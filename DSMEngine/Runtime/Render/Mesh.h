@@ -74,8 +74,8 @@ namespace DSM {
 
 		VertexBufferBinding GetVertexBufferBinding(VertexAttributeSlot slot) const noexcept;
 
-		VertexAttributeDesc GetVertexAttribute(VertexAttributeSlot slot) const noexcept;
-		const auto& GetVertexAttributes() const noexcept;
+		static const VertexAttributeDesc& GetVertexAttribute(VertexAttributeSlot slot) noexcept;
+		static const auto& GetVertexAttributes() noexcept;
 		bool HasVertexAttribute(VertexAttributeSlot slot) const noexcept;
 
 		PrimitiveType GetPrimitiveType(size_t subMeshIndex) const noexcept;

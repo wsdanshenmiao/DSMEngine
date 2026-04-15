@@ -11,11 +11,12 @@
 #include "SkyboxPass.h"
 #include "TaaPass.h"
 #include "FinalPass.h"
+#include "MotionVectorPass.h"
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/PostEffect/PostEffectManager.h"
 #include "Runtime/Render/Camera/CameraController.h"
 #include "Runtime/Render/Model.h"
 #include "Runtime/Core/InstrumentorTimer.h"
-#include "Runtime/Render/Renderer/ForwardRenderer/PostEffect/PostEffectManager.h"
 
 #include <imgui.h>
 
@@ -34,6 +35,7 @@ namespace DSM {
             RenderResource::GetInstance().OnResize(renderer, backBufferDesc.width, backBufferDesc.height);
 
             m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer));
+            m_RenderPasses.push_back(std::make_unique<MotionVectorPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SSAOPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}));
             m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));

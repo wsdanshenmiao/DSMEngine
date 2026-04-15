@@ -30,21 +30,41 @@ namespace DSM{
     
     void RenderResource::Destroy()
     {
-        auto& renderResource = GetInstance();
-        renderResource.m_Device = nullptr;
-        renderResource.m_Framebuffer = nullptr;
-        renderResource.m_CommonTextures.fill(nullptr);
-        renderResource.m_CommonSamplers.fill(nullptr);
-        renderResource.m_BVH = {};
-        renderResource.m_Textures.clear();
-        renderResource.m_MeshBuffer = nullptr;
-        renderResource.m_MaterialBuffer = nullptr;
-        renderResource.m_TextureBindlessLayout = nullptr;
-        renderResource.m_TextureBindlessTable = nullptr;
+        auto& renderRes = GetInstance();
+        
+        renderRes.m_Device = nullptr;
+        renderRes.m_Framebuffer = nullptr;
+        renderRes.m_CommonTextures.fill(nullptr);
+        renderRes.m_CommonSamplers.fill(nullptr);
+        
+        renderRes.m_BVH = {};
+
+        renderRes.m_OpaqueObjects.clear();
+        renderRes.m_TransparentObjects.clear();
+        renderRes.m_ObjInFrustum.clear();
+        renderRes.m_ObjectIndex.clear();
+        renderRes.m_LastFrameObjectIndex.clear();
+        renderRes.m_ObjectMaterialIndex.clear();
+
+        renderRes.m_MeshBuffer = nullptr;
+        renderRes.m_LastFrameMeshBuffer = nullptr;
+        renderRes.m_MaterialBuffer = nullptr;
+        renderRes.m_Textures.clear();
+
+        renderRes.m_TextureBindlessLayout = nullptr;
+        renderRes.m_TextureBindlessTable = nullptr;
+
+        renderRes.m_CmdList = nullptr;
+
+        renderRes.m_TextureBindlessLayout = nullptr;
+        renderRes.m_TextureBindlessTable = nullptr;
+        renderRes.m_RenderPassFinishFence.fill(0);
     }
 
     void RenderResource::UpdateRenderResource(const Camera& camera)
     {
+        m_LastFrameObjectIndex = m_ObjectIndex;
+
         m_ObjectIndex.clear();
         m_ObjInFrustum.clear();
         m_OpaqueObjects.clear();
@@ -179,6 +199,17 @@ namespace DSM{
         resizeBuffer(m_MaterialBuffer, matDataArr);
 
         m_CmdList->Open();
+
+        if(m_MeshBuffer != nullptr){
+            auto meshBufferSize = m_MeshBuffer->GetDesc().byteSize;
+            if(m_LastFrameMeshBuffer == nullptr || m_LastFrameMeshBuffer->GetDesc().byteSize < meshBufferSize){
+                m_LastFrameMeshBuffer = m_Device->CreateBuffer(BufferDesc{}
+                    .SetByteSize(meshBufferSize)
+                    .SetStructStride(sizeof(ShaderResource::MeshData))
+                    .SetDebugName("Last Frame Mesh Buffer"));
+            }
+            m_CmdList->CopyBuffer(m_LastFrameMeshBuffer, 0, m_MeshBuffer, 0, meshBufferSize);
+        }
         m_CmdList->WriteBuffer(m_MeshBuffer, meshDataArr.data(), meshDataArr.size() * sizeof(ShaderResource::MeshData));
         m_CmdList->WriteBuffer(m_MaterialBuffer, matDataArr.data(), matDataArr.size() * sizeof(ShaderResource::MaterialData));
         m_CmdList->Close();

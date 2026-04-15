@@ -99,12 +99,12 @@ namespace DSM {
         return VertexBufferBinding{m_VertexBuffer, (uint32_t)slot, offset};
     }
 
-    VertexAttributeDesc Mesh::GetVertexAttribute(VertexAttributeSlot slot) const noexcept
+    const VertexAttributeDesc& Mesh::GetVertexAttribute(VertexAttributeSlot slot) noexcept
     {
 		return sm_VertexAttributeNames[slot];
     }
 
-    const auto& Mesh::GetVertexAttributes() const noexcept
+    const auto& Mesh::GetVertexAttributes() noexcept
     {
         return sm_VertexAttributeNames;
     }

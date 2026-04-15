@@ -142,7 +142,6 @@ namespace DSM {
             }
 
             cmdList->SetTextureState(fbDesc.colorAttachments[0].texture, AllSubresources, ResourceStates::ShaderResource);
-            cmdList->SetTextureState(fbDesc.depthAttachment.texture, AllSubresources, ResourceStates::ShaderResource);
 
             // 结束计时
             cmdList->EndTimerQuery(sm_TimerQuery);
