@@ -21,7 +21,9 @@ namespace DSM {
             _256 = 256,
             _512 = 512,
             _1024 = 1024,
-            _2048 = 2048
+            _2048 = 2048,
+            _4096 = 4096,
+            _8192 = 8192
         };
         
         enum FilterMode
@@ -35,7 +37,7 @@ namespace DSM {
         
         struct Directional
         {
-            MapSize size = MapSize::_1024;
+            MapSize size = MapSize::_2048;
             FilterMode filter = FilterMode::_PCF3x3;
             uint32_t cascadeCount = sm_MaxCascadeCount;
             // 级联所占的百分比

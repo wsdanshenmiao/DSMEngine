@@ -29,7 +29,7 @@ Texture2D<float> gDepthTex : register(t0);
 
 cbuffer gMotionVectorObjectConstants : register(b1)
 {
-    int gObjIndex;
+    int gObjIndexOrReverseZFlag;
     int gLastFrameObjIndex;
 }
 StructuredBuffer<ShaderResource::MeshData> gMeshBuffer : register(t0);
@@ -46,6 +46,9 @@ float2 MotionVectorFullScreenPS(VaryingsFullScreen input) : SV_TARGET0
 {
     // 从深度图重构当前像素的世界位置
     float depth = gDepthTex.Sample(gPointClampSampler, input.uv);
+    float clearDepth = (gObjIndexOrReverseZFlag != 0) ? 0.0f : 1.0f;
+    const float eps = 1e-4f;
+    clip(abs(depth - clearDepth) - eps);
     float4 posWS = GetWorldPosition(input.uv, gCurrMatrix, depth);
 
     // 将当前世界位置变换到上一帧的裁剪空间
@@ -64,7 +67,7 @@ Varyings MotionVectorVS(Attributes input)
 {
     Varyings output;
 
-    ShaderResource::MeshData meshData = gMeshBuffer[gObjIndex];
+    ShaderResource::MeshData meshData = gMeshBuffer[gObjIndexOrReverseZFlag];
     ShaderResource::MeshData prevMeshData = gLastFrameMeshBuffer[gLastFrameObjIndex];
     float4 posWS = mul(float4(input.posOS, 1.0f), meshData.world);
     float4 prevPosWS = mul(float4(input.posOS, 1.0f), prevMeshData.world);

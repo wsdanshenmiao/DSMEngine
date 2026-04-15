@@ -80,19 +80,24 @@ namespace DSM {
             auto offset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{viewport.Width(), viewport.Height()};
             proj.Set(2, 0, proj.Get(2, 0) + offset.Get(0) * 2.f);
             proj.Set(2, 1, proj.Get(2, 1) + offset.Get(1) * 2.f);
+
             MotionVecFullScreenConstants constants{};
             constants.prevMatrix = m_PreViewProjMatrix;
             m_PreViewProjMatrix = Math::Matrix4::Transpose(view * proj);
             constants.currMatrix = Math::Matrix4::Inverse(m_PreViewProjMatrix);
             cmdList->WriteBuffer(m_Constants, &constants, sizeof(constants));
 
+            MotionVecObjConstants objConstants{};
+            objConstants.objectIndex = renderer.GetCamera().IsReversedZ();
+
             cmdList->SetGraphicsState(GraphicsState()
                 .SetPipeline(m_MotionVecPipeline)
                 .AddBindingSet(m_MotionVecBindingSet, 0)
                 .SetFramebuffer(m_MotionVecFB)
                 .SetViewport(ViewportState().AddViewportAndScissorRect(viewport)));
-
+            cmdList->SetPushConstants(&objConstants, sizeof(objConstants));
             cmdList->Draw(DrawArguments().SetVertexCount(3));
+
 
             constants.currMatrix = m_PreViewProjMatrix;
             cmdList->WriteBuffer(m_Constants, &constants, sizeof(constants));
@@ -109,7 +114,6 @@ namespace DSM {
                 }
 
                 auto lastFrameObjIdx = renderRes.GetLastFrameObjectIndex().at(obj);
-                MotionVecObjConstants objConstants{};
                 objConstants.objectIndex = objIdx;
                 objConstants.lastFrameObjectIndex = lastFrameObjIdx;
 
@@ -154,6 +158,8 @@ namespace DSM {
                 .AddColorAttachment(m_MotionVecTex, AllSubresources)
                 .SetDepthAttachment(renderRes.GetCommonTexture(CommonTextureSlot::Depth), AllSubresources));
 
+            auto reversedZ = renderer.GetCamera().IsReversedZ();
+            auto depthFunc = reversedZ ? ComparisonFunc::GreaterOrEqual : ComparisonFunc::LessOrEqual;
             m_MotionVecPipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc{}
                 .SetVertexShader(m_MotionVecVS)
                 .SetPixelShader(m_MotionVecPS)
@@ -165,7 +171,6 @@ namespace DSM {
                     .SetRasterState(RasterState().SetCullMode(RasterCullMode::None)))
                 , m_MotionVecFB);
             
-            auto reversedZ = renderer.GetCamera().IsReversedZ();
             m_MotionVecObjectPipeline = device->CreateGraphicsPipeline(GraphicsPipelineDesc{}
                 .SetVertexShader(m_MotionVecObjectVS)
                 .SetPixelShader(m_MotionVecObjectPS)
@@ -174,12 +179,13 @@ namespace DSM {
                 .SetRenderState(RenderState()
                     .SetDepthStencilState(DepthStencilState()
                         .SetDepthWriteEnable(false)
-                        .SetDepthFunc(reversedZ ? ComparisonFunc::GreaterOrEqual : ComparisonFunc::LessOrEqual)))
+                        .SetDepthFunc(depthFunc)))
                 , m_MotionVecFBWithDepth);
             
             auto pointClampSampler = RenderResource::GetInstance().GetCommonSampler(SamplerSlot::PointClamp);
             m_MotionVecBindingSet = device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem::ConstantBuffer(0, m_Constants))
+                .AddItem(BindingSetItem::PushConstants(1, sizeof(MotionVecObjConstants)))
                 .AddItem(BindingSetItem::Texture_SRV(0, renderRes.GetCommonTexture(CommonTextureSlot::Depth)))
                 .AddItem(BindingSetItem::Sampler((uint32_t)SamplerSlot::PointClamp, pointClampSampler))
                 , m_BindingLayout);

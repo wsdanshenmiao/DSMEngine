@@ -87,9 +87,9 @@ namespace DSM {
         void ResizeRenderTexture(uint32_t width, uint32_t height);
         void ResizeFrameBuffer(uint32_t width, uint32_t height) { m_Internal->ResizeFramebuffer(width, height); }
 
-        [[nodiscard]] IDevice* GetDevice() const { return m_Internal->device; }
-        [[nodiscard]] GraphicsAPI GetGraphicsAPI() const { return m_Internal->GetGraphicsAPI(); };
-        [[nodiscard]] uint32_t GetFrameIndex() const { return m_Internal->frameIndex; }
+        IDevice* GetDevice() const { return m_Internal->device; }
+        GraphicsAPI GetGraphicsAPI() const { return m_Internal->GetGraphicsAPI(); };
+        uint32_t GetFrameIndex() const { return m_Internal->frameIndex; }
         
         ITexture* GetCurrentBackBuffer() { return m_Internal->GetCurrentBackBuffer(); }
         ITexture* GetBackBuffer(uint32_t index) { return m_Internal->GetBackBuffer(index); }

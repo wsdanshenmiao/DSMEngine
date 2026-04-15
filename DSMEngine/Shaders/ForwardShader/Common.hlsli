@@ -24,10 +24,10 @@ SamplerComparisonState gShadowSampler : register(s8);
  *  0       1
  */
 // 覆盖全屏的三角形
-void GetFullscreenTriangle(uint vertexID, out float4 posCS, out float2 uv)
+void GetFullscreenTriangle(uint vertexID, out float4 posCS, out float2 uv, bool reversedZ = false)
 {
     uv = float2(vertexID & 2, (vertexID << 1) & 2);
-    posCS = float4(uv * float2(2, -2) + float2(-1, 1), 0, 1);
+    posCS = float4(uv * float2(2, -2) + float2(-1, 1), reversedZ ? 0 : 1, 1);
 
 }
 
@@ -117,6 +117,40 @@ float3 SRGBToLinear(float3 srgb)
     float3 linearCol = srgb / 12.92f;
     linearCol = select(srgb > 0.04045f, pow((srgb + 0.055f) * a, 2.4f), linearCol);
     return linearCol;
+}
+
+float3 RGBToYCoCg(float3 rgb)
+{
+    // YCoCg transform:
+    // Y  = 0.25R + 0.50G + 0.25B
+    // Co = 0.50R - 0.50B
+    // Cg = -0.25R + 0.50G - 0.25B
+    float y = dot(rgb, float3(0.25f, 0.5f, 0.25f));
+    float co = dot(rgb, float3(0.5f, 0.0f, -0.5f));
+    float cg = dot(rgb, float3(-0.25f, 0.5f, -0.25f));
+    return float3(y, co, cg);
+}
+
+float3 YCoCgToRGB(float3 ycocg)
+{
+    float y = ycocg.x;
+    float co = ycocg.y;
+    float cg = ycocg.z;
+    float r = y + co - cg;
+    float g = y + cg;
+    float b = y - co - cg;
+    return saturate(float3(r, g, b));
+}
+
+// Alias helpers for YCgCo naming.
+float3 RGBToYCgCo(float3 rgb)
+{
+    return RGBToYCoCg(rgb);
+}
+
+float3 YCgCoToRGB(float3 ycgco)
+{
+    return YCoCgToRGB(ycgco);
 }
 
 #endif // __COMMON_HLSLI__

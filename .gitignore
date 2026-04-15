@@ -41,3 +41,6 @@ bin/
 .vs/
 .vscode/
 vsxmake2022/
+
+.claude
+.cache

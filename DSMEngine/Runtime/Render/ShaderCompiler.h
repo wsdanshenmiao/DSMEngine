@@ -23,6 +23,12 @@ namespace DSM {
 				AddDefine(pair.first, pair.second);
 			}
         }
+        ShaderDefines(const std::vector<std::pair<std::string, std::string>>& defines)
+        {
+            for (const auto& pair : defines) {
+                AddDefine(pair.first, pair.second);
+            }
+        }
         ShaderDefines(const ShaderDefines& other) = default;
 		ShaderDefines& operator=(const ShaderDefines& other) = default;
         ShaderDefines(ShaderDefines&&) = default;
