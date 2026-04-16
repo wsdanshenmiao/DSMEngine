@@ -178,7 +178,7 @@ namespace DSM {
         }
         shadowConstants.recMaxDistance = 1.0f / sm_Setting.distance;
         shadowConstants.recDistanceFade = 1.0f / sm_Setting.distanceFade;
-        auto cascadeFade = sm_Setting.directionalSetting.cascadeFace;
+        auto cascadeFade = 1 - sm_Setting.directionalSetting.cascadeFace;
         shadowConstants.cascadeFade = 1.f / (1 - cascadeFade * cascadeFade);
         shadowConstants.cascadeCount = cascadeCount;
         for(size_t i = 0; i < shadowConstants.cascadeCount; ++i) {
@@ -220,9 +220,9 @@ namespace DSM {
             auto cascadeFrustum = m_CameraFrustum;
             float zRange = cascadeFrustum.GetFarPlane() - cascadeFrustum.GetNearPlane();
             float nearPlane = cascadeFrustum.GetNearPlane();
-            if(cascadeIndex != 0){
-                nearPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(cascadeIndex - 1);
-            }
+            // if(cascadeIndex != 0){
+            //     nearPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(cascadeIndex - 1);
+            // }
             float farPlane = cascadeFrustum.GetFarPlane();
             if(cascadeIndex != cascadeCount - 1){
                 farPlane = cascadeFrustum.GetNearPlane() + zRange * ratios.Get(cascadeIndex);

@@ -1,5 +1,5 @@
-#ifndef __TAAPASS_CS_HLSL__
-#define __TAAPASS_CS_HLSL__
+#ifndef __TAAPASS_HLSL__
+#define __TAAPASS_HLSL__
 
 #include "../Common.hlsli"
 
@@ -33,9 +33,25 @@ bool CmpZGreater(float z1, float z2)
 #endif
 }
 
+// 色调映射函数（将HDR映射到更稳定的空间）
+float3 ToneMap(float3 color)
+{
+    // 使用简化的Reinhard色调映射
+    return color / (color + 1.0f);
+}
+
+// 逆色调映射函数（恢复原始HDR）
+float3 InverseToneMap(float3 toneMappedColor)
+{
+    // Reinhard逆映射
+    return toneMappedColor / (1.0f - toneMappedColor);
+}
+
 float4 SampleColor(Texture2D<float4> texture, float2 uv, int2 offset = 0)
 {
     float4 color = texture.SampleLevel(gLinearClampSampler, uv, 0, offset);
+    // 应用色调映射以获得更稳定的颜色空间
+    color.rgb = ToneMap(color.rgb);
 #if defined(USE_YCOCG)
     return float4(RGBToYCoCg(color.rgb), color.a);
 #else
@@ -46,10 +62,11 @@ float4 SampleColor(Texture2D<float4> texture, float2 uv, int2 offset = 0)
 float4 ResolveColor(float4 color)
 {
 #if defined(USE_YCOCG)
-    return float4(YCoCgToRGB(color.rgb), color.a);
-#else
-    return color;
+    color.rgb = YCoCgToRGB(color.rgb);
 #endif
+    // 应用逆色调映射以恢复HDR颜色空间
+    color.rgb = InverseToneMap(color.rgb);
+    return color;
 }
 
 // 将历史帧的颜色限制在当前帧颜色的一个范围内
@@ -160,4 +177,4 @@ float4 TaaPassPS(Varyings input) : SV_TARGET
 }
 
 
-#endif // __TAAPASS_CS_HLSL__
+#endif // __TAAPASS_HLSL__

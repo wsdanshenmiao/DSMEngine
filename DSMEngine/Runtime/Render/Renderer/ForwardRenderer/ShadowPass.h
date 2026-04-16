@@ -41,11 +41,11 @@ namespace DSM {
             FilterMode filter = FilterMode::_PCF3x3;
             uint32_t cascadeCount = sm_MaxCascadeCount;
             // 级联所占的百分比
-            Math::Vector3 cascadeRatio = { 0.06f, 0.15f, 0.4f };
+            Math::Vector3 cascadeRatio = { 0.1f, 0.25f, 0.5f };
             float cascadeFace = 0.1f;
         };
 
-        float distance = 100.f;
+        float distance = 400.f;
         float distanceFade = 0.1f;
         Directional directionalSetting{};
     };

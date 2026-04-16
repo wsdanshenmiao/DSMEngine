@@ -101,11 +101,14 @@ namespace ShaderResource{
     struct ShadowConstants
     {
         float4x4 shadowViewProjs[MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT * MAX_CASCADES_PER_LIGHT];
+        
         // 级联到远平面的距离
         float4 cascadeFarPlaneDist;
+        
         float recMaxDistance;
         float recDistanceFade;
         float cascadeFade;
+
         uint cascadeCount;
     };
     
