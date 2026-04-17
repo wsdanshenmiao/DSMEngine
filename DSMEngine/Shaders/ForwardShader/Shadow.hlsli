@@ -75,7 +75,7 @@ ShadowData GetShadowData(Surface surface)
     return data;
 }
 
-float SampleDirectionalShadow(float3 posSS)
+float PCF(float3 posSS)
 {
 #if DIRECTIONAL_FILTER_SAMPLES > 1
     float visibility = 0;
@@ -106,7 +106,7 @@ float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface
     // 变换到 NDC 空间
     float4 posTS = mul(float4(surface.position, 1), viewProj);
 
-    float shadow = SampleDirectionalShadow(posTS.xyz);
+    float shadow = PCF(posTS.xyz);
 
     // 对不同级联之间的交界线进行过度,会造成较大性能开销
     [branch]
@@ -114,7 +114,7 @@ float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface
         // 获取下一个级联下该像素的阴影
         posTS = mul(float4(surface.position, 1), gShadowConstants.shadowViewProjs[matrixIndex + 1]);
         // 对两个级联的结果进行插值
-        shadow = lerp(SampleDirectionalShadow(posTS.xyz), shadow, shadowData.cascadeBlend);
+        shadow = lerp(PCF(posTS.xyz), shadow, shadowData.cascadeBlend);
     }
 
     return lerp(1.0, shadow, shadowData.strength);

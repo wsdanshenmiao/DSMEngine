@@ -53,8 +53,25 @@ namespace DSM::D3D12{
         return planeCount;
     }
 
+    void DeviceResources::AddRootSignature(size_t hash, RootSignature *rootSig)
+    {
+        std::lock_guard<std::mutex> guard{m_RootsigCacheMutex};
+        m_RootsigCache[hash] = rootSig;
+    }
 
-    
+    void DeviceResources::RemoveRootSignature(size_t hash)
+    {
+        std::lock_guard<std::mutex> guard{m_RootsigCacheMutex};
+        m_RootsigCache.erase(hash);
+    }
+
+    RootSignature* DeviceResources::GetRootSignature(size_t hash)
+    {
+        std::lock_guard<std::mutex> guard{m_RootsigCacheMutex};
+        auto it = m_RootsigCache.find(hash);
+        return it != m_RootsigCache.end() ? it->second : nullptr;
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // CommandQueue
     //////////////////////////////////////////////////////////////////////////
@@ -1564,13 +1581,10 @@ namespace DSM::D3D12{
         hash = Utility::HashCombine(hash, allowInputLayout);
 
         RefPtr<RootSignature> rootSig = nullptr;
-        if(auto it = m_Resources->rootsigCache.find(hash); it != m_Resources->rootsigCache.end()) {
-            rootSig = it->second;
-        }
-        else{
+        if(rootSig = m_Resources->GetRootSignature(hash); rootSig == nullptr){
             rootSig = Utility::CheckedCast<RootSignature*>(BuildRootSignature(pipelineLayouts, allowInputLayout, false).Get());
             rootSig->hash = hash;
-            m_Resources->rootsigCache[hash] = rootSig.Get();
+            m_Resources->AddRootSignature(hash, rootSig);
         }
 
         return rootSig;

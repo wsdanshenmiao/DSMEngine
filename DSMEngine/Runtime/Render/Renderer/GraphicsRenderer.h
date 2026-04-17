@@ -62,8 +62,8 @@ namespace DSM {
         uint32_t swapChainSampleCount = 1;
         uint32_t swapChainSampleQuality = 0;
         uint32_t refreshRate = 0;
-        Window* window;
-        IMessageCallback* callback;
+        Window* window = nullptr;
+        IMessageCallback* callback = nullptr;
     };
 
     class GraphicsRenderer

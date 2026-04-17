@@ -245,10 +245,7 @@ namespace DSM::D3D12 {
     RootSignature::~RootSignature()
     {
         if(auto resource = m_Resources.lock()){
-            if(auto it = resource->rootsigCache.find(hash); 
-                it != resource->rootsigCache.end()) {
-                resource->rootsigCache.erase(it);
-            }
+            resource->RemoveRootSignature(hash);
         }
     }
 

@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <span>
 #include <queue>
+#include <mutex>
 
 namespace DSM::D3D12 {
     class RootSignature;
@@ -21,6 +22,10 @@ namespace DSM::D3D12 {
         
         uint8_t GetFormatPlaneCount(DXGI_FORMAT format);
 
+        void AddRootSignature(size_t hash, RootSignature* rootSig);
+        void RemoveRootSignature(size_t hash);
+        RootSignature* GetRootSignature(size_t hash);
+
     public:
         DescriptorHeap renderTargetViewHeap;
         DescriptorHeap depthStencilViewHeap;
@@ -28,11 +33,13 @@ namespace DSM::D3D12 {
         DescriptorHeap samplerHeap;
         Utility::BitSetAllocator timerQueries;
 
-        // 根签名的缓存
-        std::unordered_map<size_t, RootSignature*> rootsigCache;
-
     private:
         const Context& m_Context;
+        
+        // 根签名的缓存
+        std::unordered_map<size_t, RootSignature*> m_RootsigCache;
+        std::mutex m_RootsigCacheMutex;
+
         // 不同类型的平面切片数
         std::unordered_map<DXGI_FORMAT, uint8_t> m_DxgiFormatPlaneCounts;
     };

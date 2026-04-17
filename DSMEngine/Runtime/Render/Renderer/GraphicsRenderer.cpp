@@ -9,12 +9,18 @@ namespace DSM{
 
     GraphicsRenderer::GraphicsRenderer(RenderParameters renderDesc)
     {
+        DSM_CORE_ASSERT(renderDesc.window != nullptr, "RenderParameters.window must be valid");
         switch (renderDesc.api) {
         case GraphicsAPI::D3D12:
             m_Internal = std::make_unique<RendererDX12>(renderDesc);
             break;
         default:
             break;
+        }
+
+        DSM_CORE_ASSERT(m_Internal != nullptr, "Unsupported graphics API");
+        if (m_Internal == nullptr) {
+            return;
         }
 
         ResizeFrameBuffer(renderDesc.window->GetWidth(), renderDesc.window->GetHeight());
@@ -37,9 +43,11 @@ namespace DSM{
                 return false;
 
             // 最小为1
-            ResizeFrameBuffer(std::max(event.GetWidth(), 1u), std::max(event.GetHeight(), 1u));
+            const uint32_t clampedWidth = std::max(event.GetWidth(), 1u);
+            const uint32_t clampedHeight = std::max(event.GetHeight(), 1u);
+            ResizeFrameBuffer(clampedWidth, clampedHeight);
             if(m_RenderPipeline != nullptr){
-                m_RenderPipeline->OnResizeFrameBuffer(*this, event.GetWidth(), event.GetHeight());
+                m_RenderPipeline->OnResizeFrameBuffer(*this, clampedWidth, clampedHeight);
             }
             return true;
         });
@@ -50,12 +58,14 @@ namespace DSM{
     {
         m_Internal->device->WaitForIdle();
 
-        m_Camera.SetViewPort(Viewport{float(width), float(height)});
-        m_Camera.SetFrustum(std::numbers::pi * 0.5f, float(width) / float(height), 0.1f, 30.f);
+        const uint32_t clampedWidth = std::max(width, 1u);
+        const uint32_t clampedHeight = std::max(height, 1u);
+        m_Camera.SetViewPort(Viewport{float(clampedWidth), float(clampedHeight)});
+        m_Camera.SetFrustum(std::numbers::pi * 0.5f, float(clampedWidth) / float(clampedHeight), 0.1f, 30.f);
 
         m_Internal->colorTex = m_Internal->device->CreateTexture(TextureDesc()
-            .SetWidth(width)
-            .SetHeight(height)
+            .SetWidth(clampedWidth)
+            .SetHeight(clampedHeight)
             .SetFormat(GetCurrentBackBuffer()->GetDesc().format)
             .SetClearValue(Color{0.0f, 0.0f, 0.0f, 1.0f})
             .SetInitialState(ResourceStates::RenderTarget)
@@ -64,7 +74,7 @@ namespace DSM{
 
         // 由于交换链改变大小时所有额外的 Buffer 引用都需要释放
         if(m_RenderPipeline != nullptr){
-            m_RenderPipeline->OnResizeRenderTexture(*this, width, height);
+            m_RenderPipeline->OnResizeRenderTexture(*this, clampedWidth, clampedHeight);
         }
     }
 

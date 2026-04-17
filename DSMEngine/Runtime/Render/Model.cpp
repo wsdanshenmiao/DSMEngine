@@ -107,7 +107,7 @@ namespace DSM {
 		};
 
 		// 并行处理所有材质，避免处理复杂材质时阻塞主线程过久
-		const auto maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u) - 1;
+		const auto maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u);
 		std::list<std::pair<size_t, std::future<std::shared_ptr<Material>>>> materialFutures{};
 		// 需要保持顺序，因为mesh中material索引是有序的
 		model.materials.resize(scene->mNumMaterials);
@@ -156,7 +156,7 @@ namespace DSM {
 			}
 		};
 
-		const size_t maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u) - 1;
+		const size_t maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u);
 		std::list<std::future<MeshResult>> meshFutures{};
 
 		std::stack<const aiNode*> nodeStack{};
