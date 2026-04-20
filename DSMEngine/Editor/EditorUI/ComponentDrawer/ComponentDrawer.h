@@ -220,7 +220,7 @@ namespace DSM{
         return edited;
     }
 
-    inline bool DrawFloatControl(
+    inline float DrawFloatControl(
         const char* label,
         float value,
         float speed = 0.1f,
@@ -236,7 +236,7 @@ namespace DSM{
         return edited;
     }
 
-    inline bool DrawSliderFloatControl(
+    inline float DrawSliderFloatControl(
         const char* label,
         float value,
         float minValue,

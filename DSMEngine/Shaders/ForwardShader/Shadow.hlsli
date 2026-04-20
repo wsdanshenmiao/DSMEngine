@@ -17,10 +17,19 @@
 
 struct DirectionalShadowData
 {
+    float strength;
     int tileIndex;
 };
 
-struct ShadowData
+struct OtherShadowData
+{
+    float strength;
+    int tileIndex;
+    bool isPoint;
+    float3 lightDirWS;
+};
+
+struct CascadeShadowData
 {
     uint cascadeIndex;
     float strength;
@@ -28,19 +37,23 @@ struct ShadowData
 };
 
 ConstantBuffer<ShaderResource::ShadowConstants> gShadowConstants : register(b3);
-Texture2D<float> gShadowMap : register(t5);
+
+Texture2D<float> gDirectionalShadowMap : register(t5);
+Texture2D<float> gOtherShadowMap : register(t6);
+StructuredBuffer<float4x4> gDirectionalShadowViewProjs : register(t7);
+StructuredBuffer<float4x4> gOtherShadowViewProjs : register(t8);
 
 float FadedShadowStrength (float dist, float scale, float fade)
 {
     return saturate((1 - dist * scale) * fade);
 }
 
-ShadowData GetShadowData(Surface surface)
+CascadeShadowData GetCascadeShadowData(Surface surface)
 {
     float recMaxDistance = gShadowConstants.recMaxDistance;
     float recDistanceFade = gShadowConstants.recDistanceFade;
     float cascadeFade = gShadowConstants.cascadeFade;
-    ShadowData data;
+    CascadeShadowData data;
     // 阴影边界处的过渡
     data.strength = FadedShadowStrength(surface.depth, recMaxDistance, recDistanceFade);
     data.cascadeBlend = 1;
@@ -75,7 +88,7 @@ ShadowData GetShadowData(Surface surface)
     return data;
 }
 
-float PCF(float3 posSS)
+float PCF(Texture2D<float> shadowMap, float3 posSS)
 {
 #if DIRECTIONAL_FILTER_SAMPLES > 1
     float visibility = 0;
@@ -85,39 +98,55 @@ float PCF(float3 posSS)
     [unroll]
     for(int i = 0; i < area; ++i) {
         int2 offset = int2(i % sampleRadius - halfRadius, i / sampleRadius - halfRadius);
-        float shadow = gShadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, posSS.z, offset);
+        float shadow = shadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, posSS.z, offset);
         visibility += shadow;
     }
     return visibility / area;
 #else
-    return gShadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, posSS.z);
+    return shadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, posSS.z);
 #endif
 }
 
 float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface surface)
 {
-    ShadowData shadowData = GetShadowData(surface);
+    CascadeShadowData shadowData = GetCascadeShadowData(surface);
     [branch]
-    if(shadowData.strength <= 0)
+    if(shadowData.strength <= 0 || directional.strength <= 0)
         return 1.0;
 
     uint matrixIndex = directional.tileIndex + shadowData.cascadeIndex;
-    float4x4 viewProj = gShadowConstants.shadowViewProjs[matrixIndex];
+    float4x4 viewProj = gDirectionalShadowViewProjs[matrixIndex];
     // 变换到 NDC 空间
     float4 posTS = mul(float4(surface.position, 1), viewProj);
 
-    float shadow = PCF(posTS.xyz);
+    float shadow = PCF(gDirectionalShadowMap, posTS.xyz);
 
     // 对不同级联之间的交界线进行过度,会造成较大性能开销
     [branch]
     if (shadowData.cascadeBlend < 1) {
         // 获取下一个级联下该像素的阴影
-        posTS = mul(float4(surface.position, 1), gShadowConstants.shadowViewProjs[matrixIndex + 1]);
+        posTS = mul(float4(surface.position, 1), gDirectionalShadowViewProjs[matrixIndex + 1]);
         // 对两个级联的结果进行插值
-        shadow = lerp(PCF(posTS.xyz), shadow, shadowData.cascadeBlend);
+        shadow = lerp(PCF(gDirectionalShadowMap, posTS.xyz), shadow, shadowData.cascadeBlend);
     }
 
     return lerp(1.0, shadow, shadowData.strength);
+}
+
+float GetOtherShadowAttenuation(OtherShadowData other, Surface surface)
+{
+    [branch]
+    if(other.strength <= 0)
+        return 1.0;
+
+    uint tileIndex = other.tileIndex;
+    if(other.isPoint){
+        tileIndex += GetCubeMapFaceIndex(-other.lightDirWS);
+    }
+    float4x4 viewProj = gOtherShadowViewProjs[tileIndex];
+    float4 posTS = mul(float4(surface.position, 1), viewProj);
+    posTS.xyz /= posTS.w;
+    return PCF(gOtherShadowMap, posTS.xyz);
 }
 
 

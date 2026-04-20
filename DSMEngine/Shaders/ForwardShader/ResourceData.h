@@ -88,6 +88,7 @@ namespace ShaderResource{
     {
         float4 color;
         float4 direction;
+        float4 shadowData;
     };
 
     struct OtherLightData
@@ -96,12 +97,11 @@ namespace ShaderResource{
         float4 direction;
         float4 positionAndRange;
         float4 spotAngle;   // inner and outer angle
+        float4 shadowData;
     };
 
     struct ShadowConstants
     {
-        float4x4 shadowViewProjs[MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT * MAX_CASCADES_PER_LIGHT];
-        
         // 级联到远平面的距离
         float4 cascadeFarPlaneDist;
         

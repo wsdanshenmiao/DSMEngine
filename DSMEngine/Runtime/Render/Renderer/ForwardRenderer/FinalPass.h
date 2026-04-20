@@ -2,8 +2,6 @@
 #ifndef __FINALPASS_H__
 #define __FINALPASS_H__
 
-#include "ShadowPass.h"
-
 namespace DSM {
     class FinalPass : public IRenderPass
     {

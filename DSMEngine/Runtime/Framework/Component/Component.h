@@ -25,6 +25,7 @@ namespace DSM {
 
         bool IsDirty() const noexcept { return m_IsDirty; }
         void SetDirty(bool dirty) noexcept { m_IsDirty = dirty; }
+        std::shared_ptr<GameObject> GetGameObject() const noexcept { return m_GameObject.lock(); }
 
     protected:
         std::weak_ptr<GameObject> m_GameObject{};

@@ -47,14 +47,35 @@ float GetSpotAngleAttenuation(float3 l, float3 lightDir, float innerAngle, float
     return attenuation * attenuation;
 }
 
+
+DirectionalShadowData GetDirectionalShadowData(uint index)
+{
+    ShaderResource::DirectionalLightData lightData = gDirLightData[index];
+    DirectionalShadowData shadowData;
+    shadowData.strength = lightData.shadowData.x;
+    shadowData.tileIndex = lightData.shadowData.y;
+    return shadowData;
+}
+
+OtherShadowData GetOtherShadowData(uint index, float3 lightDirWS)
+{
+    ShaderResource::OtherLightData lightData = gOtherLightData[index];
+    OtherShadowData shadowData;
+    shadowData.strength = lightData.shadowData.x;
+    shadowData.tileIndex = lightData.shadowData.y;
+    shadowData.isPoint = lightData.shadowData.z != 0;
+    shadowData.lightDirWS = lightDirWS;
+    return shadowData;
+}
+
+
 Light GetDirectionalLight(uint index, Surface surface)
 {
-    DirectionalShadowData dirShadowData;
-    dirShadowData.tileIndex = gShadowConstants.cascadeCount * index;
+    ShaderResource::DirectionalLightData lightData = gDirLightData[index];
     Light light;
-    light.color = gDirLightData[index].color.rgb;
-    light.direction = normalize(gDirLightData[index].direction.xyz);
-    light.attenuation = GetDirectionalShadowAttenuation(dirShadowData, surface);
+    light.color = lightData.color.rgb;
+    light.direction = normalize(lightData.direction.xyz);
+    light.attenuation = GetDirectionalShadowAttenuation(GetDirectionalShadowData(index), surface);
     return light;
 }
 
@@ -67,10 +88,11 @@ Light GetOtherLight(uint index, Surface surface)
     Light light;
     light.color = lightData.color.rgb;
     float3 posToLight = pos - surface.position;
-    float3 l = normalize(posToLight);
-    light.direction = l;
+    float3 lightDir = normalize(posToLight);
+    light.direction = lightDir;
     light.attenuation = GetSquareFalloffAttenuation(posToLight, invRange);
-    light.attenuation *= GetSpotAngleAttenuation(l, lightData.direction.xyz, spotAngle.x, spotAngle.y);
+    light.attenuation *= GetSpotAngleAttenuation(lightDir, lightData.direction.xyz, spotAngle.x, spotAngle.y);
+    light.attenuation *= GetOtherShadowAttenuation(GetOtherShadowData(index, lightDir), surface);
     return light;
 }
 

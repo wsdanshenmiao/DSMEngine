@@ -5,7 +5,6 @@
 #include "RenderResource.h"
 #include "GeometryPass.h"
 #include "SSAOPass.h"
-#include "ShadowPass.h"
 #include "LightingPass.h"
 #include "LitPass.h"
 #include "SkyboxPass.h"
@@ -37,7 +36,6 @@ namespace DSM {
             m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<MotionVectorPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SSAOPass>(renderer));
-            m_RenderPasses.push_back(std::make_unique<ShadowPass>(renderer, ShadowSetting{}));
             m_RenderPasses.push_back(std::make_unique<LightingPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<LitPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<SkyboxPass>(renderer));
@@ -92,9 +90,9 @@ namespace DSM {
             //         "5x PCF",
             //         "7x PCF"
             //     };
-            //     static int curr_scene_pcf_item = ShadowPass::sm_Setting.directionalSetting.filter;
+            //     static int curr_scene_pcf_item = Shadows::sm_Setting.directionalSetting.filter;
             //     if (ImGui::Combo("Scene PCF", &curr_scene_pcf_item, pcfMode, ARRAYSIZE(pcfMode))) {
-            //         auto& filter = ShadowPass::sm_Setting.directionalSetting.filter;
+            //         auto& filter = Shadows::sm_Setting.directionalSetting.filter;
             //         filter = ShadowSetting::FilterMode(curr_scene_pcf_item);
             //     }
 

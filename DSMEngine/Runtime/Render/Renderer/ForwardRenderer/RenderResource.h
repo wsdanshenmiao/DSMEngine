@@ -27,7 +27,8 @@ namespace DSM {
         Normal, //  视图空间下的法线
         Noise,
         SSAO,
-        ShadowMap,
+        DirectionalShadowMap,
+        OtherShadowMap,
         MotionVector,
         Count
     };
@@ -51,7 +52,6 @@ namespace DSM {
         Geometry = 0,
         MotionVector,
         SSAO,
-        Shadow,
         Lighting,
         Lit,
         Skybox,

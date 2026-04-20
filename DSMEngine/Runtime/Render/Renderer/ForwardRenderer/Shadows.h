@@ -1,6 +1,6 @@
 #pragma once
-#ifndef __SHADOW_PASS_H__
-#define __SHADOW_PASS_H__
+#ifndef __SHADOWS_H__
+#define __SHADOWS_H__
 
 #include <map>
 #include "RenderResource.h"
@@ -45,25 +45,43 @@ namespace DSM {
             float cascadeFace = 0.1f;
         };
 
+        struct Other
+        {
+            MapSize size = MapSize::_1024;
+            FilterMode filter = FilterMode::_PCF3x3;
+        };
+
         float distance = 400.f;
         float distanceFade = 0.1f;
         Directional directionalSetting{};
+        Other otherSetting{};
     };
 
-    class ShadowPass : public IRenderPass
+    class Shadows
     {
     public:
-        ShadowPass(GraphicsRenderer& renderer, ShadowSetting shadowSetting);
-        virtual ~ShadowPass();
+        Shadows(GraphicsRenderer& renderer, ShadowSetting shadowSetting);
+        ~Shadows();
 
-        uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override;
-        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override{}
+        void Setup();
 
+        uint64_t Render(GraphicsRenderer& renderer, float deltaTime);
+        void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) {}
+
+        Math::Vector4 ReserveDirectionalShadows(const Light& light);
+        Math::Vector4 ReserveOtherShadows(const Light& light);
 
     private:
-        void RenderDirectionalShadow(GraphicsRenderer& renderer, const Math::BoundingSphere& boundingSphere, size_t index, size_t split, size_t tileSize);
+        void RenderDirectionalShadow(std::span<const Light*> directionalLights, const Camera& camera);
+        void RenderDirectionalShadow(const Math::BoundingSphere& boundingSphere,
+            std::span<const Light*> directionalLights,
+            size_t index, size_t split, size_t tileSize);
 
-        void DrawModelShadow(IDevice* device, const Math::Matrix4& viewProj, Viewport viewport, size_t cascadeIndex);
+        void RenderOtherShadow(std::span<const Light*> otherLights, const Camera& camera);
+        void RenderPointLightShadow(const Light& light, size_t index);
+        void RenderSpotLightShadow(const Light& light, size_t index);
+
+        void DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4& viewProj, Viewport viewport);
 
         Viewport GetTileViewport(size_t index, size_t split, size_t tileSize) const;
 
@@ -71,9 +89,16 @@ namespace DSM {
 
         void ResizeShadowMap(IDevice* device);
 
+        size_t GetCubeMapFaceIndex(const Math::Vector3& direction) const;
+        Math::Vector3 GetCubeMapFaceDirection(size_t faceIndex) const;
+
     public:
         inline static ShadowSetting sm_Setting;
+        
         inline static BufferHandle sm_ShadowCB{};
+        inline static BufferHandle sm_DirectionalShadowMatrixBuffer{};
+        inline static BufferHandle sm_OtherShadowMatrixBuffer{};
+
         inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
@@ -87,6 +112,7 @@ namespace DSM {
         };
 
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
+        static constexpr size_t sm_MaxShadowedOtherLightCount = 16;
         using ShadowMatrixArray = std::array<Math::Matrix4, sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount>;
 
         CommandListHandle m_CmdList;
@@ -94,13 +120,18 @@ namespace DSM {
         BufferHandle m_PassCB{};
 
         ShadowMatrixArray m_DirectionalShadowMatrices{};
+        std::array<Math::Matrix4, sm_MaxShadowedOtherLightCount> m_OtherShadowMatrices{};
+        std::vector<const Light*> m_ReservedDirectionalLights{};
+        std::vector<const Light*> m_ReservedOtherLights{};
+        size_t m_OtherLightShadowCount{0};
 
-        FramebufferHandle m_ShadowFramebuffer;
+        FramebufferHandle m_DirectionalShadowFB;
+        FramebufferHandle m_OtherShadowFB;
 
         std::vector<GraphicsPipelineHandle> m_ShadowPipeline;
         BindingLayoutHandle m_ShadowBindingLayout;
 
-        std::vector<Light> m_DirectionalLights{};
+        BindingSetHandle m_ShadowBindingSet;
 
         Math::Frustum m_CameraFrustum{};
     };
