@@ -156,11 +156,15 @@ float3 YCgCoToRGB(float3 ycgco)
 uint GetCubeMapFaceIndex(float3 dir)
 {
     float3 absDir = abs(dir);
-    uint faceIndex = 0;
-    faceIndex = (absDir.y > absDir.x && absDir.y > absDir.z) ? 1 : faceIndex;
-    faceIndex = (absDir.z > absDir.x && absDir.z > absDir.y) ? 2 : faceIndex;
-    faceIndex *= 2;
-    return dir[faceIndex] < 0 ? faceIndex + 1 : faceIndex;
+    uint axis = 0;
+    if(absDir.y > absDir.x && absDir.y > absDir.z){
+        axis = 1;
+    }
+    else if(absDir.z > absDir.x && absDir.z > absDir.y){
+        axis = 2;
+    }
+    uint faceIndex = axis * 2;
+    return dir[axis] < 0 ? faceIndex + 1 : faceIndex;
 }
 
 

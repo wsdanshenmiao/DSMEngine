@@ -359,9 +359,15 @@ namespace DSM {
 
         for(size_t face = 0; face < 6; ++face){
             auto faceDir = GetCubeMapFaceDirection(face);
-            auto up = Math::Vector3{0, 1, 0};
-            if(std::abs(Math::Vector3::Dot(faceDir, up)) > 0.999f){
-                up = Math::Vector3{0, 0, 1};
+            Math::Vector3 up;
+            switch(face) {
+                case 0: // +X
+                case 1: up = Math::Vector3{0, 1, 0}; break; // -X
+                case 2: up = Math::Vector3{0, 0, -1}; break; // +Y
+                case 3: up = Math::Vector3{0, 0, 1}; break; // -Y
+                case 4: // +Z
+                case 5: // -Z
+                default: up = Math::Vector3{0, 1, 0}; break;
             }
             lightCamera.LookTo(faceDir, up);
 
