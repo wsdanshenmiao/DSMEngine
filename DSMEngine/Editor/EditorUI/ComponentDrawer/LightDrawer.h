@@ -62,14 +62,15 @@ namespace DSM {
                 light.SetRange(std::max(0.0f, editedRange));
             }
 
+            float halfPi = std::numbers::pi_v<float> / 2.2f;
             float innerAngle = light.GetInnerAngle();
-            float editedInnerAngle = DrawSliderFloatControl("Inner Angle", innerAngle, 0.0f, 180.0f);
+            float editedInnerAngle = DrawSliderFloatControl("Inner Angle", innerAngle, 0.0f, halfPi);
             if (editedInnerAngle != innerAngle) {
                 light.SetInnerAngle(editedInnerAngle);
             }
 
             float outerAngle = light.GetOuterAngle();
-            float editedOuterAngle = DrawSliderFloatControl("Outer Angle", outerAngle, editedInnerAngle, 180.0f);
+            float editedOuterAngle = DrawSliderFloatControl("Outer Angle", outerAngle, editedInnerAngle, halfPi);
             if (editedOuterAngle != outerAngle) {
                 light.SetOuterAngle(std::max(editedInnerAngle, editedOuterAngle));
             }

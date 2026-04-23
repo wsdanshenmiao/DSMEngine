@@ -100,6 +100,12 @@ namespace ShaderResource{
         float4 shadowData;
     };
 
+    struct OtherLightShadowData
+    {
+        float4x4 shadowMatrix;
+        float4 shadowParams;
+    };
+
     struct ShadowConstants
     {
         // 级联到远平面的距离
@@ -110,6 +116,9 @@ namespace ShaderResource{
         float cascadeFade;
 
         uint cascadeCount;
+
+        float2 directionalShadowMapSize;
+        float2 otherShadowMapSize;
     };
     
 }

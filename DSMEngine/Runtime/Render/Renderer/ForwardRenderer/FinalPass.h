@@ -8,7 +8,6 @@ namespace DSM {
     public:
         FinalPass(GraphicsRenderer& renderer)
         {
-            sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
         uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
@@ -23,9 +22,6 @@ namespace DSM {
         }
 
         void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override { }
-
-    public:
-        inline static TimerQueryHandle sm_TimerQuery{};
     };
 
 } // namespace DSM

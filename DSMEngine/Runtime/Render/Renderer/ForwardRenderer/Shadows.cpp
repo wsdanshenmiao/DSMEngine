@@ -22,9 +22,9 @@ namespace DSM {
             .SetByteSize(sizeof(Math::Matrix4) * sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount)
             .SetStructStride(sizeof(Math::Matrix4))
             .SetDebugName("Directional Shadow Matrices Buffer"));
-        sm_OtherShadowMatrixBuffer = device->CreateBuffer(BufferDesc()
-            .SetByteSize(sizeof(Math::Matrix4) * sm_MaxShadowedOtherLightCount)
-            .SetStructStride(sizeof(Math::Matrix4))
+        sm_OtherLightShadowDataBuffer = device->CreateBuffer(BufferDesc()
+            .SetByteSize(sizeof(ShaderResource::OtherLightShadowData) * sm_MaxShadowedOtherLightCount)
+            .SetStructStride(sizeof(ShaderResource::OtherLightShadowData))
             .SetDebugName("Other Shadow Matrices Buffer"));
 
 
@@ -101,19 +101,21 @@ namespace DSM {
             ShaderHandle ps = clip ? shaders[ShaderSlot::ShadowPSClip] : nullptr;
             auto renderState = RenderState{};
             float scale = (i % count) + 1;
-            renderState.rasterState.SetSlopeScaleDepthBias(1.5f * scale).SetDepthBias(100 * scale);
+            // 需要开启深度裁剪确保远平面外的物体被裁剪，保证深度正确
+            renderState.rasterState
+                .SetSlopeScaleDepthBias(1.5f * scale)
+                .SetDepthBias(100 * scale)
+                .EnableDepthClip();
             auto pso = createPipeline(vs, ps, clip, renderState);
             m_ShadowPipeline.push_back(pso);
         }
-
-        sm_TimerQuery = device->CreateTimerQuery();
     }
 
     Shadows::~Shadows()
     {
         sm_ShadowCB = nullptr;
         sm_DirectionalShadowMatrixBuffer = nullptr;
-        sm_OtherShadowMatrixBuffer = nullptr;
+        sm_OtherLightShadowDataBuffer = nullptr;
     }
 
     void Shadows::Setup()
@@ -142,9 +144,6 @@ namespace DSM {
 
         m_CmdList->Open();
 
-        // 开始计时
-        m_CmdList->BeginTimerQuery(sm_TimerQuery);
-
         m_CmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, true, 1, false, 0);
         m_CmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, true, 1, false, 0);
 
@@ -155,15 +154,18 @@ namespace DSM {
         m_CmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
         m_CmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
 
+        const auto& dirSetting = sm_Setting.directionalSetting;
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
-        Math::Vector3 cascadeRatios = sm_Setting.directionalSetting.cascadeRatio;
-        uint32_t cascadeCount = sm_Setting.directionalSetting.cascadeCount;
+        Math::Vector3 cascadeRatios = dirSetting.cascadeRatio;
+        uint32_t cascadeCount = dirSetting.cascadeCount;
 
         // 写入阴影变换矩阵
         ShaderResource::ShadowConstants shadowConstants{};
+        shadowConstants.directionalShadowMapSize = Math::Vector2{float(dirSetting.size), 1.f / float(dirSetting.size)};
+        shadowConstants.otherShadowMapSize = Math::Vector2{float(sm_Setting.otherSetting.size), 1.f / float(sm_Setting.otherSetting.size)};
         shadowConstants.recMaxDistance = 1.0f / sm_Setting.distance;
         shadowConstants.recDistanceFade = 1.0f / sm_Setting.distanceFade;
-        auto cascadeFade = 1 - sm_Setting.directionalSetting.cascadeFace;
+        auto cascadeFade = 1 - dirSetting.cascadeFace;
         shadowConstants.cascadeFade = 1.f / (1 - cascadeFade * cascadeFade);
         shadowConstants.cascadeCount = cascadeCount;
         for(size_t i = 0; i < shadowConstants.cascadeCount; ++i) {
@@ -173,11 +175,12 @@ namespace DSM {
         }
 
         m_CmdList->WriteBuffer(sm_ShadowCB, &shadowConstants, sizeof(ShaderResource::ShadowConstants));
-        m_CmdList->WriteBuffer(sm_DirectionalShadowMatrixBuffer, m_DirectionalShadowMatrices.data(), sizeof(Math::Matrix4) * m_DirectionalShadowMatrices.size());
-        m_CmdList->WriteBuffer(sm_OtherShadowMatrixBuffer, m_OtherShadowMatrices.data(), sizeof(Math::Matrix4) * m_OtherShadowMatrices.size());
-
-        // 结束计时
-        m_CmdList->EndTimerQuery(sm_TimerQuery);
+        m_CmdList->WriteBuffer(sm_DirectionalShadowMatrixBuffer, 
+            m_DirectionalShadowMatrices.data(), 
+            sizeof(Math::Matrix4) * m_DirectionalShadowMatrices.size());
+        m_CmdList->WriteBuffer(sm_OtherLightShadowDataBuffer, 
+            m_OtherLightShadowData.data(), 
+            sizeof(ShaderResource::OtherLightShadowData) * m_OtherLightShadowData.size());
 
         m_CmdList->Close();
         return renderer.GetDevice()->ExecuteCommandList(m_CmdList);
@@ -238,9 +241,9 @@ namespace DSM {
         }
 
         auto dirLightCount = std::min(directionalLights.size(), sm_MaxShadowedDirectionalLightCount);
-        size_t tiles = dirLightCount * sm_Setting.directionalSetting.cascadeCount;
+        size_t tilesCount = dirLightCount * sm_Setting.directionalSetting.cascadeCount;
         // 拆分为多少块
-        size_t split = tiles <= 1 ? 1 : (tiles <= 4 ? 2 : 4);
+        size_t split = tilesCount <= 1 ? 1 : (tilesCount <= 4 ? 2 : 4);
         size_t tileSize = sm_Setting.directionalSetting.size / split;
         for(size_t i = 0; i < dirLightCount; ++i){
             RenderDirectionalShadow(boundingSphere, directionalLights, i, split, tileSize);
@@ -352,10 +355,16 @@ namespace DSM {
         Camera lightCamera{};
         lightCamera.SetPosition(light.GetPosition());
 
+        size_t split = m_OtherLightShadowCount <= 1 ? 1 : (m_OtherLightShadowCount <= 4 ? 2 : 4);
+        const size_t atlasSize = sm_Setting.otherSetting.size;
+        const size_t tileSize = atlasSize / split;
+
         const float range = std::max(light.GetRange(), 1e-3f);
-        const float nearZ = std::max(0.01f, range * 0.001f);
+        const float nearZ = std::max(0.001f, range * 0.0001f);
         const float farZ = std::max(range, nearZ + 1e-3f);
-        lightCamera.SetFrustum(std::numbers::pi_v<float> * 0.5f, 1.0f, nearZ, farZ);
+        const float filterSize = 2.f / tileSize;
+		const float fov = std::atanf(1 + filterSize) * 2;
+        lightCamera.SetFrustum(fov, 1.0f, nearZ, farZ);
 
         for(size_t face = 0; face < 6; ++face){
             auto faceDir = GetCubeMapFaceDirection(face);
@@ -372,11 +381,11 @@ namespace DSM {
             lightCamera.LookTo(faceDir, up);
 
             auto viewProj = Math::Matrix4::Transpose(lightCamera.GetViewProjMatrix());
-            constexpr size_t split = 4;
             const size_t tileIndex = index + face;
-            const size_t tileSize = sm_Setting.otherSetting.size / split;
             Math::Vector2 offset{float(tileIndex % split), float(tileIndex / split)};
-            m_OtherShadowMatrices[tileIndex] = ConvertToAtlasMatrix(viewProj, offset, 1.f / split);
+            m_OtherLightShadowData[tileIndex] = GetOtherLightShadowData(
+                ConvertToAtlasMatrix(viewProj, offset, 1.f / split),
+                offset, 1.f / split, 1.f / atlasSize * 0.5f);
             DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize));
         }
     }
@@ -387,7 +396,7 @@ namespace DSM {
         lightCamera.SetPosition(light.GetPosition());
 
         const float range = std::max(light.GetRange(), 1e-3f);
-        const float nearZ = std::max(0.01f, range * 0.001f);
+        const float nearZ = std::max(0.001f, range * 0.0001f);
         const float farZ = std::max(range, nearZ + 1e-3f);
         const float minFov = std::numbers::pi_v<float> / 180.0f;
         const float maxFov = std::numbers::pi_v<float> - 1e-3f;
@@ -400,10 +409,15 @@ namespace DSM {
         }
         lightCamera.LookTo(light.GetDirection(), up);
         auto viewProj = Math::Matrix4::Transpose(lightCamera.GetViewProjMatrix());
-        constexpr size_t split = 4;
-        const size_t tileSize = sm_Setting.otherSetting.size / split;
+
+        size_t split = m_OtherLightShadowCount <= 1 ? 1 : (m_OtherLightShadowCount <= 4 ? 2 : 4);
+        const size_t atlasSize = sm_Setting.otherSetting.size;
+        const size_t tileSize = atlasSize / split;
+
         Math::Vector2 offset{float(index % split), float(index / split)};
-        m_OtherShadowMatrices[index] = ConvertToAtlasMatrix(viewProj, offset, 1.f / split);
+        m_OtherLightShadowData[index] = GetOtherLightShadowData(
+            ConvertToAtlasMatrix(viewProj, offset, 1.f / split),
+            offset, 1.f / split, 1.f / atlasSize * 0.5f);
         DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(index, split, tileSize));
     }
 
@@ -548,5 +562,20 @@ namespace DSM {
         default: return Math::Vector3();
         }
     }
-    
+
+    ShaderResource::OtherLightShadowData Shadows::GetOtherLightShadowData(
+        Math::Matrix4 viewProj,
+        const Math::Vector2 &offset, 
+        float scale, 
+        float border) const
+    {
+        ShaderResource::OtherLightShadowData data;
+        data.shadowMatrix = std::move(viewProj);
+        data.shadowParams = Math::Vector4{
+            offset.Get(0) * scale + border,
+            offset.Get(1) * scale + border,
+            scale - 2 * border,
+            0};
+        return data;
+    }
 }

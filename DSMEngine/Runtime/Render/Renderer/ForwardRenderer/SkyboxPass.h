@@ -84,17 +84,12 @@ namespace DSM {
                 .SetVertexShader(vs)
                 .SetPixelShader(ps);
             m_Pipeline = device->CreateGraphicsPipeline(pipelineDesc, renderRes.GetFramebuffer());
-
-            sm_TimerQuery = device->CreateTimerQuery();
         }
 
         uint64_t Render(DSM::GraphicsRenderer& renderer, float deltaTime) override
         {
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Skybox Pass Command List"));
             cmdList->Open();
-
-            // 开始计时
-            cmdList->BeginTimerQuery(sm_TimerQuery);
 
             ShaderResource::SkyboxConstants skyboxConstants{};
             skyboxConstants.isReversedZ = renderer.GetCamera().IsReversedZ();
@@ -111,16 +106,10 @@ namespace DSM {
 
             cmdList->Draw(DrawArguments().SetVertexCount(3));
 
-            // 结束计时
-            cmdList->EndTimerQuery(sm_TimerQuery);
-
             cmdList->Close();
             return renderer.GetDevice()->ExecuteCommandList(cmdList);
         }
         void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override {}
-    
-    public:
-        inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
         TextureHandle m_SkyboxTexture;

@@ -29,8 +29,6 @@ namespace DSM {
                 .SetByteSize(sm_MaxOtherLightCount * sizeof(ShaderResource::OtherLightData))
                 .SetStructStride(sizeof(ShaderResource::OtherLightData))
                 .SetDebugName("Other Light Data Buffer"));
-
-            sm_TimerQuery = renderer.GetDevice()->CreateTimerQuery();
         }
 
         virtual ~LightingPass()
@@ -90,16 +88,12 @@ namespace DSM {
             auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Lighting Pass Command List"));
             cmdList->Open();
 
-            cmdList->BeginTimerQuery(sm_TimerQuery);
-
             ShaderResource::LightData lightData;
             lightData.dirLightCount = std::min(dirLightData.size(), sm_MaxDirLightCount);
             lightData.otherLightCount = std::min(otherLightData.size(), sm_MaxOtherLightCount);
             cmdList->WriteBuffer(sm_LightDataBuffer, &lightData, sizeof(lightData));
             cmdList->WriteBuffer(sm_DirLightDataBuffer, dirLightData.data(), lightData.dirLightCount * sizeof(ShaderResource::DirectionalLightData));
             cmdList->WriteBuffer(sm_OtherLightDataBuffer, otherLightData.data(), lightData.otherLightCount * sizeof(ShaderResource::OtherLightData));
-
-            cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
             auto fenceValue = renderer.GetDevice()->ExecuteCommandList(cmdList);
@@ -167,8 +161,6 @@ namespace DSM {
     public:
         static constexpr size_t sm_MaxDirLightCount = 4;
         static constexpr size_t sm_MaxOtherLightCount = 120;
-
-        inline static TimerQueryHandle sm_TimerQuery{};
 
         inline static BufferHandle sm_LightDataBuffer{};
         inline static BufferHandle sm_DirLightDataBuffer{};

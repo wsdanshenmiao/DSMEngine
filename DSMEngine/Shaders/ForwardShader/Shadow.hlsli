@@ -41,7 +41,7 @@ ConstantBuffer<ShaderResource::ShadowConstants> gShadowConstants : register(b3);
 Texture2D<float> gDirectionalShadowMap : register(t5);
 Texture2D<float> gOtherShadowMap : register(t6);
 StructuredBuffer<float4x4> gDirectionalShadowViewProjs : register(t7);
-StructuredBuffer<float4x4> gOtherShadowViewProjs : register(t8);
+StructuredBuffer<ShaderResource::OtherLightShadowData> gOtherLightShadowDatas : register(t8);
 
 float FadedShadowStrength (float dist, float scale, float fade)
 {
@@ -88,18 +88,19 @@ CascadeShadowData GetCascadeShadowData(Surface surface)
     return data;
 }
 
-float PCF(Texture2D<float> shadowMap, float3 posSS)
+float PCF(Texture2D<float> shadowMap, float3 posSS, float invSize, float3 bounds = float3(0, 0, 1))
 {
 #if DIRECTIONAL_FILTER_SAMPLES > 1
     float visibility = 0;
-    const int sampleRadius = DIRECTIONAL_FILTER_SAMPLES;
-    const int area = sampleRadius * sampleRadius;
-    const int halfRadius = sampleRadius / 2;
+    const int filterSize = DIRECTIONAL_FILTER_SAMPLES;
+    const int area = filterSize * filterSize;
+    const int halfRadius = filterSize / 2;
     [unroll]
     for(int i = 0; i < area; ++i) {
-        int2 offset = int2(i % sampleRadius - halfRadius, i / sampleRadius - halfRadius);
-        float shadow = shadowMap.SampleCmpLevelZero(gShadowSampler, posSS.xy, posSS.z, offset);
-        visibility += shadow;
+        int2 offset = int2(i % filterSize - halfRadius, i / filterSize - halfRadius);
+        float2 uv = posSS.xy + offset * invSize;
+        uv = clamp(uv, bounds.xy, bounds.xy + bounds.z);
+        visibility += shadowMap.SampleCmpLevelZero(gShadowSampler, uv, posSS.z, offset);
     }
     return visibility / area;
 #else
@@ -119,7 +120,8 @@ float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface
     // 变换到 NDC 空间
     float4 posTS = mul(float4(surface.position, 1), viewProj);
 
-    float shadow = PCF(gDirectionalShadowMap, posTS.xyz);
+    float invMapSize = gShadowConstants.directionalShadowMapSize.y;
+    float shadow = PCF(gDirectionalShadowMap, posTS.xyz, invMapSize);
 
     // 对不同级联之间的交界线进行过度,会造成较大性能开销
     [branch]
@@ -127,7 +129,7 @@ float GetDirectionalShadowAttenuation(DirectionalShadowData directional, Surface
         // 获取下一个级联下该像素的阴影
         posTS = mul(float4(surface.position, 1), gDirectionalShadowViewProjs[matrixIndex + 1]);
         // 对两个级联的结果进行插值
-        shadow = lerp(PCF(gDirectionalShadowMap, posTS.xyz), shadow, shadowData.cascadeBlend);
+        shadow = lerp(PCF(gDirectionalShadowMap, posTS.xyz, invMapSize), shadow, shadowData.cascadeBlend);
     }
 
     return lerp(1.0, shadow, shadowData.strength);
@@ -143,10 +145,12 @@ float GetOtherShadowAttenuation(OtherShadowData other, Surface surface)
     if(other.isPoint){
         tileIndex += GetCubeMapFaceIndex(-other.lightDirWS);
     }
-    float4x4 viewProj = gOtherShadowViewProjs[tileIndex];
-    float4 posTS = mul(float4(surface.position, 1), viewProj);
+    ShaderResource::OtherLightShadowData shadowData = gOtherLightShadowDatas[tileIndex];
+    float3 shadowParams = shadowData.shadowParams.xyz;
+    float4 posTS = mul(float4(surface.position, 1), shadowData.shadowMatrix);
     posTS.xyz /= posTS.w;
-    return PCF(gOtherShadowMap, posTS.xyz);
+    float invMapSize = gShadowConstants.otherShadowMapSize.y;
+    return PCF(gOtherShadowMap, posTS.xyz, invMapSize, shadowParams.xyz);
 }
 
 

@@ -60,8 +60,6 @@ namespace DSM {
 
             const Viewport& viewport = renderer.GetCamera().GetViewPort();
             OnResize(renderer, viewport.Width(), viewport.Height());
-
-            sm_TimerQuery = device->CreateTimerQuery();
         }
 
         uint64_t Render(DSM::GraphicsRenderer& renderer, float deltaTime) override
@@ -70,9 +68,6 @@ namespace DSM {
 
             auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Geometry Pass Command List"));
             cmdList->Open();
-
-            // 开始计时
-            cmdList->BeginTimerQuery(sm_TimerQuery);
 
             auto& fbDesc = m_Framebuffer->GetDesc();
             float width = renderer.GetCamera().GetViewPort().Width();
@@ -143,9 +138,6 @@ namespace DSM {
 
             cmdList->SetTextureState(fbDesc.colorAttachments[0].texture, AllSubresources, ResourceStates::ShaderResource);
 
-            // 结束计时
-            cmdList->EndTimerQuery(sm_TimerQuery);
-            
             cmdList->Close();
             return device->ExecuteCommandList(cmdList);
         }
@@ -174,9 +166,6 @@ namespace DSM {
                 .AddBindingLayout(m_BindingLayout, 0),
                 m_Framebuffer);
         }
-
-    public:
-        inline static TimerQueryHandle sm_TimerQuery{};
 
     private:
         BufferHandle m_PassCB{};

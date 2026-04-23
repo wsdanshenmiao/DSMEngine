@@ -333,7 +333,7 @@ namespace DSM {
                 .AddItem(BindingSetItem::Texture_SRV(5, m_CacheDirectionalShadowMap))
                 .AddItem(BindingSetItem::Texture_SRV(6, m_CacheOtherShadowMap))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(7, Shadows::sm_DirectionalShadowMatrixBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(8, Shadows::sm_OtherShadowMatrixBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(8, Shadows::sm_OtherLightShadowDataBuffer))
                 .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), renderRes.GetCommonSampler(SamplerSlot::Shadow)))
                 .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap)));
             m_BindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);

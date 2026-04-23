@@ -92,14 +92,18 @@ namespace DSM {
         size_t GetCubeMapFaceIndex(const Math::Vector3& direction) const;
         Math::Vector3 GetCubeMapFaceDirection(size_t faceIndex) const;
 
+        ShaderResource::OtherLightShadowData GetOtherLightShadowData(
+            Math::Matrix4 viewProj,
+            const Math::Vector2& offset, 
+            float scale, 
+            float border) const;
+
     public:
         inline static ShadowSetting sm_Setting;
         
         inline static BufferHandle sm_ShadowCB{};
         inline static BufferHandle sm_DirectionalShadowMatrixBuffer{};
-        inline static BufferHandle sm_OtherShadowMatrixBuffer{};
-
-        inline static TimerQueryHandle sm_TimerQuery{};
+        inline static BufferHandle sm_OtherLightShadowDataBuffer{};
 
     private:
         enum ShaderSlot
@@ -120,7 +124,7 @@ namespace DSM {
         BufferHandle m_PassCB{};
 
         ShadowMatrixArray m_DirectionalShadowMatrices{};
-        std::array<Math::Matrix4, sm_MaxShadowedOtherLightCount> m_OtherShadowMatrices{};
+        std::array<ShaderResource::OtherLightShadowData, sm_MaxShadowedOtherLightCount> m_OtherLightShadowData{};
         std::vector<const Light*> m_ReservedDirectionalLights{};
         std::vector<const Light*> m_ReservedOtherLights{};
         size_t m_OtherLightShadowCount{0};

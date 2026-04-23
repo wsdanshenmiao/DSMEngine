@@ -25,8 +25,6 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
 
-            sm_TimerQuery = device->CreateTimerQuery();
-
             m_SSAOConstants = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sizeof(ShaderResource::SSAOConstants))
                 .SetIsConstantBuffer(true)
@@ -103,8 +101,6 @@ namespace DSM {
 
             cmdList->Open();
 
-            cmdList->BeginTimerQuery(sm_TimerQuery);
-
             static bool preEnable = sm_Settings.enable;
             if(sm_Settings.enable){
                 ShaderResource::SSAOConstants ssaoConstants{};
@@ -131,8 +127,6 @@ namespace DSM {
                 cmdList->ClearTextureFloat(m_SSAOTex, AllSubresources, Color{1,1,1,1});
             }
             preEnable = sm_Settings.enable;
-
-            cmdList->EndTimerQuery(sm_TimerQuery);
 
             cmdList->Close();
             renderer.GetDevice()->QueueWaitForCommandList(
