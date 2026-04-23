@@ -62,7 +62,7 @@ namespace DSM {
                 light.SetRange(std::max(0.0f, editedRange));
             }
 
-            float halfPi = std::numbers::pi_v<float> / 2.2f;
+            float halfPi = std::numbers::pi_v<float> / 2.1f;
             float innerAngle = light.GetInnerAngle();
             float editedInnerAngle = DrawSliderFloatControl("Inner Angle", innerAngle, 0.0f, halfPi);
             if (editedInnerAngle != innerAngle) {

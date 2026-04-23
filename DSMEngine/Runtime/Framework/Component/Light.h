@@ -46,68 +46,36 @@ namespace DSM {
         float GetRange() const noexcept { return range; }
         float GetInnerAngle() const noexcept { return innerAngle; }
         float GetOuterAngle() const noexcept { return outerAngle; }
-        Math::AxisAlignedBox GetBounds() const noexcept
+        const Math::AxisAlignedBox& GetBounds() const noexcept { return m_Bounds; }
+
+        Light& SetType(LightType type)
         {
-            constexpr float kEpsilon = 1e-6f;
-            constexpr float kDirectionalExtent = 1e6f;
-
-            const Math::Vector3 position = GetPosition();
-            const float safeRange = std::max(0.0f, range);
-
-            switch (lightType) {
-            case LightType::Directional: {
-                Math::Vector3 extents{kDirectionalExtent, kDirectionalExtent, kDirectionalExtent};
-                return Math::AxisAlignedBox(position - extents, position + extents);
-            }
-            case LightType::Point: {
-                Math::Vector3 extents{safeRange, safeRange, safeRange};
-                return Math::AxisAlignedBox(position - extents, position + extents);
-            }
-            case LightType::Spot: {
-                if (safeRange <= kEpsilon) {
-                    return Math::AxisAlignedBox{};
-                }
-
-                const Math::Vector3 lightDir = GetDirection().NearZero()
-                    ? Math::Vector3{0, 0, -1}
-                    : GetDirection().Normalized();
-
-                // For very wide cones tan(theta) approaches infinity. Use a sphere fallback.
-                const float maxHalfAngle = std::numbers::pi_v<float> * 0.5f - 1e-4f;
-                const float halfAngle = std::clamp(outerAngle, 0.0f, maxHalfAngle);
-                const float radius = safeRange * std::tan(halfAngle);
-
-                const Math::Vector3 baseCenter = position + lightDir * safeRange;
-
-                auto axisExtent = [&](int axis) {
-                    const float dirAxis = lightDir.Get(axis);
-                    const float radial = radius * std::sqrt(std::max(0.0f, 1.0f - dirAxis * dirAxis));
-                    const float apexVal = position.Get(axis);
-                    const float baseVal = baseCenter.Get(axis);
-                    const float minVal = std::min(apexVal, baseVal - radial);
-                    const float maxVal = std::max(apexVal, baseVal + radial);
-                    return Math::Vector2{minVal, maxVal};
-                };
-
-                const Math::Vector2 xBounds = axisExtent(0);
-                const Math::Vector2 yBounds = axisExtent(1);
-                const Math::Vector2 zBounds = axisExtent(2);
-                Math::Vector3 minPoint{xBounds.Get(0), yBounds.Get(0), zBounds.Get(0)};
-                Math::Vector3 maxPoint{xBounds.Get(1), yBounds.Get(1), zBounds.Get(1)};
-                return Math::AxisAlignedBox(minPoint, maxPoint);
-            }
-            default:
-                break;
-            }
-
-            return Math::AxisAlignedBox{};
+            lightType = type;
+            m_IsDirty = true;
+            UpdateBounds();
+            return *this;
         }
-
-        constexpr Light& SetType(LightType type) { lightType = type, m_IsDirty = true; return *this; }
-        constexpr Light& SetRange(float r) { range = r; m_IsDirty = true; return *this; }
-        constexpr Light& SetInnerAngle(float angle) { innerAngle = angle; m_IsDirty = true; return *this; }
-        constexpr Light& SetOuterAngle(float angle) { outerAngle = angle; m_IsDirty = true; return *this; }
-        constexpr Light& SetColor(const Math::Vector4& c) { color = c; m_IsDirty = true; return *this; }
+        Light& SetRange(float r) 
+        { 
+            range = r; m_IsDirty = true;
+            UpdateBounds();
+            return *this;
+        }
+        Light& SetInnerAngle(float angle) 
+        { 
+            innerAngle = angle; 
+            m_IsDirty = true; 
+            UpdateBounds(); 
+            return *this; 
+        }
+        Light& SetOuterAngle(float angle) 
+        { 
+            outerAngle = angle; 
+            m_IsDirty = true; 
+            UpdateBounds(); 
+            return *this; 
+        }
+        Light& SetColor(const Math::Vector4& c) { color = c; m_IsDirty = true; return *this; }
 
         Light& SetDirection(const Math::Vector3& dir)
         { 
@@ -124,8 +92,9 @@ namespace DSM {
                     transform->LookTo(direction, up);
                 }
             }
-
+            
             m_IsDirty = true;
+            UpdateBounds();
             return *this; 
         }
 
@@ -139,6 +108,7 @@ namespace DSM {
                 transform->SetRotation(rot);
             }
             m_IsDirty = true;
+            UpdateBounds();
             return *this;
         }
         
@@ -150,10 +120,72 @@ namespace DSM {
                 }
             }
             m_IsDirty = true;
+            UpdateBounds();
             return *this;
+        }
+
+    private:
+        void UpdateBounds()
+        {
+            constexpr float kEpsilon = 1e-6f;
+
+            const Math::Vector3 position = GetPosition();
+            const float safeRange = std::max(0.0f, range);
+
+            switch (lightType) {
+            case LightType::Directional: {
+                float max = std::numeric_limits<float>::max();
+                float min = std::numeric_limits<float>::lowest();
+                m_Bounds = Math::AxisAlignedBox(Math::Vector3(min), Math::Vector3(max));
+                break;
+            }
+            case LightType::Point: {
+                Math::Vector3 extents{safeRange, safeRange, safeRange};
+                m_Bounds = Math::AxisAlignedBox(position - extents, position + extents);
+                break;
+            }
+            case LightType::Spot: {
+                if (safeRange <= kEpsilon) {
+                    m_Bounds = Math::AxisAlignedBox{position, position};
+                }
+                else{
+                    const Math::Vector3 lightDir = GetDirection().NearZero()
+                        ? Math::Vector3{0, -1, 0}
+                        : GetDirection().Normalized();
+
+                    const float maxHalfAngle = std::numbers::pi_v<float> * 0.5f - 1e-4f;
+                    const float halfAngle = std::clamp(outerAngle, 0.0f, maxHalfAngle);
+                    const float radius = safeRange * std::tan(halfAngle);
+
+                    const Math::Vector3 baseCenter = position + lightDir * safeRange;
+
+                    auto axisExtent = [&](int axis) {
+                        const float dirAxis = lightDir.Get(axis);
+                        const float radial = radius * std::sqrt(std::max(0.0f, 1.0f - dirAxis * dirAxis));
+                        const float apexVal = position.Get(axis);
+                        const float baseVal = baseCenter.Get(axis);
+                        const float minVal = std::min(apexVal, baseVal - radial);
+                        const float maxVal = std::max(apexVal, baseVal + radial);
+                        return Math::Vector2{minVal, maxVal};
+                    };
+
+                    const Math::Vector2 xBounds = axisExtent(0);
+                    const Math::Vector2 yBounds = axisExtent(1);
+                    const Math::Vector2 zBounds = axisExtent(2);
+                    Math::Vector3 minPoint{xBounds.Get(0), yBounds.Get(0), zBounds.Get(0)};
+                    Math::Vector3 maxPoint{xBounds.Get(1), yBounds.Get(1), zBounds.Get(1)};
+                    m_Bounds = Math::AxisAlignedBox(minPoint, maxPoint);
+                }
+                break;
+            }
+            default:
+                m_Bounds = Math::AxisAlignedBox{};
+                break;
+            }
         }
         
     private:
+        Math::AxisAlignedBox m_Bounds{};
         LightType lightType = LightType::Directional;
         Math::Vector4 color{ 1, 1, 1, 1 };
         float range{};

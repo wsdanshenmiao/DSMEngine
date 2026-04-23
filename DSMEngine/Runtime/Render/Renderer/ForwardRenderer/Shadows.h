@@ -59,6 +59,13 @@ namespace DSM {
 
     class Shadows
     {
+        enum ShadowOption
+        {
+            None = 0,
+            AlphaClip = 1 << 0,
+            EnableDepthClip = 1 << 1,
+            AllOptions = (1 << 2) - 1
+        };
     public:
         Shadows(GraphicsRenderer& renderer, ShadowSetting shadowSetting);
         ~Shadows();
@@ -81,7 +88,7 @@ namespace DSM {
         void RenderPointLightShadow(const Light& light, size_t index);
         void RenderSpotLightShadow(const Light& light, size_t index);
 
-        void DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4& viewProj, Viewport viewport);
+        void DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4& viewProj, Viewport viewport, bool isDirectionalLightShadow);
 
         Viewport GetTileViewport(size_t index, size_t split, size_t tileSize) const;
 
@@ -98,6 +105,12 @@ namespace DSM {
             float scale, 
             float border) const;
 
+    private:
+        IGraphicsPipeline* GetShadowPipeline(size_t index, ShadowSetting::FilterMode filter) const
+        {
+            return m_ShadowPipeline[index * ShadowSetting::FilterMode::Count + size_t(filter)].Get();
+        }
+
     public:
         inline static ShadowSetting sm_Setting;
         
@@ -105,23 +118,18 @@ namespace DSM {
         inline static BufferHandle sm_DirectionalShadowMatrixBuffer{};
         inline static BufferHandle sm_OtherLightShadowDataBuffer{};
 
-    private:
-        enum ShaderSlot
-        {
-            ShadowVS,
-            ShadowVSClip,
-            ShadowPS,
-            ShadowPSClip,
-            Count
-        };
-
         static constexpr size_t sm_MaxShadowedDirectionalLightCount = 4;
         static constexpr size_t sm_MaxShadowedOtherLightCount = 16;
+
+    private:
         using ShadowMatrixArray = std::array<Math::Matrix4, sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount>;
+        using PipelineArray = std::array<GraphicsPipelineHandle, (AllOptions + 1) * ShadowSetting::FilterMode::Count>;
 
         CommandListHandle m_CmdList;
 
         BufferHandle m_PassCB{};
+        IBuffer* m_CacheMeshBuffer{nullptr};
+        IBuffer* m_CacheMaterialBuffer{nullptr};
 
         ShadowMatrixArray m_DirectionalShadowMatrices{};
         std::array<ShaderResource::OtherLightShadowData, sm_MaxShadowedOtherLightCount> m_OtherLightShadowData{};
@@ -132,7 +140,7 @@ namespace DSM {
         FramebufferHandle m_DirectionalShadowFB;
         FramebufferHandle m_OtherShadowFB;
 
-        std::vector<GraphicsPipelineHandle> m_ShadowPipeline;
+        PipelineArray m_ShadowPipeline{};
         BindingLayoutHandle m_ShadowBindingLayout;
 
         BindingSetHandle m_ShadowBindingSet;

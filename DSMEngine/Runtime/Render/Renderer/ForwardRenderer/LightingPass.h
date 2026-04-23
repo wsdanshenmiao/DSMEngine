@@ -41,9 +41,6 @@ namespace DSM {
         uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
         {
             auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
-            if(lights.empty())
-                return 0;
-
             m_Shadows->Setup();
 
             std::vector<ShaderResource::DirectionalLightData> dirLightData{};

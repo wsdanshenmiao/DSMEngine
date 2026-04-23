@@ -53,11 +53,10 @@ namespace DSM {
                 .SetDebugName(desc.enterPoint), 
                 byteCode.GetByteCode(), byteCode.GetByteCodeSize());
         };
-        std::array<ShaderHandle, ShaderSlot::Count> shaders{};
-        shaders[ShaderSlot::ShadowVS] = createShader(ShaderType::Vertex, "ShadowPassVS", std::string{});
-        shaders[ShaderSlot::ShadowVSClip] = createShader(ShaderType::Vertex, "ShadowPassVS", "SHADOWS_CLIP");
-        shaders[ShaderSlot::ShadowPS] = createShader(ShaderType::Pixel, "ShadowPassPS", std::string{});
-        shaders[ShaderSlot::ShadowPSClip] = createShader(ShaderType::Pixel, "ShadowPassPS", "SHADOWS_CLIP");
+        auto shadowVS = createShader(ShaderType::Vertex, "ShadowPassVS", std::string{});
+        auto shadowVSClip = createShader(ShaderType::Vertex, "ShadowPassVS", "SHADOWS_CLIP");
+        auto shadowPS = createShader(ShaderType::Pixel, "ShadowPassPS", std::string{});
+        auto shadowPSClip = createShader(ShaderType::Pixel, "ShadowPassPS", "SHADOWS_CLIP");
 
         m_ShadowBindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
             .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
@@ -94,20 +93,23 @@ namespace DSM {
             auto pso = device->CreateGraphicsPipeline(pipelineDesc, m_DirectionalShadowFB);
             return pso;
         };
-        size_t count = ShadowSetting::FilterMode::Count;
-        for(size_t i = 0; i < 2 * count; ++i){
-            bool clip = i < count;
-            ShaderHandle vs = shaders[clip ? ShaderSlot::ShadowVSClip : ShaderSlot::ShadowVS];
-            ShaderHandle ps = clip ? shaders[ShaderSlot::ShadowPSClip] : nullptr;
+        size_t filterModeCount = size_t(ShadowSetting::FilterMode::Count);
+        for(size_t i = 0; i < m_ShadowPipeline.size(); ++i){
+            ShadowSetting::FilterMode filterMode = ShadowSetting::FilterMode(i % filterModeCount);
+            ShadowOption option = ShadowOption(i / ShadowSetting::FilterMode::Count);
+            bool clip = HasFlags(option, ShadowOption::AlphaClip);
+            bool enableDepthClip = HasFlags(option, ShadowOption::EnableDepthClip);
+            ShaderHandle vs = clip ? shadowVSClip : shadowVS;
+            ShaderHandle ps = clip ? shadowPSClip : shadowPS;
             auto renderState = RenderState{};
-            float scale = (i % count) + 1;
-            // 需要开启深度裁剪确保远平面外的物体被裁剪，保证深度正确
+            float scale = (i % filterModeCount) + 1;
+            // 点光源和聚光灯需要开启深度裁剪确保远平面外的物体被裁剪，平行光则需关闭，保证深度正确
             renderState.rasterState
                 .SetSlopeScaleDepthBias(1.5f * scale)
                 .SetDepthBias(100 * scale)
-                .EnableDepthClip();
+                .SetDepthClipEnable(enableDepthClip);
             auto pso = createPipeline(vs, ps, clip, renderState);
-            m_ShadowPipeline.push_back(pso);
+            m_ShadowPipeline[i] = pso;
         }
     }
 
@@ -134,13 +136,20 @@ namespace DSM {
 
         auto dirLightCount = std::min(m_ReservedDirectionalLights.size(), sm_MaxShadowedDirectionalLightCount);
 
-        size_t sampleIndex = size_t(SamplerSlot::AnisoWrap);
-        m_ShadowBindingSet = renderer.GetDevice()->CreateBindingSet(BindingSetDesc()
-            .AddItem(BindingSetItem().ConstantBuffer(0, m_PassCB))
-            .AddItem(BindingSetItem().StructuredBuffer_SRV(0, renderRes.GetMeshBuffer()))
-            .AddItem(BindingSetItem().StructuredBuffer_SRV(1, renderRes.GetMaterialBuffer()))
-            .AddItem(BindingSetItem().Sampler(sampleIndex, renderRes.GetCommonSampler(sampleIndex)))
-            , m_ShadowBindingLayout);
+        if(m_CacheMeshBuffer != renderRes.GetMeshBuffer() ||
+              m_CacheMaterialBuffer != renderRes.GetMaterialBuffer())
+        {
+            m_CacheMeshBuffer = renderRes.GetMeshBuffer();
+            m_CacheMaterialBuffer = renderRes.GetMaterialBuffer();
+
+            size_t sampleIndex = size_t(SamplerSlot::AnisoWrap);
+            m_ShadowBindingSet = renderer.GetDevice()->CreateBindingSet(BindingSetDesc()
+                .AddItem(BindingSetItem().ConstantBuffer(0, m_PassCB))
+                .AddItem(BindingSetItem().StructuredBuffer_SRV(0, m_CacheMeshBuffer))
+                .AddItem(BindingSetItem().StructuredBuffer_SRV(1, m_CacheMaterialBuffer))
+                .AddItem(BindingSetItem().Sampler(sampleIndex, renderRes.GetCommonSampler(sampleIndex)))
+                , m_ShadowBindingLayout);
+        }
 
         m_CmdList->Open();
 
@@ -217,6 +226,9 @@ namespace DSM {
 
     void Shadows::RenderDirectionalShadow(std::span<const Light *> directionalLights, const Camera &camera)
     {
+        if(directionalLights.empty())
+            return;
+
         auto& renderRes = RenderResource::GetInstance();
 
         auto bvhRoot = renderRes.GetBVH().GetRoot();
@@ -318,7 +330,7 @@ namespace DSM {
             Math::Vector2 offset{float(tileIndex % split), float(tileIndex / split)};
             m_DirectionalShadowMatrices[tileIndex] = ConvertToAtlasMatrix(viewProj, offset, 1.f / split);
 
-            DrawModelShadow(m_DirectionalShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize));
+            DrawModelShadow(m_DirectionalShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), true);
         }
     }
 
@@ -386,7 +398,7 @@ namespace DSM {
             m_OtherLightShadowData[tileIndex] = GetOtherLightShadowData(
                 ConvertToAtlasMatrix(viewProj, offset, 1.f / split),
                 offset, 1.f / split, 1.f / atlasSize * 0.5f);
-            DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize));
+            DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), false);
         }
     }
 
@@ -418,10 +430,10 @@ namespace DSM {
         m_OtherLightShadowData[index] = GetOtherLightShadowData(
             ConvertToAtlasMatrix(viewProj, offset, 1.f / split),
             offset, 1.f / split, 1.f / atlasSize * 0.5f);
-        DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(index, split, tileSize));
+        DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(index, split, tileSize), false);
     }
 
-    void Shadows::DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4 &viewProj, Viewport viewport)
+    void Shadows::DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4 &viewProj, Viewport viewport, bool isDirectionalLightShadow)
     {
         auto& renderRes = RenderResource::GetInstance();
 
@@ -446,11 +458,18 @@ namespace DSM {
                 auto material = meshRenderer->GetMaterial(matIndex);
                 if(material == nullptr)
                     continue;
-                size_t baseIndex = material->IsTransparent() ? 0 : ShadowSetting::FilterMode::Count;
-                const auto& pipeline = m_ShadowPipeline[baseIndex + sm_Setting.directionalSetting.filter];
 
+                size_t option = ShadowOption::None;
+                if(material->IsTransparent()){
+                    option |= ShadowOption::AlphaClip;
+                }
+                if(!isDirectionalLightShadow){
+                    option |= ShadowOption::EnableDepthClip;
+                }
+                const auto& filterMode = isDirectionalLightShadow ? 
+                    sm_Setting.directionalSetting.filter : sm_Setting.otherSetting.filter;
                 state.vertexBuffers.resize(0);
-                state.SetPipeline(pipeline)
+                state.SetPipeline(GetShadowPipeline(option, filterMode))
                     .SetIndexBuffer(mesh->GetIndexBufferBinding(subMeshIndex));
                 if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)){
                     state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
