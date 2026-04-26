@@ -44,17 +44,18 @@ namespace DSM {
             auto bindingLayoutDesc = BindingLayoutDesc{}
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(0))
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(1))
-                .AddItem(BindingLayoutItem::Texture_SRV(2))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(2))
+                .AddItem(BindingLayoutItem::Texture_SRV(3))
                 .AddItem(BindingLayoutItem::VolatileConstantBuffer(0))
                 .AddItem(BindingLayoutItem::PushConstants(1, sizeof(PushConstants)))
                 .AddItem(BindingLayoutItem::ConstantBuffer(2))
-                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(3))
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(4))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(5))
                 .AddItem(BindingLayoutItem::ConstantBuffer(3))
-                .AddItem(BindingLayoutItem::Texture_SRV(5))
                 .AddItem(BindingLayoutItem::Texture_SRV(6))
-                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(7))
+                .AddItem(BindingLayoutItem::Texture_SRV(7))
                 .AddItem(BindingLayoutItem::StructuredBuffer_SRV(8))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(9))
                 .AddItem(BindingLayoutItem::Sampler(uint32_t(SamplerSlot::Shadow)))
                 .AddItem(BindingLayoutItem::Sampler(uint32_t(SamplerSlot::AnisoWrap)));
             m_BindingLayout = device->CreateBindingLayout(bindingLayoutDesc);
@@ -77,12 +78,14 @@ namespace DSM {
             if(m_CacheMeshBuffer != renderRes.GetMeshBuffer() ||
                 m_CacheMaterialBuffer != renderRes.GetMaterialBuffer() ||
                 m_CacheDirectionalShadowMap != renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap) ||
-                m_CacheOtherShadowMap != renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap))
+                m_CacheOtherShadowMap != renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap) ||
+                m_CacheTileInfoBuffer != LightingPass::sm_TileInfoBuffer)
             {
                 m_CacheMeshBuffer = renderRes.GetMeshBuffer();
                 m_CacheMaterialBuffer = renderRes.GetMaterialBuffer();
                 m_CacheDirectionalShadowMap = renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap);
                 m_CacheOtherShadowMap = renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap);
+                m_CacheTileInfoBuffer = LightingPass::sm_TileInfoBuffer;
                 CreateBindingSet(device);
             }
 
@@ -122,6 +125,7 @@ namespace DSM {
             for(const auto& object : renderRes.GetObjectInFrustum()) {
                 PushConstants pushConstants{};
                 pushConstants.objectIndex = (int)renderRes.GetObjectIndex().at(object);
+                pushConstants.tileSize = LightingPass::sm_Settings.tileSize;
                 const auto& materialIndex = renderRes.GetObjectMaterialIndex().at(object);
                 auto meshRenderer = object->GetComponent<MeshRenderer>();
                 if(meshRenderer == nullptr)
@@ -154,7 +158,7 @@ namespace DSM {
                     if(auto slot = Mesh::VertexAttributeSlot::Tangent; mesh->HasVertexAttribute(slot)) {
                         state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
                     }
-                    
+
                     cmdList->SetGraphicsState(state);
                     
                     pushConstants.materialIndex = materialIndex[subMeshIndex];
@@ -179,7 +183,7 @@ namespace DSM {
                 device->QueueWaitForCommandList(
                     CommandQueueType::Graphics, 
                     CommandQueueType::Compute, 
-                    RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::SSAO));
+                    RenderResource::GetInstance().GetRenderPassFinishFence(RenderPass::Lighting));
             }
             return device->ExecuteCommandList(cmdList);
         }
@@ -323,17 +327,18 @@ namespace DSM {
             auto bindingSetDesc = BindingSetDesc{}
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(0, m_CacheMeshBuffer))
                 .AddItem(BindingSetItem::StructuredBuffer_SRV(1, m_CacheMaterialBuffer))
-                .AddItem(BindingSetItem::Texture_SRV(2, renderRes.GetCommonTexture(CommonTextureSlot::SSAO)))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(2, m_CacheTileInfoBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(3, renderRes.GetCommonTexture(CommonTextureSlot::SSAO)))
                 .AddItem(BindingSetItem::ConstantBuffer(0, m_PassCB))
                 .AddItem(BindingSetItem::PushConstants(1, sizeof(PushConstants)))
                 .AddItem(BindingSetItem::ConstantBuffer(2, LightingPass::sm_LightDataBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(3, LightingPass::sm_DirLightDataBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_OtherLightDataBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(4, LightingPass::sm_DirLightDataBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(5, LightingPass::sm_OtherLightDataBuffer))
                 .AddItem(BindingSetItem::ConstantBuffer(3, Shadows::sm_ShadowCB))
-                .AddItem(BindingSetItem::Texture_SRV(5, m_CacheDirectionalShadowMap))
-                .AddItem(BindingSetItem::Texture_SRV(6, m_CacheOtherShadowMap))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(7, Shadows::sm_DirectionalShadowMatrixBuffer))
-                .AddItem(BindingSetItem::StructuredBuffer_SRV(8, Shadows::sm_OtherLightShadowDataBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(6, m_CacheDirectionalShadowMap))
+                .AddItem(BindingSetItem::Texture_SRV(7, m_CacheOtherShadowMap))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(8, Shadows::sm_DirectionalShadowMatrixBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(9, Shadows::sm_OtherLightShadowDataBuffer))
                 .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::Shadow), renderRes.GetCommonSampler(SamplerSlot::Shadow)))
                 .AddItem(BindingSetItem::Sampler(uint32_t(SamplerSlot::AnisoWrap), renderRes.GetCommonSampler(SamplerSlot::AnisoWrap)));
             m_BindingSet = device->CreateBindingSet(bindingSetDesc, m_BindingLayout);
@@ -342,13 +347,15 @@ namespace DSM {
     private:
         struct PushConstants
         {
-            int objectIndex;
-            int materialIndex;
+            uint32_t objectIndex;
+            uint32_t materialIndex;
+            uint32_t tileSize;
         };
 
         BufferHandle m_PassCB{};
         IBuffer* m_CacheMeshBuffer = nullptr;
         IBuffer* m_CacheMaterialBuffer = nullptr;
+        IBuffer* m_CacheTileInfoBuffer = nullptr;
         ITexture* m_CacheDirectionalShadowMap = nullptr;
         ITexture* m_CacheOtherShadowMap = nullptr;
         

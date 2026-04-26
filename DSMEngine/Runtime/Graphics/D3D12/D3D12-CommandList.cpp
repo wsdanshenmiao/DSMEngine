@@ -1158,6 +1158,7 @@ namespace DSM::D3D12{
                 barriers.push_back(std::move(d3dbarrier));
             }
             else if(HasFlags(afterState, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)){
+                d3dbarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
                 d3dbarrier.UAV.pResource = buffer->resource.Get();
                 barriers.push_back(std::move(d3dbarrier));
             }

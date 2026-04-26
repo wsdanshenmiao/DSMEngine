@@ -150,51 +150,36 @@ namespace DSM::Math {
         BoundingPlane GetPlane( PlaneID id ) const
         {
             Math::Matrix4 matrix = Math::GetLocalToWorld(m_Origin, {1,1,1}, m_Orientation);
-            switch (id) {
-            case NearPlane:
-                return BoundingPlane{Vector3{0.0f, 0.0f, 1.0f}, -m_NearPlane} * matrix; break;
-            case FarPlane:
-                return BoundingPlane{Vector3{0.0f, 0.0f, -1.0f}, m_FarPlane} * matrix; break;
-            case RightPlane:
-                return BoundingPlane{Vector3{-1.0f, 0.0f, m_RightSlope}, 0.0f} * matrix; break;
-            case LeftPlane:
-                return BoundingPlane{Vector3{1.0f, 0.0f, -m_LeftSlope}, 0.0f} * matrix; break;
-            case TopPlane:
-                return BoundingPlane{Vector3{0.0f, -1.0f, m_TopSlope}, 0.0f} * matrix; break;
-            case BottomPlane:
-                return BoundingPlane{Vector3{0.0f, 1.0f, -m_BottomSlope}, 0.0f} * matrix; break;
-            default:
-                assert(!"Invalid frustum plane ID");
-                break;
-            }
-
-            return BoundingPlane{};
+            return GetPlane(id, matrix);
         }
 
         std::array<BoundingPlane, PlaneCount> GetPlanes() const
         {
             std::array<BoundingPlane, PlaneCount> planes;
+            Math::Matrix4 matrix = Math::GetLocalToWorld(m_Origin, {1,1,1}, m_Orientation);
             for (size_t i = 0; i < PlaneCount; i++)
             {
-                planes[i] = GetPlane(static_cast<PlaneID>(i));
+                planes[i] = GetPlane(static_cast<PlaneID>(i), matrix);
             }
             return planes;
         }
 
         bool Intersects(const AxisAlignedBox& box) const noexcept
         {
-            for(int i = 0; i < PlaneCount; i++) {
-                auto plane = GetPlane(static_cast<PlaneID>(i));
-                Vector3 boxMin = box.GetMin();
-                Vector3 boxMax = box.GetMax();
-                Vector3 normal = plane.GetNormal();
-                // 获取离平面最近的点
-                Vector3 nearCorner{
-                    normal.Get(0) < 0.f ? boxMin.Get(0) : boxMax.Get(0),
-                    normal.Get(1) < 0.f ? boxMin.Get(1) : boxMax.Get(1),
-                    normal.Get(2) < 0.f ? boxMin.Get(2) : boxMax.Get(2)
-                };
-                if(plane.GetDistanceFromPoint(nearCorner) < 0.f)
+            const auto planes = GetPlanes();
+            const Vector3 center = box.GetCenter();
+            const Vector3 extents = box.GetSize() * 0.5f;
+
+            for(const auto& plane : planes) {
+                const Vector3 normal = plane.GetNormal();
+                const float centerDistance = plane.GetDistanceFromPoint(center);
+                const float projectedRadius =
+                    extents.Get(0) * std::abs(normal.Get(0)) +
+                    extents.Get(1) * std::abs(normal.Get(1)) +
+                    extents.Get(2) * std::abs(normal.Get(2));
+
+                // If even the most positive point is outside this plane, the box is outside.
+                if(centerDistance + projectedRadius < 0.f)
                     return false;
             }
             return true;
@@ -203,9 +188,9 @@ namespace DSM::Math {
         bool Intersects(const OrientedBox& box) const noexcept
         {
             Vector3 boxSize = box.GetSize() * 0.5f;
-            for(int i = 0; i < PlaneCount; i++) {
+            const auto planes = GetPlanes();
+            for(const auto& plane : planes) {
                 int outCount = 0;
-                auto plane = GetPlane(static_cast<PlaneID>(i));
                 // 检测八个顶点
                 for(int j = 0; j < CornerID::CornerCount; j++) {
                     Vector3 dir = boxSize * Vector3{
@@ -226,8 +211,8 @@ namespace DSM::Math {
         bool Intersects(const BoundingSphere& sphere) const noexcept
         {
             float radius = sphere.GetRadius();
-            for(int i = 0; i < PlaneCount; i++) {
-                auto plane = GetPlane(static_cast<PlaneID>(i));
+            const auto planes = GetPlanes();
+            for(const auto& plane : planes) {
                 if(plane.GetDistanceFromPoint(sphere.GetCenter()) + radius < 0.f)
                     return false;
             }
@@ -254,6 +239,30 @@ namespace DSM::Math {
         }
 
 
+    private:
+        BoundingPlane GetPlane(PlaneID id, const Matrix4& matrix) const
+        {
+            BoundingPlane plane{};
+            switch (id) {
+            case NearPlane:
+                plane = BoundingPlane{Vector3{0.0f, 0.0f, 1.0f}, -m_NearPlane}; break;
+            case FarPlane:
+                plane = BoundingPlane{Vector3{0.0f, 0.0f, -1.0f}, m_FarPlane}; break;
+            case RightPlane:
+                plane = BoundingPlane{Vector3{-1.0f, 0.0f, m_RightSlope}, 0.0f}; break;
+            case LeftPlane:
+                plane = BoundingPlane{Vector3{1.0f, 0.0f, -m_LeftSlope}, 0.0f}; break;
+            case TopPlane:
+                plane = BoundingPlane{Vector3{0.0f, -1.0f, m_TopSlope}, 0.0f}; break;
+            case BottomPlane:
+                plane = BoundingPlane{Vector3{0.0f, 1.0f, -m_BottomSlope}, 0.0f}; break;
+            default:
+                assert(!"Invalid frustum plane ID");
+                break;
+            }
+
+            return plane * matrix;
+        }
 
     private:
         Vector3 m_Origin;

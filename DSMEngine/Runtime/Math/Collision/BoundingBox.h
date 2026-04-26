@@ -91,6 +91,13 @@ namespace DSM::Math {
             return Vector3::Max(m_Max, other.m_Max) == m_Max && Vector3::Min(m_Min, other.m_Min) == m_Min;
         }
 
+        bool Intersects(const AxisAlignedBox& other) const noexcept
+        {
+            const Vector3 overlapMin = Vector3::Max(m_Min, other.m_Min);
+            const Vector3 overlapMax = Vector3::Min(m_Max, other.m_Max);
+            return Vector3::Min(overlapMin, overlapMax) == overlapMin;
+        }
+
         static AxisAlignedBox Union(AxisAlignedBox a, const AxisAlignedBox& b) noexcept
         {
             a.m_Min = Vector3::Min(a.m_Min, b.m_Min);

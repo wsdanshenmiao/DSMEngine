@@ -14,6 +14,7 @@ using uint = uint32_t;
 #define MAX_DIRECTIONAL_LIGHT_COUNT 4
 #define MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT 4
 #define MAX_CASCADES_PER_LIGHT 4
+#define MAX_LIGHT_COUNT_PER_TILE 128
 
 namespace ShaderResource{
 
@@ -121,6 +122,18 @@ namespace ShaderResource{
         float2 otherShadowMapSize;
     };
     
+    struct TileBasedLightingConstants
+    {
+        float4x4 proj;
+        float4 screenSizeAndCameraNearFar;
+        uint lightCount;
+        float pad[3];
+    };
+
+    struct TileInfo
+    {
+        uint lightMask[MAX_LIGHT_COUNT_PER_TILE / 32];
+    };
 }
 
 #endif

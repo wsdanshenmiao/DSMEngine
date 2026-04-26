@@ -96,6 +96,7 @@ namespace DSM {
         inline BindingLayoutHandle& GetTextureBindlessLayout() noexcept { return m_TextureBindlessLayout; }
         inline DescriptorTableHandle& GetTextureBindlessTable() noexcept { return m_TextureBindlessTable; }
 
+        inline const auto& GetNoBoundsObjects() noexcept { return m_NoBoundsObjects; }
         inline const auto& GetObjectInFrustum() noexcept { return m_ObjInFrustum; }
         inline const auto& GetOpaqueObjects() noexcept { return m_OpaqueObjects; }
         inline const auto& GetTransparentObjects() noexcept { return m_TransparentObjects; }
@@ -137,6 +138,8 @@ namespace DSM {
 
         // BVH 树，包含场景中所有的 MeshRenderer 组件对应的物体
         Math::BVHTree m_BVH;
+        // 没有包围盒的物体列表
+        std::vector<std::shared_ptr<GameObject>> m_NoBoundsObjects{};
         // 不透明的物体列表
         std::vector<std::shared_ptr<GameObject>> m_OpaqueObjects{};
         // 透明的物体列表

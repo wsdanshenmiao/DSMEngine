@@ -14,8 +14,8 @@ struct Light
 
 ConstantBuffer<ShaderResource::LightData> gLightData : register(b2);
 
-StructuredBuffer<ShaderResource::DirectionalLightData> gDirLightData : register(t3);
-StructuredBuffer<ShaderResource::OtherLightData> gOtherLightData : register(t4);
+StructuredBuffer<ShaderResource::DirectionalLightData> gDirLightData : register(t4);
+StructuredBuffer<ShaderResource::OtherLightData> gOtherLightData : register(t5);
 
 uint GetDirectionalLightCount()
 {
@@ -114,7 +114,7 @@ float3 ShadeLighting(Surface surface, Light light)
     return radians;
 }
 
-float3 ShadeLighting(Surface surface)
+float3 ShadeLighting(Surface surface, ShaderResource::TileInfo tileInfo)
 {
     float3 color = 0;
     for(uint i = 0; i < GetDirectionalLightCount(); i++) {
@@ -122,8 +122,13 @@ float3 ShadeLighting(Surface surface)
         color += ShadeLighting(surface, dirLight);
     }
     for(uint ii = 0; ii < GetOtherLightCount(); ++ii){
-        Light otherLight = GetOtherLight(ii, surface);
-        color += ShadeLighting(surface, otherLight);
+        uint maskIndex = ii >> 5;
+        uint bitOffset = ii & 31;
+        [branch]
+        if((tileInfo.lightMask[maskIndex] & (1u << bitOffset)) != 0u){
+            Light otherLight = GetOtherLight(ii, surface);
+            color += ShadeLighting(surface, otherLight);
+        }
     }
     return color;
 }

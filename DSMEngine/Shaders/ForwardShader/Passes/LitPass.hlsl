@@ -4,17 +4,19 @@
 
 StructuredBuffer<ShaderResource::MeshData> gMeshBuffer : register(t0);
 StructuredBuffer<ShaderResource::MaterialData> gMaterialBuffer : register(t1);
-Texture2D<float> gSSAOTex : register(t2);
+StructuredBuffer<ShaderResource::TileInfo> gTileInfos : register(t2);
+Texture2D<float> gSSAOTex : register(t3);
 
 ConstantBuffer<ShaderResource::PassConstants> gPassConstants : register(b0);
 
-Texture2D gTextures[] : register(t0, space1);
-
 cbuffer ObjectConstants : register(b1)
 {
-    int gObjIndex;
-    int gMaterialIndex;
+    uint gObjIndex;
+    uint gMaterialIndex;
+    uint gTileSize;
 }
+
+Texture2D gTextures[] : register(t0, space1);
 
 
 struct Attributes
@@ -97,7 +99,10 @@ float4 LitPassPS(Varyings i) : SV_TARGET0
     surface.viewDir = normalize(gPassConstants.cameraPos - i.posWS);
     surface.metallic = metallic;
 
-    float3 color = ShadeLighting(surface);
+    uint dispatchWidth = (gPassConstants.renderTargetSize.x + gTileSize - 1) / gTileSize;
+    uint2 tileCoord = uint2(i.posCS.xy) / gTileSize;
+    uint tileIndex = tileCoord.y * dispatchWidth + tileCoord.x;
+    float3 color = ShadeLighting(surface, gTileInfos[tileIndex]);
 
     float2 uv = i.posCS.xy * gPassConstants.renderTargetSize.zw;
     float ssao = gSSAOTex.Sample(gAnisoWrapSampler, uv).r;

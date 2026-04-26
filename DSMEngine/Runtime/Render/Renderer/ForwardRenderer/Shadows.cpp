@@ -100,7 +100,7 @@ namespace DSM {
             bool clip = HasFlags(option, ShadowOption::AlphaClip);
             bool enableDepthClip = HasFlags(option, ShadowOption::EnableDepthClip);
             ShaderHandle vs = clip ? shadowVSClip : shadowVS;
-            ShaderHandle ps = clip ? shadowPSClip : shadowPS;
+            ShaderHandle ps = clip ? shadowPSClip : nullptr;
             auto renderState = RenderState{};
             float scale = (i % filterModeCount) + 1;
             // 点光源和聚光灯需要开启深度裁剪确保远平面外的物体被裁剪，平行光则需关闭，保证深度正确
@@ -239,7 +239,7 @@ namespace DSM {
             return;
 
         // 获取相机的视锥体
-        m_CameraFrustum = Math::Frustum{camera.GetProjMatrix()};
+        m_CameraFrustum = camera.GetFrustum();
         // 变换到世界空间
         m_CameraFrustum *= Math::Matrix4::Inverse(camera.GetViewMatrix());
 
@@ -258,20 +258,18 @@ namespace DSM {
         size_t split = tilesCount <= 1 ? 1 : (tilesCount <= 4 ? 2 : 4);
         size_t tileSize = sm_Setting.directionalSetting.size / split;
         for(size_t i = 0; i < dirLightCount; ++i){
-            RenderDirectionalShadow(boundingSphere, directionalLights, i, split, tileSize);
+            RenderDirectionalShadow(boundingSphere, *directionalLights[i], i, split, tileSize);
         }
     }
 
     void Shadows::RenderDirectionalShadow(
         const Math::BoundingSphere &boundingSphere,
-        std::span<const Light *> directionalLights,
+        const Light& light,
         size_t index, size_t split, size_t tileSize)
     {
-        const Light& dirLight = *directionalLights[index];
-
         Camera lightCamera{};
         float radius = boundingSphere.GetRadius();
-        auto lightPos = -dirLight.GetDirection() * 2 * radius;
+        auto lightPos = -light.GetDirection() * 2 * radius;
         Math::Vector4 center{boundingSphere.GetCenter(), 1};
         lightCamera.SetPosition(Math::Vector3{center} + lightPos);
         lightCamera.LookAt(Math::Vector3{center}, {0,1,0});
@@ -306,6 +304,7 @@ namespace DSM {
             Math::Vector3 lightCameraMin = cameraBounds.GetMin();
             Math::Vector3 lightCameraMax = cameraBounds.GetMax();
             
+            // 将正交矩阵与 ShadowMap 的纹素进行对齐
             Math::Vector3 worldUnitsPerTexelVec = (lightCameraMax - lightCameraMin) / float(tileSize);
             lightCameraMin /= worldUnitsPerTexelVec;
             lightCameraMin = Math::Vector3::Floor(lightCameraMin);
@@ -330,7 +329,7 @@ namespace DSM {
             Math::Vector2 offset{float(tileIndex % split), float(tileIndex / split)};
             m_DirectionalShadowMatrices[tileIndex] = ConvertToAtlasMatrix(viewProj, offset, 1.f / split);
 
-            DrawModelShadow(m_DirectionalShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), true);
+            DrawModelShadow(m_DirectionalShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), true, light.GetBounds());
         }
     }
 
@@ -398,7 +397,7 @@ namespace DSM {
             m_OtherLightShadowData[tileIndex] = GetOtherLightShadowData(
                 ConvertToAtlasMatrix(viewProj, offset, 1.f / split),
                 offset, 1.f / split, 1.f / atlasSize * 0.5f);
-            DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), false);
+            DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), false, light.GetBounds());
         }
     }
 
@@ -422,6 +421,7 @@ namespace DSM {
         lightCamera.LookTo(light.GetDirection(), up);
         auto viewProj = Math::Matrix4::Transpose(lightCamera.GetViewProjMatrix());
 
+        // 计算瓦片数据
         size_t split = m_OtherLightShadowCount <= 1 ? 1 : (m_OtherLightShadowCount <= 4 ? 2 : 4);
         const size_t atlasSize = sm_Setting.otherSetting.size;
         const size_t tileSize = atlasSize / split;
@@ -430,34 +430,47 @@ namespace DSM {
         m_OtherLightShadowData[index] = GetOtherLightShadowData(
             ConvertToAtlasMatrix(viewProj, offset, 1.f / split),
             offset, 1.f / split, 1.f / atlasSize * 0.5f);
-        DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(index, split, tileSize), false);
+        DrawModelShadow(m_OtherShadowFB, viewProj, GetTileViewport(index, split, tileSize), false, light.GetBounds());
     }
 
-    void Shadows::DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4 &viewProj, Viewport viewport, bool isDirectionalLightShadow)
+    void Shadows::DrawModelShadow(
+        IFramebuffer* framebuffer, 
+        const Math::Matrix4 &viewProj, 
+        Viewport viewport, 
+        bool isDirectionalLightShadow,
+        const Math::AxisAlignedBox& lightBounds)
     {
         auto& renderRes = RenderResource::GetInstance();
 
         m_CmdList->WriteBuffer(m_PassCB, &viewProj, sizeof(Math::Matrix4));
 
-        auto allObj = std::array{renderRes.GetOpaqueObjects(), renderRes.GetTransparentObjects()} | std::views::join;
         auto state = GraphicsState{}
             .AddBindingSet(m_ShadowBindingSet, 0)
             .SetFramebuffer(framebuffer)
             .SetViewport(ViewportState().AddViewportAndScissorRect(viewport));
-        for(const auto& obj : allObj){
+        auto renderObject = [this, &state, &renderRes, isDirectionalLightShadow](const auto& obj) {
+            if(obj == nullptr)
+                return;
             auto meshRenderer = obj->GetComponent<MeshRenderer>();
             if(meshRenderer == nullptr)
-                continue;
+                return;
 
             auto mesh = meshRenderer->GetMesh();
             if(mesh == nullptr)
-                continue;
+                return;
 
+            state.vertexBuffers.resize(0);
+            if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)){
+                state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+            }
+            if(auto slot = Mesh::VertexAttributeSlot::UV; mesh->HasVertexAttribute(slot)){
+                state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
+            }
             for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
                 auto matIndex = meshRenderer->GetMaterialIndex(subMeshIndex);
                 auto material = meshRenderer->GetMaterial(matIndex);
                 if(material == nullptr)
-                    continue;
+                    return;
 
                 size_t option = ShadowOption::None;
                 if(material->IsTransparent()){
@@ -468,15 +481,8 @@ namespace DSM {
                 }
                 const auto& filterMode = isDirectionalLightShadow ? 
                     sm_Setting.directionalSetting.filter : sm_Setting.otherSetting.filter;
-                state.vertexBuffers.resize(0);
                 state.SetPipeline(GetShadowPipeline(option, filterMode))
                     .SetIndexBuffer(mesh->GetIndexBufferBinding(subMeshIndex));
-                if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)){
-                    state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
-                }
-                if(auto slot = Mesh::VertexAttributeSlot::UV; mesh->HasVertexAttribute(slot)){
-                    state.AddVertexBuffer(mesh->GetVertexBufferBinding(slot));
-                }
                 if(material->IsTransparent()){
                     state.AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
                 }
@@ -490,6 +496,35 @@ namespace DSM {
                     .SetVertexCount(mesh->GetIndexCount(subMeshIndex))
                     .SetStartIndexLocation(mesh->GetIndexOffset(subMeshIndex))
                     .SetStartVertexLocation(mesh->GetVertexOffset(subMeshIndex)));
+            }
+        };
+
+        for(const auto& obj : renderRes.GetNoBoundsObjects()){
+            renderObject(obj);
+        }
+
+        // 绘制 ShadowMap 并剔除光源影响不到的物体
+        std::stack<std::shared_ptr<Math::BVHTree::BVHNode>> nodeStack;
+        nodeStack.push(renderRes.GetBVH().GetRoot());
+        while(!nodeStack.empty()){
+            auto node = nodeStack.top();
+            nodeStack.pop();
+
+            if(node == nullptr)
+                continue;
+
+            if(node->left == nullptr && node->right == nullptr){
+                // 叶子节点，渲染包含的对象
+                renderObject(node->object);
+            }
+            else{
+                // 内部节点，继续遍历
+                if(node->left != nullptr && node->left->bounds.Intersects(lightBounds)){
+                    nodeStack.push(node->left);
+                }
+                if(node->right != nullptr && node->right->bounds.Intersects(lightBounds)){
+                    nodeStack.push(node->right);
+                }
             }
         }
     }

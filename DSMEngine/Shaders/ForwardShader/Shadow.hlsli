@@ -38,10 +38,10 @@ struct CascadeShadowData
 
 ConstantBuffer<ShaderResource::ShadowConstants> gShadowConstants : register(b3);
 
-Texture2D<float> gDirectionalShadowMap : register(t5);
-Texture2D<float> gOtherShadowMap : register(t6);
-StructuredBuffer<float4x4> gDirectionalShadowViewProjs : register(t7);
-StructuredBuffer<ShaderResource::OtherLightShadowData> gOtherLightShadowDatas : register(t8);
+Texture2D<float> gDirectionalShadowMap : register(t6);
+Texture2D<float> gOtherShadowMap : register(t7);
+StructuredBuffer<float4x4> gDirectionalShadowViewProjs : register(t8);
+StructuredBuffer<ShaderResource::OtherLightShadowData> gOtherLightShadowDatas : register(t9);
 
 float FadedShadowStrength (float dist, float scale, float fade)
 {

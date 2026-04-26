@@ -1,6 +1,7 @@
 #ifndef __COMMON_HLSLI__
 #define __COMMON_HLSLI__
 
+
 // 常用的采样器
 SamplerState gPointWrapSampler : register(s0);
 SamplerState gLinearWrapSampler : register(s1);
@@ -12,6 +13,195 @@ SamplerState gPointBorderSampler : register(s6);
 SamplerState gLinearBorderSampler : register(s7);
 // 比较采样器，用于阴影贴图采样
 SamplerComparisonState gShadowSampler : register(s8);
+
+
+
+enum CornerID
+{
+    NearTopLeft = 0,
+    NearTopRight = 1,
+    NearBottomRight = 2,
+    NearBottomLeft = 3,
+    FarTopLeft = 4,
+    FarTopRight = 5,
+    FarBottomRight = 6,
+    FarBottomLeft = 7,
+    CornerCount = 8
+};
+
+enum PlaneID
+{
+    NearPlane = 0,
+    FarPlane = 1,
+    RightPlane = 2,
+    LeftPlane = 3,
+    TopPlane = 4,
+    BottomPlane = 5,
+    PlaneCount = 6
+};
+
+struct BoundingBox
+{
+    float4 minPoint;
+    float4 maxPoint;
+
+    float3 GetMin() { return minPoint.xyz; }
+    float3 GetMax() { return maxPoint.xyz; }
+    float3 GetCenter() { return (GetMin() + GetMax()) * 0.5f; }
+    float3 GetExtents() { return (GetMax() - GetMin()) * 0.5f; }
+    float3 GetSize() { return GetMax() - GetMin(); }
+
+    bool IsValid()
+    {
+        return all(GetMax() >= GetMin());
+    }
+
+    bool Contains(float3 p)
+    {
+        return all(p >= GetMin()) && all(p <= GetMax());
+    }
+
+    bool Contains(BoundingBox other)
+    {
+        float3 _min = GetMin();
+        float3 _max = GetMax();
+        return all(max(other.GetMax(), _max) == _max) && all(min(other.GetMin(), _min) == _min);
+    }
+
+    bool Intersects(BoundingBox other)
+    {
+        const float3 overlapMin = max(GetMin(), other.GetMin());
+        const float3 overlapMax = min(GetMax(), other.GetMax());
+        return all(overlapMax >= overlapMin);
+    }
+
+    void Encapsulate(float3 p)
+    {
+        minPoint = float4(min(GetMin(), p), 0);
+        maxPoint = float4(max(GetMax(), p), 0);
+    }
+
+    void Union(BoundingBox other)
+    {
+        minPoint = float4(min(GetMin(), other.GetMin()), 0);
+        maxPoint = float4(max(GetMax(), other.GetMax()), 0);
+    }
+};
+
+float3 IntersectThreePlanes(float4 p0, float4 p1, float4 p2)
+{
+    const float3 n0 = p0.xyz;
+    const float3 n1 = p1.xyz;
+    const float3 n2 = p2.xyz;
+
+    const float3 n1xn2 = cross(n1, n2);
+    const float3 n2xn0 = cross(n2, n0);
+    const float3 n0xn1 = cross(n0, n1);
+    const float det = dot(n0, n1xn2);
+
+    // Plane equation is dot(n, p) + d = 0.
+    return (-p0.w * n1xn2 - p1.w * n2xn0 - p2.w * n0xn1) / det;
+}
+
+struct Frustum
+{
+    float4 planes[PlaneID::PlaneCount];
+
+    float4 GetPlane(PlaneID id)
+    {
+        return planes[id];
+    }
+
+    void GetPlanes(out float4 planesOut[PlaneID::PlaneCount])
+    {
+        planesOut = planes;
+    }
+
+    bool Intersects(BoundingBox box)
+    {
+        const float3 center = box.GetCenter();
+        const float3 extents = box.GetExtents();
+
+        for(uint i = 0; i < PlaneID::PlaneCount; ++i) {
+            const float4 plane = planes[i];
+            const float3 normal = plane.xyz;
+
+            const float centerDistance = dot(normal, center) + plane.w;
+            const float projectedRadius = dot(abs(normal), extents);
+
+            if(centerDistance + projectedRadius < 0.0f)
+                return false;
+        }
+        return true;
+    }
+
+    void GetCorners(out float3 corners[CornerID::CornerCount])
+    {
+        const float4 nearP = planes[PlaneID::NearPlane];
+        const float4 farP = planes[PlaneID::FarPlane];
+        const float4 rightP = planes[PlaneID::RightPlane];
+        const float4 leftP = planes[PlaneID::LeftPlane];
+        const float4 topP = planes[PlaneID::TopPlane];
+        const float4 bottomP = planes[PlaneID::BottomPlane];
+
+        corners[CornerID::NearTopLeft] = IntersectThreePlanes(nearP, leftP, topP);
+        corners[CornerID::NearTopRight] = IntersectThreePlanes(nearP, rightP, topP);
+        corners[CornerID::NearBottomRight] = IntersectThreePlanes(nearP, rightP, bottomP);
+        corners[CornerID::NearBottomLeft] = IntersectThreePlanes(nearP, leftP, bottomP);
+
+        corners[CornerID::FarTopLeft] = IntersectThreePlanes(farP, leftP, topP);
+        corners[CornerID::FarTopRight] = IntersectThreePlanes(farP, rightP, topP);
+        corners[CornerID::FarBottomRight] = IntersectThreePlanes(farP, rightP, bottomP);
+        corners[CornerID::FarBottomLeft] = IntersectThreePlanes(farP, leftP, bottomP);
+    }
+};
+
+Frustum GetFrustumFromMatrix(float4x4 matrix)
+{
+    Frustum frustum;
+    // Left plane
+    frustum.planes[PlaneID::LeftPlane] = matrix[3] + matrix[0];
+    // Right plane
+    frustum.planes[PlaneID::RightPlane] = matrix[3] - matrix[0];
+    // Top plane
+    frustum.planes[PlaneID::TopPlane] = matrix[3] - matrix[1];
+    // Bottom plane
+    frustum.planes[PlaneID::BottomPlane] = matrix[3] + matrix[1];
+    // Near plane
+    frustum.planes[PlaneID::NearPlane] = matrix[2];
+    // Far plane
+    frustum.planes[PlaneID::FarPlane] = matrix[3] - matrix[2];
+
+    // Normalize planes
+    [unroll]
+    for (uint i = 0; i < PlaneID::PlaneCount; ++i)
+    {
+        float len = length(frustum.GetPlane((PlaneID)i).xyz);
+        frustum.planes[i] *= rcp(len);
+    }
+
+    return frustum;
+}
+
+Frustum GetFrustumFromGroup(uint2 groupId, float minZ, float maxZ, float2 tileScale, float4x4 proj)
+{
+    float2 tileBias = tileScale - 1 - 2 * float2(groupId);
+
+    // 计算当前分块视锥体的投影矩阵
+    proj[0] = float4(proj[0][0] * tileScale.x, 0.0f, tileBias.x, 0.0f);
+    proj[1] = float4(0.0f, proj[1][1] * tileScale.y, -tileBias.y, 0.0f);
+    proj[3] = float4(0.0f, 0.0f, 1.0f, 0.0f);
+
+    Frustum frustum = GetFrustumFromMatrix(proj);
+
+    frustum.planes[PlaneID::NearPlane] = float4(0, 0, 1, -minZ);
+    frustum.planes[PlaneID::FarPlane] = float4(0, 0, -1, maxZ);
+
+    return frustum;
+}
+
+
+
 
 
 

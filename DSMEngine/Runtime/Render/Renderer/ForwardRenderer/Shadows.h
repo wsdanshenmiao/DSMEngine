@@ -51,7 +51,7 @@ namespace DSM {
             FilterMode filter = FilterMode::_PCF3x3;
         };
 
-        float distance = 400.f;
+        float distance = 1000.f;
         float distanceFade = 0.1f;
         Directional directionalSetting{};
         Other otherSetting{};
@@ -80,15 +80,18 @@ namespace DSM {
 
     private:
         void RenderDirectionalShadow(std::span<const Light*> directionalLights, const Camera& camera);
-        void RenderDirectionalShadow(const Math::BoundingSphere& boundingSphere,
-            std::span<const Light*> directionalLights,
-            size_t index, size_t split, size_t tileSize);
+        void RenderDirectionalShadow(const Math::BoundingSphere& boundingSphere, const Light& light, size_t index, size_t split, size_t tileSize);
 
         void RenderOtherShadow(std::span<const Light*> otherLights, const Camera& camera);
         void RenderPointLightShadow(const Light& light, size_t index);
         void RenderSpotLightShadow(const Light& light, size_t index);
 
-        void DrawModelShadow(IFramebuffer* framebuffer, const Math::Matrix4& viewProj, Viewport viewport, bool isDirectionalLightShadow);
+        void DrawModelShadow(
+            IFramebuffer* framebuffer, 
+            const Math::Matrix4& viewProj, 
+            Viewport viewport, 
+            bool isDirectionalLightShadow,
+            const Math::AxisAlignedBox& lightBounds);
 
         Viewport GetTileViewport(size_t index, size_t split, size_t tileSize) const;
 

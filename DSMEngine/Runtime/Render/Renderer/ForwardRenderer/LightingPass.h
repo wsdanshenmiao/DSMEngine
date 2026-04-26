@@ -13,22 +13,73 @@ namespace DSM {
     class LightingPass : public IRenderPass
     {
     public:
+        struct LightSettings
+        {
+            enum TileSize
+            {
+                _8 = 8,
+                _16 = 16,
+                _32 = 32
+            };
+
+            TileSize tileSize = TileSize::_16;
+        };
+
         LightingPass(GraphicsRenderer& renderer)
             : m_Shadows(std::make_unique<Shadows>(renderer, ShadowSetting{}))
         {
             auto device = renderer.GetDevice();
             sm_LightDataBuffer = device->CreateBuffer(BufferDesc()
-                .SetByteSize(Math::Align(sizeof(ShaderResource::LightData), size_t(c_ConstantBufferOffsetSizeAlignment)))
-                .SetIsConstantBuffer(true)
-                .SetDebugName("Light Data Buffer"));
+                .SetInitialState(ResourceStates::NoPixelShaderResource)
+                .SetByteSize(sizeof(ShaderResource::LightData))
+                .SetDebugName("Light Data Buffer")
+                .SetKeepInitialState(true)
+                .SetIsConstantBuffer(true));
             sm_DirLightDataBuffer = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sm_MaxDirLightCount * sizeof(ShaderResource::DirectionalLightData))
                 .SetStructStride(sizeof(ShaderResource::DirectionalLightData))
-                .SetDebugName("Directional Light Data Buffer"));
+                .SetInitialState(ResourceStates::NoPixelShaderResource)
+                .SetDebugName("Directional Light Data Buffer")
+                .SetKeepInitialState(true));
             sm_OtherLightDataBuffer = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sm_MaxOtherLightCount * sizeof(ShaderResource::OtherLightData))
                 .SetStructStride(sizeof(ShaderResource::OtherLightData))
-                .SetDebugName("Other Light Data Buffer"));
+                .SetInitialState(ResourceStates::NoPixelShaderResource)
+                .SetDebugName("Other Light Data Buffer")
+                .SetKeepInitialState(true));
+
+            m_TileBasedLightCB = device->CreateBuffer(BufferDesc()
+                .SetByteSize(sizeof(ShaderResource::TileBasedLightingConstants))
+                .SetDebugName("Tile Based Lighting Constants Buffer")
+                .SetIsConstantBuffer(true)
+                .SetIsVolatile(true));
+            m_LightBoundsBuffer = device->CreateBuffer(BufferDesc()
+                .SetByteSize(sm_MaxOtherLightCount * sizeof(Math::AxisAlignedBox))
+                .SetStructStride(sizeof(Math::AxisAlignedBox))
+                .SetDebugName("Light Bounds Buffer"));
+            
+            m_BindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
+                .AddItem(BindingLayoutItem::StructuredBuffer_UAV(0))
+                .AddItem(BindingLayoutItem::StructuredBuffer_SRV(0))
+                .AddItem(BindingLayoutItem::Texture_SRV(1))
+                .AddItem(BindingLayoutItem::VolatileConstantBuffer(0)));
+
+            for(size_t i = 0; i < 3; i++){
+                ShaderByteCode tileBasedLightShaderBytes{ShaderCompileDesc()
+                    .SetType(ShaderType::Compute)
+                    .SetEnterPoint("TileBasedLightingCS")
+                    .SetMode(ShaderMode::SM_6_6)
+                    .AddDefine("TILE_SIZE", std::to_string(1 << (i + 3)))
+                    .SetFilename("Shaders/ForwardShader/TileBasedLighting.hlsl")};
+                auto tileBasedLightShader = renderer.GetDevice()->CreateShader(ShaderDesc()
+                    .SetEntryName("TileBasedLightingCS")
+                    .SetShaderType(ShaderType::Compute)
+                    .SetDebugName("Tile Based Light Culling Shader"),
+                    tileBasedLightShaderBytes.GetByteCode(), tileBasedLightShaderBytes.GetByteCodeSize());
+                m_TileBasedLightPipelines[i] = device->CreateComputePipeline(ComputePipelineDesc()
+                    .SetComputeShader(tileBasedLightShader)
+                    .AddBindingLayout(m_BindingLayout, 0));
+            }
         }
 
         virtual ~LightingPass()
@@ -36,45 +87,47 @@ namespace DSM {
             sm_LightDataBuffer = nullptr;
             sm_DirLightDataBuffer = nullptr;
             sm_OtherLightDataBuffer = nullptr;
+            sm_TileInfoBuffer = nullptr;
         }
 
         uint64_t Render(GraphicsRenderer& renderer, float deltaTime) override
         {
             auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
+            const auto& camera = renderer.GetCamera();
+            auto device = renderer.GetDevice();
+
             m_Shadows->Setup();
 
-            std::vector<ShaderResource::DirectionalLightData> dirLightData{};
-            std::vector<ShaderResource::OtherLightData> otherLightData{};
+            size_t directionalLightCount = 0;
+            size_t otherLightCount = 0;
+            std::array<ShaderResource::DirectionalLightData, sm_MaxDirLightCount> dirLightData{};
+            std::array<ShaderResource::OtherLightData, sm_MaxOtherLightCount> otherLightData{};
+            std::array<Math::AxisAlignedBox, sm_MaxOtherLightCount> lightBounds{};
 
-            std::vector<std::pair<float, const Light*>> sortedLights{};
-
-            auto camPos = renderer.GetCamera().GetPosition();
-            auto camForward = renderer.GetCamera().GetLookAxis().Normalized();
-
+            auto cameraFrustum = camera.GetFrustum();
             for (const auto& [id, light] : lights.each()) {
-                if(auto obj = light.GetGameObject(); obj == nullptr || !obj->IsEnabled())
+                auto bounds = light.GetBounds();
+                // 将光源包围盒变换到视图空间
+                bounds *= camera.GetViewMatrix();
+                if(!cameraFrustum.Intersects(bounds))
                     continue;
 
-                float signedDistance = Math::Vector3::Dot(light.GetPosition() - camPos, camForward);
-                signedDistance += signedDistance >= 0 ? signedDistance : (std::numeric_limits<float>::max() - signedDistance);
-                sortedLights.emplace_back(signedDistance, &light);
-            }
-
-            std::sort(sortedLights.begin(), sortedLights.end(),
-                [](const auto& lhs, const auto& rhs) {
-                    return lhs.second < rhs.second;
-                });
-
-            for (const auto& [signedDistance, light] : sortedLights) {
-                switch(light->GetType()){
+                switch(light.GetType()){
                 case LightType::Directional:
-                    dirLightData.push_back(CreateDirLightData(*light, m_Shadows->ReserveDirectionalShadows(*light)));
+                    dirLightData[directionalLightCount++] = CreateDirLightData(light, m_Shadows->ReserveDirectionalShadows(light));
                     break;
-                case LightType::Point:
-                    otherLightData.push_back(CreatePointLightData(*light, m_Shadows->ReserveOtherShadows(*light)));
+                case LightType::Point:{
+                    if(otherLightCount < sm_MaxOtherLightCount) {
+                        lightBounds[otherLightCount] = bounds;
+                        otherLightData[otherLightCount++] = CreatePointLightData(light, m_Shadows->ReserveOtherShadows(light));
+                    }
                     break;
+                }
                 case LightType::Spot:
-                    otherLightData.push_back(CreateSpotLightData(*light, m_Shadows->ReserveOtherShadows(*light)));
+                    if(otherLightCount < sm_MaxOtherLightCount) {
+                        lightBounds[otherLightCount] = bounds;
+                        otherLightData[otherLightCount++] = CreateSpotLightData(light, m_Shadows->ReserveOtherShadows(light));
+                    }
                     break;
                 default:
                     DSM_ERROR("Error light type.");
@@ -82,28 +135,68 @@ namespace DSM {
                 }
             }
 
-            auto cmdList = renderer.GetDevice()->CreateCommandList(CommandListParameters().SetDebugName("Lighting Pass Command List"));
+            m_Shadows->Render(renderer, deltaTime);
+
+            auto cmdList = device->CreateCommandList(CommandListParameters()
+                .SetQueueType(CommandQueueType::Compute)
+                .SetDebugName("Lighting Pass Command List"));
             cmdList->Open();
 
+            // 写入光照数据
             ShaderResource::LightData lightData;
-            lightData.dirLightCount = std::min(dirLightData.size(), sm_MaxDirLightCount);
-            lightData.otherLightCount = std::min(otherLightData.size(), sm_MaxOtherLightCount);
+            lightData.dirLightCount = std::min(directionalLightCount, sm_MaxDirLightCount);
+            lightData.otherLightCount = std::min(otherLightCount, sm_MaxOtherLightCount);
             cmdList->WriteBuffer(sm_LightDataBuffer, &lightData, sizeof(lightData));
             cmdList->WriteBuffer(sm_DirLightDataBuffer, dirLightData.data(), lightData.dirLightCount * sizeof(ShaderResource::DirectionalLightData));
             cmdList->WriteBuffer(sm_OtherLightDataBuffer, otherLightData.data(), lightData.otherLightCount * sizeof(ShaderResource::OtherLightData));
 
-            cmdList->Close();
-            auto fenceValue = renderer.GetDevice()->ExecuteCommandList(cmdList);
 
-            auto shadowFenceValue = m_Shadows->Render(renderer, deltaTime);
+            // 进行基于瓦片的光照计算
+            auto width = camera.GetViewPort().Width();
+            auto height = camera.GetViewPort().Height();
+            size_t tileCountX = Math::DivideByMultiple(width, sm_Settings.tileSize);
+            size_t tileCountY = Math::DivideByMultiple(height, sm_Settings.tileSize);
+            if(tileCountX == 0 || tileCountY == 0)
+                return 0;
             
-            return std::max(fenceValue, shadowFenceValue);
+            size_t tileInfoSize = sizeof(ShaderResource::TileInfo);
+            if(auto tileCount = tileCountX * tileCountY; sm_TileInfoBuffer == nullptr || 
+                sm_TileInfoBuffer->GetDesc().byteSize < tileCount * tileInfoSize)
+            {
+                sm_TileInfoBuffer = device->CreateBuffer(BufferDesc()
+                    .SetInitialState(ResourceStates::UnorderedAccess)
+                    .SetByteSize(tileCount * tileInfoSize)
+                    .SetDebugName("Tile Info Buffer")
+                    .SetStructStride(tileInfoSize)
+                    .SetKeepInitialState(true)
+                    .SetCanHaveUAVs(true));
+                CreateBindingSet(device);
+            }
+            
+            ShaderResource::TileBasedLightingConstants tileBasedLightCBData{};
+            tileBasedLightCBData.lightCount = lightData.otherLightCount;
+            tileBasedLightCBData.proj = Math::Matrix4::Transpose(camera.GetProjMatrix());
+            tileBasedLightCBData.screenSizeAndCameraNearFar = Math::Vector4{width, height, camera.GetNearZ(), camera.GetFarZ()};
+            cmdList->WriteBuffer(m_TileBasedLightCB, &tileBasedLightCBData, sizeof(tileBasedLightCBData));
+            cmdList->WriteBuffer(m_LightBoundsBuffer, lightBounds.data(), lightData.otherLightCount * sizeof(Math::AxisAlignedBox));
+
+            size_t baseIndex = std::countr_zero(uint32_t(LightSettings::TileSize::_8));
+            cmdList->SetComputeState(ComputeState{}
+                .AddBindingSet(m_BindingSet)
+                .SetPipeline(m_TileBasedLightPipelines[std::countr_zero(uint32_t(sm_Settings.tileSize)) - baseIndex]));
+            cmdList->Dispatch(tileCountX, tileCountY);
+
+            cmdList->Close();
+            return device->ExecuteCommandList(cmdList);
         }
 
         void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override
         {
             m_Shadows->OnResize(renderer, width, height);
+            CreateBindingSet(renderer.GetDevice());
         }
+
+        void SetLightSettings(const LightSettings& settings) { sm_Settings = settings; }
 
     private:
         /// @brief 
@@ -155,16 +248,38 @@ namespace DSM {
             return data;
         }
 
+        void CreateBindingSet(IDevice* device)
+        {
+            auto depthTex = RenderResource::GetInstance().GetCommonTexture(CommonTextureSlot::Depth);
+            m_BindingSet = device->CreateBindingSet(BindingSetDesc()
+                .AddItem(BindingSetItem::StructuredBuffer_UAV(0, sm_TileInfoBuffer))
+                .AddItem(BindingSetItem::StructuredBuffer_SRV(0, m_LightBoundsBuffer))
+                .AddItem(BindingSetItem::Texture_SRV(1, depthTex))
+                .AddItem(BindingSetItem::ConstantBuffer(0, m_TileBasedLightCB))
+                , m_BindingLayout);
+        }
+
     public:
         static constexpr size_t sm_MaxDirLightCount = 4;
-        static constexpr size_t sm_MaxOtherLightCount = 120;
+        static constexpr size_t sm_MaxOtherLightCount = 128;
+
+        inline static LightSettings sm_Settings;
 
         inline static BufferHandle sm_LightDataBuffer{};
         inline static BufferHandle sm_DirLightDataBuffer{};
         inline static BufferHandle sm_OtherLightDataBuffer{};
+        inline static BufferHandle sm_TileInfoBuffer{};
 
     private:
         std::unique_ptr<Shadows> m_Shadows;
+
+        std::array<ComputePipelineHandle, 3> m_TileBasedLightPipelines;
+
+        BufferHandle m_TileBasedLightCB{};
+        BufferHandle m_LightBoundsBuffer{};
+
+        BindingLayoutHandle m_BindingLayout;
+        BindingSetHandle m_BindingSet{};
     };
 }
 

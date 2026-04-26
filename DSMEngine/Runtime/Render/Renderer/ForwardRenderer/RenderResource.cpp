@@ -70,6 +70,7 @@ namespace DSM{
         m_OpaqueObjects.clear();
         m_TransparentObjects.clear();
         m_ObjectMaterialIndex.clear();
+        m_NoBoundsObjects.clear();
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
         auto objView = scene->GetObjectsWithComponents<MeshRenderer, TransformComponent>();
@@ -105,6 +106,7 @@ namespace DSM{
             }
             else {
                 m_ObjInFrustum.push_back(obj);
+                m_NoBoundsObjects.push_back(obj);
             }
 
             ShaderResource::MeshData meshData{};
