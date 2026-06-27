@@ -1,4 +1,4 @@
-#include "Editor/DSMEditor.h"
+﻿#include "Editor/DSMEditor.h"
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Render/Geometry.h"
@@ -7,6 +7,7 @@
 #include "Runtime/Core/Input/InputSystem.h"
 #include "Runtime/Framework/Component/Component.h"
 #include "Runtime/Core/InstrumentorTimer.h"
+#include "Runtime/Render/Renderer/DeferredRenderer/DeferredRenderPipeline.h"
 #include "Runtime/Render/Renderer/ForwardRenderer/ForwardRenderPipeline.h"
 
 #include <imgui.h>
@@ -21,7 +22,7 @@ int main()
     DSM::EngineParameters params{};
     params.enableDebugLayer = false;
     engine.StartEngine(params);
-    engine.SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
+    engine.SetRenderPipeline(std::make_unique<DeferredRenderPipeline>());
 
     DSM::DSMEditor editor{};
     editor.StartEditor(&engine);
