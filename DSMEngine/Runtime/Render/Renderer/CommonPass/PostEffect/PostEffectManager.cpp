@@ -1,8 +1,8 @@
-#include "PostEffectManager.h"
+﻿#include "PostEffectManager.h"
 #include "BloomPass.h"
 #include "ToneMappingPass.h"
-#include "Runtime/Render/Renderer/ForwardRenderer/MipmapPass.h"
-#include "Runtime/Render/Renderer/ForwardRenderer/GaussianBlurPass.h"
+#include "Runtime/Render/Renderer/CommonPass/MipmapPass.h"
+#include "Runtime/Render/Renderer/CommonPass/GaussianBlurPass.h"
 
 namespace DSM{
     PostEffectManager::PostEffectManager(GraphicsRenderer& renderer)

@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 #ifndef __TONEMAPPINGPASS_H__
 #define __TONEMAPPINGPASS_H__
 
 #include "PostEffectManager.h"
 #include "Runtime/Render/ShaderCompiler.h"
 #include "Runtime/Math/MathCommon.h"
-#include "Shaders/ForwardShader/ResourceData.h"
+#include "Shaders/Common/ResourceData.h"
 
 #include <array>
 #include <string>

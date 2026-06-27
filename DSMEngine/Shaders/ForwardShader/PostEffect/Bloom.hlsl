@@ -1,7 +1,7 @@
-#ifndef __BLOOMPASS_HLSL__
+﻿#ifndef __BLOOMPASS_HLSL__
 #define __BLOOMPASS_HLSL__
 
-#include "../Common.hlsli"
+#include "../../Common/Common.hlsli"
 
 #define THREAD_SIZE 8
 

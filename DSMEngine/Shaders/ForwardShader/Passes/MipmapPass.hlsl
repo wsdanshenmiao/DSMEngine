@@ -1,7 +1,7 @@
-#ifndef __MIPMAPPASS_HLSL__
+﻿#ifndef __MIPMAPPASS_HLSL__
 #define __MIPMAPPASS_HLSL__
 
-#include "../Common.hlsli"
+#include "../../Common/Common.hlsli"
 
 #define THREAD_SIZE 8
 

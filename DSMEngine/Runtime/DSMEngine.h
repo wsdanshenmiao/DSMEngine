@@ -39,6 +39,7 @@ namespace DSM {
         void Update();
 
         void SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline);
+        void ResetRenderPipeline();
 
         inline bool IsRunning() const { return m_Running; }
 

@@ -35,16 +35,16 @@ namespace DSM {
             m_IsDirty = true;
         }
 
-        uint32_t GetRenderLayer() const noexcept { return m_RenderLayer; }
-        void SetRenderLayer(uint32_t layer) noexcept { m_RenderLayer = layer; m_IsDirty = true; }
+        inline uint32_t GetRenderLayer() const noexcept { return m_RenderLayer; }
+        inline void SetRenderLayer(uint32_t layer) noexcept { m_RenderLayer = layer; m_IsDirty = true; }
         
-        bool CastShadow() const noexcept { return m_CastShadow; }
-        void SetCastShadow(bool castShadow) noexcept { m_CastShadow = castShadow; m_IsDirty = true; }
-        bool ReceiveShadow() const noexcept { return m_ReceiveShadow; }
-        void SetReceiveShadow(bool receiveShadow) noexcept { m_ReceiveShadow = receiveShadow; m_IsDirty = true; }
+        inline bool CastShadow() const noexcept { return m_CastShadow; }
+        inline void SetCastShadow(bool castShadow) noexcept { m_CastShadow = castShadow; m_IsDirty = true; }
+        inline bool ReceiveShadow() const noexcept { return m_ReceiveShadow; }
+        inline void SetReceiveShadow(bool receiveShadow) noexcept { m_ReceiveShadow = receiveShadow; m_IsDirty = true; }
         
-        bool IsEnabled() const noexcept { return m_Enabled; }
-        void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; m_IsDirty = true; }
+        inline bool IsEnabled() const noexcept { return m_Enabled; }
+        inline void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; m_IsDirty = true; }
 
     protected:
         // 世界空间的包围盒

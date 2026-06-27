@@ -20,18 +20,20 @@ namespace DSM {
         virtual void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) = 0;
     };
 
-    enum class CommonTextureSlot : uint32_t
-    {
-        Color = 0,
-        Depth,
-        Normal, //  视图空间下的法线
-        Noise,
-        SSAO,
-        DirectionalShadowMap,
-        OtherShadowMap,
-        MotionVector,
-        Count
-    };
+enum class CommonTextureSlot : uint32_t
+{
+	Color = 0,
+	Depth,
+	Normal,             // 视图空间下的法线 (RG32_FLOAT)
+	Noise,
+	SSAO,
+	DirectionalShadowMap,
+	OtherShadowMap,
+	MotionVector,
+	AlbedoMetallic,     // Deferred GBuffer: albedo.rgb + metallic (RGBA8_UNORM)
+	MaterialAttributes, // Deferred GBuffer: roughness.r, occlusion.g, emissive.b (RGBA8_UNORM)
+	Count
+};
 
     enum class SamplerSlot : uint8_t
     {
@@ -47,20 +49,22 @@ namespace DSM {
         Count
     };
 
-    enum class RenderPass : uint8_t
-    {
-        Geometry = 0,
-        MotionVector,
-        SSAO,
-        Lighting,
-        Lit,
-        Skybox,
-        Transparent,
-        TAA,
-        PostEffect,
-        Final,
-        Count
-    };
+enum class RenderPass : uint8_t
+{
+	Geometry = 0,
+	MotionVector,
+	SSAO,
+	Lighting,
+	Lit,
+	Skybox,
+	Transparent,
+	TAA,
+	PostEffect,
+	Final,
+	GBuffer,            // Deferred GBuffer pass
+	DeferredLighting,   // Deferred lighting pass
+	Count
+};
 
     class RenderResource : public Singleton<RenderResource>
     {
@@ -91,9 +95,10 @@ namespace DSM {
         inline BufferHandle& GetLastFrameMeshBuffer() noexcept { return m_LastFrameMeshBuffer; }
         inline BufferHandle& GetMaterialBuffer() noexcept { return m_MaterialBuffer; }
 
-        inline FramebufferHandle& GetFramebuffer() noexcept { return m_Framebuffer; }
+	inline FramebufferHandle& GetFramebuffer() noexcept { return m_Framebuffer; }
+	inline FramebufferHandle& GetGBufferFramebuffer() noexcept { return m_GBufferFramebuffer; }
 
-        inline BindingLayoutHandle& GetTextureBindlessLayout() noexcept { return m_TextureBindlessLayout; }
+	inline BindingLayoutHandle& GetTextureBindlessLayout() noexcept { return m_TextureBindlessLayout; }
         inline DescriptorTableHandle& GetTextureBindlessTable() noexcept { return m_TextureBindlessTable; }
 
         inline const auto& GetNoBoundsObjects() noexcept { return m_NoBoundsObjects; }
@@ -131,9 +136,10 @@ namespace DSM {
     private:
         IDevice* m_Device = nullptr;
 
-        FramebufferHandle m_Framebuffer{};
+	FramebufferHandle m_Framebuffer{};
+	FramebufferHandle m_GBufferFramebuffer{};
 
-        std::array<TextureHandle, (size_t)CommonTextureSlot::Count> m_CommonTextures;
+	std::array<TextureHandle, (size_t)CommonTextureSlot::Count> m_CommonTextures;
         std::array<SamplerHandle, (size_t)SamplerSlot::Count> m_CommonSamplers;
 
         // BVH 树，包含场景中所有的 MeshRenderer 组件对应的物体
@@ -163,8 +169,6 @@ namespace DSM {
         DescriptorTableHandle m_TextureBindlessTable{};
 
         std::array<uint64_t, (size_t)RenderPass::Count> m_RenderPassFinishFence{};
-
-        CommandListHandle m_CmdList{};
     };
 
 

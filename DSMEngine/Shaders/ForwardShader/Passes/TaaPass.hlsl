@@ -1,7 +1,7 @@
-#ifndef __TAAPASS_HLSL__
+﻿#ifndef __TAAPASS_HLSL__
 #define __TAAPASS_HLSL__
 
-#include "../Common.hlsli"
+#include "../../Common/Common.hlsli"
 
 
 struct Varyings

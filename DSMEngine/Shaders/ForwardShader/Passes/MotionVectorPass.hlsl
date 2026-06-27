@@ -1,5 +1,5 @@
-#include "../Common.hlsli"
-#include "../ResourceData.h"
+﻿#include "../../Common/Common.hlsli"
+#include "../../Common/ResourceData.h"
 
 struct Attributes
 {

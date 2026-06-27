@@ -93,9 +93,9 @@ namespace DSM{
         m_Internal->DestroyWindowUI();
     }
 
-    void GraphicsRenderer::Render(float deltaTime)
-    {
-        auto callback = [this](const auto& func){
+   void GraphicsRenderer::Render(float deltaTime)
+   {
+       auto callback = [this](const auto& func){
             if(func != nullptr){
                 func(*this, m_Internal->frameIndex);
             }

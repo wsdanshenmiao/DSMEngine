@@ -1,5 +1,5 @@
-#include "ResourceData.h"
-#include "Common.hlsli"
+﻿#include "../Common/ResourceData.h"
+#include "../Common/Common.hlsli"
 
 
 #ifndef TILE_SIZE

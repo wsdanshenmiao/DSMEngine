@@ -2,10 +2,10 @@
 #ifndef __SHADING_PASS_H__
 #define __SHADING_PASS_H__
 
-#include "RenderResource.h"
 #include "Runtime/Render/Model.h"
 #include "Runtime/Render/ShaderCompiler.h"
-#include "Runtime/Render/Renderer/ForwardRenderer/TaaPass.h"
+#include "Runtime/Render/Renderer/CommonPass/RenderResource.h"
+#include "Runtime/Render/Renderer/CommonPass/TaaPass.h"
 
 namespace DSM {
     // 在该 Pass 中进行着色

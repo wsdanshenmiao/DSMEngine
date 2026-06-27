@@ -1,30 +1,38 @@
-﻿#include "../../Common/ResourceData.h"
-#include "../../Common/Light.hlsli"
+#include "../../Common/ResourceData.h"
 #include "../../Common/Common.hlsli"
 
 StructuredBuffer<ShaderResource::MeshData> gMeshBuffer : register(t0);
 StructuredBuffer<ShaderResource::MaterialData> gMaterialBuffer : register(t1);
-StructuredBuffer<ShaderResource::TileInfo> gTileInfos : register(t2);
-Texture2D<float> gSSAOTex : register(t3);
 
 ConstantBuffer<ShaderResource::PassConstants> gPassConstants : register(b0);
+
+#if defined(USE_TANGENT)
+    #define HAS_TANGENT 1
+#else
+    #define HAS_TANGENT 0
+#endif
 
 cbuffer ObjectConstants : register(b1)
 {
     uint gObjIndex;
     uint gMaterialIndex;
-    uint gTileSize;
 }
 
 Texture2D gTextures[] : register(t0, space1);
 
+struct GBufferOutput
+{
+    float4 albedoMetallic : SV_TARGET0;
+    float2 normal : SV_TARGET1;
+    float4 materialAttributes : SV_TARGET2;
+};
 
 struct Attributes
 {
     float3 posOS : POSITION;
     float2 uv : TEXCOORD0;
     float3 normal : NORMAL;
-#if defined(USE_TANGENT)
+#if HAS_TANGENT
     float4 tangent : TANGENT;
 #endif
 };
@@ -32,82 +40,72 @@ struct Attributes
 struct Varyings
 {
     float4 posCS : SV_POSITION;
-    float3 normal : NORMAL;
-#if defined(USE_TANGENT)
-    float4 tangent : TANGENT;
+    float3 normalWS : NORMAL;
+#if HAS_TANGENT
+    float3 tangentWS : TANGENT;
+    float3 bitangentWS : BITANGENT;
 #endif
     float2 uv : TEXCOORD0;
     float3 posWS : TEXCOORD1;
-    float3 posShadow : TEXCOORD2;
 };
 
-
-
-Varyings LitPassVS(Attributes i)
+Varyings GBufferPassVS(Attributes i)
 {
     Varyings o;
-
     ShaderResource::MeshData meshData = gMeshBuffer[gObjIndex];
-    float4x4 viewProj = mul(gPassConstants.view, gPassConstants.proj);
 
     float4 posWS = mul(float4(i.posOS, 1), meshData.world);
-    float3 normal = mul(i.normal, (float3x3)meshData.worldIT);
+    float3 normalWS = mul(i.normal, (float3x3)meshData.worldIT);
     o.posWS = posWS.xyz;
-    o.posCS = mul(posWS, viewProj);
+    o.posCS = mul(posWS, mul(gPassConstants.view, gPassConstants.proj));
     o.uv = i.uv;
-    o.normal = normalize(normal);
-#if defined(USE_TANGENT)
-    o.tangent.xyz = mul(i.tangent.xyz, (float3x3)meshData.worldIT).xyz;
+    o.normalWS = normalize(normalWS);
+#if HAS_TANGENT
+    float3 tangentWS = mul(i.tangent.xyz, (float3x3)meshData.worldIT);
+    o.tangentWS = normalize(tangentWS);
+    o.bitangentWS = cross(o.normalWS, o.tangentWS) * i.tangent.w;
 #endif
 
     return o;
 }
 
-
-
-float4 LitPassPS(Varyings i) : SV_TARGET0
+GBufferOutput GBufferPassPS(Varyings i)
 {
-    // 获取纹理数据
     ShaderResource::MaterialData matData = gMaterialBuffer[gMaterialIndex];
+
     Texture2D baseColorTex = gTextures[matData.textureIndex[ShaderResource::kBaseColor]];
     Texture2D diffuseRoughnessTex = gTextures[matData.textureIndex[ShaderResource::kDiffuseRoughness]];
     Texture2D metalnessTex = gTextures[matData.textureIndex[ShaderResource::kMetalness]];
     Texture2D occlusionTex = gTextures[matData.textureIndex[ShaderResource::kOcclusion]];
     Texture2D emissiveTex = gTextures[matData.textureIndex[ShaderResource::kEmissive]];
+    Texture2D normalTex = gTextures[matData.textureIndex[ShaderResource::kNormal]];
 
     float4 baseCol = baseColorTex.Sample(gAnisoWrapSampler, i.uv);
     float roughness = diffuseRoughnessTex.Sample(gAnisoWrapSampler, i.uv).g;
     float metallic = metalnessTex.Sample(gAnisoWrapSampler, i.uv).b;
     float occlusion = occlusionTex.Sample(gAnisoWrapSampler, i.uv).r;
     float3 emissive = emissiveTex.Sample(gAnisoWrapSampler, i.uv).rgb;
-    
+
     baseCol *= matData.baseColor;
     roughness *= matData.roughnessFactor;
     metallic *= matData.metallicFactor;
     emissive *= matData.emissiveColor.rgb;
 
-    // 获取视图空间的坐标
-    float4 posVS = mul(float4(i.posWS, 1), gPassConstants.view);
+    // Compute view-space normal (SSAO pass expects view-space normals)
+    float3 normalWS = normalize(i.normalWS);
+#if HAS_TANGENT
+    float3 normalMap = normalTex.Sample(gAnisoWrapSampler, i.uv).xyz * 2.0 - 1.0;
+    float3 T = normalize(i.tangentWS);
+    float3 B = normalize(i.bitangentWS);
+    float3 N = normalWS;
+    float3x3 TBN = float3x3(T, B, N);
+    normalWS = normalize(mul(normalMap, TBN));
+#endif
 
-    Surface surface;
-    surface.position = i.posWS;
-    surface.depth = posVS.z;
-    surface.normal = normalize(i.normal);
-    surface.roughness = max(0.05, roughness * roughness);  // 感知上的粗糙度
-    surface.color = baseCol.rgb;
-    surface.alpha = baseCol.a;
-    surface.viewDir = normalize(gPassConstants.cameraPos - i.posWS);
-    surface.metallic = metallic;
-
-    uint dispatchWidth = (gPassConstants.renderTargetSize.x + gTileSize - 1) / gTileSize;
-    uint2 tileCoord = uint2(i.posCS.xy) / gTileSize;
-    uint tileIndex = tileCoord.y * dispatchWidth + tileCoord.x;
-    float3 color = ShadeLighting(surface, gTileInfos[tileIndex]);
-
-    float2 uv = i.posCS.xy * gPassConstants.renderTargetSize.zw;
-    float ssao = gSSAOTex.Sample(gAnisoWrapSampler, uv).r;
-    color *= occlusion * ssao;
-    color += emissive;
-
-    return float4(color, surface.alpha);
+    GBufferOutput output;
+    output.albedoMetallic = float4(baseCol.rgb, metallic);
+    float3 normalVS = mul(normalWS, (float3x3)gPassConstants.view);
+    output.normal = EncodeFloat3ToFloat2(normalize(normalVS));
+    output.materialAttributes = float4(roughness, occlusion, 0, 0);
+    return output;
 }

@@ -1074,9 +1074,13 @@ namespace DSM::D3D12{
         }
 
         RefPtr<ID3D12PipelineState> pipelineState{};
-        auto hr = m_Context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
-        if(FAILED(hr)){
-            m_Context.Error("Failed to create a graphics pipeline state object.");
+       auto hr = m_Context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipelineState.GetAddressOf()));
+       if(FAILED(hr)){
+            std::string msg = "Failed to create graphics PSO. Error: " + GetHRErrorMessage(hr)
+                + ". NumRT: " + std::to_string(fbInfo.colorFormats.size())
+                + ", DepthFmt: " + std::to_string((uint32_t)fbInfo.depthFormat)
+                + ", Sample: " + std::to_string(fbInfo.sampleCount) + "x" + std::to_string(fbInfo.sampleQuality);
+            m_Context.Error(msg);
             return nullptr;
         }
 

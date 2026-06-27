@@ -10,6 +10,8 @@
 #include "Editor/EditorUI/EditorSceneHierarchy.h"
 #include "Runtime/Render/TextureManager.h"
 #include "Runtime/Platform/PlatformUtils.h"
+#include "Runtime/Render/Renderer/DeferredRenderer/DeferredRenderPipeline.h"
+#include "Runtime/Render/Renderer/ForwardRenderer/ForwardRenderPipeline.h"
 #include <imgui.h>
 
 namespace DSM {
@@ -30,6 +32,7 @@ namespace DSM {
             FileMenuGUI();
             WorldMenuGUI();
             ViewMenuGUI();
+            RenderMenuGUI();
             ButtonToolBar();
 
             ImGui::EndMainMenuBar();
@@ -140,6 +143,33 @@ namespace DSM {
         }
     }
     
+   void EditorMenuBar::RenderMenuGUI()
+   {
+       if (ImGui::BeginMenu("Render")) {
+            auto engine = m_EditorUI->GetEditor()->GetEngine();
+           auto& renderer = *DSMEngine::sm_GlobalContext.renderer;
+
+           if (ImGui::MenuItem("Deferred", nullptr, m_IsDeferred)) {
+               if (!m_IsDeferred) {
+                   m_IsDeferred = true;
+                    renderer.GetDevice()->WaitForIdle();
+                    renderer.ResetRenderPipeline();
+                    engine->SetRenderPipeline(std::make_unique<DeferredRenderPipeline>());
+               }
+           }
+           if (ImGui::MenuItem("Forward", nullptr, !m_IsDeferred)) {
+               if (m_IsDeferred) {
+                   m_IsDeferred = false;
+                    renderer.GetDevice()->WaitForIdle();
+                    renderer.ResetRenderPipeline();
+                    engine->SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
+               }
+           }
+
+           ImGui::EndMenu();
+       }
+   }
+
     void EditorMenuBar::ButtonToolBar()
     {
         const float buttonSize = 16.0f;

@@ -1,14 +1,14 @@
-#pragma once
+﻿#pragma once
 #ifndef __GEOMETRYPASS_H__
 #define __GEOMETRYPASS_H__
 
-#include "RenderResource.h"
 #include "Runtime/Render/Model.h"
-#include "Shaders/ForwardShader/ResourceData.h"
-#include "Shadows.h"
-#include "SSAOPass.h"
-#include "LightingPass.h"
+#include "Shaders/Common/ResourceData.h"
 #include "Runtime/Core/InstrumentorTimer.h"
+#include "Runtime/Render/Renderer/CommonPass/RenderResource.h"
+#include "Runtime/Render/Renderer/CommonPass/Shadows.h"
+#include "Runtime/Render/Renderer/CommonPass/SSAOPass.h"
+#include "Runtime/Render/Renderer/CommonPass/LightingPass.h"
 
 namespace DSM {
     // 绘制所有模型

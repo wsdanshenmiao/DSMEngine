@@ -54,7 +54,6 @@ namespace DSM {
         bool logBufferLifetime = false;
         bool enableDebugLayer = true;
         bool allowModeSwitch = false;
-        bool enableDebugRuntime = false;
         bool startFullscreen = false;
         bool vsyncEnabled = false;
         uint32_t swapChainBufferCount = 3;
@@ -79,9 +78,10 @@ namespace DSM {
         void InitWindowUI(WindowUI* windowUI);
 		void DestroyWindowUI();
 
-        void SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline) { m_RenderPipeline = std::move(renderPipeline); }
+       void SetRenderPipeline(std::unique_ptr<IRenderPipeline> renderPipeline) { m_RenderPipeline = std::move(renderPipeline); }
+       void ResetRenderPipeline() { m_RenderPipeline = nullptr; }
 
-        void Render(float deltaTime);
+       void Render(float deltaTime);
         void OnEvent(Event& event);
 
         void ResizeRenderTexture(uint32_t width, uint32_t height);
@@ -157,8 +157,8 @@ namespace DSM {
         };
         std::unique_ptr<IRendererInternal> m_Internal;
 
-        std::unique_ptr<IRenderPipeline> m_RenderPipeline;
-        Camera m_Camera;
+       std::unique_ptr<IRenderPipeline> m_RenderPipeline;
+       Camera m_Camera;
     };
 
 } // namespace DSM

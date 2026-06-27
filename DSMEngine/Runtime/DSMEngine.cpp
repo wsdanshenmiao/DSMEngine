@@ -65,6 +65,11 @@ namespace DSM {
         DSMEngine::sm_GlobalContext.renderer->SetRenderPipeline(std::move(renderPipeline));
     }
 
+    void DSMEngine::ResetRenderPipeline()
+    {
+        DSMEngine::sm_GlobalContext.renderer->ResetRenderPipeline();
+    }
+
     void DSMEngine::Render(float deltaTime)
     {
         DSMEngine::sm_GlobalContext.renderer->Render(deltaTime);

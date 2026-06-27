@@ -1,8 +1,8 @@
-#ifndef __GAUSSIANBLUR__HLSL__
+﻿#ifndef __GAUSSIANBLUR__HLSL__
 #define __GAUSSIANBLUR__HLSL__
 
-#include "../Common.hlsli"
-#include "../ResourceData.h"
+#include "../../Common/Common.hlsli"
+#include "../../Common/ResourceData.h"
 
 // 一个线程组中有 256 个线程
 #define THREAD_SIZE 256

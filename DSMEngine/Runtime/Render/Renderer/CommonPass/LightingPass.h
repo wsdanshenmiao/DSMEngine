@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 #ifndef __LIGHTINGPASS_H__
 #define __LIGHTINGPASS_H__
 
 #include "RenderResource.h"
 #include "Shadows.h"
 #include "Runtime/Math/MathCommon.h"
-#include "Shaders/ForwardShader/ResourceData.h"
+#include "Shaders/Common/ResourceData.h"
 
 #include <algorithm>
 
@@ -26,7 +26,7 @@ namespace DSM {
         };
 
         LightingPass(GraphicsRenderer& renderer)
-            : m_Shadows(std::make_unique<Shadows>(renderer, ShadowSetting{}))
+            : m_Shadows(std::make_unique<Shadows>(renderer))
         {
             auto device = renderer.GetDevice();
             sm_LightDataBuffer = device->CreateBuffer(BufferDesc()

@@ -2,7 +2,9 @@
 #ifndef __SHADOWS_H__
 #define __SHADOWS_H__
 
-#include <map>
+#include <span>
+#include <future>
+
 #include "RenderResource.h"
 #include "Runtime/Math/Collision/Frustum.h"
 
@@ -67,10 +69,11 @@ namespace DSM {
             AllOptions = (1 << 2) - 1
         };
     public:
-        Shadows(GraphicsRenderer& renderer, ShadowSetting shadowSetting);
+        Shadows(GraphicsRenderer& renderer);
         ~Shadows();
 
         void Setup();
+        void SetShadowSetting(const ShadowSetting& setting) { sm_Setting = setting; }
 
         uint64_t Render(GraphicsRenderer& renderer, float deltaTime);
         void OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height) {}
@@ -87,17 +90,24 @@ namespace DSM {
         void RenderSpotLightShadow(const Light& light, size_t index);
 
         void DrawModelShadow(
-            IFramebuffer* framebuffer, 
-            const Math::Matrix4& viewProj, 
-            Viewport viewport, 
+            IFramebuffer* framebuffer,
+            const Math::Matrix4& viewProj,
+            Viewport viewport,
             bool isDirectionalLightShadow,
             const Math::AxisAlignedBox& lightBounds);
+
+        void DrawShadowObjects(
+            IFramebuffer* framebuffer,
+            const Math::Matrix4& viewProj,
+            Viewport viewport,
+            bool isDirectionalLightShadow,
+            std::span<const std::shared_ptr<GameObject>> objects);
 
         Viewport GetTileViewport(size_t index, size_t split, size_t tileSize) const;
 
         Math::Matrix4 ConvertToAtlasMatrix(const Math::Matrix4& m, Math::Vector2 offset, float scale) const;
 
-        void ResizeShadowMap(IDevice* device);
+        void ResizeShadowMap();
 
         size_t GetCubeMapFaceIndex(const Math::Vector3& direction) const;
         Math::Vector3 GetCubeMapFaceDirection(size_t faceIndex) const;
@@ -115,7 +125,7 @@ namespace DSM {
         }
 
     public:
-        inline static ShadowSetting sm_Setting;
+        inline static ShadowSetting sm_Setting{};
         
         inline static BufferHandle sm_ShadowCB{};
         inline static BufferHandle sm_DirectionalShadowMatrixBuffer{};
@@ -128,7 +138,7 @@ namespace DSM {
         using ShadowMatrixArray = std::array<Math::Matrix4, sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount>;
         using PipelineArray = std::array<GraphicsPipelineHandle, (AllOptions + 1) * ShadowSetting::FilterMode::Count>;
 
-        CommandListHandle m_CmdList;
+        IDevice* m_Device{nullptr};
 
         BufferHandle m_PassCB{};
         IBuffer* m_CacheMeshBuffer{nullptr};

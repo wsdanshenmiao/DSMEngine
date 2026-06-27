@@ -64,7 +64,7 @@ namespace DSM{
         }
 
         RefPtr<IDXGIFactory2> dxgiFactory = nullptr;
-        auto hr = CreateDXGIFactory2(desc.enableDebugRuntime ? DXGI_CREATE_FACTORY_DEBUG : 0, IID_PPV_ARGS(dxgiFactory.GetAddressOf()));
+        auto hr = CreateDXGIFactory2(desc.enableDebugLayer ? DXGI_CREATE_FACTORY_DEBUG : 0, IID_PPV_ARGS(dxgiFactory.GetAddressOf()));
         DSM_CORE_ASSERT(SUCCEEDED(hr), "Failed to create dxgifactory.");
         
         RefPtr<IDXGIFactory5> pDxgiFactory5;

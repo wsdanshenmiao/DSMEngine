@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 #ifndef __MODEL_H__
 #define __MODEL_H__
 
 #include "Runtime/Render/Material.h"
-#include "Shaders/ForwardShader/ResourceData.h"
+#include "Shaders/Common/ResourceData.h"
 
 struct aiScene;
 struct aiNode;

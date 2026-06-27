@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 #ifndef __BLOOMPASS_H__
 #define __BLOOMPASS_H__
 
 #include "PostEffectManager.h"
 #include "Runtime/Render/ShaderCompiler.h"
 #include "Runtime/Math/MathCommon.h"
-#include "Runtime/Render/Renderer/ForwardRenderer/GaussianBlurPass.h"
+#include "Runtime/Render/Renderer/CommonPass/GaussianBlurPass.h"
 
 #include <algorithm>
 #include <vector>

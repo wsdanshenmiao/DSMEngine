@@ -1,40 +1,37 @@
-#include "Shadows.h"
+﻿#include "Shadows.h"
 #include "Runtime/Render/ShaderCompiler.h"
 #include "Runtime/Render/Model.h"
 #include "Runtime/Math/Collision/BoundingSphere.h"
 #include "Runtime/Framework/Component/Component.h"
 #include "Runtime/Core/InstrumentorTimer.h"
-#include "Shaders/ForwardShader/ResourceData.h"
+#include "Shaders/Common/ResourceData.h"
+#include "Runtime/Core/InstrumentorTimer.h"
 
 namespace DSM {
-    Shadows::Shadows(GraphicsRenderer &renderer, ShadowSetting shadowSetting)
+    Shadows::Shadows(GraphicsRenderer &renderer)
+        : m_Device(renderer.GetDevice())
     {
-        sm_Setting = shadowSetting;
-        auto device = renderer.GetDevice();
-
-        m_CmdList = device->CreateCommandList(CommandListParameters().SetDebugName("Shadow Pass Command List"));
-
-        sm_ShadowCB = device->CreateBuffer(BufferDesc()
+        sm_ShadowCB = m_Device->CreateBuffer(BufferDesc()
             .SetByteSize(sizeof(ShaderResource::ShadowConstants))
             .SetIsConstantBuffer(true)
             .SetDebugName("Shadow Constants Buffer"));
-        sm_DirectionalShadowMatrixBuffer = device->CreateBuffer(BufferDesc()
+        sm_DirectionalShadowMatrixBuffer = m_Device->CreateBuffer(BufferDesc()
             .SetByteSize(sizeof(Math::Matrix4) * sm_MaxShadowedDirectionalLightCount * ShadowSetting::sm_MaxCascadeCount)
             .SetStructStride(sizeof(Math::Matrix4))
             .SetDebugName("Directional Shadow Matrices Buffer"));
-        sm_OtherLightShadowDataBuffer = device->CreateBuffer(BufferDesc()
+        sm_OtherLightShadowDataBuffer = m_Device->CreateBuffer(BufferDesc()
             .SetByteSize(sizeof(ShaderResource::OtherLightShadowData) * sm_MaxShadowedOtherLightCount)
             .SetStructStride(sizeof(ShaderResource::OtherLightShadowData))
             .SetDebugName("Other Shadow Matrices Buffer"));
 
 
-        m_PassCB = device->CreateBuffer(BufferDesc()
+        m_PassCB = m_Device->CreateBuffer(BufferDesc()
+            .SetDebugName("Shadow Pass PassConstants Buffer")
             .SetByteSize(sizeof(Math::Matrix4))
             .SetIsConstantBuffer(true)
-            .SetIsVolatile(true)
-            .SetDebugName("Shadow Pass PassConstants Buffer"));
+            .SetIsVolatile(true));
 
-        ResizeShadowMap(device);
+        ResizeShadowMap();
 
         // 编译 ShadowPass 的着色器
         auto createShader = [&](ShaderType type, const std::string& entryPoint, const auto& define) {
@@ -47,7 +44,7 @@ namespace DSM {
                 desc.AddDefine(define, "1");
             }
             ShaderByteCode byteCode{desc};
-            return device->CreateShader(ShaderDesc()
+            return m_Device->CreateShader(ShaderDesc()
                 .SetEntryName(desc.enterPoint)
                 .SetShaderType(desc.type)
                 .SetDebugName(desc.enterPoint), 
@@ -58,7 +55,7 @@ namespace DSM {
         auto shadowPS = createShader(ShaderType::Pixel, "ShadowPassPS", std::string{});
         auto shadowPSClip = createShader(ShaderType::Pixel, "ShadowPassPS", "SHADOWS_CLIP");
 
-        m_ShadowBindingLayout = device->CreateBindingLayout(BindingLayoutDesc()
+        m_ShadowBindingLayout = m_Device->CreateBindingLayout(BindingLayoutDesc()
             .AddItem(BindingLayoutItem().VolatileConstantBuffer(0))
             .AddItem(BindingLayoutItem().PushConstants(1, sizeof(int)))
             .AddItem(BindingLayoutItem().Sampler(uint32_t(SamplerSlot::AnisoWrap)))
@@ -83,14 +80,14 @@ namespace DSM {
         auto createPipeline = [&](IShader* vsHandle, IShader* psHandle, bool clip, const auto& renderState) {
             auto pipelineDesc = GraphicsPipelineDesc()
                 .SetVertexShader(vsHandle)
-                .SetInputLayout(device->CreateInputLayout(vertexDescs, vsHandle))
+                .SetInputLayout(m_Device->CreateInputLayout(vertexDescs, vsHandle))
                 .SetRenderState(renderState)
                 .AddBindingLayout(m_ShadowBindingLayout, 0);
             if(psHandle != nullptr){
                 pipelineDesc.SetPixelShader(psHandle)
                     .AddBindingLayout(RenderResource::GetInstance().GetTextureBindlessLayout(), 1);
             }
-            auto pso = device->CreateGraphicsPipeline(pipelineDesc, m_DirectionalShadowFB);
+            auto pso = m_Device->CreateGraphicsPipeline(pipelineDesc, m_DirectionalShadowFB);
             return pso;
         };
         size_t filterModeCount = size_t(ShadowSetting::FilterMode::Count);
@@ -132,7 +129,7 @@ namespace DSM {
         auto& renderRes = RenderResource::GetInstance();
 
         // 检测是否要调整阴影图大小
-        ResizeShadowMap(renderer.GetDevice());
+        ResizeShadowMap();
 
         auto dirLightCount = std::min(m_ReservedDirectionalLights.size(), sm_MaxShadowedDirectionalLightCount);
 
@@ -143,7 +140,7 @@ namespace DSM {
             m_CacheMaterialBuffer = renderRes.GetMaterialBuffer();
 
             size_t sampleIndex = size_t(SamplerSlot::AnisoWrap);
-            m_ShadowBindingSet = renderer.GetDevice()->CreateBindingSet(BindingSetDesc()
+            m_ShadowBindingSet = m_Device->CreateBindingSet(BindingSetDesc()
                 .AddItem(BindingSetItem().ConstantBuffer(0, m_PassCB))
                 .AddItem(BindingSetItem().StructuredBuffer_SRV(0, m_CacheMeshBuffer))
                 .AddItem(BindingSetItem().StructuredBuffer_SRV(1, m_CacheMaterialBuffer))
@@ -151,17 +148,22 @@ namespace DSM {
                 , m_ShadowBindingLayout);
         }
 
-        m_CmdList->Open();
+        auto cmdList = m_Device->CreateCommandList(CommandListParameters{}.SetDebugName("Shadow Render Command List"));
+        cmdList->Open();
 
-        m_CmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, true, 1, false, 0);
-        m_CmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, true, 1, false, 0);
+        cmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, true, 1, false, 0);
+        cmdList->ClearDepthStencilTexture(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, true, 1, false, 0);
+        
+        cmdList->Close();
+        m_Device->ExecuteCommandList(cmdList);
 
         RenderDirectionalShadow(m_ReservedDirectionalLights, renderer.GetCamera());
         RenderOtherShadow(m_ReservedOtherLights, renderer.GetCamera());
 
+        cmdList->Open();
         // 转换为着色器资源以供后续 Pass 使用
-        m_CmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
-        m_CmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
+        cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
+        cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
 
         const auto& dirSetting = sm_Setting.directionalSetting;
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();
@@ -183,16 +185,16 @@ namespace DSM {
             shadowConstants.cascadeFarPlaneDist.Set(i, distance);
         }
 
-        m_CmdList->WriteBuffer(sm_ShadowCB, &shadowConstants, sizeof(ShaderResource::ShadowConstants));
-        m_CmdList->WriteBuffer(sm_DirectionalShadowMatrixBuffer, 
+        cmdList->WriteBuffer(sm_ShadowCB, &shadowConstants, sizeof(ShaderResource::ShadowConstants));
+        cmdList->WriteBuffer(sm_DirectionalShadowMatrixBuffer, 
             m_DirectionalShadowMatrices.data(), 
             sizeof(Math::Matrix4) * m_DirectionalShadowMatrices.size());
-        m_CmdList->WriteBuffer(sm_OtherLightShadowDataBuffer, 
+        cmdList->WriteBuffer(sm_OtherLightShadowDataBuffer, 
             m_OtherLightShadowData.data(), 
             sizeof(ShaderResource::OtherLightShadowData) * m_OtherLightShadowData.size());
 
-        m_CmdList->Close();
-        return renderer.GetDevice()->ExecuteCommandList(m_CmdList);
+        cmdList->Close();
+        return m_Device->ExecuteCommandList(cmdList);
     }
 
     Math::Vector4 Shadows::ReserveDirectionalShadows(const Light &light)
@@ -226,6 +228,7 @@ namespace DSM {
 
     void Shadows::RenderDirectionalShadow(std::span<const Light *> directionalLights, const Camera &camera)
     {
+        InstrumentationTimer timer("Render Directional Shadows");
         if(directionalLights.empty())
             return;
 
@@ -281,6 +284,23 @@ namespace DSM {
         size_t tileOffset = index * cascadeCount;
         Math::Vector3 ratios = sm_Setting.directionalSetting.cascadeRatio;
 
+        // 平行光包围盒无限大，所有 CastShadow 物体在每个 cascade 均可见
+        // 预收集一次，避免每个 cascade 重复遍历 BVH
+        auto& renderRes = RenderResource::GetInstance();
+        std::vector<std::shared_ptr<GameObject>> visibleObjects;
+        for(const auto& obj : renderRes.GetNoBoundsObjects()){
+            auto mr = obj->GetComponent<MeshRenderer>();
+            if(mr != nullptr && mr->CastShadow()){
+                visibleObjects.push_back(obj);
+            }
+        }
+        for(const auto& [obj, node] : renderRes.GetBVH().GetLeafNodes()){
+            auto mr = obj->GetComponent<MeshRenderer>();
+            if(mr != nullptr && mr->CastShadow()){
+                visibleObjects.push_back(obj);
+            }
+        }
+
         for(size_t cascadeIndex = 0; cascadeIndex < cascadeCount; ++cascadeIndex){
             // 计算级联的视锥体
             auto cascadeFrustum = m_CameraFrustum;
@@ -296,14 +316,14 @@ namespace DSM {
 
             cascadeFrustum.SetNearPlane(nearPlane);
             cascadeFrustum.SetFarPlane(farPlane);
-            
+
             // 将视锥体变换到光照空间
             cascadeFrustum *= lightView;
             auto frustumCorners = cascadeFrustum.GetCorners();
             Math::AxisAlignedBox cameraBounds{std::span{frustumCorners}};
             Math::Vector3 lightCameraMin = cameraBounds.GetMin();
             Math::Vector3 lightCameraMax = cameraBounds.GetMax();
-            
+
             // 将正交矩阵与 ShadowMap 的纹素进行对齐
             Math::Vector3 worldUnitsPerTexelVec = (lightCameraMax - lightCameraMin) / float(tileSize);
             lightCameraMin /= worldUnitsPerTexelVec;
@@ -329,12 +349,15 @@ namespace DSM {
             Math::Vector2 offset{float(tileIndex % split), float(tileIndex / split)};
             m_DirectionalShadowMatrices[tileIndex] = ConvertToAtlasMatrix(viewProj, offset, 1.f / split);
 
-            DrawModelShadow(m_DirectionalShadowFB, viewProj, GetTileViewport(tileIndex, split, tileSize), true, light.GetBounds());
+            DrawShadowObjects(m_DirectionalShadowFB, viewProj,
+                GetTileViewport(tileIndex, split, tileSize), true, std::span{visibleObjects});
         }
     }
 
     void Shadows::RenderOtherShadow(std::span<const Light *> otherLights, const Camera &camera)
     {
+        InstrumentationTimer timer("Render Other Shadows");
+
         size_t shadowedLightCount = 0;
         for(size_t lightIndex = 0; lightIndex < otherLights.size(); ++lightIndex){
             const auto& light = *otherLights[lightIndex];
@@ -346,6 +369,8 @@ namespace DSM {
                 continue;
             }
 
+            auto lightTimerName = std::string("Render Shadow for Light ") + std::to_string(lightIndex);
+            InstrumentationTimer lightTimer(lightTimerName.c_str());
             switch (light.GetType()) {
                 case LightType::Point:
                     RenderPointLightShadow(light, shadowedLightCount);
@@ -434,30 +459,82 @@ namespace DSM {
     }
 
     void Shadows::DrawModelShadow(
-        IFramebuffer* framebuffer, 
-        const Math::Matrix4 &viewProj, 
-        Viewport viewport, 
+        IFramebuffer* framebuffer,
+        const Math::Matrix4 &viewProj,
+        Viewport viewport,
         bool isDirectionalLightShadow,
         const Math::AxisAlignedBox& lightBounds)
     {
         auto& renderRes = RenderResource::GetInstance();
 
-        m_CmdList->WriteBuffer(m_PassCB, &viewProj, sizeof(Math::Matrix4));
+        // 收集可见物体
+        std::vector<std::shared_ptr<GameObject>> visibleObjects;
+
+        for(const auto& obj : renderRes.GetNoBoundsObjects()){
+            auto mr = obj->GetComponent<MeshRenderer>();
+            if(mr != nullptr && mr->CastShadow()){
+                visibleObjects.push_back(obj);
+            }
+        }
+
+        // BVH 遍历 — 用裸指针避免 shared_ptr 引用计数开销
+        std::stack<Math::BVHTree::BVHNode*> nodeStack;
+        nodeStack.push(renderRes.GetBVH().GetRoot().get());
+        while(!nodeStack.empty()){
+            auto node = nodeStack.top();
+            nodeStack.pop();
+
+            if(node == nullptr)
+                continue;
+
+            if(node->left == nullptr && node->right == nullptr){
+                visibleObjects.push_back(node->object);
+            }
+            else{
+                if(node->left != nullptr && node->left->bounds.Intersects(lightBounds)){
+                    nodeStack.push(node->left.get());
+                }
+                if(node->right != nullptr && node->right->bounds.Intersects(lightBounds)){
+                    nodeStack.push(node->right.get());
+                }
+            }
+        }
+
+        DrawShadowObjects(framebuffer, viewProj, viewport, isDirectionalLightShadow, std::span{visibleObjects});
+    }
+
+    void Shadows::DrawShadowObjects(
+        IFramebuffer* framebuffer,
+        const Math::Matrix4 &viewProj,
+        Viewport viewport,
+        bool isDirectionalLightShadow,
+        std::span<const std::shared_ptr<GameObject>> objects)
+    {
+        auto cmdListName = isDirectionalLightShadow ? "Draw Directional Light Shadow" : "Draw Other Light Shadow";
+        auto cmdList = m_Device->CreateCommandList(CommandListParameters{}.SetDebugName(cmdListName));
+        cmdList->Open();
+
+        auto& renderRes = RenderResource::GetInstance();
+        cmdList->WriteBuffer(m_PassCB, &viewProj, sizeof(Math::Matrix4));
 
         auto state = GraphicsState{}
             .AddBindingSet(m_ShadowBindingSet, 0)
             .SetFramebuffer(framebuffer)
             .SetViewport(ViewportState().AddViewportAndScissorRect(viewport));
-        auto renderObject = [this, &state, &renderRes, isDirectionalLightShadow](const auto& obj) {
+
+        const auto& filterMode = isDirectionalLightShadow ?
+            sm_Setting.directionalSetting.filter : sm_Setting.otherSetting.filter;
+
+        for(const auto& obj : objects){
             if(obj == nullptr)
-                return;
+                continue;
             auto meshRenderer = obj->GetComponent<MeshRenderer>();
-            if(meshRenderer == nullptr)
-                return;
+            if(meshRenderer == nullptr || !meshRenderer->CastShadow())
+                continue;
 
             auto mesh = meshRenderer->GetMesh();
             if(mesh == nullptr)
-                return;
+                continue;
 
             state.vertexBuffers.resize(0);
             if(auto slot = Mesh::VertexAttributeSlot::Position; mesh->HasVertexAttribute(slot)){
@@ -470,7 +547,7 @@ namespace DSM {
                 auto matIndex = meshRenderer->GetMaterialIndex(subMeshIndex);
                 auto material = meshRenderer->GetMaterial(matIndex);
                 if(material == nullptr)
-                    return;
+                    continue;
 
                 size_t option = ShadowOption::None;
                 if(material->IsTransparent()){
@@ -479,54 +556,26 @@ namespace DSM {
                 if(!isDirectionalLightShadow){
                     option |= ShadowOption::EnableDepthClip;
                 }
-                const auto& filterMode = isDirectionalLightShadow ? 
-                    sm_Setting.directionalSetting.filter : sm_Setting.otherSetting.filter;
                 state.SetPipeline(GetShadowPipeline(option, filterMode))
                     .SetIndexBuffer(mesh->GetIndexBufferBinding(subMeshIndex));
                 if(material->IsTransparent()){
                     state.AddBindingSet(renderRes.GetTextureBindlessTable(), 1);
                 }
 
-                m_CmdList->SetGraphicsState(state);
+                cmdList->SetGraphicsState(state);
 
                 int objectIndex = int(renderRes.GetObjectIndex().at(obj));
-                m_CmdList->SetPushConstants(&objectIndex, sizeof(int));
+                cmdList->SetPushConstants(&objectIndex, sizeof(int));
 
-                m_CmdList->DrawIndexed(DrawArguments()
+                cmdList->DrawIndexed(DrawArguments()
                     .SetVertexCount(mesh->GetIndexCount(subMeshIndex))
                     .SetStartIndexLocation(mesh->GetIndexOffset(subMeshIndex))
                     .SetStartVertexLocation(mesh->GetVertexOffset(subMeshIndex)));
             }
-        };
-
-        for(const auto& obj : renderRes.GetNoBoundsObjects()){
-            renderObject(obj);
         }
 
-        // 绘制 ShadowMap 并剔除光源影响不到的物体
-        std::stack<std::shared_ptr<Math::BVHTree::BVHNode>> nodeStack;
-        nodeStack.push(renderRes.GetBVH().GetRoot());
-        while(!nodeStack.empty()){
-            auto node = nodeStack.top();
-            nodeStack.pop();
-
-            if(node == nullptr)
-                continue;
-
-            if(node->left == nullptr && node->right == nullptr){
-                // 叶子节点，渲染包含的对象
-                renderObject(node->object);
-            }
-            else{
-                // 内部节点，继续遍历
-                if(node->left != nullptr && node->left->bounds.Intersects(lightBounds)){
-                    nodeStack.push(node->left);
-                }
-                if(node->right != nullptr && node->right->bounds.Intersects(lightBounds)){
-                    nodeStack.push(node->right);
-                }
-            }
-        }
+        cmdList->Close();
+        m_Device->ExecuteCommandList(cmdList);
     }
 
     Viewport Shadows::GetTileViewport(size_t index, size_t split, size_t tileSize) const
@@ -549,17 +598,15 @@ namespace DSM {
         return atlasTransform * m;
     }
     
-    void Shadows::ResizeShadowMap(IDevice* device)
+    void Shadows::ResizeShadowMap()
     {
-        DSM_ASSERT(device != nullptr, "Device is null");
-
         auto& renderRes = RenderResource::GetInstance();
         auto dirShadowMapSize = sm_Setting.directionalSetting.size;
         auto dirShadowMap = renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap);
         if(dirShadowMap == nullptr || dirShadowMap->GetDesc().width != dirShadowMapSize || 
             dirShadowMap->GetDesc().height != dirShadowMapSize)
         {
-            dirShadowMap = device->CreateTexture(TextureDesc()
+            dirShadowMap = m_Device->CreateTexture(TextureDesc()
                 .SetWidth(dirShadowMapSize)
                 .SetHeight(dirShadowMapSize)
                 .SetClearValue(Color{1,1,1,1})
@@ -567,7 +614,7 @@ namespace DSM {
                 .SetIsRenderTarget(true)
                 .SetDebugName("Directional Shadow Map"));
             renderRes.SetCommonTexture(CommonTextureSlot::DirectionalShadowMap, dirShadowMap);
-            m_DirectionalShadowFB = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(dirShadowMap));
+            m_DirectionalShadowFB = m_Device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(dirShadowMap));
         }
 
         auto otherShadowMapSize = sm_Setting.otherSetting.size;
@@ -575,7 +622,7 @@ namespace DSM {
         if(otherShadowMap == nullptr || otherShadowMap->GetDesc().width != otherShadowMapSize || 
             otherShadowMap->GetDesc().height != otherShadowMapSize)
         {
-            otherShadowMap = device->CreateTexture(TextureDesc()
+            otherShadowMap = m_Device->CreateTexture(TextureDesc()
                 .SetWidth(otherShadowMapSize)
                 .SetHeight(otherShadowMapSize)
                 .SetClearValue(Color{1,1,1,1})
@@ -583,7 +630,7 @@ namespace DSM {
                 .SetIsRenderTarget(true)
                 .SetDebugName("Other Shadow Map"));
             renderRes.SetCommonTexture(CommonTextureSlot::OtherShadowMap, otherShadowMap);
-            m_OtherShadowFB = device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(otherShadowMap));
+            m_OtherShadowFB = m_Device->CreateFramebuffer(FramebufferDesc().SetDepthAttachment(otherShadowMap));
         }
     }
     

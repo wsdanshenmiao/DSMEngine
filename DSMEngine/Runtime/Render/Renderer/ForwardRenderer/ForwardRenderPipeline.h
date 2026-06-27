@@ -2,17 +2,17 @@
 #ifndef __FORWARDRENDERPIPELINE_H__
 #define __FORWARDRENDERPIPELINE_H__
 
-#include "RenderResource.h"
 #include "GeometryPass.h"
-#include "SSAOPass.h"
-#include "LightingPass.h"
 #include "LitPass.h"
-#include "SkyboxPass.h"
-#include "TaaPass.h"
-#include "FinalPass.h"
-#include "MotionVectorPass.h"
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
-#include "Runtime/Render/Renderer/ForwardRenderer/PostEffect/PostEffectManager.h"
+#include "Runtime/Render/Renderer/CommonPass/RenderResource.h"
+#include "Runtime/Render/Renderer/CommonPass/SSAOPass.h"
+#include "Runtime/Render/Renderer/CommonPass/LightingPass.h"
+#include "Runtime/Render/Renderer/CommonPass/SkyboxPass.h"
+#include "Runtime/Render/Renderer/CommonPass/TaaPass.h"
+#include "Runtime/Render/Renderer/CommonPass/FinalPass.h"
+#include "Runtime/Render/Renderer/CommonPass/MotionVectorPass.h"
+#include "Runtime/Render/Renderer/CommonPass/PostEffect/PostEffectManager.h"
 #include "Runtime/Render/Camera/CameraController.h"
 #include "Runtime/Render/Model.h"
 #include "Runtime/Core/InstrumentorTimer.h"
@@ -77,46 +77,6 @@ namespace DSM {
                 }
             }
             ImGui::End();
-
-            // static float lightDir[3] = {-0.3, -1, 0.08};
-            // static float lightColor[3] = {1.0f, 1.0f, 1.0f};
-            // if (ImGui::Begin("Light Settings")) {
-            //     ImGui::SliderFloat3("Light Direction", lightDir, -1.0f, 1.0f);
-            //     ImGui::ColorEdit3("Light Color", lightColor);
-
-            //     static const char* pcfMode[] = {
-            //         "None",
-            //         "3x PCF",
-            //         "5x PCF",
-            //         "7x PCF"
-            //     };
-            //     static int curr_scene_pcf_item = Shadows::sm_Setting.directionalSetting.filter;
-            //     if (ImGui::Combo("Scene PCF", &curr_scene_pcf_item, pcfMode, ARRAYSIZE(pcfMode))) {
-            //         auto& filter = Shadows::sm_Setting.directionalSetting.filter;
-            //         filter = ShadowSetting::FilterMode(curr_scene_pcf_item);
-            //     }
-
-            //     ImGui::Checkbox("Enable SSAO", &SSAOPass::sm_Settings.enable);
-            //     if(SSAOPass::sm_Settings.enable){
-            //         ImGui::SliderFloat("Occlusion Radius", &SSAOPass::sm_Settings.occlusionRadius, 0.1f, 2.0f);
-            //         ImGui::SliderInt("Sample Count", (int*)&SSAOPass::sm_Settings.sampleCount, 1, 14);
-            //         ImGui::SliderFloat("SSAO Threshold", &SSAOPass::sm_Settings.occlusionThreshold, 0.001f, 0.5f);
-            //         ImGui::SliderFloat("SSAO Fade", &SSAOPass::sm_Settings.fadeEnd, 1.f, 5.0f);
-            //         ImGui::SliderInt("SSAO Contrast", (int*)&SSAOPass::sm_Settings.contrast, 1, 5);
-            //         ImGui::SliderInt("SSAO Blur Radius", (int*)&SSAOPass::sm_Settings.blurRadius, 0, 5);
-            //         ImGui::SliderInt("SSAO Blur Count", (int*)&SSAOPass::sm_Settings.blurCount, 1, 5);
-            //     }
-            // }
-            // ImGui::End();
-
-            // auto lights = DSMEngine::sm_GlobalContext.scene->GetObjectsWithComponents<Light>();
-            // for(auto [id, light] : lights.each()){
-            //     if(light.GetType() == LightType::Directional){
-            //         light.SetDirection({lightDir[0], lightDir[1], lightDir[2]});
-            //         light.SetColor({lightColor[0], lightColor[1], lightColor[2], 1.0f});
-            //         break; // only update the first directional light
-            //     }
-            // }
         }
 
         void OnResizeRenderTexture(GraphicsRenderer& renderer, uint32_t width, uint32_t height) override

@@ -1,5 +1,5 @@
-#include "RenderResource.h"
-#include "Shaders/ForwardShader/ResourceData.h"
+﻿#include "RenderResource.h"
+#include "Shaders/Common/ResourceData.h"
 #include "Runtime/Framework/Component/MeshRenderer.h"
 
 #include <random>
@@ -22,8 +22,6 @@ namespace DSM{
         // 创建纹理 Bindless 描述符表
         GetInstance().m_TextureBindlessTable = device->CreateDescriptorTable(GetInstance().m_TextureBindlessLayout);
         
-        GetInstance().m_CmdList = device->CreateCommandList(CommandListParameters{}.SetDebugName("RenderResource CmdList"));
-    
 		GetInstance().CreateSamplers(device);
         GetInstance().CreateNoiseTexture(device);
     }
@@ -34,6 +32,7 @@ namespace DSM{
         
         renderRes.m_Device = nullptr;
         renderRes.m_Framebuffer = nullptr;
+        renderRes.m_GBufferFramebuffer = nullptr;
         renderRes.m_CommonTextures.fill(nullptr);
         renderRes.m_CommonSamplers.fill(nullptr);
         
@@ -53,8 +52,6 @@ namespace DSM{
 
         renderRes.m_TextureBindlessLayout = nullptr;
         renderRes.m_TextureBindlessTable = nullptr;
-
-        renderRes.m_CmdList = nullptr;
 
         renderRes.m_TextureBindlessLayout = nullptr;
         renderRes.m_TextureBindlessTable = nullptr;
@@ -200,7 +197,8 @@ namespace DSM{
         resizeBuffer(m_MeshBuffer, meshDataArr);
         resizeBuffer(m_MaterialBuffer, matDataArr);
 
-        m_CmdList->Open();
+        auto cmdList = m_Device->CreateCommandList(CommandListParameters().SetDebugName("Update Render Resource"));
+        cmdList->Open();
 
         if(m_MeshBuffer != nullptr){
             auto meshBufferSize = m_MeshBuffer->GetDesc().byteSize;
@@ -210,12 +208,12 @@ namespace DSM{
                     .SetStructStride(sizeof(ShaderResource::MeshData))
                     .SetDebugName("Last Frame Mesh Buffer"));
             }
-            m_CmdList->CopyBuffer(m_LastFrameMeshBuffer, 0, m_MeshBuffer, 0, meshBufferSize);
+            cmdList->CopyBuffer(m_LastFrameMeshBuffer, 0, m_MeshBuffer, 0, meshBufferSize);
         }
-        m_CmdList->WriteBuffer(m_MeshBuffer, meshDataArr.data(), meshDataArr.size() * sizeof(ShaderResource::MeshData));
-        m_CmdList->WriteBuffer(m_MaterialBuffer, matDataArr.data(), matDataArr.size() * sizeof(ShaderResource::MaterialData));
-        m_CmdList->Close();
-        m_Device->ExecuteCommandList(m_CmdList);
+        cmdList->WriteBuffer(m_MeshBuffer, meshDataArr.data(), meshDataArr.size() * sizeof(ShaderResource::MeshData));
+        cmdList->WriteBuffer(m_MaterialBuffer, matDataArr.data(), matDataArr.size() * sizeof(ShaderResource::MaterialData));
+        cmdList->Close();
+        m_Device->ExecuteCommandList(cmdList);
     }
     
     void RenderResource::OnResize(GraphicsRenderer& renderer, uint32_t width, uint32_t height)

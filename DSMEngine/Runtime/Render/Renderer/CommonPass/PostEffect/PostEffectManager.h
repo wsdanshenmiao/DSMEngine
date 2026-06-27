@@ -2,7 +2,7 @@
 #ifndef __POSTEFFECTMANAGER_H__
 #define __POSTEFFECTMANAGER_H__
 
-#include "Runtime/Render/Renderer/ForwardRenderer/RenderResource.h"
+#include "Runtime/Render/Renderer/CommonPass/RenderResource.h"
 
 namespace DSM {
     struct IPostEffect

@@ -1,8 +1,8 @@
-#ifndef __TONEMAPPINGPASS_HLSL__
+﻿#ifndef __TONEMAPPINGPASS_HLSL__
 #define __TONEMAPPINGPASS_HLSL__
 
-#include "../Common.hlsli"
-#include "../ToneMappingCommon.hlsli"
+#include "../../Common/Common.hlsli"
+#include "../../Common/ToneMappingCommon.hlsli"
 
 #define THREAD_SIZE 8
 

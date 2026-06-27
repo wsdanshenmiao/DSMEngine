@@ -26,6 +26,7 @@ namespace DSM {
         void FileMenuGUI();
         void WorldMenuGUI();
         void ViewMenuGUI();
+        void RenderMenuGUI();
         void ButtonToolBar();
 
         static float GetPaddingX() { return 14.0f; }
@@ -34,6 +35,7 @@ namespace DSM {
     private:
         EditorUI* m_EditorUI;
         SceneState m_SceneState = SceneState::Edit;
+        bool m_IsDeferred = true;
 
         TextureHandle m_PlayIcon;
         TextureHandle m_StopIcon;

@@ -1,5 +1,5 @@
-#include "../Common.hlsli"
-#include "../ResourceData.h"
+﻿#include "../../Common/Common.hlsli"
+#include "../../Common/ResourceData.h"
 
 #define MAX_SAMPLE_COUNT 14
 #define THREAD_SIZE 16

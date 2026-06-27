@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #ifndef __MATERIAL_H__
 #define __MATERIAL_H__
 
@@ -12,7 +12,7 @@
 #include <variant>
 
 #include "Runtime/Render/Shader.h"
-#include "Shaders/ForwardShader/ResourceData.h"
+#include "Shaders/Common/ResourceData.h"
 
 
 namespace DSM {
