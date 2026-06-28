@@ -15,7 +15,7 @@ DSMEngine 是基于 Xmake 和 MSVC 的 Windows C++23 / Direct3D 12 引擎。
 
 ## 文档地图
 
-- 加载本文档后输出 `已加载 CLAUDE.md` ,从本文档开始，了解项目规则和文档路由。
+- 加载本文档后输出 `已加载 CODEBUDDY.md` ,从本文档开始，了解项目规则和文档路由。
 - `PLANS.md`: Exec-Plan 写法、状态、和关闭标注。
 - `docs/README.md`: Harness 的目录结构与写入规则。
 - `docs/verification.md`: 稳定验证入口，产物协议和失败排查路线。
@@ -54,16 +54,19 @@ DSMEngine 是基于 Xmake 和 MSVC 的 Windows C++23 / Direct3D 12 引擎。
 - `xmake f -m release && xmake`：性能或 release-only 行为相关任务使用 release 构建。
 - `xmake project -k vsxmake2022`：构建图变化后重新生成 Visual Studio 工程。
 
-## 编码约定
+## 工程约定
 
 - 使用 `DSM` 命名空间。
 - 文件保持 UTF-8 编码。
 - 类型和方法使用 PascalCase，例如 `RenderResource`、`UpdateRenderResource`。
 - 成员变量使用 `m_` 前缀。
+- 项目注释必须使用中文编写，对话与中间的临时输出必须使用中文进行交流。
+- 开启计划模式后不能直接修改文件，必须先按照 ExecPlans 的要求指定计划，我批准后才可以执行
 
 ## 任务流
 
-- 小范围局部修改可以直接处理。
-- 中等复杂度任务应先识别影响模块，再运行最小有效验证。
+- 开启计划模式后必须遵循 `PLANS.md` 执行。
+- 非计划模式小范围局部修改可以直接处理。
+- 非计划模式中等复杂度任务应先识别影响模块，再运行最小有效验证。
 - 复杂任务遵循 `PLANS.md`：创建 Exec-Plan，循环执行与验证，持续更新状态和证据，完成后归档。
 - 不熟悉的领域先探索：阅读入口、列出假设、验证关键事实，再决定进入计划或实现。

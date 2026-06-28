@@ -15,7 +15,7 @@ DSMEngine 是基于 Xmake 和 MSVC 的 Windows C++23 / Direct3D 12 引擎。
 
 ## 文档地图
 
-- 从本文档开始，了解项目规则和文档路由。
+- 加载本文档后输出 `已加载 AGENTS.md` ,从本文档开始，了解项目规则和文档路由。
 - `PLANS.md`: Exec-Plan 写法、状态、和关闭标注。
 - `docs/README.md`: Harness 的目录结构与写入规则。
 - `docs/verification.md`: 稳定验证入口，产物协议和失败排查路线。
