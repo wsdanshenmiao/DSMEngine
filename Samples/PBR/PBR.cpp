@@ -22,7 +22,7 @@ int main()
     DSM::EngineParameters params{};
     params.enableDebugLayer = false;
     engine.StartEngine(params);
-    engine.SetRenderPipeline(std::make_unique<DeferredRenderPipeline>());
+    engine.SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
 
     DSM::DSMEditor editor{};
     editor.StartEditor(&engine);

@@ -482,6 +482,7 @@ namespace DSM {
 
         BindingSetVector bindings;
 
+        // 绘制的几何数据
         StaticVector<VertexBufferBinding, c_MaxVertexAttributes> vertexBuffers;
         IndexBufferBinding indexBuffer;
 

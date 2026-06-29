@@ -109,12 +109,17 @@ namespace DSM::D3D12{
         }
         m_Desc = std::move(desc);
 
-        m_Context.stateTracker->RegisterBuffer(this);
+        if(m_Context.stateTracker != nullptr){
+            m_Context.stateTracker->RegisterBuffer(this);
+        }
     }
 
     void Buffer::Destroy()
     {
-        m_Context.stateTracker->UnregisterBuffer(this);
+        if(m_Context.stateTracker != nullptr){
+            m_Context.stateTracker->UnregisterBuffer(this);
+        }
+
         if(m_Context.logBufferLifetime && resource != nullptr){
             m_Context.Info(std::format("Release buffer: {} {:#x}", 
                 m_Desc.debugName, resource->GetGPUVirtualAddress()));

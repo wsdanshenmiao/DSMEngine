@@ -31,9 +31,9 @@ namespace DSM::D3D12 {
         std::vector<D3D12_DESCRIPTOR_RANGE1> descriptorRangeSRVs;
         
         // 各种根参数的索引
-        uint32_t rootConstantsIndex = 0;
-        uint32_t rootParameterIndexSamplers = 0;
-        uint32_t rootParameterIndexSRVs = 0;
+        uint32_t rootConstantsIndex = ~0u;
+        uint32_t rootParameterIndexSamplers = ~0u;
+        uint32_t rootParameterIndexSRVs = ~0u;
         std::vector<D3D12_ROOT_PARAMETER1> rootParameters;
         
     private:

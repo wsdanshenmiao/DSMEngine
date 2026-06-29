@@ -32,6 +32,7 @@ namespace DSM::D3D12{
 
         uint32_t GetClearUAV();
 
+        // 创建空的资源视图
         static void CreateNullSRV(size_t descriptor, Format format, const Context& context);
         static void CreateNullUAV(size_t descriptor, Format format, const Context& context);
         
@@ -39,9 +40,12 @@ namespace DSM::D3D12{
     public:
         RefPtr<ID3D12Resource> resource{};
         D3D12_RESOURCE_DESC resourceDesc{};
+
         HeapHandle heap{};
+        
         HANDLE sharedHandle{};
 
+        // 上一个使用该资源的命令列表的信号量和信号值，用于在资源被销毁时等待 GPU 完成对该资源的使用
         RefPtr<ID3D12Fence> lastUseFence{};
         uint64_t lastUseFenceValue{};
 

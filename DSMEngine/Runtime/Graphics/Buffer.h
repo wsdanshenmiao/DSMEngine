@@ -8,7 +8,8 @@ namespace DSM {
     struct BufferDesc
     {
         uint64_t byteSize = 0;
-        uint32_t structStride = 0; // 若为 StructuredBuffer 改参数不为0
+        // 若为 StructuredBuffer 该参数不为0
+        uint32_t structStride = 0;
         std::string debugName;
         Format format = Format::UNKNOWN;
         bool canHaveUAVs = false;

@@ -70,7 +70,7 @@ namespace DSM{
 
             cmdList->Open();
 
-            cmdList->SetTextureState(srcTex, AllSubresources, ResourceStates::NoPixelShaderResource);
+            cmdList->SetTextureState(srcTex, AllSubresources, ResourceStates::ShaderResource);
             cmdList->SetTextureState(dstTex, AllSubresources, ResourceStates::UnorderedAccess);
             
             cmdList->SetComputeState(ComputeState()

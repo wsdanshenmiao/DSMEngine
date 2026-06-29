@@ -11,21 +11,18 @@ namespace DSM::D3D12
     public:
         Framebuffer(std::shared_ptr<DeviceResources> resources, FramebufferDesc desc)
             : m_Resources(resources), m_Desc(std::move(desc)), m_Info(m_Desc) {}
-
-        ~Framebuffer()
-        {
-        }
+        ~Framebuffer() = default;
 
         const FramebufferDesc& GetDesc() const override { return m_Desc; }
         const FramebufferInfo& GetFramebufferInfo() const override { return m_Info; }
 
     public:
         // 所有的 RenderTarget 和 DepthStencil
-        StaticVector<TextureHandle, c_MaxRenderTargets + 1> textures;
-        StaticVector<uint32_t, c_MaxRenderTargets> RTVs;
-        uint32_t DSV;
-        uint32_t rtWidth;
-        uint32_t rtHeight;
+        StaticVector<TextureHandle, c_MaxRenderTargets + 1> textures{};
+        StaticVector<uint32_t, c_MaxRenderTargets> RTVs{};
+        uint32_t DSV = c_InvalidDescriptorIndex;
+        uint32_t rtWidth = 0;
+        uint32_t rtHeight = 0;
 
     private:
         std::weak_ptr<DeviceResources> m_Resources;

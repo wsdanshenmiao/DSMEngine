@@ -30,7 +30,7 @@ namespace DSM {
         {
             auto device = renderer.GetDevice();
             sm_LightDataBuffer = device->CreateBuffer(BufferDesc()
-                .SetInitialState(ResourceStates::NoPixelShaderResource)
+                .SetInitialState(ResourceStates::ShaderResource)
                 .SetByteSize(sizeof(ShaderResource::LightData))
                 .SetDebugName("Light Data Buffer")
                 .SetKeepInitialState(true)
@@ -38,13 +38,13 @@ namespace DSM {
             sm_DirLightDataBuffer = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sm_MaxDirLightCount * sizeof(ShaderResource::DirectionalLightData))
                 .SetStructStride(sizeof(ShaderResource::DirectionalLightData))
-                .SetInitialState(ResourceStates::NoPixelShaderResource)
+                .SetInitialState(ResourceStates::ShaderResource)
                 .SetDebugName("Directional Light Data Buffer")
                 .SetKeepInitialState(true));
             sm_OtherLightDataBuffer = device->CreateBuffer(BufferDesc()
                 .SetByteSize(sm_MaxOtherLightCount * sizeof(ShaderResource::OtherLightData))
                 .SetStructStride(sizeof(ShaderResource::OtherLightData))
-                .SetInitialState(ResourceStates::NoPixelShaderResource)
+                .SetInitialState(ResourceStates::ShaderResource)
                 .SetDebugName("Other Light Data Buffer")
                 .SetKeepInitialState(true));
 

@@ -7,11 +7,6 @@
 
 namespace DSM {
 
-    struct MemoryRequirements
-    {
-        uint64_t size = 0;
-        uint64_t alignment = 0;
-    };
 
     struct PackedMipDesc
     {
@@ -144,11 +139,13 @@ namespace DSM {
         uint32_t depth = uint32_t(-1);
 
         uint32_t mipLevel = 0;
-        uint16_t arraySlice = 0;
+        uint32_t arraySlice = 0;
 
         // 重新计算宽高及深度
         [[nodiscard]] TextureSlice Resolve(const TextureDesc& desc)
         {
+            assert(mipLevel < desc.mipLevels);
+
             auto ret = *this;
             if(width == uint32_t(-1)){
                 ret.width = std::max(1u, desc.width >> mipLevel);

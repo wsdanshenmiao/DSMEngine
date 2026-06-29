@@ -12,11 +12,11 @@ namespace DSM::D3D12 {
             return true;
         };
 
-        m_Desc = desc;
-        resourceDesc = ConvertTextureDesc(desc);
+        m_Desc = std::move(desc);
+        resourceDesc = ConvertTextureDesc(m_Desc);
 
-        if(desc.isUAV){
-            m_ClearMipLevelUAVs.resize(desc.mipLevels, c_InvalidDescriptorIndex);
+        if(m_Desc.isUAV){
+            m_ClearMipLevelUAVs.resize(m_Desc.mipLevels, c_InvalidDescriptorIndex);
         }
 
         auto resources = m_Resources.lock();
@@ -30,30 +30,31 @@ namespace DSM::D3D12 {
         D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
         
         bool isShared = false;
-        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared)){
+        if(HasFlags(m_Desc.sharedResourceFlags, SharedResourceFlags::Shared)){
             heapFlags |= D3D12_HEAP_FLAG_SHARED;
             isShared = true;
         }
-        if(HasFlags(desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
+        if(HasFlags(m_Desc.sharedResourceFlags, SharedResourceFlags::Shared_CrossAdapter)){
             resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
             heapFlags |= D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER;
         }
-        if(desc.isTiled){
+        if(m_Desc.isTiled){
             resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
         }
 
-        D3D12_CLEAR_VALUE clearValue = ConvertClearValue(desc);
+        D3D12_CLEAR_VALUE clearValue = ConvertClearValue(m_Desc);
 
         // 虚拟显存，后续使用 BingTextureMemory 绑定物理显存
-        if(desc.isVirtual) return createSuccess();
+        if(m_Desc.isVirtual) 
+            return createSuccess();
 
         // 创建资源
         HRESULT hr = S_OK;
-        if(desc.isTiled){
+        if(m_Desc.isTiled){
             hr = m_Context.device->CreateReservedResource(
                 &resourceDesc, 
-                ConvertResourceStates(desc.initialState),
-                desc.useClearValue ? &clearValue : nullptr, 
+                ConvertResourceStates(m_Desc.initialState),
+                m_Desc.useClearValue ? &clearValue : nullptr, 
                 IID_PPV_ARGS(resource.GetAddressOf()));
         }
         else{
@@ -62,14 +63,14 @@ namespace DSM::D3D12 {
                 &heapProp, 
                 heapFlags, 
                 &resourceDesc, 
-                ConvertResourceStates(desc.initialState),
-                desc.useClearValue ? &clearValue : nullptr, 
+                ConvertResourceStates(m_Desc.initialState),
+                m_Desc.useClearValue ? &clearValue : nullptr, 
                 IID_PPV_ARGS(resource.GetAddressOf()));
         }
 
         if(FAILED(hr)){
             std::string msg = std::format("Failed to create texture {}, error msg: {}", 
-                DebugNameToString(desc.debugName), GetHRErrorMessage(hr));
+                DebugNameToString(m_Desc.debugName), GetHRErrorMessage(hr));
             m_Context.Error(msg);
             return false;
         }
@@ -80,14 +81,14 @@ namespace DSM::D3D12 {
                 resource.Get(), nullptr, GENERIC_ALL, nullptr, &sharedHandle);
             if(FAILED(hr)){
                 std::string msg = std::format("Failed to create shared handle for texture {}, error msg: {}", 
-                DebugNameToString(desc.debugName), GetHRErrorMessage(hr));
+                DebugNameToString(m_Desc.debugName), GetHRErrorMessage(hr));
                 m_Context.Error(msg);
                 return false;
             }
         }
 
-        if(!desc.debugName.empty()){
-            auto name = Utility::UTF8ToWString(desc.debugName);
+        if(!m_Desc.debugName.empty()){
+            auto name = Utility::UTF8ToWString(m_Desc.debugName);
             resource->SetName(name.c_str());
         }
 
@@ -175,6 +176,7 @@ namespace DSM::D3D12 {
         case ObjectTypes::D3D12_ShaderResourceViewGpuDescriptor:{
             auto& descriptorHeap = resources->shaderResourceViewHeap;
 
+            // 先查找现有的描述符，如果没有则创建新的描述符
             if (auto found = m_CustomSRVs.find(key); found == m_CustomSRVs.end()) {
                 descriptorIndex = descriptorHeap.AllocateDescriptor();
                 m_CustomSRVs[key] = descriptorIndex;

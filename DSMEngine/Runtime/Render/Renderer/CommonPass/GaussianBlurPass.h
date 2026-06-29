@@ -101,7 +101,7 @@ namespace DSM {
 				blurConstants.isHorizontal = 1;
 				cmdList->WriteBuffer(m_BlurConstants, &blurConstants, sizeof(blurConstants));
 
-				cmdList->SetTextureState(targetTex, AllSubresources, ResourceStates::NoPixelShaderResource);
+				cmdList->SetTextureState(targetTex, AllSubresources, ResourceStates::ShaderResource);
 				cmdList->SetTextureState(m_TmpTexture, AllSubresources, ResourceStates::UnorderedAccess);
 				cmdList->SetComputeState(ComputeState()
 					.SetPipeline(m_Pipeline)
@@ -115,7 +115,7 @@ namespace DSM {
 				blurConstants.isHorizontal = 0;
 				cmdList->WriteBuffer(m_BlurConstants, &blurConstants, sizeof(blurConstants));
 
-				cmdList->SetTextureState(m_TmpTexture, AllSubresources, ResourceStates::NoPixelShaderResource);
+				cmdList->SetTextureState(m_TmpTexture, AllSubresources, ResourceStates::ShaderResource);
 				cmdList->SetTextureState(targetTex, AllSubresources, ResourceStates::UnorderedAccess);
 				cmdList->SetComputeState(ComputeState()
 					.SetPipeline(m_Pipeline)

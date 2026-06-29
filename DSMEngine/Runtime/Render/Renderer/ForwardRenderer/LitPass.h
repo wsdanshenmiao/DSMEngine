@@ -173,7 +173,7 @@ namespace DSM {
             }
 
             if (m_IsTransparentPass) {
-                cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::Color), AllSubresources, ResourceStates::NoPixelShaderResource);
+                cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::Color), AllSubresources, ResourceStates::ShaderResource);
             }
 
             cmdList->Close();

@@ -29,8 +29,8 @@ namespace DSM::D3D12{
         D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandleShaderVisible(uint32_t index) override;
         D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(uint32_t index) override;
         uint32_t GetOffsetOfCpuHandle(size_t descriptor) const override;
-        uint32_t GetOffsetOfGpuHandle(size_t descriptor) const override;
         uint32_t GetOffsetOfCpuHandleShaderVisible(size_t descriptor) const override;
+        uint32_t GetOffsetOfGpuHandle(size_t descriptor) const override;
 
         [[nodiscard]] ID3D12DescriptorHeap* GetHeap() const override;
         [[nodiscard]] ID3D12DescriptorHeap* GetShaderVisibleHeap() const override;
@@ -55,6 +55,7 @@ namespace DSM::D3D12{
         D3D12_CPU_DESCRIPTOR_HANDLE m_StartCpuHandleShaderVisible = {0};
         D3D12_GPU_DESCRIPTOR_HANDLE m_StartGpuHandleShaderVisible ={0};
         
+        // 使用线性分配器管理描述符堆的分配
         LinearAllocator m_Allocator;
 
         std::mutex m_Mutex;

@@ -36,7 +36,7 @@ namespace DSM {
     {
         ShaderType shaderType = ShaderType::None;
         std::string debugName;
-        std::string entryName;
+        std::string entryName = "main";
 
         constexpr ShaderDesc& SetShaderType(ShaderType value) { shaderType = value; return *this; }
 

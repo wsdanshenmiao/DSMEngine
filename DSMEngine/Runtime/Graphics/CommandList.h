@@ -27,14 +27,22 @@ namespace DSM{
         CommandListParameters& SetDebugName(const std::string& name) { debugName = name; return *this; }
     };
 
+    // 命令列表接口
+    // - DX12: 一个命令列表会包含多个 ID3D12GraphicsCommandList* 和 ID3D12CommandAllocator，当 GPU 执行完内部的命令后这些命令列表会被重置并重新使用。
     struct ICommandList : public IResource
     {
+        // 创建或者复用命令列表，执行其他命令之前必须调用当前接口打开命令列表
         virtual void Open() = 0;
+        // 关闭命令列表，会将保持初始状态的资源恢复状态
         virtual void Close() = 0;
 
         virtual void ClearState() = 0;
 
+        // 使用指定颜色清除给定纹理的子资源
+        // - DX12: 会根据传入的纹理是 RTV 还是 UAV 来选择 ClearRenderTargetView 或 ClearUnorderedAccessViewFloat
         virtual void ClearTextureFloat(ITexture* t, TextureSubresourceSet subresources, const Color& clearColor) = 0;
+        // 使用给定的整数值清除给定纹理的子资源
+        // - DX12: 会根据传入的纹理是 RTV 还是 UAV 来选择 ClearRenderTargetView 或 ClearUnorderedAccessViewUint
         virtual void ClearTextureUInt(ITexture* t, TextureSubresourceSet subresources, uint32_t clearColor) = 0;
         virtual void ClearDepthStencilTexture(ITexture* t, TextureSubresourceSet subresources, bool clearDepth,
             float depth, bool clearStencil, uint8_t stencil) = 0;

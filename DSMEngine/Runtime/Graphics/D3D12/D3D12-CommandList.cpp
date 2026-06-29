@@ -1051,13 +1051,13 @@ namespace DSM::D3D12{
         for(const auto& binding : bindingSet->GetDesc()->bindings){
             switch (binding.type) {
             case ResourceType::Texture_SRV:
-                setTexState(binding, ResourceStates::PixelShaderResource); break;
+                setTexState(binding, ResourceStates::ShaderResource); break;
             case ResourceType::Texture_UAV:
                 setTexState(binding, ResourceStates::UnorderedAccess); break;
             case ResourceType::RawBuffer_SRV:
             case ResourceType::TypedBuffer_SRV:
             case ResourceType::StructuredBuffer_SRV:
-                setBufferState(binding, ResourceStates::PixelShaderResource); break;
+                setBufferState(binding, ResourceStates::ShaderResource); break;
             case ResourceType::RawBuffer_UAV:
             case ResourceType::TypedBuffer_UAV:
             case ResourceType::StructuredBuffer_UAV:
@@ -1088,11 +1088,20 @@ namespace DSM::D3D12{
 
     void CommandList::CommitBarriers()
     {
-        constexpr D3D12_RESOURCE_STATES validComputeQueueResourceStates = 
-            ( D3D12_RESOURCE_STATE_UNORDERED_ACCESS
-            | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
-            | D3D12_RESOURCE_STATE_COPY_DEST
-            | D3D12_RESOURCE_STATE_COPY_SOURCE );
+        // Compute 队列中不允许的状态掩码，需要从 barrier 中剥离
+        constexpr D3D12_RESOURCE_STATES invalidComputeQueueResourceStates =
+            ( D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+            | D3D12_RESOURCE_STATE_RENDER_TARGET
+            | D3D12_RESOURCE_STATE_DEPTH_READ
+            | D3D12_RESOURCE_STATE_DEPTH_WRITE
+            | D3D12_RESOURCE_STATE_STREAM_OUT
+            | D3D12_RESOURCE_STATE_RESOLVE_DEST
+            | D3D12_RESOURCE_STATE_RESOLVE_SOURCE
+            | D3D12_RESOURCE_STATE_PRESENT
+            | D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
+            | D3D12_RESOURCE_STATE_INDEX_BUFFER
+            | D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT
+            | D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE );
 
         std::vector<TextureBarrier> texBarrier{};
         std::vector<BufferBarrier> bufferBarrier{};
@@ -1103,14 +1112,20 @@ namespace DSM::D3D12{
         std::vector<D3D12_RESOURCE_BARRIER> barriers{};
         barriers.reserve(barrierCount);
 
+        // 从 D3D12 资源状态中移除 Compute 队列不允许的状态
+        auto filterComputeQueueStates = [&](D3D12_RESOURCE_STATES states) -> D3D12_RESOURCE_STATES {
+            if (m_Desc.queueType == CommandQueueType::Compute) {
+                states &= ~invalidComputeQueueResourceStates;
+            }
+            return states;
+        };
+
         for(const auto& barrier : texBarrier){
             D3D12_RESOURCE_BARRIER d3dBarrier{};
-            const D3D12_RESOURCE_STATES beforeState = ConvertResourceStates(barrier.stateBefore);
-            const D3D12_RESOURCE_STATES afterState = ConvertResourceStates(barrier.stateAfter);
-            if(m_Desc.queueType == CommandQueueType::Compute){
-                assert((beforeState & validComputeQueueResourceStates) == beforeState && 
-                    (afterState & validComputeQueueResourceStates) == afterState);
-            }
+            const D3D12_RESOURCE_STATES rawBeforeState = ConvertResourceStates(barrier.stateBefore);
+            const D3D12_RESOURCE_STATES rawAfterState = ConvertResourceStates(barrier.stateAfter);
+            const D3D12_RESOURCE_STATES beforeState = filterComputeQueueStates(rawBeforeState);
+            const D3D12_RESOURCE_STATES afterState = filterComputeQueueStates(rawAfterState);
 
             auto texture = Utility::CheckedCast<Texture*>(barrier.texture);
             const auto& desc = texture->GetDesc();
@@ -1134,18 +1149,17 @@ namespace DSM::D3D12{
             }
             else if(HasFlags(afterState, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)) { // UAV Barrier
                 d3dBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-                d3dBarrier.UAV.pResource = texture->resource;
+                d3dBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                d3dBarrier.UAV.pResource = texture->resource.Get();
                 barriers.push_back(std::move(d3dBarrier));
             }
         }
         for(const auto& barrier : bufferBarrier){
             D3D12_RESOURCE_BARRIER d3dbarrier{};
-            const D3D12_RESOURCE_STATES beforeState = ConvertResourceStates(barrier.stateBefore);
-            const D3D12_RESOURCE_STATES afterState = ConvertResourceStates(barrier.stateAfter);
-            if(m_Desc.queueType == CommandQueueType::Compute){
-                assert((beforeState & validComputeQueueResourceStates) == beforeState && 
-                    (afterState & validComputeQueueResourceStates) == afterState);
-            }
+            const D3D12_RESOURCE_STATES rawBeforeState = ConvertResourceStates(barrier.stateBefore);
+            const D3D12_RESOURCE_STATES rawAfterState = ConvertResourceStates(barrier.stateAfter);
+            const D3D12_RESOURCE_STATES beforeState = filterComputeQueueStates(rawBeforeState);
+            const D3D12_RESOURCE_STATES afterState = filterComputeQueueStates(rawAfterState);
 
             Buffer* buffer = Utility::CheckedCast<Buffer*>(barrier.buffer);
             if(auto state = beforeState | afterState; beforeState != afterState && 

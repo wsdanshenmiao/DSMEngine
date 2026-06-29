@@ -596,22 +596,25 @@ namespace DSM {
     }
 
 
+
     enum class FormatSupport : uint32_t
     {
         None            = 0,
 
-        Buffer          = (1 << 0),
-        VertexBuffer    = (1 << 1),
-        IndexBuffer     = (1 << 2),
-        Texture         = (1 << 3),
-        DepthStencil    = (1 << 4),
-        RenderTarget    = (1 << 5),
-        Blendable       = (1 << 6),
-        ShaderLoad      = (1 << 7),
-        ShaderSample    = (1 << 8),
-        ShaderUavLoad   = (1 << 9),
-        ShaderUavStore  = (1 << 10),
-        ShaderAtomic    = (1 << 11)
+        Buffer          = 0x00000001,
+        IndexBuffer     = 0x00000002,
+        VertexBuffer    = 0x00000004,
+
+        Texture         = 0x00000008,
+        DepthStencil    = 0x00000010,
+        RenderTarget    = 0x00000020,
+        Blendable       = 0x00000040,
+
+        ShaderLoad      = 0x00000080,
+        ShaderSample    = 0x00000100,
+        ShaderUavLoad   = 0x00000200,
+        ShaderUavStore  = 0x00000400,
+        ShaderAtomic    = 0x00000800,
     };
     ENABLE_ENUM_BIT_OPERATOR(FormatSupport)
 
@@ -619,26 +622,31 @@ namespace DSM {
     enum class ResourceStates : uint32_t
     {
         Unknown                     = 0,
-        Common                      = (1 << 0),
-        ConstantBuffer              = (1 << 1),
-        VertexBuffer                = (1 << 2),
-        IndexBuffer                 = (1 << 3),
-        IndirectArgument            = (1 << 4),
-        PixelShaderResource         = (1 << 5),
-        NoPixelShaderResource       = (1 << 6),
-        UnorderedAccess             = (1 << 7),
-        RenderTarget                = (1 << 8),
-        DepthWrite                  = (1 << 9),
-        DepthRead                   = (1 << 10),
-        StreamOut                   = (1 << 11),
-        CopyDest                    = (1 << 12),
-        CopySource                  = (1 << 13),
-        ResolveDest                 = (1 << 14),
-        ResolveSource               = (1 << 15),
-        Present                     = (1 << 16),
-        AccelerationStructrue       = (1 << 17),
-        ShadingRateSurface          = (1 << 18),
-        ShaderResource              = PixelShaderResource | NoPixelShaderResource
+        Common                      = 0x00000001,
+        ConstantBuffer              = 0x00000002,
+        VertexBuffer                = 0x00000004,
+        IndexBuffer                 = 0x00000008,
+        IndirectArgument            = 0x00000010,
+        ShaderResource              = 0x00000020,
+        UnorderedAccess             = 0x00000040,
+        RenderTarget                = 0x00000080,
+        DepthWrite                  = 0x00000100,
+        DepthRead                   = 0x00000200,
+        StreamOut                   = 0x00000400,
+        CopyDest                    = 0x00000800,
+        CopySource                  = 0x00001000,
+        ResolveDest                 = 0x00002000,
+        ResolveSource               = 0x00004000,
+        Present                     = 0x00008000,
+        AccelStructRead             = 0x00010000,
+        AccelStructWrite            = 0x00020000,
+        AccelStructBuildInput       = 0x00040000,
+        AccelStructBuildBlas        = 0x00080000,
+        ShadingRateSurface          = 0x00100000,
+        OpacityMicromapWrite        = 0x00200000,
+        OpacityMicromapBuildInput   = 0x00400000,
+        ConvertCoopVecMatrixInput   = 0x00800000,
+        ConvertCoopVecMatrixOutput  = 0x01000000,
     };
     ENABLE_ENUM_BIT_OPERATOR(ResourceStates)
 
@@ -663,6 +671,13 @@ namespace DSM {
     ENABLE_ENUM_BIT_OPERATOR(SharedResourceFlags)
 
 
+
+    enum class CpuAccessMode : uint8_t
+    {
+        None,
+        Read,
+        Write
+    };
 
 
     struct VertexAttributeDesc
@@ -693,13 +708,6 @@ namespace DSM {
         [[nodiscard]] virtual const VertexAttributeDesc* GetAttributeDesc(uint32_t index) const = 0;
     };
     using InputLayoutHandle = RefPtr<IInputLayout>;
-
-    enum class CpuAccessMode : uint8_t
-    {
-        None,
-        Read,
-        Write
-    };
 
 
 
@@ -879,6 +887,12 @@ namespace DSM {
         Always = 8
    };
 
+
+    struct MemoryRequirements
+    {
+        uint64_t size = 0;
+        uint64_t alignment = 0;
+    };
 
 } // namespace DSM 
 

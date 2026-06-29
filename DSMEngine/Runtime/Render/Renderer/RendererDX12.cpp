@@ -208,7 +208,7 @@ namespace DSM{
         auto heap = s_DescriptorHeap->GetShaderVisibleHeap();
         nativeList->SetDescriptorHeaps(1, &heap);
 
-        cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::PixelShaderResource);
+        cmdList->SetTextureState(colorTex, AllSubresources, ResourceStates::ShaderResource);
         cmdList->CommitBarriers();
 
 		ImGui::Render();

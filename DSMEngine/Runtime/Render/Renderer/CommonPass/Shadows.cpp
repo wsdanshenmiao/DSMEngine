@@ -162,8 +162,8 @@ namespace DSM {
 
         cmdList->Open();
         // 转换为着色器资源以供后续 Pass 使用
-        cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
-        cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, ResourceStates::PixelShaderResource);
+        cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::DirectionalShadowMap), AllSubresources, ResourceStates::ShaderResource);
+        cmdList->SetTextureState(renderRes.GetCommonTexture(CommonTextureSlot::OtherShadowMap), AllSubresources, ResourceStates::ShaderResource);
 
         const auto& dirSetting = sm_Setting.directionalSetting;
         float zRange = m_CameraFrustum.GetFarPlane() - m_CameraFrustum.GetNearPlane();

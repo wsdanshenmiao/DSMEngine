@@ -64,7 +64,6 @@ namespace DSM::D3D12 {
             }
             else if(binding.type == ResourceType::PushConstants){   // 根常数
                 pushConstantByteSize = binding.size;
-
                 rootConstants.ShaderRegister = binding.slot;
                 rootConstants.RegisterSpace = m_Desc.registerSpace;
                 rootConstants.Num32BitValues = binding.size / 4; // 每个32位值占用4个字节
@@ -113,7 +112,6 @@ namespace DSM::D3D12 {
                     range.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
 
                     descriptorTableSizeSRVs += binding.size;
-
                     descriptorRangeSRVs.push_back(std::move(range));
                 }
 
@@ -137,6 +135,7 @@ namespace DSM::D3D12 {
             }
         }
 
+        rootParameters.clear();
         // 根常量
         if(rootConstants.Num32BitValues > 0){
             D3D12_ROOT_PARAMETER1 rootParameter{};
@@ -301,26 +300,22 @@ namespace DSM::D3D12 {
         if(globalResources == nullptr)
             return;
 
-        uint32_t rootParametersIndex = bindingLayout->rootParameterIndexSamplers;
         uint32_t numSamplers = bindingLayout->descriptorTableSizeSamplers;
-        // 分配后需要释放
-        uint32_t descriptorTableBaseIndex = globalResources->samplerHeap.AllocateDescriptors(numSamplers);
-    
+
         hasSamplers = true;
-        descriptorIndexSamplers = descriptorTableBaseIndex;
+        descriptorIndexSamplers = globalResources->samplerHeap.AllocateDescriptors(numSamplers);
 
         // 每一个 DescriptorRange
         for(const auto& range : bindingLayout->descriptorRangeSamplers){
             // Range 中的每一个元素
             for(uint32_t i = 0; i < range.NumDescriptors; ++i){
                 uint32_t slot = range.BaseShaderRegister + i;
-                auto descriptorIndex = descriptorTableBaseIndex + range.OffsetInDescriptorsFromTableStart + i;
+                auto descriptorIndex = descriptorIndexSamplers + range.OffsetInDescriptorsFromTableStart + i;
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = globalResources->samplerHeap.GetCpuHandle(descriptorIndex);
 
                 auto it = std::find_if(m_Desc.bindings.begin(), m_Desc.bindings.end(),
                     [slot](const BindingSetItem& binding) {
-                        return binding.type == ResourceType::Sampler && 
-                            (binding.slot + binding.arrayElement) == slot;
+                        return binding.type == ResourceType::Sampler && (binding.slot + binding.arrayElement) == slot;
                     });
 
                 if (it != m_Desc.bindings.end()) {
@@ -336,7 +331,7 @@ namespace DSM::D3D12 {
             }
         }
         // 将描述符拷贝到可见堆，随后绑定到命令列表
-        globalResources->samplerHeap.CopyToShaderVisibleHeap(descriptorTableBaseIndex, numSamplers);
+        globalResources->samplerHeap.CopyToShaderVisibleHeap(descriptorIndexSamplers, numSamplers);
     }
 
     void BindingSet::CreateSRVDescriptors(const Context &context)
@@ -346,16 +341,13 @@ namespace DSM::D3D12 {
             return;
 
         uint32_t numSRVs = bindingLayout->descriptorTableSizeSRVs;
-        // 分配后需要释放
-        uint32_t descriptorTableBaseIndex = globalResources->shaderResourceViewHeap.AllocateDescriptors(numSRVs);
-
         hasSRVs = true;
-        descriptorIndexSRVs = descriptorTableBaseIndex;
+        descriptorIndexSRVs = globalResources->shaderResourceViewHeap.AllocateDescriptors(numSRVs);
 
         for(const auto& range : bindingLayout->descriptorRangeSRVs){
             for(uint32_t i = 0; i < range.NumDescriptors; ++i){
                 uint32_t slot = range.BaseShaderRegister + i;
-                auto descriptorIndex = descriptorTableBaseIndex + range.OffsetInDescriptorsFromTableStart + i;
+                auto descriptorIndex = descriptorIndexSRVs + range.OffsetInDescriptorsFromTableStart + i;
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = globalResources->shaderResourceViewHeap.GetCpuHandle(descriptorIndex);
 
                 bool found = false;
@@ -467,7 +459,7 @@ namespace DSM::D3D12 {
             }
         }
 
-        globalResources->shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorTableBaseIndex, numSRVs);
+        globalResources->shaderResourceViewHeap.CopyToShaderVisibleHeap(descriptorIndexSRVs, numSRVs);
     }
 
 

@@ -44,8 +44,7 @@ namespace DSM::D3D12{
 
     void DescriptorHeap::CopyToShaderVisibleHeap(uint32_t index, uint32_t count)
     {
-        m_Context.device->CopyDescriptorsSimple(count, 
-            GetCpuHandleShaderVisible(index), GetCpuHandle(index), m_HeapType);
+        m_Context.device->CopyDescriptorsSimple(count, GetCpuHandleShaderVisible(index), GetCpuHandle(index), m_HeapType);
     }
 
     uint32_t DescriptorHeap::AllocateDescriptors(uint32_t count)
@@ -53,6 +52,7 @@ namespace DSM::D3D12{
         std::lock_guard lock{m_Mutex};
 
         auto index = m_Allocator.Allocate(count);
+        // 如果分配失败，则尝试扩展描述符堆
         if(index == LinearAllocator::InvalidAllocOffset){
             Grow(m_Allocator.Capacity() + count);
             index = m_Allocator.Allocate(count);
@@ -131,20 +131,20 @@ namespace DSM::D3D12{
     void DescriptorHeap::Grow(uint32_t requireSize)
     {
         uint32_t preSize = m_Allocator.Capacity();
+        // 计算新的堆大小，确保是2的幂次方
         uint32_t newSize = Math::NextPowerOf2(requireSize);
-        if(m_HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER){
-            assert(newSize <= 2048);
-        }
 
         bool shaderVisible = m_ShaderVisibleHeap != nullptr;
         if(shaderVisible){
-            const uint32_t maxSize = m_HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ?
-                D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1 :
-                D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
+            // 对于可见的描述符堆，D3D12有最大限制
+            const uint32_t maxSize = m_HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER ?
+                D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE :
+                D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
             
             newSize = std::max(newSize, maxSize);
             if(newSize < requireSize){
                 m_Context.Error("DescriptorHeap out of memory");
+                return;
             }
         }
 
@@ -153,11 +153,9 @@ namespace DSM::D3D12{
 
         // 拷贝源堆的描述符
         auto& device = m_Context.device;
-        device->CopyDescriptorsSimple(preSize, m_StartCpuHandle,
-            oldHeap->GetCPUDescriptorHandleForHeapStart(), m_HeapType);
+        device->CopyDescriptorsSimple(preSize, m_StartCpuHandle, oldHeap->GetCPUDescriptorHandleForHeapStart(), m_HeapType);
         if(shaderVisible){
-            device->CopyDescriptorsSimple(preSize, m_StartCpuHandleShaderVisible,
-                oldHeap->GetCPUDescriptorHandleForHeapStart(), m_HeapType);
+            device->CopyDescriptorsSimple(preSize, m_StartCpuHandleShaderVisible, oldHeap->GetCPUDescriptorHandleForHeapStart(), m_HeapType);
         }
     }
 }

@@ -79,7 +79,7 @@ namespace DSM {
 				const TextureSubresourceSet srcSubresources(srcMip, 1, 0, 1);
 				const TextureSubresourceSet dstSubresources(dstMip, 1, 0, 1);
 
-				cmdList->SetTextureState(texture, srcSubresources, ResourceStates::NoPixelShaderResource);
+				cmdList->SetTextureState(texture, srcSubresources, ResourceStates::ShaderResource);
 				cmdList->SetTextureState(texture, dstSubresources, ResourceStates::UnorderedAccess);
 
 				cmdList->SetComputeState(ComputeState()

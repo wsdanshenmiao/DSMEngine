@@ -83,7 +83,7 @@ namespace DSM {
 
             cmdList->Open();
 
-            cmdList->SetTextureState(srcTex, AllSubresources, ResourceStates::NoPixelShaderResource);
+            cmdList->SetTextureState(srcTex, AllSubresources, ResourceStates::ShaderResource);
             cmdList->SetTextureState(dstTex, AllSubresources, ResourceStates::UnorderedAccess);
 
 			int methodIndex = std::min(int(m_Settings.method), (int)ToneMappingType::ToneMappingCount - 1);
