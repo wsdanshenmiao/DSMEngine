@@ -40,6 +40,7 @@ bin/
 .idea/
 .vs/
 .vscode/
+.codebuddy/
 vsxmake2022/
 vsxmake2026/
 
