@@ -50,7 +50,7 @@ namespace DSM {
             RefPtr<IDxcCompilerArgs> compilerArgs{};
             AssertShaderCompiler(m_DxcUtils->BuildArguments(
                 fileName.c_str(),
-                entryPoint.c_str(),
+                entryPoint.empty() ? nullptr : entryPoint.c_str(),
                 target.c_str(),
                 args.size() == 0 ? nullptr : args.data(),
                 args.size(),
@@ -109,6 +109,7 @@ namespace DSM {
             case ShaderType::Compute: target += L"cs_"; break;
             case ShaderType::Mesh: target += L"ms_"; break;
             case ShaderType::Amplification: target += L"as_"; break;
+            case ShaderType::Library: target += L"lib_"; break;
             default: assert("Invalid ShaderType"); break;
         }
         switch (mode) {

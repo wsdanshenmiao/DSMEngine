@@ -355,6 +355,23 @@ namespace DSM {
             return result;
         }
 
+        // 将加速结构的数据缓冲作为 SRV 绑定（着色器中以 RaytracingAccelerationStructure 形式访问）
+        static BindingSetItem RayTracingAccelStruct(uint32_t slot, IBuffer* accelStruct)
+        {
+            BindingSetItem result;
+            result.slot = slot;
+            result.arrayElement = 0;
+            result.type = ResourceType::RayTracingAccelStruct;
+            result.resourceHandle = accelStruct;
+            result.format = Format::UNKNOWN;
+            result.dimension = TextureDimension::Unknown;
+            result.range = EntireBuffer;
+            result.pad0 = 0;
+            result.pad1 = 0;
+            return result;
+        }
+
+
         static BindingSetItem PushConstants(uint32_t slot, uint32_t byteSize)
         {
             BindingSetItem result;

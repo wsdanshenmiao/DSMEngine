@@ -28,3 +28,4 @@ includes("ThirdParty")
 includes("DSMEngine")
 
 includes("Samples/PBR")
+includes("Samples/RayTracing")

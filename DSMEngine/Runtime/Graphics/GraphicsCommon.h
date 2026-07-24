@@ -859,6 +859,8 @@ namespace DSM {
         return debugName.empty() ? "<UNNAMED>" : debugName.c_str();
     }
 
+
+
     static bool VerifyPermanentResourceState(ResourceStates permanentState, ResourceStates requiredState, 
         bool isTexture, const std::string& debugName, IMessageCallback* callback)
     {

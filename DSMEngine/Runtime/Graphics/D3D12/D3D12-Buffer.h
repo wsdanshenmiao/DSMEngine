@@ -22,6 +22,8 @@ namespace DSM::D3D12{
 
         const BufferDesc& GetDesc() const override { return m_Desc; }
         GpuVirtualAddress GetGpuVirtualAddress() const override { return m_GpuVA; }
+        // 虚拟缓冲绑定 placed resource 后回填 GPU 虚拟地址。
+        void UpdateGpuVirtualAddress() { m_GpuVA = resource != nullptr ? resource->GetGPUVirtualAddress() : 0; }
 
         Object GetNativeObject(ObjectType type) override;
 

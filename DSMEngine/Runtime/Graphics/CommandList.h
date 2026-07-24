@@ -4,6 +4,7 @@
 
 #include "PipelineState.h"
 #include "Buffer.h"
+#include "RayTracing.h"
 
 namespace DSM{
     struct IDevice;
@@ -76,6 +77,13 @@ namespace DSM{
 
         virtual void SetMeshletState(const MeshletState& state) = 0;
         virtual void DispatchMesh(uint32_t groupsX, uint32_t groupsY = 1, uint32_t groupsZ = 1) = 0;
+
+        // 光线追踪（DXR）
+        virtual void SetRayTracingState(const RT::State& state) = 0;
+        virtual void DispatchRays(const RT::DispatchRaysArguments& args) = 0;
+        virtual void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, const RT::GeometryDesc* geometries, size_t numGeometries, RT::AccelStructBuildFlags buildFlags) = 0;
+        virtual void BuildTopLevelAccelStruct(RT::IAccelStruct* as, const RT::InstanceDesc* instances, size_t numInstances, RT::AccelStructBuildFlags buildFlags) = 0;
+        virtual void CopyAccelStruct(RT::IAccelStruct* destination, RT::IAccelStruct* source) = 0;
 
         // 查询GPU上的时间信息
         virtual void BeginTimerQuery(ITimerQuery* query) = 0;

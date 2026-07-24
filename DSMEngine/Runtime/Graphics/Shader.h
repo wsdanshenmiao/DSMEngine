@@ -28,7 +28,9 @@ namespace DSM {
         Callable        = 0x2000,
         AllRayTracing   = 0x3F00,
 
-        All             = 0x3FFF,
+        Library         = 0x4000,
+
+        All             = 0x7FFF,
     };
     ENABLE_ENUM_BIT_OPERATOR(ShaderType)
 

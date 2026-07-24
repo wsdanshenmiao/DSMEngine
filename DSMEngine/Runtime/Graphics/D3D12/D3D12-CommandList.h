@@ -137,6 +137,13 @@ namespace DSM::D3D12 {
         void SetMeshletState(const MeshletState& state) override;
         void DispatchMesh(uint32_t groupsX, uint32_t groupsY = 1, uint32_t groupsZ = 1) override;
 
+        // 光线追踪（DXR）
+        void SetRayTracingState(const RT::State& state) override;
+        void DispatchRays(const RT::DispatchRaysArguments& args) override;
+        void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, const RT::GeometryDesc* geometries, size_t numGeometries, RT::AccelStructBuildFlags buildFlags) override;
+        void BuildTopLevelAccelStruct(RT::IAccelStruct* as, const RT::InstanceDesc* instances, size_t numInstances, RT::AccelStructBuildFlags buildFlags) override;
+        void CopyAccelStruct(RT::IAccelStruct* destination, RT::IAccelStruct* source) override;
+
         // 查询GPU上的时间信息
         void BeginTimerQuery(ITimerQuery* query) override;
         void EndTimerQuery(ITimerQuery* query) override;
@@ -216,6 +223,11 @@ namespace DSM::D3D12 {
         bool m_CurrGraphicsStateValid = false;
         bool m_CurrComputeStateValid = false;
         bool m_CurrMeshletStateValid = false;
+
+        // 光线追踪状态缓存
+        RT::State m_CurrRayTracingState{};
+        bool m_CurrRayTracingStateValid = false;
+        D3D12_DISPATCH_RAYS_DESC m_DispatchRaysDesc{};
 
         ID3D12DescriptorHeap* m_CurrSRVHeap = nullptr;
         ID3D12DescriptorHeap* m_CurrSamplerHeap = nullptr;

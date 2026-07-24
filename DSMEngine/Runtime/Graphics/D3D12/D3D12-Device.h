@@ -183,6 +183,15 @@ namespace DSM::D3D12 {
 
         MeshletPipelineHandle CreateMeshletPipeline(const MeshletPipelineDesc& desc, IFramebuffer* fb) override;
 
+        // 光线追踪（DXR）
+        RT::AccelStructHandle CreateAccelStruct(const RT::AccelStructDesc& desc) override;
+        MemoryRequirements GetAccelStructMemoryRequirements(RT::IAccelStruct* as) override;
+        bool BindAccelStructMemory(RT::IAccelStruct* as, IHeap* heap, uint64_t offset) override;
+        bool GetAccelStructPreBuildInfo(RT::IAccelStruct* as,
+            uint64_t& resultDataSize, uint64_t& scratchDataSize, uint64_t& updateScratchDataSize) override;
+        RT::RayTracingPipelineHandle CreateRayTracingPipeline(const RT::PipelineDesc& desc) override;
+        RT::ShaderTableHandle CreateShaderTable(const RT::ShaderTableDesc& desc) override;
+
         BindingLayoutHandle CreateBindingLayout(const BindingLayoutDesc& desc) override;
         BindingLayoutHandle CreateBindlessLayout(const BindlessLayoutDesc& desc) override;
 
