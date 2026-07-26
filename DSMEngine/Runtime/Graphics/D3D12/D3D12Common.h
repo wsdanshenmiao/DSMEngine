@@ -689,6 +689,102 @@ namespace DSM{
             return desc;
         }
 
+        static D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS ConvertAccelerationStructureBuildFlags(RT::AccelStructBuildFlags flags)
+        {
+            using namespace RT;
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS result = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+
+            if (HasFlags(flags, AccelStructBuildFlags::AllowUpdate)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+            if (HasFlags(flags, AccelStructBuildFlags::AllowCompaction)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
+            if (HasFlags(flags, AccelStructBuildFlags::PreferFastTrace)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+            if (HasFlags(flags, AccelStructBuildFlags::PreferFastBuild)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
+            if (HasFlags(flags, AccelStructBuildFlags::MinimizeMemory)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_MINIMIZE_MEMORY;
+
+            return result;
+        }
+
+        static D3D12_RAYTRACING_GEOMETRY_FLAGS ConvertGeometryFlags(RT::GeometryFlags flags)
+        {
+            using namespace RT;
+            D3D12_RAYTRACING_GEOMETRY_FLAGS result = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+
+            if (HasFlags(flags, GeometryFlags::Opaque)) result |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+            if (HasFlags(flags, GeometryFlags::NoDuplicateAnyHitInvocation)) result |= D3D12_RAYTRACING_GEOMETRY_FLAG_NO_DUPLICATE_ANYHIT_INVOCATION;
+
+            return result;
+        }
+
+        static D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC ConvertTrianglesDesc(const RT::GeometryTriangles& desc, D3D12_GPU_VIRTUAL_ADDRESS transform)
+        {
+            D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC trianglesDesc{};
+            if(auto indexBuffer = desc.indexBuffer; indexBuffer != nullptr){
+                trianglesDesc.IndexBuffer = indexBuffer->GetGpuVirtualAddress();
+            }
+            trianglesDesc.IndexCount = desc.indexCount;
+            trianglesDesc.IndexFormat = GetDxgiFormatMapping(desc.indexFormat).srvFormat;
+
+            if(auto vertexBuffer = desc.vertexBuffer; vertexBuffer != nullptr){
+                trianglesDesc.VertexBuffer.StartAddress = vertexBuffer->GetGpuVirtualAddress();
+            }
+            trianglesDesc.VertexBuffer.StrideInBytes = desc.vertexStride;
+            trianglesDesc.VertexCount = desc.vertexCount;
+            trianglesDesc.VertexFormat = GetDxgiFormatMapping(desc.vertexFormat).srvFormat;
+
+            trianglesDesc.Transform3x4 = transform;
+
+            return trianglesDesc;
+        }
+
+        static D3D12_RAYTRACING_GEOMETRY_AABBS_DESC ConvertAABBsDesc(const RT::GeometryAABBs& desc)
+        {
+            D3D12_RAYTRACING_GEOMETRY_AABBS_DESC aabbsDesc{};
+            if(auto buffer = desc.buffer; buffer != nullptr){
+                aabbsDesc.AABBs.StartAddress = buffer->GetGpuVirtualAddress();
+            }
+            aabbsDesc.AABBs.StrideInBytes = desc.stride;
+            aabbsDesc.AABBCount = desc.count;
+
+            return aabbsDesc;
+        }
+        
+        static D3D12_RAYTRACING_GEOMETRY_DESC ConvertGeometryDesc(const RT::GeometryDesc& desc)
+        {
+            D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc{};
+            geometryDesc.Flags = ConvertGeometryFlags(desc.flags);
+            if(geometryDesc.Type == D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES){
+                geometryDesc.Triangles = ConvertTrianglesDesc(desc.geometryData.triangles, desc.useTransform ? 16 : 0);
+            }
+            else if(geometryDesc.Type == D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS){
+                geometryDesc.AABBs = ConvertAABBsDesc(desc.geometryData.aabbs);
+            }
+
+            return geometryDesc;
+        }
+
+        static D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS GetAccelerationStructureBuildInputs(const RT::AccelStructDesc& desc, std::vector<D3D12_RAYTRACING_GEOMETRY_DESC>& outGeometryDescs)
+        {
+            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs{};
+            inputs.Flags = ConvertAccelerationStructureBuildFlags(desc.buildFlags);
+            if(desc.isTopLevel){
+                inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+                inputs.NumDescs = desc.topLevelMaxInstances;
+                inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+                inputs.InstanceDescs = 0;
+            }
+            else{
+                inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+                inputs.NumDescs = desc.bottomLevelGeometries.size();
+                inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+                outGeometryDescs.clear();
+                outGeometryDescs.reserve(desc.bottomLevelGeometries.size());
+                for(const auto& geometry : desc.bottomLevelGeometries){
+                    outGeometryDescs.push_back(ConvertGeometryDesc(geometry));
+                }
+                inputs.pGeometryDescs = outGeometryDescs.data();
+            }
+            return inputs;
+        }
+
         static void WaitForFence(ID3D12Fence* fence, uint64_t fenceValue, HANDLE event)
         {
             // 进行等待

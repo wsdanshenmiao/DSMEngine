@@ -178,19 +178,14 @@ namespace DSM::D3D12 {
         FramebufferHandle CreateFramebuffer(const FramebufferDesc& desc) override;
         
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc, IFramebuffer* fb) override;
-        
         ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) override;
-
         MeshletPipelineHandle CreateMeshletPipeline(const MeshletPipelineDesc& desc, IFramebuffer* fb) override;
+        RT::PipelineHandle CreateRayTracingPipeline(const RT::PipelineDesc& desc) override;
 
         // 光线追踪（DXR）
         RT::AccelStructHandle CreateAccelStruct(const RT::AccelStructDesc& desc) override;
         MemoryRequirements GetAccelStructMemoryRequirements(RT::IAccelStruct* as) override;
         bool BindAccelStructMemory(RT::IAccelStruct* as, IHeap* heap, uint64_t offset) override;
-        bool GetAccelStructPreBuildInfo(RT::IAccelStruct* as,
-            uint64_t& resultDataSize, uint64_t& scratchDataSize, uint64_t& updateScratchDataSize) override;
-        RT::RayTracingPipelineHandle CreateRayTracingPipeline(const RT::PipelineDesc& desc) override;
-        RT::ShaderTableHandle CreateShaderTable(const RT::ShaderTableDesc& desc) override;
 
         BindingLayoutHandle CreateBindingLayout(const BindingLayoutDesc& desc) override;
         BindingLayoutHandle CreateBindlessLayout(const BindlessLayoutDesc& desc) override;
@@ -238,8 +233,6 @@ namespace DSM::D3D12 {
         DescriptorHeapHandle CreateDescriptorHeap(DescriptorHeapType type, uint32_t count, bool shaderVisible) override;
 
         IDescriptorHeap* GetDescriptorHeap(DescriptorHeapType heapType) override;
-
-
 
         CommandQueue* GetQueue(CommandQueueType type) { return m_CommandQueues[size_t(type)].get(); }
         Context& GetContext() noexcept { return m_Context; }

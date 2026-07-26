@@ -56,22 +56,9 @@ namespace DSM{
         virtual FramebufferHandle CreateFramebuffer(const FramebufferDesc& desc) = 0;
         
         virtual GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc, IFramebuffer* fb) = 0;
-        
         virtual ComputePipelineHandle CreateComputePipeline(const ComputePipelineDesc& desc) = 0;
-
         virtual MeshletPipelineHandle CreateMeshletPipeline(const MeshletPipelineDesc& desc, IFramebuffer* fb) = 0;
-
-        // 光线追踪（DXR）
-        // 采用堆绑定模型：CreateAccelStruct 内部创建虚拟 dataBuffer 并预计算构建信息，
-        // 用户据此创建 Heap 并 BindAccelStructMemory 将缓冲放置到堆中。
-        virtual RT::AccelStructHandle CreateAccelStruct(const RT::AccelStructDesc& desc) = 0;
-        virtual MemoryRequirements GetAccelStructMemoryRequirements(RT::IAccelStruct* as) = 0;
-        virtual bool BindAccelStructMemory(RT::IAccelStruct* as, IHeap* heap, uint64_t offset) = 0;
-        // 返回预构建信息中的三段尺寸（result / scratch / updateScratch），用于分配 scratch 缓冲
-        virtual bool GetAccelStructPreBuildInfo(RT::IAccelStruct* as,
-            uint64_t& resultDataSize, uint64_t& scratchDataSize, uint64_t& updateScratchDataSize) = 0;
-        virtual RT::RayTracingPipelineHandle CreateRayTracingPipeline(const RT::PipelineDesc& desc) = 0;
-        virtual RT::ShaderTableHandle CreateShaderTable(const RT::ShaderTableDesc& desc) = 0;
+        virtual RT::PipelineHandle CreateRayTracingPipeline(const RT::PipelineDesc& desc) = 0;
 
         virtual BindingLayoutHandle CreateBindingLayout(const BindingLayoutDesc& desc) = 0;
         virtual BindingLayoutHandle CreateBindlessLayout(const BindlessLayoutDesc& desc) = 0;
@@ -81,6 +68,10 @@ namespace DSM{
 
         virtual void ResizeDescriptorTable(IDescriptorTable* descriptorTable, uint32_t newSize, bool keepContents = true) = 0;
         virtual bool WriteDescriptorTable(IDescriptorTable* descriptorTable, const BindingSetItem& item) = 0;
+
+        virtual RT::AccelStructHandle CreateAccelStruct(const RT::AccelStructDesc& desc) = 0;
+        virtual MemoryRequirements GetAccelStructMemoryRequirements(RT::IAccelStruct* as) = 0;
+        virtual bool BindAccelStructMemory(RT::IAccelStruct* as, IHeap* heap, uint64_t offset) = 0;
 
         virtual CommandListHandle CreateCommandList(const CommandListParameters& params = CommandListParameters()) = 0;
         virtual uint64_t ExecuteCommandLists(std::span<ICommandList* const> cmdLists, CommandQueueType executionQueue = CommandQueueType::Graphics) = 0;

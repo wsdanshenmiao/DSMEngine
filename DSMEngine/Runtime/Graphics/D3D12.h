@@ -13,8 +13,8 @@ namespace DSM::D3D12{
 
     struct ICommandList : public DSM::ICommandList
     {
-        virtual DynamicResourceLocation AllocateUploadBuffer(size_t size) = 0;
-        virtual DynamicResourceLocation AllocateGpuBuffer(size_t size) = 0;
+        virtual DynamicResourceLocation AllocateUploadBuffer(size_t size, size_t alignment = 0) = 0;
+        virtual DynamicResourceLocation AllocateGpuBuffer(size_t size, size_t alignment = 0) = 0;
         virtual bool CommitDescriptorHeaps() = 0;
         virtual D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* buffer, uint64_t offset = 0) = 0;
 

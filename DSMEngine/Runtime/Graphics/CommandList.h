@@ -81,9 +81,10 @@ namespace DSM{
         // 光线追踪（DXR）
         virtual void SetRayTracingState(const RT::State& state) = 0;
         virtual void DispatchRays(const RT::DispatchRaysArguments& args) = 0;
-        virtual void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, const RT::GeometryDesc* geometries, size_t numGeometries, RT::AccelStructBuildFlags buildFlags) = 0;
-        virtual void BuildTopLevelAccelStruct(RT::IAccelStruct* as, const RT::InstanceDesc* instances, size_t numInstances, RT::AccelStructBuildFlags buildFlags) = 0;
-        virtual void CopyAccelStruct(RT::IAccelStruct* destination, RT::IAccelStruct* source) = 0;
+        virtual void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;
+        virtual void BuildTopLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::InstanceDesc> instances,  RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;
+        virtual void BuildTopLevelAccelStructFromBuffer(RT::IAccelStruct* as, IBuffer* instanceBuffer, uint64_t instanceBufferOffset, size_t numInstances,
+            RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;
 
         // 查询GPU上的时间信息
         virtual void BeginTimerQuery(ITimerQuery* query) = 0;
@@ -98,6 +99,7 @@ namespace DSM{
         
         virtual void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) = 0;
         virtual void SetBufferState(IBuffer* buffer, ResourceStates stateBits) = 0;
+        virtual void SetAccelStructState(RT::IAccelStruct* as, ResourceStates stateBits) = 0;
         virtual void SetResourceStatesForBindingSet(IBindingSet* bindingSet) = 0;
         void SetResourceStatesForFramebuffer(IFramebuffer* framebuffer)
         {

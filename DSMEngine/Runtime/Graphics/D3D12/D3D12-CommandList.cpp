@@ -8,6 +8,7 @@
 #include "D3d12-FrameBuffer.h"
 #include <functional>
 #include <cstring>
+#include <ranges>
 #include <pix.h>
 
 namespace DSM::D3D12{
@@ -948,192 +949,178 @@ namespace DSM::D3D12{
 
     void CommandList::DispatchRays(const RT::DispatchRaysArguments& args)
     {
-        if (!m_Device.QueryFeatureSupport(Feature::RayTracingPipeline)) {
-            m_Device.GetContext().Error("Ray tracing is not supported on this device; skipping DispatchRays.");
-            return;
-        }
-        if (!m_CurrRayTracingStateValid || m_CurrRayTracingState.shaderTable == nullptr) {
-            m_Device.GetContext().Error("DispatchRays called without a valid ray tracing state.");
+        UpdateComputeVolatileBuffers();
+
+        if (!m_CurrRayTracingStateValid)
+        {
+            m_Device.GetContext().Error("setRayTracingState must be called before dispatchRays");
             return;
         }
 
-        ShaderTable* shaderTable = Utility::CheckedCast<ShaderTable*>(m_CurrRayTracingState.shaderTable.Get());
-        std::memset(&m_DispatchRaysDesc, 0, sizeof(m_DispatchRaysDesc));
-        shaderTable->Bake(*this, m_DispatchRaysDesc);
-        m_DispatchRaysDesc.Width = args.width;
-        m_DispatchRaysDesc.Height = args.height;
-        m_DispatchRaysDesc.Depth = args.depth;
+        ShaderTableState* shaderTableState = GetShaderTableState(m_CurrRayTracingState.shaderTable);
+        if(shaderTableState == nullptr) {
+            return;
+        }
 
-        m_CurrCmdList->cmdList4->DispatchRays(&m_DispatchRaysDesc);
+        auto desc = shaderTableState->dispatchRaysTemplate;
+        desc.Width = args.width;
+        desc.Height = args.height;
+        desc.Depth = args.depth;
+
+        m_CurrCmdList->cmdList4->DispatchRays(&desc);
     }
 
-    void CommandList::BuildBottomLevelAccelStruct(RT::IAccelStruct* as, const RT::GeometryDesc* geometries, size_t numGeometries, RT::AccelStructBuildFlags buildFlags)
+    void CommandList::BuildBottomLevelAccelStruct(RT::IAccelStruct *as, RT::AccelStructBuildFlags buildFlags)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
-        assert(accel != nullptr && m_CurrCmdList->cmdList4 != nullptr);
-        Buffer* dataBuffer = accel->GetDataBuffer();
-        const auto& prebuild = accel->GetPrebuildInfo();
-        const bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::PerformUpdate);
-        if (performUpdate && !HasFlags(accel->GetDesc().buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
-            m_Device.GetContext().Error("BLAS update requested without AccelStructBuildFlags::AllowUpdate.");
+        if(accel == nullptr || accel->dataBuffer == nullptr || m_CurrCmdList->cmdList4 == nullptr)
+            return;
+
+        const auto& desc = accel->GetDesc();
+        if(desc.isTopLevel){
+            m_Device.GetContext().Error("BuildBottomLevelAccelStruct called on a top-level acceleration structure");
             return;
         }
-        if (HasFlags(accel->GetDesc().buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
-            buildFlags |= RT::AccelStructBuildFlags::AllowUpdate;
-        }
 
-        // 对齐 NVRHI：更新构建使用 UpdateScratchDataSizeInBytes。
-        BufferDesc scratchDesc{};
-        scratchDesc.byteSize = performUpdate ? prebuild.UpdateScratchDataSizeInBytes : prebuild.ScratchDataSizeInBytes;
-        scratchDesc.canHaveUAVs = true;
-        scratchDesc.initialState = ResourceStates::Common;
-        scratchDesc.debugName = "AccelStructScratch";
-        RefPtr<Buffer> scratchBuffer = Utility::CheckedCast<Buffer*>(m_Device.CreateBuffer(scratchDesc).Get());
-        m_Instance->refBuffer.push_back(scratchBuffer);
-        m_StateTracker.RequireBufferState(scratchBuffer, ResourceStates::UnorderedAccess);
+        const auto& dataBuffer = accel->dataBuffer;
 
-        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geoDescs(numGeometries);
-        for (size_t i = 0; i < numGeometries; ++i) {
-            const RT::GeometryDesc& g = geometries[i];
-            auto& geo = geoDescs[i];
-            geo.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-            geo.Flags = g.isOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-            geo.Triangles.VertexFormat = GetDxgiFormatMapping(g.vertexFormat).srvFormat;
-            geo.Triangles.VertexCount = g.vertexCount;
-            geo.Triangles.VertexBuffer.StrideInBytes = g.vertexStride;
-            geo.Triangles.VertexBuffer.StartAddress = GetBufferGpuVA(g.vertexBuffer, g.vertexOffset);
-            if (g.isIndexed) {
-                geo.Triangles.IndexFormat = GetDxgiFormatMapping(g.indexFormat).srvFormat;
-                geo.Triangles.IndexCount = g.indexCount;
-                geo.Triangles.IndexBuffer = GetBufferGpuVA(g.indexBuffer, g.indexOffset);
-            }
-            else {
-                geo.Triangles.IndexFormat = DXGI_FORMAT_UNKNOWN;
-                geo.Triangles.IndexCount = 0;
-                geo.Triangles.IndexBuffer = 0;
-            }
-            geo.Triangles.Transform3x4 = (g.transformBuffer != nullptr)
-                ? GetBufferGpuVA(g.transformBuffer, g.transformOffset) : 0;
+        // 转换资源的状态
+        for(const auto& geom : desc.bottomLevelGeometries){
+            if(geom.geometryType == RT::GeometryType::Triangles){
+                const auto& triangle = geom.geometryData.triangles;
+                if(m_EnableAutomaticBarriers){
+                    m_StateTracker.RequireBufferState(triangle.vertexBuffer, ResourceStates::AccelStructBuildInput);
+                    m_StateTracker.RequireBufferState(triangle.indexBuffer, ResourceStates::AccelStructBuildInput);
+                }
 
-            // BLAS 输入必须处于 NON_PIXEL_SHADER_RESOURCE 状态，并保持资源存活到 GPU 完成。
-            Buffer* vertexBuffer = Utility::CheckedCast<Buffer*>(g.vertexBuffer);
-            m_Instance->refBuffer.push_back(vertexBuffer);
-            m_StateTracker.RequireBufferState(vertexBuffer, ResourceStates::AccelStructBuildInput);
-            if (g.isIndexed) {
-                Buffer* indexBuffer = Utility::CheckedCast<Buffer*>(g.indexBuffer);
-                m_Instance->refBuffer.push_back(indexBuffer);
-                m_StateTracker.RequireBufferState(indexBuffer, ResourceStates::AccelStructBuildInput);
+                if(m_Instance != nullptr){
+                    if(triangle.vertexBuffer != nullptr)
+                        m_Instance->refBuffer.push_back(triangle.vertexBuffer);
+                    if(triangle.indexBuffer != nullptr)
+                        m_Instance->refBuffer.push_back(triangle.indexBuffer);
+                }
             }
-            if (g.transformBuffer != nullptr) {
-                Buffer* transformBuffer = Utility::CheckedCast<Buffer*>(g.transformBuffer);
-                m_Instance->refBuffer.push_back(transformBuffer);
-                m_StateTracker.RequireBufferState(transformBuffer, ResourceStates::AccelStructBuildInput);
+            else if(geom.geometryType == RT::GeometryType::AABBs){
+                const auto& aabb = geom.geometryData.aabbs;
+                if(m_EnableAutomaticBarriers){
+                    m_StateTracker.RequireBufferState(aabb.buffer, ResourceStates::AccelStructBuildInput);
+                }
+
+                if(m_Instance != nullptr && aabb.buffer != nullptr){
+                    m_Instance->refBuffer.push_back(aabb.buffer);
+                }
             }
         }
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc{};
-        buildDesc.DestAccelerationStructureData = dataBuffer->GetGpuVirtualAddress();
-        buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        buildDesc.Inputs.Flags = ConvertAccelStructBuildFlags(buildFlags);
-        buildDesc.Inputs.NumDescs = UINT(numGeometries);
-        buildDesc.Inputs.pGeometryDescs = geoDescs.data();
-        buildDesc.ScratchAccelerationStructureData = scratchBuffer->GetGpuVirtualAddress();
-        buildDesc.SourceAccelerationStructureData = performUpdate ? dataBuffer->GetGpuVirtualAddress() : 0;
-
-        m_Instance->refBuffer.push_back(dataBuffer);
-        m_StateTracker.RequireBufferState(dataBuffer, ResourceStates::AccelStructBuildBlas);
         CommitBarriers();
 
+        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geoDescs{};
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(desc, geoDescs);
+        buildInputs.Flags = ConvertAccelerationStructureBuildFlags(buildFlags);
+        assert(buildInputs.NumDescs == geoDescs.size());
+
+        // 分配 Transform 的缓冲区
+        for(size_t i = 0; i < desc.bottomLevelGeometries.size(); ++i){
+            const auto& geom = desc.bottomLevelGeometries[i];
+            auto& geoDesc = geoDescs[i];
+            if(auto& transform = geoDesc.Triangles.Transform3x4; transform != 0){
+                auto transformBuffer = AllocateUploadBuffer(sizeof(RT::AffineTransform), D3D12_RAYTRACING_TRANSFORM3X4_BYTE_ALIGNMENT);
+                memcpy(transformBuffer.mappedAddress, &geom.transform, sizeof(RT::AffineTransform));
+                transform = transformBuffer.gpuAddress;
+            }
+        }
+
+        auto& context = m_Device.GetContext();
+        if(context.device5 == nullptr)
+            return;
+        
+        // 获取加速结构的构建信息
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo{};
+        context.device5->GetRaytracingAccelerationStructurePrebuildInfo(&buildInputs, &prebuildInfo);
+
+        if(prebuildInfo.ResultDataMaxSizeInBytes > dataBuffer->GetDesc().byteSize){
+            std::string msg = std::format("The buffer size of the bottom-level acceleration structure is too small. "
+                "Required size: {}, actual size: {}", prebuildInfo.ResultDataMaxSizeInBytes, dataBuffer->GetDesc().byteSize);
+            context.Error(msg);
+            return;
+        }
+
+        // 创建需要的 scratch buffer
+        bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::AllowUpdate);
+        uint64_t scratchSize = performUpdate ? prebuildInfo.UpdateScratchDataSizeInBytes : prebuildInfo.ScratchDataSizeInBytes;
+        auto scratchBuffer = AllocateGpuBuffer(scratchSize, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
+
+        if(m_EnableAutomaticBarriers){
+            m_StateTracker.RequireBufferState(dataBuffer, ResourceStates::AccelStructWrite);
+        }
+        CommitBarriers();
+
+        // 创建加速结构
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc{};
+        buildDesc.DestAccelerationStructureData = dataBuffer->GetGpuVirtualAddress();
+        buildDesc.Inputs = buildInputs;
+        buildDesc.SourceAccelerationStructureData = performUpdate ? dataBuffer->GetGpuVirtualAddress() : 0;
+        buildDesc.ScratchAccelerationStructureData = scratchBuffer.gpuAddress;
         m_CurrCmdList->cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
 
-        // 同一命令列表后续读取 BLAS（例如构建 TLAS）前需建立 UAV 顺序依赖。
-        D3D12_RESOURCE_BARRIER uavBarrier{};
-        uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        uavBarrier.UAV.pResource = dataBuffer->resource;
-        m_CurrCmdList->cmdList->ResourceBarrier(1, &uavBarrier);
+        if(accel->GetDesc().trackLiveness){
+            m_Instance->refBuffer.push_back(accel);
+        }
     }
 
-    void CommandList::BuildTopLevelAccelStruct(RT::IAccelStruct* as, const RT::InstanceDesc* instances, size_t numInstances, RT::AccelStructBuildFlags buildFlags)
+    void CommandList::BuildTopLevelAccelStruct(RT::IAccelStruct *as, std::span<const RT::InstanceDesc> instances, RT::AccelStructBuildFlags buildFlags)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
-        assert(accel != nullptr && m_CurrCmdList->cmdList4 != nullptr);
-        Buffer* dataBuffer = accel->GetDataBuffer();
-        const auto& prebuild = accel->GetPrebuildInfo();
-        const bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::PerformUpdate);
-        if (performUpdate && !HasFlags(accel->GetDesc().buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
-            m_Device.GetContext().Error("TLAS update requested without AccelStructBuildFlags::AllowUpdate.");
+        if(accel == nullptr || !accel->GetDesc().isTopLevel || accel->dataBuffer == nullptr || m_CurrCmdList->cmdList4 == nullptr)
             return;
+        
+        accel->bottomLevelASes.clear();
+        accel->instanceDescs.resize(instances.size());
+        for(const auto& [index, instance] : instances | std::views::enumerate){
+            AccelStruct* blas = Utility::CheckedCast<AccelStruct*>(instance.bottomLevelAS);
+            auto& instanceDesc = accel->instanceDescs[index];
+            if(blas != nullptr){
+                memcpy(&instanceDesc, &instance, sizeof(instance));
+                instanceDesc.AccelerationStructure = blas->dataBuffer->GetGpuVirtualAddress();
+
+                if(m_EnableAutomaticBarriers){
+                    m_StateTracker.RequireBufferState(blas->dataBuffer, ResourceStates::AccelStructBuildBlas);
+                }
+                if(blas->GetDesc().trackLiveness){
+                    accel->bottomLevelASes.push_back(blas);
+                }
+            }
+            else{
+                instanceDesc.AccelerationStructure = 0;
+            }
         }
-        if (HasFlags(accel->GetDesc().buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
-            buildFlags |= RT::AccelStructBuildFlags::AllowUpdate;
+
+        // 将实例描述符上传到 GPU
+        size_t instanceDescsSize = sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * accel->instanceDescs.size();
+        auto uploadBuffer = AllocateUploadBuffer(instanceDescsSize, D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
+        memcpy(uploadBuffer.mappedAddress, accel->instanceDescs.data(), instanceDescsSize);
+
+        BuildTopLevelAccelStructInternal(accel, uploadBuffer.gpuAddress, instances.size(), buildFlags);
+    }
+
+    void CommandList::BuildTopLevelAccelStructFromBuffer(RT::IAccelStruct *as, IBuffer *instanceBuffer, uint64_t instanceBufferOffset, size_t numInstances, RT::AccelStructBuildFlags buildFlags)
+    {
+        AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
+
+        accel->bottomLevelASes.clear();
+        accel->instanceDescs.clear();
+
+        if(m_EnableAutomaticBarriers){
+            m_StateTracker.RequireBufferState(instanceBuffer, ResourceStates::AccelStructBuildInput);
+            m_StateTracker.RequireBufferState(accel->dataBuffer, ResourceStates::AccelStructWrite);
         }
-
-        // 对齐 NVRHI：更新构建使用 UpdateScratchDataSizeInBytes。
-        BufferDesc scratchDesc{};
-        scratchDesc.byteSize = performUpdate ? prebuild.UpdateScratchDataSizeInBytes : prebuild.ScratchDataSizeInBytes;
-        scratchDesc.canHaveUAVs = true;
-        scratchDesc.initialState = ResourceStates::Common;
-        scratchDesc.debugName = "AccelStructScratch";
-        RefPtr<Buffer> scratchBuffer = Utility::CheckedCast<Buffer*>(m_Device.CreateBuffer(scratchDesc).Get());
-        m_Instance->refBuffer.push_back(scratchBuffer);
-        m_StateTracker.RequireBufferState(scratchBuffer, ResourceStates::UnorderedAccess);
-
-        // 实例描述缓冲（需 CPU 可写，使用上传分配器）
-        const uint64_t instanceBufferSize = numInstances * sizeof(D3D12_RAYTRACING_INSTANCE_DESC);
-        DynamicResourceLocation instanceBuffer = AllocateUploadBuffer(instanceBufferSize);
-        auto* instanceDescs = reinterpret_cast<D3D12_RAYTRACING_INSTANCE_DESC*>(instanceBuffer.mappedAddress);
-        for (size_t i = 0; i < numInstances; ++i) {
-            const RT::InstanceDesc& inst = instances[i];
-            auto& dst = instanceDescs[i];
-            std::memset(&dst, 0, sizeof(dst));
-            std::memcpy(&dst.Transform, inst.transform, sizeof(inst.transform));
-            dst.InstanceID = inst.instanceID;
-            dst.InstanceMask = static_cast<UINT>(inst.instanceMask);
-            dst.InstanceContributionToHitGroupIndex = inst.instanceContributionToHitGroupIndex;
-            dst.Flags = ConvertInstanceFlags(inst.flags);
-            AccelStruct* blas = Utility::CheckedCast<AccelStruct*>(inst.bottomLevelAS.Get());
-            assert(blas != nullptr);
-            m_Instance->refResources.push_back(inst.bottomLevelAS);
-            dst.AccelerationStructure = blas->GetDeviceAddress();
-        }
-        m_Instance->refNativeResources.push_back(instanceBuffer.resource);
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc{};
-        buildDesc.DestAccelerationStructureData = dataBuffer->GetGpuVirtualAddress();
-        buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-        buildDesc.Inputs.Flags = ConvertAccelStructBuildFlags(buildFlags);
-        buildDesc.Inputs.NumDescs = UINT(numInstances);
-        buildDesc.Inputs.InstanceDescs = instanceBuffer.gpuAddress;
-        buildDesc.ScratchAccelerationStructureData = scratchBuffer->GetGpuVirtualAddress();
-        buildDesc.SourceAccelerationStructureData = performUpdate ? dataBuffer->GetGpuVirtualAddress() : 0;
-
-        m_Instance->refBuffer.push_back(dataBuffer);
-        m_StateTracker.RequireBufferState(dataBuffer, ResourceStates::AccelStructWrite);
         CommitBarriers();
 
-        m_CurrCmdList->cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
+        if(m_Instance != nullptr && accel->GetDesc().trackLiveness){
+            m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(instanceBuffer));
+        }
 
-        D3D12_RESOURCE_BARRIER uavBarrier{};
-        uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        uavBarrier.UAV.pResource = dataBuffer->resource;
-        m_CurrCmdList->cmdList->ResourceBarrier(1, &uavBarrier);
+        BuildTopLevelAccelStructInternal(accel, GetBufferGpuVA(instanceBuffer, instanceBufferOffset), numInstances, buildFlags);
     }
-
-    void CommandList::CopyAccelStruct(RT::IAccelStruct* destination, RT::IAccelStruct* source)
-    {
-        AccelStruct* dst = Utility::CheckedCast<AccelStruct*>(destination);
-        AccelStruct* src = Utility::CheckedCast<AccelStruct*>(source);
-        assert(dst != nullptr && src != nullptr && m_CurrCmdList->cmdList4 != nullptr);
-
-        D3D12_GPU_VIRTUAL_ADDRESS dstAddr = dst->GetDataBuffer()->GetGpuVirtualAddress();
-        D3D12_GPU_VIRTUAL_ADDRESS srcAddr = src->GetDataBuffer()->GetGpuVirtualAddress();
-
-        m_CurrCmdList->cmdList4->CopyRaytracingAccelerationStructure(
-            dstAddr, srcAddr, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE);
-    }
-
 
     void CommandList::BeginTimerQuery(ITimerQuery *_query)
     {
@@ -1168,14 +1155,14 @@ namespace DSM::D3D12{
         PIXEndEvent(m_CurrCmdList->cmdList);
     }
 
-    DynamicResourceLocation CommandList::AllocateUploadBuffer(size_t size)
+    DynamicResourceLocation CommandList::AllocateUploadBuffer(size_t size, size_t alignment)
     {
-        return m_CurrCmdList->uploadBufferAllocator->Allocate(size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        return m_CurrCmdList->uploadBufferAllocator->Allocate(size, alignment);
     }
 
-    DynamicResourceLocation CommandList::AllocateGpuBuffer(size_t size)
+    DynamicResourceLocation CommandList::AllocateGpuBuffer(size_t size, size_t alignment)
     {
-        return m_CurrCmdList->gpuBufferAllocator->Allocate(size, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
+        return m_CurrCmdList->gpuBufferAllocator->Allocate(size, alignment);
     }
 
     bool CommandList::CommitDescriptorHeaps()
@@ -1267,6 +1254,17 @@ namespace DSM::D3D12{
     {
         m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(b));
         m_StateTracker.RequireBufferState(b, stateBits);
+    }
+
+    void CommandList::SetAccelStructState(RT::IAccelStruct *as, ResourceStates stateBits)
+    {
+        AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
+        if(accel != nullptr && accel->dataBuffer != nullptr){
+            m_StateTracker.RequireBufferState(accel->dataBuffer, stateBits);
+            if(m_Instance != nullptr){
+                m_Instance->refResources.push_back(accel);
+            }
+        }
     }
 
     void CommandList::SetResourceStatesForBindingSet(IBindingSet *bindingSet)
@@ -1606,5 +1604,63 @@ namespace DSM::D3D12{
             RTVs.size(), RTVs.size() == 0 ? nullptr : RTVs.data(), false, hasDepth ? &DSV : nullptr);
 
         m_Instance->refResources.push_back(framebuffer);
+    }
+    
+    ShaderTableState *CommandList::GetShaderTableState(RT::IShaderTable *shaderTable)
+    {
+        if(auto it = m_ShaderTableStates.find(shaderTable); it != m_ShaderTableStates.end()){
+            return it->second.get();
+        }
+
+        m_ShaderTableStates[shaderTable] = std::make_unique<ShaderTableState>();
+
+        return m_ShaderTableStates[shaderTable].get();
+    }
+    
+    void CommandList::BuildTopLevelAccelStructInternal(AccelStruct *accel, GpuVirtualAddress instanceDescsGpuVA, size_t numInstances, RT::AccelStructBuildFlags buildFlags)
+    {
+        std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geoDescs{};
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(accel->GetDesc(), geoDescs);
+        buildInputs.Flags = ConvertAccelerationStructureBuildFlags(buildFlags);
+        buildInputs.NumDescs = static_cast<UINT>(numInstances);
+        buildInputs.InstanceDescs = instanceDescsGpuVA;
+
+        auto& context = m_Device.GetContext();
+        if(context.device5 == nullptr)
+            return;
+        
+        // 获取加速结构的构建信息
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo{};
+        context.device5->GetRaytracingAccelerationStructurePrebuildInfo(&buildInputs, &prebuildInfo);
+
+        const auto& dataBuffer = accel->dataBuffer;
+        if(prebuildInfo.ResultDataMaxSizeInBytes > dataBuffer->GetDesc().byteSize){
+            std::string msg = std::format("The buffer size of the top-level acceleration structure is too small. "
+                "Required size: {}, actual size: {}", prebuildInfo.ResultDataMaxSizeInBytes, dataBuffer->GetDesc().byteSize);
+            context.Error(msg);
+            return;
+        }
+
+        // 创建需要的 scratch buffer
+        bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::AllowUpdate);
+        uint64_t scratchSize = performUpdate ? prebuildInfo.UpdateScratchDataSizeInBytes : prebuildInfo.ScratchDataSizeInBytes;
+        auto scratchBuffer = AllocateGpuBuffer(scratchSize, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
+        
+        if(m_EnableAutomaticBarriers){
+            m_StateTracker.RequireBufferState(dataBuffer, ResourceStates::AccelStructWrite);
+        }
+        CommitBarriers();
+
+        // 创建加速结构
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc{};
+        buildDesc.DestAccelerationStructureData = dataBuffer->GetGpuVirtualAddress();
+        buildDesc.Inputs = buildInputs;
+        buildDesc.SourceAccelerationStructureData = performUpdate ? dataBuffer->GetGpuVirtualAddress() : 0;
+        buildDesc.ScratchAccelerationStructureData = scratchBuffer.gpuAddress;
+        m_CurrCmdList->cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
+
+        if(accel->GetDesc().trackLiveness){
+            m_Instance->refBuffer.push_back(accel);
+        }
     }
 }

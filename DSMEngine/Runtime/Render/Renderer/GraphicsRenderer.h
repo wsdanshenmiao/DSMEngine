@@ -3,8 +3,7 @@
 #define __GRAPHICS_RENDERER_H__
 
 #include <set>
-#include "Runtime/Graphics/GraphicsCommon.h"
-#include "Runtime/Graphics/Device.h"
+#include "Runtime/Graphics/DSMRHI.h"
 #include "Runtime/Core/Macro.h"
 #include "Runtime/Render/Camera/Camera.h"
 

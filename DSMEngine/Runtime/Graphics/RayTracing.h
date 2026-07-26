@@ -2,151 +2,173 @@
 #ifndef __RAYTRACING_H__
 #define __RAYTRACING_H__
 
-#include "GraphicsCommon.h"
-
 namespace DSM {
-    // 前向声明，避免与 Shader.h、ResourceBindings.h 和 Buffer.h 形成包含环。
-    class IBuffer;
-    class IShaderLibrary;
-    class IBindingLayout;
-    class IBindingSet;
+    struct IBuffer;
 
-    // DirectX Raytracing（DXR）抽象层。
-    // 命名空间 RT 对应 NVRHI 的 nvrhi::rt，提供加速结构、管线状态和着色器表。
     namespace RT {
-        // 句柄需在描述结构中使用，因此先前向声明核心对象。
-        struct AccelStructDesc;
-        struct PipelineDesc;
-        struct ShaderTableDesc;
+        class IPipeline;
         class IAccelStruct;
-        class IRayTracingPipeline;
-        class IShaderTable;
-        using AccelStructHandle = RefPtr<IAccelStruct>;
-        using RayTracingPipelineHandle = RefPtr<IRayTracingPipeline>;
-        using ShaderTableHandle = RefPtr<IShaderTable>;
 
-        // 加速结构构建标志（对应 D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS）。
-        enum class AccelStructBuildFlags : uint32_t
-        {
-            None            = 0,
-            AllowUpdate     = 0x1,
-            AllowCompaction = 0x2,
-            PreferFastTrace = 0x4,
-            PreferFastBuild = 0x8,
-            MinimizeMemory  = 0x10,
-            PerformUpdate   = 0x20,
+        using AffineTransform = float[12]; // 3x4 行主序矩阵
+
+        constexpr AffineTransform c_IdentityTransform = {
+        //  +----+----+---------  rotation and scaling
+        //  v    v    v
+            1.f, 0.f, 0.f, 0.f,
+            0.f, 1.f, 0.f, 0.f,
+            0.f, 0.f, 1.f, 0.f
+        //                 ^
+        //                 +----  translation
         };
 
-        // 实例标志（对应 D3D12_RAYTRACING_INSTANCE_FLAGS）。
-        enum class InstanceFlags : uint32_t
+        enum class GeometryFlags : uint8_t
         {
-            None                         = 0,
-            ForceOpaque                  = 0x1,
-            ForceNonOpaque               = 0x2,
-            TriangleCullDisable          = 0x4,
-            TriangleFrontCounterClockwise = 0x8,
+            None,
+            Opaque,
+            NoDuplicateAnyHitInvocation
         };
 
-        // 三角形几何体描述（用于 BLAS 构建）。
+        enum class GeometryType : uint8_t
+        {
+            Triangles = 0,
+            AABBs
+        };
+
+        struct GeometryAABB
+        {
+            float minX{}, minY{}, minZ{};
+            float maxX{}, maxY{}, maxZ{};
+        };
+
+        struct GeometryTriangles
+        {
+            IBuffer* indexBuffer = nullptr;
+            IBuffer* vertexBuffer = nullptr;
+
+            uint64_t indexOffset = 0;
+            uint64_t vertexOffset = 0;
+
+            uint32_t vertexCount = 0;
+            uint32_t indexCount = 0;
+            
+            uint32_t vertexStride = 0;
+            
+            Format indexFormat = Format::UNKNOWN;
+            Format vertexFormat = Format::UNKNOWN;
+
+            GeometryTriangles& SetIndexBuffer(IBuffer* buffer) { indexBuffer = buffer; return *this; }
+            GeometryTriangles& SetVertexBuffer(IBuffer* buffer) { vertexBuffer = buffer; return *this; }
+            GeometryTriangles& SetIndexFormat(Format format) { indexFormat = format; return *this; }
+            GeometryTriangles& SetVertexFormat(Format format) { vertexFormat = format; return *this; }
+            GeometryTriangles& SetIndexOffset(uint64_t offset) { indexOffset = offset; return *this; }
+            GeometryTriangles& SetVertexOffset(uint64_t offset) { vertexOffset = offset; return *this; }
+            GeometryTriangles& SetVertexCount(uint32_t count) { vertexCount = count; return *this; }
+            GeometryTriangles& SetIndexCount(uint32_t count) { indexCount = count; return *this; }
+            GeometryTriangles& SetVertexStride(uint32_t stride) { vertexStride = stride; return *this; }
+        };
+
+        struct GeometryAABBs
+        {
+            IBuffer* buffer = nullptr;
+            uint64_t offset = 0;
+            uint32_t stride = 0;
+            uint32_t count = 0;
+
+            GeometryAABBs& SetBuffer(IBuffer* buffer) { buffer = buffer; return *this; }
+            GeometryAABBs& SetOffset(uint64_t offset) { offset = offset; return *this; }
+            GeometryAABBs& SetStride(uint32_t stride) { stride = stride; return *this; }
+            GeometryAABBs& SetCount(uint32_t count) { count = count; return *this; }
+        };
+
         struct GeometryDesc
         {
-            IBuffer* vertexBuffer = nullptr;
-            uint32_t vertexStride = 0;
-            uint32_t vertexCount = 0;
-            uint32_t vertexOffset = 0;
-            Format vertexFormat = Format::RGB32_FLOAT;
+            union GeometryTypeUnion
+            {
+                GeometryTriangles triangles;
+                GeometryAABBs aabbs;
+            } geometryData{};
 
-            bool isIndexed = false;
-            IBuffer* indexBuffer = nullptr;
-            uint32_t indexCount = 0;
-            uint32_t indexOffset = 0;
-            Format indexFormat = Format::R32_UINT;
+            bool useTransform = false;
+            AffineTransform transform{};
+            GeometryType geometryType = GeometryType::Triangles;
+            GeometryFlags flags = GeometryFlags::None;
 
-            // 可选的 3x4 行主序变换矩阵地址。
-            IBuffer* transformBuffer = nullptr;
-            uint32_t transformOffset = 0;
-            bool isOpaque = true;
+            GeometryDesc& SetTransform(const AffineTransform& t) { useTransform = true; std::memcpy(transform, t, sizeof(AffineTransform)); return *this; }
+            GeometryDesc& SetFlags(GeometryFlags f) { flags = f; return *this; }
+            GeometryDesc& SetTriangles(const GeometryTriangles& t) { geometryType = GeometryType::Triangles; geometryData.triangles = t; return *this; }
+            GeometryDesc& SetAABBs(const GeometryAABBs& a) { geometryType = GeometryType::AABBs; geometryData.aabbs = a; return *this; }
         };
 
-        // 实例描述（用于 TLAS 构建）。
+        enum class InstanceFlags : uint32_t
+        {
+            None = 0,
+            TriangleCullDisable = 1 << 0,
+            TriangleFrontCounterclockwise = 1 << 1,
+            ForceOpaque = 1 << 2,
+            ForceNonOpaque = 1 << 3
+        };
+
         struct InstanceDesc
         {
-            AccelStructHandle bottomLevelAS;
-            float transform[12] = { 1,0,0,0, 0,1,0,0, 0,0,1,0 };
-            uint32_t instanceID = 0;
-            uint32_t instanceMask = 0xFF;
-            uint32_t instanceContributionToHitGroupIndex = 0;
-            InstanceFlags flags = InstanceFlags::None;
+            AffineTransform transform{};
+            uint32_t instanceID : 24;
+            uint32_t instanceMask : 8;
+            uint32_t instanceContributionToHitGroupIndex : 24;
+            InstanceFlags flags : 8;
+
+            union
+            {
+                IAccelStruct* bottomLevelAS; // for buildTopLevelAccelStruct
+                uint64_t blasDeviceAddress;  // for buildTopLevelAccelStructFromBuffer - use IAccelStruct::getDeviceAddress()
+            };
+
+            InstanceDesc()
+                : instanceID(0)
+                , instanceMask(0)
+                , instanceContributionToHitGroupIndex(0)
+                , flags(InstanceFlags::None)
+                , bottomLevelAS(nullptr)
+            {
+                SetTransform(c_IdentityTransform);
+            }
+
+            InstanceDesc& SetTransform(const AffineTransform& t) { std::memcpy(transform, t, sizeof(AffineTransform)); return *this; }
+            InstanceDesc& SetInstanceID(uint32_t id) { instanceID = id; return *this; }
+            InstanceDesc& SetInstanceMask(uint32_t mask) { instanceMask = mask; return *this; }
+            InstanceDesc& SetInstanceContributionToHitGroupIndex(uint32_t index) { instanceContributionToHitGroupIndex = index; return *this; }
+            InstanceDesc& SetFlags(InstanceFlags f) { flags = f; return *this; }
+            InstanceDesc& SetBottomLevelAS(IAccelStruct* blas) { bottomLevelAS = blas; return *this; }
+        };
+        
+        enum class AccelStructBuildFlags : uint8_t
+        {
+            None = 0,
+            AllowUpdate = 1 << 0,
+            AllowCompaction = 1 << 1,
+            PreferFastTrace = 1 << 2,
+            PreferFastBuild = 1 << 3,
+            MinimizeMemory = 1 << 4,
+            PerformUpdate = 1 << 5,
         };
 
         // 加速结构描述。
         struct AccelStructDesc
         {
-            bool isTopLevel = false;
+            size_t topLevelMaxInstances = 0; // only applies when isTopLevel = true
+            std::vector<GeometryDesc> bottomLevelGeometries{}; // only applies when isTopLevel = false
+            std::string debugName{};
             AccelStructBuildFlags buildFlags = AccelStructBuildFlags::None;
-            std::vector<GeometryDesc> geometries;
-            uint32_t instanceCount = 0;
-            std::string debugName;
-        };
+            bool trackLiveness = true;
+            bool isTopLevel = false;
+            bool isVirtual = false;
 
-        // 管线中的单个着色器导出（raygen / miss / closest-hit 等）。
-        struct PipelineShaderDesc
-        {
-            IShaderLibrary* shader = nullptr;
-            std::string exportName;
-            IBindingLayout* bindingLayout = nullptr;
-        };
-
-        // 命中组：将 closest-hit、any-hit 与 intersection 组合。
-        struct HitGroupDesc
-        {
-            std::string hitGroupName;
-            std::string closestHitShader;
-            std::string anyHitShader;
-            std::string intersectionShader;
-            IBindingLayout* bindingLayout = nullptr;
-        };
-
-        // 光线追踪管线描述，复用 CreateShaderLibrary 产物与导出名。
-        struct PipelineDesc
-        {
-            std::vector<PipelineShaderDesc> shaders;
-            std::vector<HitGroupDesc> hitGroups;
-            uint32_t maxRecursionDepth = 1;
-            uint32_t maxPayloadSize = 0;
-            uint32_t maxAttributeSize = 0;
-            std::vector<IBindingLayout*> globalBindingLayouts;
-            std::string debugName;
-        };
-
-        // 着色器表描述，对齐 NVRHI rt::ShaderTableDesc。
-        struct ShaderTableDesc
-        {
-            RayTracingPipelineHandle pipeline;
-            std::string rayGenerationShader;
-            std::vector<std::string> missShaders;
-            std::vector<std::string> hitGroups;
-            std::vector<std::string> callableShaders;
-
-            // 各段对应的本地绑定集合，可为空。
-            std::vector<IBindingSet*> rayGenerationBindings;
-            std::vector<IBindingSet*> missBindings;
-            std::vector<IBindingSet*> hitGroupBindings;
-            std::vector<IBindingSet*> callableBindings;
-        };
-
-        struct DispatchRaysArguments
-        {
-            uint32_t width = 1;
-            uint32_t height = 1;
-            uint32_t depth = 1;
-        };
-
-        // SetRayTracingState 使用的状态。
-        struct State
-        {
-            ShaderTableHandle shaderTable;
-            std::vector<IBindingSet*> bindingSets;
+            AccelStructDesc& SetTopLevelMaxInstances(size_t maxInstances) { topLevelMaxInstances = maxInstances; return *this; }
+            AccelStructDesc& AddBottomLevelGeometry(const GeometryDesc& geometry) { bottomLevelGeometries.push_back(geometry); return *this; }
+            AccelStructDesc& SetDebugName(const std::string& name) { debugName = name; return *this; }
+            AccelStructDesc& SetBuildFlags(AccelStructBuildFlags flags) { buildFlags = flags; return *this; }
+            AccelStructDesc& SetTrackLiveness(bool track) { trackLiveness = track; return *this; }
+            AccelStructDesc& SetIsTopLevel(bool topLevel) { isTopLevel = topLevel; return *this; }
+            AccelStructDesc& SetIsVirtual(bool virtualAS) { isVirtual = virtualAS; return *this; }
         };
 
         class IAccelStruct : public IResource
@@ -154,28 +176,96 @@ namespace DSM {
         public:
             [[nodiscard]] virtual const AccelStructDesc& GetDesc() const = 0;
             [[nodiscard]] virtual uint64_t GetDeviceAddress() const = 0;
-            [[nodiscard]] virtual IBuffer* GetDataBuffer() const = 0;
-            virtual bool IsCompacted() const = 0;
-            virtual bool IsTopLevel() const = 0;
+        };
+        using AccelStructHandle = RefPtr<IAccelStruct>;
+
+
+        struct PipelineShaderDesc
+        {
+            std::string exportName{};
+            ShaderHandle shader = nullptr;
+            BindingLayoutHandle bindingLayout = nullptr;
+
+            PipelineShaderDesc& SetExportName(const std::string& name) { exportName = name; return *this; }
+            PipelineShaderDesc& SetShader(IShader* s) { shader = s; return *this; }
+            PipelineShaderDesc& SetBindingLayout(IBindingLayout* layout) { bindingLayout = layout; return *this; }
         };
 
-        class IRayTracingPipeline : public IResource
+        struct PipelineHitGroupDesc
         {
-        public:
-            [[nodiscard]] virtual const PipelineDesc& GetDesc() const = 0;
+            std::string exportName{};
+            std::string closestHitShader{};
+            std::string anyHitShader{};
+            std::string intersectionShader{};
+            BindingLayoutHandle bindingLayout = nullptr;
+            bool isProceduralPrimitive = false;
+
+            PipelineHitGroupDesc& SetExportName(const std::string& name) { exportName = name; return *this; }
+            PipelineHitGroupDesc& SetClosestHitShader(const std::string& name) { closestHitShader = name; return *this; }
+            PipelineHitGroupDesc& SetAnyHitShader(const std::string& name) { anyHitShader = name; return *this; }
+            PipelineHitGroupDesc& SetIntersectionShader(const std::string& name) { intersectionShader = name; return *this; }
+            PipelineHitGroupDesc& SetBindingLayout(IBindingLayout* layout) { bindingLayout = layout; return *this; }
+            PipelineHitGroupDesc& SetIsProceduralPrimitive(bool isProcedural) { isProceduralPrimitive = isProcedural; return *this; }
+        };
+
+        struct PipelineDesc
+        {
+            std::vector<PipelineShaderDesc> shaders{};
+            std::vector<PipelineHitGroupDesc> hitGroups{};
+            BindingLayoutHandle globalBindingLayout = nullptr;
+            uint32_t maxPayloadSize = 0;
+            uint32_t maxAttributeSize = 0;
+            uint32_t maxRecursionDepth = 1;
+            int32_t hlslExtensionsUAV = -1;
         };
 
         class IShaderTable : public IResource
         {
         public:
-            [[nodiscard]] virtual const ShaderTableDesc& GetDesc() const = 0;
-            [[nodiscard]] virtual IRayTracingPipeline* GetPipeline() const = 0;
-            [[nodiscard]] virtual uint32_t GetNumEntries() const = 0;
+            virtual void SetGenerationShader(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
+            virtual int AddMissShader(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
+            virtual int AddHitGroup(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
+            virtual int AddCallableShader(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
+            virtual void ClearMissShaders() = 0;
+            virtual void ClearHitGroups() = 0;
+            virtual void ClearCallableShaders() = 0;
+            virtual IPipeline* GetPipeline() const = 0;    
         };
+        using ShaderTableHandle = RefPtr<IShaderTable>;
+
+        class IPipeline : public IResource
+        {
+        public:
+            [[nodiscard]] virtual const PipelineDesc& GetDesc() const = 0;
+            virtual ShaderTableHandle CreateShaderTable() = 0;
+        };
+        using PipelineHandle = RefPtr<IPipeline>;
+
+        struct State
+        {
+            BindingSetVector bindingSets;
+            IShaderTable* shaderTable;
+
+            State& AddBindingSet(IBindingSet* bindingSet) { bindingSets.push_back(bindingSet); return *this; }
+            State& SetShaderTable(IShaderTable* table) { shaderTable = table; return *this; }
+        };
+
+        struct DispatchRaysArguments
+        {
+            uint32_t width = 1;
+            uint32_t height = 1;
+            uint32_t depth = 1;
+
+            constexpr DispatchRaysArguments& SetWidth(uint32_t w) { width = w; return *this; }
+            constexpr DispatchRaysArguments& SetHeight(uint32_t h) { height = h; return *this; }
+            constexpr DispatchRaysArguments& SetDepth(uint32_t d) { depth = d; return *this; }
+        };
+
     } // namespace RT
 
-    ENABLE_ENUM_BIT_OPERATOR(RT::AccelStructBuildFlags)
     ENABLE_ENUM_BIT_OPERATOR(RT::InstanceFlags)
+    ENABLE_ENUM_BIT_OPERATOR(RT::GeometryFlags)
+    ENABLE_ENUM_BIT_OPERATOR(RT::AccelStructBuildFlags)
 } // namespace DSM
 
 #endif

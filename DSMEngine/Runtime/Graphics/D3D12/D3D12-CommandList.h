@@ -140,9 +140,11 @@ namespace DSM::D3D12 {
         // 光线追踪（DXR）
         void SetRayTracingState(const RT::State& state) override;
         void DispatchRays(const RT::DispatchRaysArguments& args) override;
-        void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, const RT::GeometryDesc* geometries, size_t numGeometries, RT::AccelStructBuildFlags buildFlags) override;
-        void BuildTopLevelAccelStruct(RT::IAccelStruct* as, const RT::InstanceDesc* instances, size_t numInstances, RT::AccelStructBuildFlags buildFlags) override;
-        void CopyAccelStruct(RT::IAccelStruct* destination, RT::IAccelStruct* source) override;
+        
+        void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, RT::AccelStructBuildFlags buildFlags) override;
+        void BuildTopLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::InstanceDesc> instances, RT::AccelStructBuildFlags buildFlags) override;
+        void BuildTopLevelAccelStructFromBuffer(RT::IAccelStruct* as, IBuffer* instanceBuffer, uint64_t instanceBufferOffset, size_t numInstances,
+            RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) override;
 
         // 查询GPU上的时间信息
         void BeginTimerQuery(ITimerQuery* query) override;
@@ -159,6 +161,7 @@ namespace DSM::D3D12 {
 
         void SetTextureState(ITexture* texture, TextureSubresourceSet subresources, ResourceStates stateBits) override;
         void SetBufferState(IBuffer* b, ResourceStates stateBits) override;
+        void SetAccelStructState(RT::IAccelStruct* as, ResourceStates stateBits) override;
         void SetResourceStatesForBindingSet(IBindingSet* bindingSet) override;
 
         ResourceStates GetTextureSubresourceState(ITexture* texture, uint32_t arraySlice, uint32_t mipLevel) override;
@@ -172,8 +175,8 @@ namespace DSM::D3D12 {
         const CommandListParameters& GetDesc() override { return m_Desc; }
 
                 
-        DynamicResourceLocation AllocateUploadBuffer(size_t size) override;
-        DynamicResourceLocation AllocateGpuBuffer(size_t size) override;
+        DynamicResourceLocation AllocateUploadBuffer(size_t size, size_t alignment = 0) override;
+        DynamicResourceLocation AllocateGpuBuffer(size_t size, size_t alignment = 0) override;
         bool CommitDescriptorHeaps() override;
         D3D12_GPU_VIRTUAL_ADDRESS GetBufferGpuVA(IBuffer* b, uint64_t offset = 0) override;
 
@@ -196,6 +199,8 @@ namespace DSM::D3D12 {
         void ClearStateCache();
 
         void UpdateFramebuffer(Framebuffer* fb);
+        ShaderTableState* GetShaderTableState(RT::IShaderTable* shaderTable);
+        void BuildTopLevelAccelStructInternal(AccelStruct* as, GpuVirtualAddress instanceDescsGpuVA, size_t numInstances, RT::AccelStructBuildFlags buildFlags);
 
     private:
         struct VolatileBufferBinding
@@ -220,14 +225,11 @@ namespace DSM::D3D12 {
         GraphicsState m_CurrGraphicsState{};
         ComputeState m_CurrComputeState{};
         MeshletState m_CurrMeshletState{};
+        RT::State m_CurrRayTracingState{};
         bool m_CurrGraphicsStateValid = false;
         bool m_CurrComputeStateValid = false;
         bool m_CurrMeshletStateValid = false;
-
-        // 光线追踪状态缓存
-        RT::State m_CurrRayTracingState{};
         bool m_CurrRayTracingStateValid = false;
-        D3D12_DISPATCH_RAYS_DESC m_DispatchRaysDesc{};
 
         ID3D12DescriptorHeap* m_CurrSRVHeap = nullptr;
         ID3D12DescriptorHeap* m_CurrSamplerHeap = nullptr;
@@ -237,6 +239,7 @@ namespace DSM::D3D12 {
         StaticVector<VolatileBufferBinding, c_MaxVolatileConstantBuffers> m_ComputeVolatileBuffers;
 
         std::unordered_map<std::pair<IBuffer*, uint64_t>, D3D12_GPU_VIRTUAL_ADDRESS> m_VolatileBufferAddresses{};
+        std::unordered_map<RT::IShaderTable*, std::unique_ptr<ShaderTableState>> m_ShaderTableStates{};
 
         bool m_HasVolatileBufferWrites = false;
         bool m_EnableAutomaticBarriers = true;

@@ -355,7 +355,6 @@ namespace DSM {
             return result;
         }
 
-        // 将加速结构的数据缓冲作为 SRV 绑定（着色器中以 RaytracingAccelerationStructure 形式访问）
         static BindingSetItem RayTracingAccelStruct(uint32_t slot, IBuffer* accelStruct)
         {
             BindingSetItem result;
@@ -370,7 +369,6 @@ namespace DSM {
             result.pad1 = 0;
             return result;
         }
-
 
         static BindingSetItem PushConstants(uint32_t slot, uint32_t byteSize)
         {

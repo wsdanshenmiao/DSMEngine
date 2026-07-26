@@ -1220,6 +1220,12 @@ namespace DSM::D3D12{
         return CreateHandleForNativeMeshletPipeline(rootSig.Get(), pipelineState.Get(), desc, fbInfo);
     }
 
+    RT::PipelineHandle Device::CreateRayTracingPipeline(const RT::PipelineDesc &desc)
+    {
+        // TODO: implement ray tracing pipeline creation
+        return RT::PipelineHandle();
+    }
+
     //////////////////////////////////////////////////////////////////////////
     // 光线追踪（DXR）
     //////////////////////////////////////////////////////////////////////////
@@ -1230,60 +1236,26 @@ namespace DSM::D3D12{
             return nullptr;
         }
         AccelStruct* as = new AccelStruct(m_Context);
-        if (!as->Finalize(desc, this)) {
-            delete as;
-            return nullptr;
-        }
+        as->Create(desc, this);
         return RT::AccelStructHandle{ as };
     }
 
     MemoryRequirements Device::GetAccelStructMemoryRequirements(RT::IAccelStruct* as)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
-        // 对齐 NVRHI：返回底层结果缓冲的实际资源分配需求，而非仅返回 DXR 预构建结果字节数。
-        return GetBufferMemoryRequirements(accel->GetDataBuffer());
+        if(accel != nullptr){
+            return GetBufferMemoryRequirements(accel->GetDataBuffer());
+        }
+        return MemoryRequirements{};
     }
 
     bool Device::BindAccelStructMemory(RT::IAccelStruct* as, IHeap* heap, uint64_t offset)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
-        return BindBufferMemory(accel->GetDataBuffer(), heap, offset);
-    }
-
-    bool Device::GetAccelStructPreBuildInfo(RT::IAccelStruct* as,
-        uint64_t& resultDataSize, uint64_t& scratchDataSize, uint64_t& updateScratchDataSize)
-    {
-        AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
-        const auto& info = accel->GetPrebuildInfo();
-        resultDataSize = info.ResultDataMaxSizeInBytes;
-        scratchDataSize = info.ScratchDataSizeInBytes;
-        updateScratchDataSize = info.UpdateScratchDataSizeInBytes;
-        return true;
-    }
-
-    RT::RayTracingPipelineHandle Device::CreateRayTracingPipeline(const RT::PipelineDesc& desc)
-    {
-        if (!m_RayTracingSupported) {
-            m_Context.Error("Ray tracing is not supported on this device.");
-            return nullptr;
+        if(accel != nullptr){
+            return BindBufferMemory(accel->GetDataBuffer(), heap, offset);
         }
-        RayTracingPipeline* pso = new RayTracingPipeline(m_Context, this);
-        if (!pso->Finalize(desc)) {
-            delete pso;
-            return nullptr;
-        }
-        return RT::RayTracingPipelineHandle{ pso };
-    }
-
-    RT::ShaderTableHandle Device::CreateShaderTable(const RT::ShaderTableDesc& desc)
-    {
-        RayTracingPipeline* pso = Utility::CheckedCast<RayTracingPipeline*>(desc.pipeline.Get());
-        if (pso == nullptr) {
-            m_Context.Error("CreateShaderTable: invalid pipeline.");
-            return nullptr;
-        }
-        ShaderTable* st = new ShaderTable(pso, desc);
-        return RT::ShaderTableHandle{ st };
+        return false;
     }
 
     //////////////////////////////////////////////////////////////////////////
