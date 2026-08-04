@@ -42,6 +42,8 @@ namespace DSM::D3D12 {
     class RootSignature;
     class TimerQuery;
     class Framebuffer;
+    class AccelStruct;
+    class ShaderTableState;
 
     class InternalCommandList
     {
@@ -199,7 +201,7 @@ namespace DSM::D3D12 {
         void ClearStateCache();
 
         void UpdateFramebuffer(Framebuffer* fb);
-        ShaderTableState* GetShaderTableState(RT::IShaderTable* shaderTable);
+        ShaderTableState& GetShaderTableState(RT::IShaderTable* shaderTable);
         void BuildTopLevelAccelStructInternal(AccelStruct* as, GpuVirtualAddress instanceDescsGpuVA, size_t numInstances, RT::AccelStructBuildFlags buildFlags);
 
     private:

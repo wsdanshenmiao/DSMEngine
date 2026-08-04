@@ -14,6 +14,7 @@
 namespace DSM::D3D12 {
 
     class Device;
+    class DeviceResources;
     class RootSignature;
     class CommandList;
 
@@ -30,6 +31,7 @@ namespace DSM::D3D12 {
 
         inline const RT::AccelStructDesc& GetDesc() const override { return m_Desc; }
         inline uint64_t GetDeviceAddress() const override { return dataBuffer != nullptr ? dataBuffer->GetGpuVirtualAddress() : 0; }
+        inline IBuffer* GetDataBuffer() const override { return dataBuffer.Get(); }
 
     public:
         RefPtr<Buffer> dataBuffer{};
@@ -43,6 +45,8 @@ namespace DSM::D3D12 {
 
     class RayTracingPipeline : public RT::IPipeline
     {
+        friend class Device;
+
     public:
         struct ExportEntry
         {
@@ -50,17 +54,21 @@ namespace DSM::D3D12 {
             const void* identifier = nullptr;
         };
 
-        RayTracingPipeline(const Context& context);
+        RayTracingPipeline(const Context& context, Device* device);
         ~RayTracingPipeline() override = default;
 
         const ExportEntry* GetExport(const char* name) const;
         uint32_t GetShaderTableEntrySize() const;
+        inline bool HasLocalResources() const { return m_MaxLocalRootSignatureSize > 0; }
+        inline ID3D12StateObject* GetStateObject() const { return m_PipelineState.Get(); }
+        inline RootSignature* GetGlobalRootSignature() const { return m_GlobalRootSignature.Get(); }
 
         const RT::PipelineDesc& GetDesc() const override { return m_Desc; }
-        RT::ShaderTableHandle CreateShaderTable() override;
+        RT::ShaderTableHandle CreateShaderTable(const RT::ShaderTableDesc& desc) override;
 
     private:
         const Context& m_Context;
+        Device* m_Device = nullptr;
         RT::PipelineDesc m_Desc{};
 
         RefPtr<RootSignature> m_GlobalRootSignature{};
@@ -71,7 +79,16 @@ namespace DSM::D3D12 {
 
         std::unordered_map<std::string, ExportEntry> m_Exports{};
 
-        uint32_t m_MaxLocalRootSize = 0;
+        uint32_t m_MaxLocalRootSignatureSize = 0;
+    };
+
+    class ShaderTableState
+    {
+    public:
+        uint32_t committedVersion = 0;
+        ID3D12DescriptorHeap* descriptorHeapSRV = nullptr;
+        ID3D12DescriptorHeap* descriptorHeapSampler = nullptr;
+        D3D12_DISPATCH_RAYS_DESC dispatchRaysTemplate = {};
     };
 
     class ShaderTable : public RT::IShaderTable
@@ -83,10 +100,16 @@ namespace DSM::D3D12 {
             BindingSetHandle bindings = nullptr;
         };
 
-        ShaderTable(const Context& context, RayTracingPipeline* pipeline);
+        ShaderTable(const Context& context, RayTracingPipeline* pipeline, const RT::ShaderTableDesc& desc);
         ~ShaderTable() override = default;
 
-        uint32_t GetNumEntries() const { return 1 + m_MissShaders.size() + m_HitGroups.size() + m_CallableShaders.size(); }
+        inline size_t GetShaderTableSize() const { return GetNumEntries() * m_Pipeline->GetShaderTableEntrySize(); }
+        bool IsStateValid(const ShaderTableState& state, const DeviceResources& resources) const;
+        void Bake(uint8_t* cpuVA, D3D12_GPU_VIRTUAL_ADDRESS gpuVA, DeviceResources& resources, ShaderTableState& state);
+
+        inline const RT::ShaderTableDesc& GetDesc() const override { return m_Desc; }
+        inline uint32_t GetNumEntries() const override { return 1 + m_MissShaders.size() + m_HitGroups.size() + m_CallableShaders.size(); }
+        inline RT::IPipeline* GetPipeline() const override { return m_Pipeline; }
 
         void SetGenerationShader(const char* exportName, IBindingSet* bindingSet = nullptr) override;
         int AddMissShader(const char* exportName, IBindingSet* bindingSet = nullptr) override;
@@ -96,14 +119,18 @@ namespace DSM::D3D12 {
         void ClearHitGroups() override;
         void ClearCallableShaders() override;
 
-        inline RT::IPipeline* GetPipeline() const override { return m_Pipeline; }
 
     private:
         bool VerifyEntry(const RayTracingPipeline::ExportEntry* exportEntry, IBindingSet* bindingSet) const;
         int AddEntry(const char* exportName, IBindingSet* bindingSet, std::vector<Entry>& entryList);
 
+    public:
+        BufferHandle cache{};
+        ShaderTableState cacheState{};
+
     private:
         const Context& m_Context;
+        const RT::ShaderTableDesc m_Desc{};
         RefPtr<RayTracingPipeline> m_Pipeline{};
 
         Entry m_RayGeneration{};
@@ -112,15 +139,6 @@ namespace DSM::D3D12 {
         std::vector<Entry> m_CallableShaders{};
         
         uint32_t m_Version = 0;
-    };
-
-    class ShaderTableState
-    {
-    public:
-        uint32_t committedVersion = 0;
-        ID3D12DescriptorHeap* descriptorHeapSRV = nullptr;
-        ID3D12DescriptorHeap* descriptorHeapSampler = nullptr;
-        D3D12_DISPATCH_RAYS_DESC dispatchRaysTemplate = {};
     };
 
 } // namespace DSM::D3D12

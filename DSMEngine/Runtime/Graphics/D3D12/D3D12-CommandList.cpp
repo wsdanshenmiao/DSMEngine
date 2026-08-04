@@ -911,10 +911,58 @@ namespace DSM::D3D12{
     //////////////////////////////////////////////////////////////////////////
     void CommandList::SetRayTracingState(const RT::State& state)
     {
-        assert(state.shaderTable != nullptr);
-        ShaderTable* shaderTable = Utility::CheckedCast<ShaderTable*>(state.shaderTable.Get());
+        if (state.shaderTable == nullptr || m_CurrCmdList == nullptr || m_CurrCmdList->cmdList4 == nullptr)
+            return;
+
+        ShaderTable* shaderTable = Utility::CheckedCast<ShaderTable*>(state.shaderTable);
         RayTracingPipeline* pso = Utility::CheckedCast<RayTracingPipeline*>(shaderTable->GetPipeline());
-        assert(pso != nullptr && m_CurrCmdList->cmdList4 != nullptr);
+        auto resources = m_Resources.lock();
+        if (shaderTable == nullptr || pso == nullptr || resources == nullptr)
+            return;
+
+        const bool shaderTableCached = shaderTable->GetDesc().isCached;
+        ShaderTableState& shaderTableState = GetShaderTableState(shaderTable);
+        const bool rebuildShaderTable = !shaderTable->IsStateValid(shaderTableState, *resources);
+
+        if (rebuildShaderTable) {
+            const size_t shaderTableSize = shaderTable->GetShaderTableSize();
+
+            if (shaderTableCached && (shaderTable->cache == nullptr || shaderTable->cache->GetDesc().byteSize < shaderTableSize)) {
+                m_Device.GetContext().Error("Required shader table size is larger than the allocated cache. Increase ShaderTableDesc::maxEntries.");
+                return;
+            }
+
+            const auto upload = AllocateUploadBuffer(shaderTableSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+            if (upload.resource == nullptr || upload.mappedAddress == nullptr)
+            {
+                m_Device.GetContext().Error("Couldn't allocate an upload buffer for the shader table");
+                return;
+            }
+
+            const D3D12_GPU_VIRTUAL_ADDRESS shaderTableGpuAddress = shaderTableCached
+                ? shaderTable->cache->GetGpuVirtualAddress()
+                : upload.gpuAddress;
+            shaderTable->Bake(static_cast<uint8_t*>(upload.mappedAddress), shaderTableGpuAddress, *resources, shaderTableState);
+
+            if (shaderTableCached)
+            {
+                SetBufferState(shaderTable->cache.Get(), ResourceStates::CopyDest);
+                CommitBarriers();
+
+                auto* cacheBuffer = Utility::CheckedCast<Buffer*>(shaderTable->cache.Get());
+                m_CurrCmdList->cmdList->CopyBufferRegion(cacheBuffer->resource.Get(), 0, upload.resource, upload.offset, shaderTableSize);
+            }
+        }
+
+        if (shaderTableCached)
+        {
+            SetBufferState(shaderTable->cache.Get(), ResourceStates::ShaderResource);
+        }
+
+        if (shaderTableCached || rebuildShaderTable)
+        {
+            m_Instance->refResources.push_back(shaderTable);
+        }
 
         // 设置光线追踪状态对象（StateObject1）
         m_CurrCmdList->cmdList4->SetPipelineState1(pso->GetStateObject());
@@ -957,12 +1005,9 @@ namespace DSM::D3D12{
             return;
         }
 
-        ShaderTableState* shaderTableState = GetShaderTableState(m_CurrRayTracingState.shaderTable);
-        if(shaderTableState == nullptr) {
-            return;
-        }
+        ShaderTableState& shaderTableState = GetShaderTableState(m_CurrRayTracingState.shaderTable);
 
-        auto desc = shaderTableState->dispatchRaysTemplate;
+        auto desc = shaderTableState.dispatchRaysTemplate;
         desc.Width = args.width;
         desc.Height = args.height;
         desc.Depth = args.depth;
@@ -989,15 +1034,19 @@ namespace DSM::D3D12{
             if(geom.geometryType == RT::GeometryType::Triangles){
                 const auto& triangle = geom.geometryData.triangles;
                 if(m_EnableAutomaticBarriers){
-                    m_StateTracker.RequireBufferState(triangle.vertexBuffer, ResourceStates::AccelStructBuildInput);
-                    m_StateTracker.RequireBufferState(triangle.indexBuffer, ResourceStates::AccelStructBuildInput);
+                    if (triangle.vertexBuffer != nullptr) {
+                        m_StateTracker.RequireBufferState(triangle.vertexBuffer, ResourceStates::AccelStructBuildInput);
+                    }
+                    if (triangle.indexBuffer != nullptr) {
+                        m_StateTracker.RequireBufferState(triangle.indexBuffer, ResourceStates::AccelStructBuildInput);
+                    }
                 }
 
                 if(m_Instance != nullptr){
                     if(triangle.vertexBuffer != nullptr)
-                        m_Instance->refBuffer.push_back(triangle.vertexBuffer);
+                        m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(triangle.vertexBuffer));
                     if(triangle.indexBuffer != nullptr)
-                        m_Instance->refBuffer.push_back(triangle.indexBuffer);
+                        m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(triangle.indexBuffer));
                 }
             }
             else if(geom.geometryType == RT::GeometryType::AABBs){
@@ -1007,7 +1056,7 @@ namespace DSM::D3D12{
                 }
 
                 if(m_Instance != nullptr && aabb.buffer != nullptr){
-                    m_Instance->refBuffer.push_back(aabb.buffer);
+                    m_Instance->refBuffer.push_back(Utility::CheckedCast<Buffer*>(aabb.buffer));
                 }
             }
         }
@@ -1063,7 +1112,7 @@ namespace DSM::D3D12{
         m_CurrCmdList->cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
 
         if(accel->GetDesc().trackLiveness){
-            m_Instance->refBuffer.push_back(accel);
+            m_Instance->refResources.push_back(accel);
         }
     }
 
@@ -1406,7 +1455,11 @@ namespace DSM::D3D12{
                 d3dbarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
                 barriers.push_back(std::move(d3dbarrier));
             }
-            else if(HasFlags(afterState, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)){
+            else if((barrier.stateBefore == ResourceStates::AccelStructWrite
+                    && HasFlags(barrier.stateAfter, ResourceStates::AccelStructRead | ResourceStates::AccelStructBuildBlas))
+                || (barrier.stateAfter == ResourceStates::AccelStructWrite
+                    && HasFlags(barrier.stateBefore, ResourceStates::AccelStructRead | ResourceStates::AccelStructBuildBlas))
+                || HasFlags(afterState, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)){
                 d3dbarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
                 d3dbarrier.UAV.pResource = buffer->resource.Get();
                 barriers.push_back(std::move(d3dbarrier));
@@ -1579,6 +1632,7 @@ namespace DSM::D3D12{
         m_CurrSamplerHeap = nullptr;
         m_GraphicsVolatileBuffers.resize(0);
         m_ComputeVolatileBuffers.resize(0);
+        m_ShaderTableStates.clear();
     }
 
     void CommandList::UpdateFramebuffer(Framebuffer *framebuffer)
@@ -1606,15 +1660,19 @@ namespace DSM::D3D12{
         m_Instance->refResources.push_back(framebuffer);
     }
     
-    ShaderTableState *CommandList::GetShaderTableState(RT::IShaderTable *shaderTable)
+    ShaderTableState& CommandList::GetShaderTableState(RT::IShaderTable *shaderTable)
     {
+        auto* d3dShaderTable = Utility::CheckedCast<ShaderTable*>(shaderTable);
+        if (d3dShaderTable->GetDesc().isCached)
+            return d3dShaderTable->cacheState;
+
         if(auto it = m_ShaderTableStates.find(shaderTable); it != m_ShaderTableStates.end()){
-            return it->second.get();
+            return *it->second;
         }
 
         m_ShaderTableStates[shaderTable] = std::make_unique<ShaderTableState>();
 
-        return m_ShaderTableStates[shaderTable].get();
+        return *m_ShaderTableStates[shaderTable];
     }
     
     void CommandList::BuildTopLevelAccelStructInternal(AccelStruct *accel, GpuVirtualAddress instanceDescsGpuVA, size_t numInstances, RT::AccelStructBuildFlags buildFlags)
@@ -1660,7 +1718,7 @@ namespace DSM::D3D12{
         m_CurrCmdList->cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
 
         if(accel->GetDesc().trackLiveness){
-            m_Instance->refBuffer.push_back(accel);
+            m_Instance->refResources.push_back(accel);
         }
     }
 }

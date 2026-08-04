@@ -387,7 +387,7 @@ namespace DSM::D3D12{
     {
         D3D12_HEAP_DESC heapDesc{};
         heapDesc.SizeInBytes = d.capacity;
-        heapDesc.Alignment = D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT;
+        heapDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
         heapDesc.Properties.VisibleNodeMask = 1;
         heapDesc.Properties.CreationNodeMask = 1;
         
@@ -1222,8 +1222,319 @@ namespace DSM::D3D12{
 
     RT::PipelineHandle Device::CreateRayTracingPipeline(const RT::PipelineDesc &desc)
     {
-        // TODO: implement ray tracing pipeline creation
-        return RT::PipelineHandle();
+        if (m_Context.device5 == nullptr)
+        {
+            m_Context.Error("Ray tracing pipeline creation requires ID3D12Device5");
+            return nullptr;
+        }
+
+        auto* pipeline = new RayTracingPipeline(m_Context, this);
+        pipeline->m_Desc = desc;
+
+        struct Library
+        {
+            const void* bytecode = nullptr;
+            size_t bytecodeSize = 0;
+            std::vector<std::pair<std::wstring, std::wstring>> exports;
+            std::vector<D3D12_EXPORT_DESC> d3dExports;
+        };
+
+        std::unordered_map<const void*, Library> libraries;
+        for (const auto& shaderDesc : desc.shaders)
+        {
+            if (shaderDesc.shader == nullptr)
+            {
+                m_Context.Error("Ray tracing pipeline contains a null shader");
+                delete pipeline;
+                return nullptr;
+            }
+
+            const void* bytecode = nullptr;
+            size_t bytecodeSize = 0;
+            shaderDesc.shader->GetBytecode(&bytecode, &bytecodeSize);
+            if (bytecode == nullptr || bytecodeSize == 0)
+            {
+                m_Context.Error("Ray tracing shader has empty DXIL bytecode");
+                delete pipeline;
+                return nullptr;
+            }
+
+            auto& library = libraries[bytecode];
+            library.bytecode = bytecode;
+            library.bytecodeSize = bytecodeSize;
+
+            const auto& shaderName = shaderDesc.shader->GetDesc().entryName;
+            const auto& exportName = shaderDesc.exportName.empty() ? shaderName : shaderDesc.exportName;
+            library.exports.emplace_back(
+                std::wstring(shaderName.begin(), shaderName.end()),
+                std::wstring(exportName.begin(), exportName.end()));
+
+            if (shaderDesc.bindingLayout != nullptr)
+            {
+                auto* layout = shaderDesc.bindingLayout.Get();
+                if (!pipeline->m_LocalRootSignatures.contains(layout))
+                {
+                    BindingLayoutVector layouts{};
+                    layouts.push_back(shaderDesc.bindingLayout);
+                    auto rootSignature = BuildRootSignature(layouts, false, true);
+                    if (rootSignature == nullptr)
+                    {
+                        delete pipeline;
+                        return nullptr;
+                    }
+
+                    pipeline->m_LocalRootSignatures[layout] = Utility::CheckedCast<RootSignature*>(rootSignature.Get());
+                    auto* d3dLayout = Utility::CheckedCast<BindingLayout*>(layout);
+                    pipeline->m_MaxLocalRootSignatureSize = std::max(
+                        pipeline->m_MaxLocalRootSignatureSize,
+                        static_cast<uint32_t>(d3dLayout->rootParameters.size()));
+                }
+            }
+        }
+
+        std::vector<D3D12_HIT_GROUP_DESC> hitGroups;
+        std::vector<std::wstring> hitGroupExportNames;
+        std::vector<std::wstring> closestHitNames;
+        std::vector<std::wstring> anyHitNames;
+        std::vector<std::wstring> intersectionNames;
+        hitGroups.reserve(desc.hitGroups.size());
+        hitGroupExportNames.reserve(desc.hitGroups.size());
+        closestHitNames.reserve(desc.hitGroups.size());
+        anyHitNames.reserve(desc.hitGroups.size());
+        intersectionNames.reserve(desc.hitGroups.size());
+        for (const auto& hitGroupDesc : desc.hitGroups)
+        {
+            if (hitGroupDesc.exportName.empty())
+            {
+                m_Context.Error("Ray tracing hit group requires an export name");
+                delete pipeline;
+                return nullptr;
+            }
+
+            D3D12_HIT_GROUP_DESC d3dHitGroup{};
+            closestHitNames.emplace_back(hitGroupDesc.closestHitShader.begin(), hitGroupDesc.closestHitShader.end());
+            anyHitNames.emplace_back(hitGroupDesc.anyHitShader.begin(), hitGroupDesc.anyHitShader.end());
+            intersectionNames.emplace_back(hitGroupDesc.intersectionShader.begin(), hitGroupDesc.intersectionShader.end());
+            d3dHitGroup.ClosestHitShaderImport = closestHitNames.back().empty() ? nullptr : closestHitNames.back().c_str();
+            d3dHitGroup.AnyHitShaderImport = anyHitNames.back().empty() ? nullptr : anyHitNames.back().c_str();
+            d3dHitGroup.IntersectionShaderImport = intersectionNames.back().empty() ? nullptr : intersectionNames.back().c_str();
+            d3dHitGroup.Type = hitGroupDesc.isProceduralPrimitive
+                ? D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE
+                : D3D12_HIT_GROUP_TYPE_TRIANGLES;
+            hitGroupExportNames.emplace_back(hitGroupDesc.exportName.begin(), hitGroupDesc.exportName.end());
+            d3dHitGroup.HitGroupExport = hitGroupExportNames.back().c_str();
+            hitGroups.push_back(d3dHitGroup);
+
+            if (hitGroupDesc.bindingLayout != nullptr)
+            {
+                auto* layout = hitGroupDesc.bindingLayout.Get();
+                if (!pipeline->m_LocalRootSignatures.contains(layout))
+                {
+                    BindingLayoutVector layouts{};
+                    layouts.push_back(hitGroupDesc.bindingLayout);
+                    auto rootSignature = BuildRootSignature(layouts, false, true);
+                    if (rootSignature == nullptr)
+                    {
+                        delete pipeline;
+                        return nullptr;
+                    }
+
+                    pipeline->m_LocalRootSignatures[layout] = Utility::CheckedCast<RootSignature*>(rootSignature.Get());
+                    auto* d3dLayout = Utility::CheckedCast<BindingLayout*>(layout);
+                    pipeline->m_MaxLocalRootSignatureSize = std::max(
+                        pipeline->m_MaxLocalRootSignatureSize,
+                        static_cast<uint32_t>(d3dLayout->rootParameters.size()));
+                }
+            }
+        }
+
+        std::vector<D3D12_DXIL_LIBRARY_DESC> dxilLibraries;
+        dxilLibraries.reserve(libraries.size());
+        for (auto& [_, library] : libraries)
+        {
+            bool requiresRenaming = false;
+            for (const auto& [originalName, exportName] : library.exports)
+            {
+                if (originalName != exportName)
+                {
+                    requiresRenaming = true;
+                    break;
+                }
+            }
+            if (requiresRenaming)
+            {
+                for (const auto& [originalName, exportName] : library.exports)
+                {
+                    D3D12_EXPORT_DESC d3dExport{};
+                    d3dExport.ExportToRename = originalName.c_str();
+                    d3dExport.Name = exportName.c_str();
+                    library.d3dExports.push_back(d3dExport);
+                }
+            }
+
+            D3D12_DXIL_LIBRARY_DESC d3dLibrary{};
+            d3dLibrary.DXILLibrary.pShaderBytecode = library.bytecode;
+            d3dLibrary.DXILLibrary.BytecodeLength = library.bytecodeSize;
+            d3dLibrary.NumExports = static_cast<UINT>(library.d3dExports.size());
+            d3dLibrary.pExports = library.d3dExports.empty() ? nullptr : library.d3dExports.data();
+            dxilLibraries.push_back(d3dLibrary);
+        }
+
+        D3D12_RAYTRACING_SHADER_CONFIG shaderConfig{};
+        shaderConfig.MaxAttributeSizeInBytes = desc.maxAttributeSize;
+        shaderConfig.MaxPayloadSizeInBytes = desc.maxPayloadSize;
+        D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig{};
+        pipelineConfig.MaxTraceRecursionDepth = desc.maxRecursionDepth;
+
+        D3D12_GLOBAL_ROOT_SIGNATURE globalRootSignature{};
+        if (desc.globalBindingLayout != nullptr)
+        {
+            BindingLayoutVector layouts{};
+            layouts.push_back(desc.globalBindingLayout);
+            auto rootSignature = GetRootSignature(layouts, false);
+            if (rootSignature == nullptr)
+            {
+                delete pipeline;
+                return nullptr;
+            }
+
+            pipeline->m_GlobalRootSignature = rootSignature;
+            globalRootSignature.pGlobalRootSignature = rootSignature->rootSignature.Get();
+        }
+
+        std::vector<D3D12_STATE_SUBOBJECT> stateSubobjects;
+        stateSubobjects.reserve(2 + dxilLibraries.size() + hitGroups.size()
+            + (globalRootSignature.pGlobalRootSignature != nullptr ? 1 : 0)
+            + pipeline->m_LocalRootSignatures.size() * 2);
+        const auto addSubobject = [&stateSubobjects](D3D12_STATE_SUBOBJECT_TYPE type, const void* desc)
+        {
+            D3D12_STATE_SUBOBJECT subobject{};
+            subobject.Type = type;
+            subobject.pDesc = desc;
+            stateSubobjects.push_back(subobject);
+        };
+
+        addSubobject(D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG, &shaderConfig);
+        addSubobject(D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG, &pipelineConfig);
+        for (const auto& library : dxilLibraries)
+            addSubobject(D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY, &library);
+        for (const auto& hitGroup : hitGroups)
+            addSubobject(D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP, &hitGroup);
+        if (globalRootSignature.pGlobalRootSignature != nullptr)
+            addSubobject(D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE, &globalRootSignature);
+
+        std::vector<D3D12_LOCAL_ROOT_SIGNATURE> localRootSignatures;
+        std::vector<D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION> associations;
+        localRootSignatures.reserve(pipeline->m_LocalRootSignatures.size());
+        associations.reserve(pipeline->m_LocalRootSignatures.size());
+        std::vector<std::wstring> associationExports;
+        std::vector<LPCWSTR> associationExportPointers;
+        associationExports.reserve(desc.shaders.size() + desc.hitGroups.size());
+        associationExportPointers.reserve(desc.shaders.size() + desc.hitGroups.size());
+
+        for (const auto& [bindingLayout, rootSignature] : pipeline->m_LocalRootSignatures)
+        {
+            auto& localRootSignature = localRootSignatures.emplace_back();
+            localRootSignature.pLocalRootSignature = rootSignature->rootSignature.Get();
+            addSubobject(D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE, &localRootSignature);
+
+            auto& association = associations.emplace_back();
+            association.pSubobjectToAssociate = &stateSubobjects.back();
+            const size_t firstExport = associationExportPointers.size();
+            for (const auto& shaderDesc : desc.shaders)
+            {
+                if (shaderDesc.bindingLayout.Get() == bindingLayout)
+                {
+                    const auto& shaderName = shaderDesc.shader->GetDesc().entryName;
+                    const auto& exportName = shaderDesc.exportName.empty() ? shaderName : shaderDesc.exportName;
+                    associationExports.emplace_back(exportName.begin(), exportName.end());
+                    associationExportPointers.push_back(associationExports.back().c_str());
+                    ++association.NumExports;
+                }
+            }
+            for (const auto& hitGroupDesc : desc.hitGroups)
+            {
+                if (hitGroupDesc.bindingLayout.Get() == bindingLayout)
+                {
+                    associationExports.emplace_back(hitGroupDesc.exportName.begin(), hitGroupDesc.exportName.end());
+                    associationExportPointers.push_back(associationExports.back().c_str());
+                    ++association.NumExports;
+                }
+            }
+            association.pExports = associationExportPointers.data() + firstExport;
+            addSubobject(D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION, &association);
+        }
+
+        if (desc.hlslExtensionsUAV >= 0)
+        {
+            m_Context.Error("HLSL extensions UAVs are not supported by the D3D12 backend");
+            delete pipeline;
+            return nullptr;
+        }
+
+        D3D12_STATE_OBJECT_DESC stateObjectDesc{};
+        stateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
+        stateObjectDesc.NumSubobjects = static_cast<UINT>(stateSubobjects.size());
+        stateObjectDesc.pSubobjects = stateSubobjects.data();
+
+        auto hr = m_Context.device5->CreateStateObject(
+            &stateObjectDesc, IID_PPV_ARGS(pipeline->m_PipelineState.GetAddressOf()));
+        if (FAILED(hr))
+        {
+            m_Context.Error(std::format("Failed to create a DXR pipeline state object: {}", GetHRErrorMessage(hr)));
+            delete pipeline;
+            return nullptr;
+        }
+
+        hr = pipeline->m_PipelineState->QueryInterface(IID_PPV_ARGS(pipeline->m_StateObjectInfo.GetAddressOf()));
+        if (FAILED(hr))
+        {
+            m_Context.Error(std::format("Failed to query DXR pipeline state properties: {}", GetHRErrorMessage(hr)));
+            delete pipeline;
+            return nullptr;
+        }
+
+        for (const auto& shaderDesc : desc.shaders)
+        {
+            const auto& shaderName = shaderDesc.shader->GetDesc().entryName;
+            const auto& exportName = shaderDesc.exportName.empty() ? shaderName : shaderDesc.exportName;
+            const auto shaderType = shaderDesc.shader->GetDesc().shaderType;
+            if (shaderType == ShaderType::ClosestHit
+                || shaderType == ShaderType::AnyHit
+                || shaderType == ShaderType::Intersection)
+            {
+                continue;
+            }
+
+            std::wstring exportNameWide(exportName.begin(), exportName.end());
+            const void* identifier = pipeline->m_StateObjectInfo->GetShaderIdentifier(exportNameWide.c_str());
+            if (identifier == nullptr)
+            {
+                m_Context.Error(std::format("Failed to get the DXR shader identifier for export '{}'", exportName));
+                delete pipeline;
+                return nullptr;
+            }
+
+            pipeline->m_Exports[exportName] = RayTracingPipeline::ExportEntry{
+                shaderDesc.bindingLayout.Get(), identifier };
+        }
+
+        for (const auto& hitGroupDesc : desc.hitGroups)
+        {
+            std::wstring exportNameWide(hitGroupDesc.exportName.begin(), hitGroupDesc.exportName.end());
+            const void* identifier = pipeline->m_StateObjectInfo->GetShaderIdentifier(exportNameWide.c_str());
+            if (identifier == nullptr)
+            {
+                m_Context.Error(std::format("Failed to get the DXR hit-group identifier for export '{}'", hitGroupDesc.exportName));
+                delete pipeline;
+                return nullptr;
+            }
+
+            pipeline->m_Exports[hitGroupDesc.exportName] = RayTracingPipeline::ExportEntry{
+                hitGroupDesc.bindingLayout.Get(), identifier };
+        }
+
+        return RT::PipelineHandle(pipeline);
     }
 
     //////////////////////////////////////////////////////////////////////////

@@ -39,11 +39,23 @@ namespace DSM {
 
             for(auto it = m_FreeList.begin(); it != m_FreeList.end();){
                 if(auto [start, rangeSize] = *it; size <= rangeSize){
-                    it = m_FreeList.erase(it);
-                    if(size < rangeSize){   //插入后不破坏有序性
-                        it = m_FreeList.emplace(it, start + size, rangeSize - size);
+                    const uint64_t alignedStart = Math::Align(start, uint64_t(alignment));
+                    const uint64_t prefixSize = alignedStart - start;
+                    if (prefixSize > rangeSize || size > rangeSize - prefixSize) {
+                        ++it;
+                        continue;
                     }
-                    return start;
+
+                    const uint64_t rangeEnd = start + rangeSize;
+                    const uint64_t allocationEnd = alignedStart + size;
+                    auto next = m_FreeList.erase(it);
+                    if (prefixSize > 0) {
+                        m_FreeList.emplace(next, start, prefixSize);
+                    }
+                    if (allocationEnd < rangeEnd) {
+                        m_FreeList.emplace(next, allocationEnd, rangeEnd - allocationEnd);
+                    }
+                    return alignedStart;
                 }
                 else{
                     ++it;

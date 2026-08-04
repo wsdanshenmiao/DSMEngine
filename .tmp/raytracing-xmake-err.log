@@ -1,0 +1,1 @@
+Assertion failed: buffer != nullptr, file DSMEngine\Runtime\Graphics\StateTracking.cpp, line 248

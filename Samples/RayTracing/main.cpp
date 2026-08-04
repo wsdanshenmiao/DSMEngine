@@ -152,7 +152,7 @@ int main()
     SampleMessageCallback callback;
     D3D12::DeviceDesc deviceDesc{};
     deviceDesc.errorCB = &callback;
-    deviceDesc.enableDebugLayer = true;
+    deviceDesc.enableDebugLayer = false;
 
     D3D12::DeviceHandle device = D3D12::CreateDevice(deviceDesc);
     if (!device) {
@@ -190,6 +190,9 @@ int main()
         std::cerr << "创建着色器库失败。\n";
         return 1;
     }
+    ShaderHandle rayGenerationShader = shaderLib->GetShader("RayGen", ShaderType::RayGeneration);
+    ShaderHandle missShader = shaderLib->GetShader("Miss", ShaderType::Miss);
+    ShaderHandle closestHitShader = shaderLib->GetShader("ClosestHit", ShaderType::ClosestHit);
 
     // 三角形顶点（位于 z=0 平面）
     struct Vertex { float x, y, z; };
@@ -247,15 +250,17 @@ int main()
 
     // 1) 构建 BLAS
     RT::AccelStructDesc blasDesc{};
-    blasDesc.isTopLevel = false;
-    RT::GeometryDesc geo{};
-    geo.vertexBuffer = vtxBuffer.Get();
-    geo.vertexStride = sizeof(Vertex);
-    geo.vertexCount = 3;
-    geo.vertexFormat = Format::RGB32_FLOAT;
-    geo.isOpaque = true;
-    blasDesc.geometries.push_back(geo);
-    blasDesc.debugName = "TriangleBLAS";
+    RT::GeometryTriangles triangles{};
+    triangles.SetVertexBuffer(vtxBuffer.Get())
+        .SetVertexStride(sizeof(Vertex))
+        .SetVertexCount(3)
+        .SetVertexFormat(Format::RGB32_FLOAT);
+    RT::GeometryDesc geometry{};
+    geometry.SetTriangles(triangles).SetFlags(RT::GeometryFlags::Opaque);
+    blasDesc.SetIsTopLevel(false)
+        .SetIsVirtual(true)
+        .AddBottomLevelGeometry(geometry)
+        .SetDebugName("TriangleBLAS");
 
     RT::AccelStructHandle blas = device->CreateAccelStruct(blasDesc);
     if (!blas) {
@@ -277,9 +282,10 @@ int main()
 
     // 2) 构建 TLAS（单实例引用 BLAS）
     RT::AccelStructDesc tlasDesc{};
-    tlasDesc.isTopLevel = true;
-    tlasDesc.instanceCount = 1;
-    tlasDesc.debugName = "SceneTLAS";
+    tlasDesc.SetIsTopLevel(true)
+        .SetTopLevelMaxInstances(1)
+        .SetIsVirtual(true)
+        .SetDebugName("SceneTLAS");
 
     RT::AccelStructHandle tlas = device->CreateAccelStruct(tlasDesc);
     if (!tlas) {
@@ -300,37 +306,39 @@ int main()
     }
 
     RT::InstanceDesc instance{};
-    instance.bottomLevelAS = blas; // 单位变换（默认 identity）
+    instance.SetBottomLevelAS(blas.Get())
+        .SetInstanceMask(0xFF); // 单位变换（默认 identity）
 
     // 3) 创建光线追踪管线
     RT::PipelineDesc pipeDesc{};
-    pipeDesc.shaders.push_back({ shaderLib.Get(), "RayGen" });
-    pipeDesc.shaders.push_back({ shaderLib.Get(), "Miss" });
-    pipeDesc.shaders.push_back({ shaderLib.Get(), "ClosestHit" });
-    pipeDesc.hitGroups.push_back({ "MyHitGroup", "ClosestHit", "", "" });
+    pipeDesc.shaders.push_back(RT::PipelineShaderDesc{}
+        .SetExportName("RayGen").SetShader(rayGenerationShader.Get()));
+    pipeDesc.shaders.push_back(RT::PipelineShaderDesc{}
+        .SetExportName("Miss").SetShader(missShader.Get()));
+    pipeDesc.shaders.push_back(RT::PipelineShaderDesc{}
+        .SetExportName("ClosestHit").SetShader(closestHitShader.Get()));
+    pipeDesc.hitGroups.push_back(RT::PipelineHitGroupDesc{}
+        .SetExportName("MyHitGroup").SetClosestHitShader("ClosestHit"));
     pipeDesc.maxRecursionDepth = 1;
     pipeDesc.maxPayloadSize = sizeof(float) * 3;   // RayPayload.color
     pipeDesc.maxAttributeSize = sizeof(float) * 2; // barycentrics
-    pipeDesc.globalBindingLayouts.push_back(layout.Get());
+    pipeDesc.globalBindingLayout = layout;
 
-    RT::RayTracingPipelineHandle pipeline = device->CreateRayTracingPipeline(pipeDesc);
+    RT::PipelineHandle pipeline = device->CreateRayTracingPipeline(pipeDesc);
     if (!pipeline) {
         std::cerr << "创建光线追踪管线失败。\n";
         return 1;
     }
 
     // 4) 创建着色器表
-    RT::ShaderTableDesc stDesc{};
-    stDesc.pipeline = pipeline;
-    stDesc.rayGenerationShader = "RayGen";
-    stDesc.missShaders.push_back("Miss");
-    stDesc.hitGroups.push_back("MyHitGroup");
-
-    RT::ShaderTableHandle shaderTable = device->CreateShaderTable(stDesc);
+    RT::ShaderTableHandle shaderTable = pipeline->CreateShaderTable();
     if (!shaderTable) {
         std::cerr << "创建着色器表失败。\n";
         return 1;
     }
+    shaderTable->SetGenerationShader("RayGen");
+    shaderTable->AddMissShader("Miss");
+    shaderTable->AddHitGroup("MyHitGroup");
 
     // 5) 创建绑定集合（TLAS + 输出缓冲）
     BindingSetDesc setDesc{};
@@ -352,12 +360,12 @@ int main()
     cmdList->SetBufferState(vtxBuffer.Get(), ResourceStates::AccelStructBuildInput);
     cmdList->CommitBarriers();
 
-    cmdList->BuildBottomLevelAccelStruct(
-        blas.Get(), blasDesc.geometries.data(), blasDesc.geometries.size(), blasDesc.buildFlags);
-    cmdList->BuildTopLevelAccelStruct(tlas.Get(), &instance, 1, tlasDesc.buildFlags);
+    cmdList->BuildBottomLevelAccelStruct(blas.Get(), blasDesc.buildFlags);
+    const std::array instances{ instance };
+    cmdList->BuildTopLevelAccelStruct(tlas.Get(), instances, tlasDesc.buildFlags);
 
     RT::State rtState{};
-    rtState.shaderTable = shaderTable;
+    rtState.shaderTable = shaderTable.Get();
     rtState.bindingSets.push_back(bindingSet.Get());
     cmdList->SetRayTracingState(rtState);
     cmdList->DispatchRays({ width, height, 1 });

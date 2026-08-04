@@ -176,6 +176,7 @@ namespace DSM {
         public:
             [[nodiscard]] virtual const AccelStructDesc& GetDesc() const = 0;
             [[nodiscard]] virtual uint64_t GetDeviceAddress() const = 0;
+            [[nodiscard]] virtual IBuffer* GetDataBuffer() const = 0;
         };
         using AccelStructHandle = RefPtr<IAccelStruct>;
 
@@ -219,9 +220,24 @@ namespace DSM {
             int32_t hlslExtensionsUAV = -1;
         };
 
+        struct ShaderTableDesc
+        {
+            bool isCached = false;
+            uint32_t maxEntries = 0;
+            std::string debugName{};
+
+            ShaderTableDesc& SetIsCached(bool cache) { isCached = cache; return *this; }
+            ShaderTableDesc& SetMaxEntries(uint32_t entries) { maxEntries = entries; return *this; }
+            ShaderTableDesc& SetDebugName(const std::string& name) { debugName = name; return *this; }
+            ShaderTableDesc& EnableCaching(uint32_t maxEntries) { isCached = true; this->maxEntries = maxEntries; return *this; }
+        };
+
         class IShaderTable : public IResource
         {
         public:
+            virtual const ShaderTableDesc& GetDesc() const = 0;
+            virtual uint32_t GetNumEntries() const = 0;
+            virtual IPipeline* GetPipeline() const = 0;
             virtual void SetGenerationShader(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
             virtual int AddMissShader(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
             virtual int AddHitGroup(const char* exportName, IBindingSet* bindingSet = nullptr) = 0;
@@ -229,7 +245,6 @@ namespace DSM {
             virtual void ClearMissShaders() = 0;
             virtual void ClearHitGroups() = 0;
             virtual void ClearCallableShaders() = 0;
-            virtual IPipeline* GetPipeline() const = 0;    
         };
         using ShaderTableHandle = RefPtr<IShaderTable>;
 
@@ -237,7 +252,7 @@ namespace DSM {
         {
         public:
             [[nodiscard]] virtual const PipelineDesc& GetDesc() const = 0;
-            virtual ShaderTableHandle CreateShaderTable() = 0;
+            virtual ShaderTableHandle CreateShaderTable(const ShaderTableDesc& desc = {}) = 0;
         };
         using PipelineHandle = RefPtr<IPipeline>;
 
