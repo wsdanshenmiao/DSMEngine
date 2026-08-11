@@ -922,8 +922,8 @@ namespace DSM::D3D12{
 
         const bool shaderTableCached = shaderTable->GetDesc().isCached;
         ShaderTableState& shaderTableState = GetShaderTableState(shaderTable);
+        // 判断当前 shader table 是否需要重新构建
         const bool rebuildShaderTable = !shaderTable->IsStateValid(shaderTableState, *resources);
-
         if (rebuildShaderTable) {
             const size_t shaderTableSize = shaderTable->GetShaderTableSize();
 

@@ -318,11 +318,11 @@ int main()
     pipeDesc.shaders.push_back(RT::PipelineShaderDesc{}
         .SetExportName("ClosestHit").SetShader(closestHitShader.Get()));
     pipeDesc.hitGroups.push_back(RT::PipelineHitGroupDesc{}
-        .SetExportName("MyHitGroup").SetClosestHitShader("ClosestHit"));
+        .SetExportName("MyHitGroup").SetClosestHitShader(closestHitShader));
     pipeDesc.maxRecursionDepth = 1;
     pipeDesc.maxPayloadSize = sizeof(float) * 3;   // RayPayload.color
     pipeDesc.maxAttributeSize = sizeof(float) * 2; // barycentrics
-    pipeDesc.globalBindingLayout = layout;
+    pipeDesc.globalBindingLayout = BindingLayoutVector{ layout.Get() };
 
     RT::PipelineHandle pipeline = device->CreateRayTracingPipeline(pipeDesc);
     if (!pipeline) {

@@ -67,6 +67,10 @@ namespace DSM::D3D12{
             break;
         }
         }
+
+        if(desc.isAccelStructStorage){
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
+        }
         
         // Allow readback buffers to be used as resolve destination targets
         if ((desc.cpuAccess == CpuAccessMode::Read) && (desc.initialState == ResourceStates::ResolveDest)) {

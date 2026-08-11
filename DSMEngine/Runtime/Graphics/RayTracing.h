@@ -195,16 +195,16 @@ namespace DSM {
         struct PipelineHitGroupDesc
         {
             std::string exportName{};
-            std::string closestHitShader{};
-            std::string anyHitShader{};
-            std::string intersectionShader{};
+            ShaderHandle closestHitShader = nullptr;
+            ShaderHandle anyHitShader = nullptr;
+            ShaderHandle intersectionShader = nullptr;
             BindingLayoutHandle bindingLayout = nullptr;
             bool isProceduralPrimitive = false;
 
             PipelineHitGroupDesc& SetExportName(const std::string& name) { exportName = name; return *this; }
-            PipelineHitGroupDesc& SetClosestHitShader(const std::string& name) { closestHitShader = name; return *this; }
-            PipelineHitGroupDesc& SetAnyHitShader(const std::string& name) { anyHitShader = name; return *this; }
-            PipelineHitGroupDesc& SetIntersectionShader(const std::string& name) { intersectionShader = name; return *this; }
+            PipelineHitGroupDesc& SetClosestHitShader(ShaderHandle shader) { closestHitShader = shader; return *this; }
+            PipelineHitGroupDesc& SetAnyHitShader(ShaderHandle shader) { anyHitShader = shader; return *this; }
+            PipelineHitGroupDesc& SetIntersectionShader(ShaderHandle shader) { intersectionShader = shader; return *this; }
             PipelineHitGroupDesc& SetBindingLayout(IBindingLayout* layout) { bindingLayout = layout; return *this; }
             PipelineHitGroupDesc& SetIsProceduralPrimitive(bool isProcedural) { isProceduralPrimitive = isProcedural; return *this; }
         };
@@ -213,11 +213,20 @@ namespace DSM {
         {
             std::vector<PipelineShaderDesc> shaders{};
             std::vector<PipelineHitGroupDesc> hitGroups{};
-            BindingLayoutHandle globalBindingLayout = nullptr;
+            BindingLayoutVector globalBindingLayout{};
             uint32_t maxPayloadSize = 0;
             uint32_t maxAttributeSize = 0;
+            // 最大递归深度
             uint32_t maxRecursionDepth = 1;
             int32_t hlslExtensionsUAV = -1;
+
+            PipelineDesc& AddShader(const PipelineShaderDesc& shader) { shaders.push_back(shader); return *this; }
+            PipelineDesc& AddHitGroup(const PipelineHitGroupDesc& hitGroup) { hitGroups.push_back(hitGroup); return *this; }
+            PipelineDesc& AddBindingLayout(IBindingLayout* layout) { globalBindingLayout.push_back(layout); return *this; }
+            PipelineDesc& SetMaxPayloadSize(uint32_t size) { maxPayloadSize = size; return *this; }
+            PipelineDesc& SetMaxAttributeSize(uint32_t size) { maxAttributeSize = size; return *this; }
+            PipelineDesc& SetMaxRecursionDepth(uint32_t depth) { maxRecursionDepth = depth; return *this; }
+            PipelineDesc& SetHLSLExtensionsUAV(int32_t uav) { hlslExtensionsUAV = uav; return *this; }
         };
 
         struct ShaderTableDesc

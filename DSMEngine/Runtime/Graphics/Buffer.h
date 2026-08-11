@@ -13,7 +13,6 @@ namespace DSM {
         std::string debugName;
         Format format = Format::UNKNOWN;
         bool canHaveUAVs = false;
-        bool canHaveRawViews = false;
         bool isVertexBuffer = false;
         bool isIndexBuffer = false;
         bool isConstantBuffer = false;
@@ -39,7 +38,6 @@ namespace DSM {
         constexpr BufferDesc& SetStructStride(uint32_t value) { structStride = value; return *this; }
         constexpr BufferDesc& SetFormat(Format value) { format = value; return *this; }
         constexpr BufferDesc& SetCanHaveUAVs(bool value) { canHaveUAVs = value; return *this; }
-        constexpr BufferDesc& SetCanHaveRawViews(bool value) { canHaveRawViews = value; return *this; }
         constexpr BufferDesc& SetIsVertexBuffer(bool value) { isVertexBuffer = value; return *this; }
         constexpr BufferDesc& SetIsIndexBuffer(bool value) { isIndexBuffer = value; return *this; }
         constexpr BufferDesc& SetIsConstantBuffer(bool value) { isConstantBuffer = value; return *this; }

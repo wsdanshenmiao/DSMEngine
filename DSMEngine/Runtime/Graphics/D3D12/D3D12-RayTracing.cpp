@@ -21,9 +21,9 @@ namespace DSM::D3D12 {
         m_Context.device5->GetRaytracingAccelerationStructurePrebuildInfo(&buildInputs, &prebuildInfo);
 
         auto buffer = device->CreateBuffer(BufferDesc()
-            .SetCanHaveRawViews(true)
             .SetCanHaveUAVs(true)
             .SetKeepInitialState(true)
+            .SetIsAccelStructStorage(true)
             .SetIsAccelStructStorage(true)
             .SetDebugName(m_Desc.debugName)
             .SetIsVirtual(m_Desc.isVirtual)
@@ -31,6 +31,10 @@ namespace DSM::D3D12 {
             .SetInitialState(m_Desc.isTopLevel ? ResourceStates::AccelStructRead : ResourceStates::AccelStructBuildBlas));
         dataBuffer = Utility::CheckedCast<Buffer*>(buffer.Get());
 
+        for(auto& geometry : m_Desc.bottomLevelGeometries) {
+            geometry.geometryData.triangles.indexBuffer = nullptr;
+            geometry.geometryData.triangles.vertexBuffer = nullptr;
+        }
     }
 
     void AccelStruct::CreateSRV(size_t descriptor) const
@@ -102,44 +106,58 @@ namespace DSM::D3D12 {
 
     bool ShaderTable::IsStateValid(const ShaderTableState& state, const DeviceResources& resources) const
     {
+        bool versionMatch = m_Version == state.committedVersion;
         if (m_Pipeline->HasLocalResources()) {
-            return m_Version == state.committedVersion &&
+            return versionMatch &&
                 state.descriptorHeapSRV == resources.shaderResourceViewHeap.GetShaderVisibleHeap() &&
                 state.descriptorHeapSampler == resources.samplerHeap.GetShaderVisibleHeap();
         }
 
-        return m_Version == state.committedVersion;
+        return versionMatch;
     }
 
     void ShaderTable::Bake(uint8_t* cpuVA, D3D12_GPU_VIRTUAL_ADDRESS gpuVA, DeviceResources& resources, ShaderTableState& state)
     {
-        const uint32_t entrySize = m_Pipeline->GetShaderTableEntrySize();
-
-        auto writeEntry = [this, &resources, entrySize, &cpuVA, &gpuVA](const Entry& entry)
+        if(cpuVA == nullptr || gpuVA == 0)
         {
+            m_Context.Error("Invalid CPU or GPU virtual address for baking shader table");
+            return;
+        }
+
+        // 必须取最大的 shader record 的大小
+        const uint32_t entrySize = m_Pipeline->GetShaderTableEntrySize();
+        auto writeEntry = [this, &resources, &cpuVA, &gpuVA, entrySize](const Entry& entry) {
+            if(entry.identifier == nullptr)
+            {
+                m_Context.Error("Shader table entry has no shader identifier");
+                return;
+            }
+
+            // 写入 shader identifier
             std::memcpy(cpuVA, entry.identifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-            if (entry.bindings != nullptr)
-            {
+            // 若有局部根签名，写入 shader table
+            if (entry.bindings != nullptr) {
                 auto* bindingSet = Utility::CheckedCast<BindingSet*>(entry.bindings.Get());
                 auto* layout = Utility::CheckedCast<BindingLayout*>(bindingSet->GetLayout());
 
-                if (layout->descriptorTableSizeSamplers > 0)
-                {
+                if (layout->descriptorTableSizeSamplers > 0) {
                     auto* table = reinterpret_cast<D3D12_GPU_DESCRIPTOR_HANDLE*>(cpuVA
                         + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + layout->rootParameterIndexSamplers * sizeof(D3D12_GPU_DESCRIPTOR_HANDLE));
+                    // 将 descriptor table 的 GPU handle 写入 shader table
                     *table = resources.samplerHeap.GetGpuHandle(bindingSet->descriptorIndexSamplers);
                 }
 
-                if (layout->descriptorTableSizeSRVs > 0)
-                {
+                if (layout->descriptorTableSizeSRVs > 0) {
                     auto* table = reinterpret_cast<D3D12_GPU_DESCRIPTOR_HANDLE*>(cpuVA
                         + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + layout->rootParameterIndexSRVs * sizeof(D3D12_GPU_DESCRIPTOR_HANDLE));
+                    // 将 descriptor table 的 GPU handle 写入 shader table
                     *table = resources.shaderResourceViewHeap.GetGpuHandle(bindingSet->descriptorIndexSRVs);
                 }
 
-                if (!layout->rootParametersVolatileCBs.empty())
+                if (!layout->rootParametersVolatileCBs.empty()){
                     m_Context.Error("Cannot use volatile constant buffers in a shader binding table");
+                }
             }
 
             cpuVA += entrySize;
@@ -149,12 +167,13 @@ namespace DSM::D3D12 {
         auto& dispatchDesc = state.dispatchRaysTemplate;
         std::memset(&dispatchDesc, 0, sizeof(dispatchDesc));
 
+        // 第一个 shader record 放置 ray generation shader
         dispatchDesc.RayGenerationShaderRecord.StartAddress = gpuVA;
         dispatchDesc.RayGenerationShaderRecord.SizeInBytes = entrySize;
         writeEntry(m_RayGeneration);
 
-        if (!m_MissShaders.empty())
-        {
+        // 写入 miss shader
+        if (!m_MissShaders.empty()) {
             dispatchDesc.MissShaderTable.StartAddress = gpuVA;
             dispatchDesc.MissShaderTable.StrideInBytes = m_MissShaders.size() == 1 ? 0 : entrySize;
             dispatchDesc.MissShaderTable.SizeInBytes = uint32_t(m_MissShaders.size()) * entrySize;
@@ -162,8 +181,8 @@ namespace DSM::D3D12 {
                 writeEntry(entry);
         }
 
-        if (!m_HitGroups.empty())
-        {
+        // 写入 hit group shader
+        if (!m_HitGroups.empty()) {
             dispatchDesc.HitGroupTable.StartAddress = gpuVA;
             dispatchDesc.HitGroupTable.StrideInBytes = m_HitGroups.size() == 1 ? 0 : entrySize;
             dispatchDesc.HitGroupTable.SizeInBytes = uint32_t(m_HitGroups.size()) * entrySize;
@@ -171,8 +190,8 @@ namespace DSM::D3D12 {
                 writeEntry(entry);
         }
 
-        if (!m_CallableShaders.empty())
-        {
+        // 写入 callable shader
+        if (!m_CallableShaders.empty()) {
             dispatchDesc.CallableShaderTable.StartAddress = gpuVA;
             dispatchDesc.CallableShaderTable.StrideInBytes = m_CallableShaders.size() == 1 ? 0 : entrySize;
             dispatchDesc.CallableShaderTable.SizeInBytes = uint32_t(m_CallableShaders.size()) * entrySize;
@@ -181,13 +200,11 @@ namespace DSM::D3D12 {
         }
 
         state.committedVersion = m_Version;
-        if (m_Pipeline->HasLocalResources())
-        {
+        if (m_Pipeline->HasLocalResources()) {
             state.descriptorHeapSRV = resources.shaderResourceViewHeap.GetShaderVisibleHeap();
             state.descriptorHeapSampler = resources.samplerHeap.GetShaderVisibleHeap();
         }
-        else
-        {
+        else {
             state.descriptorHeapSRV = nullptr;
             state.descriptorHeapSampler = nullptr;
         }
@@ -244,20 +261,20 @@ namespace DSM::D3D12 {
             return false;
         }
 
-        if (exportEntry->bindingLayout && !bindingSet)
+        if (exportEntry->bindingLayout != nullptr && !bindingSet)
         {
             m_Context.Error("A shader table entry does not provide required local bindings");
             return false;
         }
 
-        if (!exportEntry->bindingLayout && bindingSet)
+        if (exportEntry->bindingLayout == nullptr && bindingSet != nullptr)
         {
             m_Context.Error("A shader table entry provides local bindings, but none are required");
             return false;
         }
 
         // 检查绑定集的根签名是否与导出条目所需的根签名匹配
-        if (bindingSet && (Utility::CheckedCast<D3D12::BindingSet*>(bindingSet)->GetLayout() != exportEntry->bindingLayout))
+        if (bindingSet != nullptr && (Utility::CheckedCast<D3D12::BindingSet*>(bindingSet)->GetLayout() != exportEntry->bindingLayout))
         {
             m_Context.Error("A shader table entry provides local bindings that do not match the expected layout");
             return false;

@@ -23,6 +23,7 @@ namespace DSM::D3D12 {
         // 根常数的字节数
         uint32_t pushConstantByteSize = 0;
 
+        // 描述符表的大小
         uint32_t descriptorTableSizeSamplers = 0;
         uint32_t descriptorTableSizeSRVs = 0;
 

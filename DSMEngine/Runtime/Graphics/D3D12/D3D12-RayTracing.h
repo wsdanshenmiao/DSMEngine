@@ -105,6 +105,7 @@ namespace DSM::D3D12 {
 
         inline size_t GetShaderTableSize() const { return GetNumEntries() * m_Pipeline->GetShaderTableEntrySize(); }
         bool IsStateValid(const ShaderTableState& state, const DeviceResources& resources) const;
+        // 将 shader table 写入 gpu buffer
         void Bake(uint8_t* cpuVA, D3D12_GPU_VIRTUAL_ADDRESS gpuVA, DeviceResources& resources, ShaderTableState& state);
 
         inline const RT::ShaderTableDesc& GetDesc() const override { return m_Desc; }
