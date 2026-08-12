@@ -505,10 +505,8 @@ namespace DSM::D3D12{
             return;
         const auto& desc = buffer->GetDesc();
 
-        if(desc.isConstantBuffer){
-            dataSize = Math::Align(dataSize, size_t(c_ConstantBufferOffsetSizeAlignment));
-        }
-        auto upload = AllocateUploadBuffer(dataSize);
+        const size_t alignment = desc.isConstantBuffer ? c_ConstantBufferOffsetSizeAlignment : 1;
+        auto upload = AllocateUploadBuffer(dataSize, alignment);
         memcpy(upload.mappedAddress, data, dataSize);
 
         m_Instance->refNativeResources.push_back(upload.resource);
