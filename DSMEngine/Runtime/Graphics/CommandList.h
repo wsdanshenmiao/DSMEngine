@@ -81,7 +81,9 @@ namespace DSM{
         // 光线追踪（DXR）
         virtual void SetRayTracingState(const RT::State& state) = 0;
         virtual void DispatchRays(const RT::DispatchRaysArguments& args) = 0;
-        virtual void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;
+        // 创建描述用于确定 BLAS 容量；构建时显式传入当前使用的几何资源。
+        virtual void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::GeometryDesc> geometries,
+            RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;
         virtual void BuildTopLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::InstanceDesc> instances,  RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;
         virtual void BuildTopLevelAccelStructFromBuffer(RT::IAccelStruct* as, IBuffer* instanceBuffer, uint64_t instanceBufferOffset, size_t numInstances,
             RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) = 0;

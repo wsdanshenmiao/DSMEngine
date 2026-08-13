@@ -1013,7 +1013,8 @@ namespace DSM::D3D12{
         m_CurrCmdList->cmdList4->DispatchRays(&desc);
     }
 
-    void CommandList::BuildBottomLevelAccelStruct(RT::IAccelStruct *as, RT::AccelStructBuildFlags buildFlags)
+    void CommandList::BuildBottomLevelAccelStruct(RT::IAccelStruct *as,
+        std::span<const RT::GeometryDesc> geometries, RT::AccelStructBuildFlags buildFlags)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
         if(accel == nullptr || accel->dataBuffer == nullptr || m_CurrCmdList->cmdList4 == nullptr)
@@ -1028,7 +1029,7 @@ namespace DSM::D3D12{
         const auto& dataBuffer = accel->dataBuffer;
 
         // 转换资源的状态
-        for(const auto& geom : desc.bottomLevelGeometries){
+        for(const auto& geom : geometries){
             if(geom.geometryType == RT::GeometryType::Triangles){
                 const auto& triangle = geom.geometryData.triangles;
                 if(m_EnableAutomaticBarriers){
@@ -1060,20 +1061,32 @@ namespace DSM::D3D12{
         }
         CommitBarriers();
 
+        const bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::PerformUpdate);
+        if (performUpdate && !HasFlags(desc.buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
+            m_Device.GetContext().Error("Cannot update a bottom-level acceleration structure that was not created with AllowUpdate");
+            return;
+        }
+
+        RT::AccelStructDesc inputDesc = desc;
+        inputDesc.bottomLevelGeometries.assign(geometries.begin(), geometries.end());
+        inputDesc.buildFlags = buildFlags;
+        if (HasFlags(desc.buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
+            inputDesc.buildFlags |= RT::AccelStructBuildFlags::AllowUpdate;
+        }
+
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geoDescs{};
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(desc, geoDescs);
-        buildInputs.Flags = ConvertAccelerationStructureBuildFlags(buildFlags);
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(inputDesc, geoDescs);
         assert(buildInputs.NumDescs == geoDescs.size());
 
         // 分配 Transform 的缓冲区
-        for(size_t i = 0; i < desc.bottomLevelGeometries.size(); ++i){
-            const auto& geom = desc.bottomLevelGeometries[i];
-            auto& geoDesc = geoDescs[i];
-            if(auto& transform = geoDesc.Triangles.Transform3x4; transform != 0){
-                auto transformBuffer = AllocateUploadBuffer(sizeof(RT::AffineTransform), D3D12_RAYTRACING_TRANSFORM3X4_BYTE_ALIGNMENT);
-                memcpy(transformBuffer.mappedAddress, &geom.transform, sizeof(RT::AffineTransform));
-                transform = transformBuffer.gpuAddress;
-            }
+        for(size_t i = 0; i < geometries.size(); ++i){
+            const auto& geom = geometries[i];
+            if (geom.geometryType != RT::GeometryType::Triangles || !geom.useTransform)
+                continue;
+
+            auto transformBuffer = AllocateUploadBuffer(sizeof(RT::AffineTransform), D3D12_RAYTRACING_TRANSFORM3X4_BYTE_ALIGNMENT);
+            memcpy(transformBuffer.mappedAddress, &geom.transform, sizeof(RT::AffineTransform));
+            geoDescs[i].Triangles.Transform3x4 = transformBuffer.gpuAddress;
         }
 
         auto& context = m_Device.GetContext();
@@ -1092,7 +1105,6 @@ namespace DSM::D3D12{
         }
 
         // 创建需要的 scratch buffer
-        bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::AllowUpdate);
         uint64_t scratchSize = performUpdate ? prebuildInfo.UpdateScratchDataSizeInBytes : prebuildInfo.ScratchDataSizeInBytes;
         auto scratchBuffer = AllocateGpuBuffer(scratchSize, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
 
@@ -1675,9 +1687,19 @@ namespace DSM::D3D12{
     
     void CommandList::BuildTopLevelAccelStructInternal(AccelStruct *accel, GpuVirtualAddress instanceDescsGpuVA, size_t numInstances, RT::AccelStructBuildFlags buildFlags)
     {
+        const auto& desc = accel->GetDesc();
+        const bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::PerformUpdate);
+        if (performUpdate && !HasFlags(desc.buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
+            m_Device.GetContext().Error("Cannot update a top-level acceleration structure that was not created with AllowUpdate");
+            return;
+        }
+
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geoDescs{};
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(accel->GetDesc(), geoDescs);
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(desc, geoDescs);
         buildInputs.Flags = ConvertAccelerationStructureBuildFlags(buildFlags);
+        if (HasFlags(desc.buildFlags, RT::AccelStructBuildFlags::AllowUpdate)) {
+            buildInputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+        }
         buildInputs.NumDescs = static_cast<UINT>(numInstances);
         buildInputs.InstanceDescs = instanceDescsGpuVA;
 
@@ -1698,7 +1720,6 @@ namespace DSM::D3D12{
         }
 
         // 创建需要的 scratch buffer
-        bool performUpdate = HasFlags(buildFlags, RT::AccelStructBuildFlags::AllowUpdate);
         uint64_t scratchSize = performUpdate ? prebuildInfo.UpdateScratchDataSizeInBytes : prebuildInfo.ScratchDataSizeInBytes;
         auto scratchBuffer = AllocateGpuBuffer(scratchSize, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
         

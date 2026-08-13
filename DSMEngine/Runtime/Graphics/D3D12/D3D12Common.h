@@ -699,6 +699,7 @@ namespace DSM{
             if (HasFlags(flags, AccelStructBuildFlags::PreferFastTrace)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
             if (HasFlags(flags, AccelStructBuildFlags::PreferFastBuild)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
             if (HasFlags(flags, AccelStructBuildFlags::MinimizeMemory)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_MINIMIZE_MEMORY;
+            if (HasFlags(flags, AccelStructBuildFlags::PerformUpdate)) result |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE;
 
             return result;
         }
@@ -751,10 +752,13 @@ namespace DSM{
         {
             D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc{};
             geometryDesc.Flags = ConvertGeometryFlags(desc.flags);
-            if(geometryDesc.Type == D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES){
+
+            if(desc.geometryType == RT::GeometryType::Triangles){
+                geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
                 geometryDesc.Triangles = ConvertTrianglesDesc(desc.geometryData.triangles, desc.useTransform ? 16 : 0);
             }
-            else if(geometryDesc.Type == D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS){
+            else if(desc.geometryType == RT::GeometryType::AABBs){
+                geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
                 geometryDesc.AABBs = ConvertAABBsDesc(desc.geometryData.aabbs);
             }
 

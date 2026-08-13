@@ -24,16 +24,21 @@ namespace DSM::D3D12 {
             .SetCanHaveUAVs(true)
             .SetKeepInitialState(true)
             .SetIsAccelStructStorage(true)
-            .SetIsAccelStructStorage(true)
             .SetDebugName(m_Desc.debugName)
             .SetIsVirtual(m_Desc.isVirtual)
             .SetByteSize(prebuildInfo.ResultDataMaxSizeInBytes)
             .SetInitialState(m_Desc.isTopLevel ? ResourceStates::AccelStructRead : ResourceStates::AccelStructBuildBlas));
         dataBuffer = Utility::CheckedCast<Buffer*>(buffer.Get());
 
+        // 创建描述只保存预分配布局，实际资源由每次 BLAS 构建显式传入。
         for(auto& geometry : m_Desc.bottomLevelGeometries) {
-            geometry.geometryData.triangles.indexBuffer = nullptr;
-            geometry.geometryData.triangles.vertexBuffer = nullptr;
+            if (geometry.geometryType == RT::GeometryType::Triangles) {
+                geometry.geometryData.triangles.indexBuffer = nullptr;
+                geometry.geometryData.triangles.vertexBuffer = nullptr;
+            }
+            else if (geometry.geometryType == RT::GeometryType::AABBs) {
+                geometry.geometryData.aabbs.buffer = nullptr;
+            }
         }
     }
 

@@ -31,6 +31,9 @@ namespace DSM::D3D12{
         if(desc.canHaveUAVs) 
             resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
+        if(desc.isAccelStructStorage)
+            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
+
         if(desc.isVirtual)
             return createSuccess();
 
@@ -68,10 +71,6 @@ namespace DSM::D3D12{
         }
         }
 
-        if(desc.isAccelStructStorage){
-            resourceDesc.Flags |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
-        }
-        
         // Allow readback buffers to be used as resolve destination targets
         if ((desc.cpuAccess == CpuAccessMode::Read) && (desc.initialState == ResourceStates::ResolveDest)) {
             heapProp.Type = D3D12_HEAP_TYPE_CUSTOM;

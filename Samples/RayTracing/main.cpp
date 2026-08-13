@@ -315,8 +315,6 @@ int main()
         .SetExportName("RayGen").SetShader(rayGenerationShader.Get()));
     pipeDesc.shaders.push_back(RT::PipelineShaderDesc{}
         .SetExportName("Miss").SetShader(missShader.Get()));
-    pipeDesc.shaders.push_back(RT::PipelineShaderDesc{}
-        .SetExportName("ClosestHit").SetShader(closestHitShader.Get()));
     pipeDesc.hitGroups.push_back(RT::PipelineHitGroupDesc{}
         .SetExportName("MyHitGroup").SetClosestHitShader(closestHitShader));
     pipeDesc.maxRecursionDepth = 1;
@@ -360,7 +358,7 @@ int main()
     cmdList->SetBufferState(vtxBuffer.Get(), ResourceStates::AccelStructBuildInput);
     cmdList->CommitBarriers();
 
-    cmdList->BuildBottomLevelAccelStruct(blas.Get(), blasDesc.buildFlags);
+    cmdList->BuildBottomLevelAccelStruct(blas.Get(), blasDesc.bottomLevelGeometries, blasDesc.buildFlags);
     const std::array instances{ instance };
     cmdList->BuildTopLevelAccelStruct(tlas.Get(), instances, tlasDesc.buildFlags);
 

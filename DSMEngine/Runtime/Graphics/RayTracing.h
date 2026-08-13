@@ -211,6 +211,8 @@ namespace DSM {
 
         struct PipelineDesc
         {
+            // 可直接写入 ShaderTable 的 RayGeneration、Miss 和 Callable 导出。
+            // AnyHit、ClosestHit 和 Intersection 必须通过 hitGroups 引用。
             std::vector<PipelineShaderDesc> shaders{};
             std::vector<PipelineHitGroupDesc> hitGroups{};
             BindingLayoutVector globalBindingLayout{};

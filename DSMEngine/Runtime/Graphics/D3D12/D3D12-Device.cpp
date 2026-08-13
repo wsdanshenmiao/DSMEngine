@@ -1256,6 +1256,18 @@ namespace DSM::D3D12{
                 return fallbackError("Ray tracing pipeline contains a null shader");
             }
 
+            const auto shaderType = shaderDesc.shader->GetDesc().shaderType;
+            if (shaderType != ShaderType::RayGeneration
+                && shaderType != ShaderType::Miss
+                && shaderType != ShaderType::Callable) {
+                return fallbackError(std::format(
+                    "Ray tracing shader export '{}' must be RayGeneration, Miss, or Callable; "
+                    "hit shaders must be referenced through a hit group",
+                    shaderDesc.exportName.empty()
+                        ? shaderDesc.shader->GetDesc().entryName
+                        : shaderDesc.exportName));
+            }
+
             const void* bytecode = nullptr;
             size_t bytecodeSize = 0;
             shaderDesc.shader->GetBytecode(&bytecode, &bytecodeSize);
