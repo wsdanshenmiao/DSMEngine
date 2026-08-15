@@ -239,13 +239,16 @@ namespace DSM{
     
     void ResourceStateTracker::RequireBufferState(IBuffer *buffer, ResourceStates state)
     {
+        if(buffer == nullptr)
+            return;
         std::lock_guard lock(m_BufferMutex);
         RequireBufferStateNoLock(buffer, state);
     }
 
     void ResourceStateTracker::RequireBufferStateNoLock(IBuffer *buffer, ResourceStates state)
     {
-        assert(buffer != nullptr);
+        if(buffer == nullptr)
+            return;
         const auto& desc = buffer->GetDesc();
         std::shared_ptr<PendingBarriers> pendingBarriers = GetCurrentThreadPendingBarriers();
         std::lock_guard pendingLock(pendingBarriers->mutex);

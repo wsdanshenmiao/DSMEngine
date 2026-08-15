@@ -236,11 +236,10 @@ namespace DSM::D3D12 {
 
         CommandQueue* GetQueue(CommandQueueType type) { return m_CommandQueues[size_t(type)].get(); }
         Context& GetContext() noexcept { return m_Context; }
-
+        RefPtr<RootSignature> GetRootSignature(const BindingLayoutVector& pipelineLayouts, bool allowInputLayout);
 
     private:
         using BindingLayoutVector = StaticVector<BindingLayoutHandle, c_MaxBindingLayouts>;
-        RefPtr<RootSignature> GetRootSignature(const BindingLayoutVector& pipelineLayouts, bool allowInputLayout);
 
     private:
         const DeviceDesc m_Desc;

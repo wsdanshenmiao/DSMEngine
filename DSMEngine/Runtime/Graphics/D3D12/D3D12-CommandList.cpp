@@ -909,13 +909,13 @@ namespace DSM::D3D12{
     //////////////////////////////////////////////////////////////////////////
     void CommandList::SetRayTracingState(const RT::State& state)
     {
-        if (state.shaderTable == nullptr || m_CurrCmdList == nullptr || m_CurrCmdList->cmdList4 == nullptr)
+        ShaderTable* shaderTable = Utility::CheckedCast<ShaderTable*>(state.shaderTable);
+        if (shaderTable == nullptr || m_CurrCmdList == nullptr || m_CurrCmdList->cmdList4 == nullptr)
             return;
 
-        ShaderTable* shaderTable = Utility::CheckedCast<ShaderTable*>(state.shaderTable);
-        RayTracingPipeline* pso = Utility::CheckedCast<RayTracingPipeline*>(shaderTable->GetPipeline());
+        RayTracingPipeline* pso = shaderTable->GetPipeline();
         auto resources = m_Resources.lock();
-        if (shaderTable == nullptr || pso == nullptr || resources == nullptr)
+        if (pso == nullptr || resources == nullptr)
             return;
 
         const bool shaderTableCached = shaderTable->GetDesc().isCached;
@@ -930,9 +930,9 @@ namespace DSM::D3D12{
                 return;
             }
 
+            // 分配临时的上传缓冲区
             const auto upload = AllocateUploadBuffer(shaderTableSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
-            if (upload.resource == nullptr || upload.mappedAddress == nullptr)
-            {
+            if (upload.resource == nullptr || upload.mappedAddress == nullptr) {
                 m_Device.GetContext().Error("Couldn't allocate an upload buffer for the shader table");
                 return;
             }
@@ -940,49 +940,61 @@ namespace DSM::D3D12{
             const D3D12_GPU_VIRTUAL_ADDRESS shaderTableGpuAddress = shaderTableCached
                 ? shaderTable->cache->GetGpuVirtualAddress()
                 : upload.gpuAddress;
+            // 将 shader table 烘焙到上传缓冲区或缓存缓冲区中
             shaderTable->Bake(static_cast<uint8_t*>(upload.mappedAddress), shaderTableGpuAddress, *resources, shaderTableState);
 
-            if (shaderTableCached)
-            {
+            // 如果有缓存则将上传缓存区拷贝到缓存缓冲区中
+            if (shaderTableCached) {
                 SetBufferState(shaderTable->cache.Get(), ResourceStates::CopyDest);
                 CommitBarriers();
 
-                auto* cacheBuffer = Utility::CheckedCast<Buffer*>(shaderTable->cache.Get());
+                auto cacheBuffer = Utility::CheckedCast<Buffer*>(shaderTable->cache.Get());
                 m_CurrCmdList->cmdList->CopyBufferRegion(cacheBuffer->resource.Get(), 0, upload.resource, upload.offset, shaderTableSize);
             }
         }
 
-        if (shaderTableCached)
-        {
+        if (shaderTableCached) {
             SetBufferState(shaderTable->cache.Get(), ResourceStates::ShaderResource);
         }
 
-        if (shaderTableCached || rebuildShaderTable)
-        {
+        if (shaderTableCached || rebuildShaderTable) {
             m_Instance->refResources.push_back(shaderTable);
         }
 
+        // 判断是否要更新各个参数
+        auto currShaderTable = Utility::CheckedCast<ShaderTable*>(m_CurrRayTracingState.shaderTable);
+        const bool updateRootSig = !m_CurrRayTracingStateValid || currShaderTable == nullptr ||
+            currShaderTable->GetPipeline()->GetGlobalRootSignature() != pso->GetGlobalRootSignature();
+        const bool updatePipeline = !m_CurrRayTracingStateValid || currShaderTable == nullptr || currShaderTable->GetPipeline() != pso;
+        
+        uint32_t bindingUpdateMask = 0;
+        // 若光追管线状态无效或描述符堆更新，则需要重新绑定所有资源
+        if(!m_CurrRayTracingStateValid || updateRootSig || CommitDescriptorHeaps()){
+            bindingUpdateMask = uint32_t(-1);
+        }
+
+        if(bindingUpdateMask == 0){
+            bindingUpdateMask = Utility::ArrayDifferenceMask(m_CurrRayTracingState.bindingSets, state.bindingSets);
+        }
+
+        // 更新根签名
+        if(updateRootSig){
+            if(pso->GetGlobalRootSignature() == nullptr){
+                m_Device.GetContext().Error("Ray tracing pipeline has no global root signature");
+                return;
+            }
+            m_CurrCmdList->cmdList->SetComputeRootSignature(pso->GetGlobalRootSignature()->rootSignature);
+        }
+
         // 设置光线追踪状态对象（StateObject1）
-        m_CurrCmdList->cmdList4->SetPipelineState1(pso->GetStateObject());
-
-        // 设置全局根签名
-        RootSignature* globalRS = pso->GetGlobalRootSignature();
-        if (globalRS != nullptr) {
-            m_CurrCmdList->cmdList->SetComputeRootSignature(globalRS->rootSignature);
-        }
-
-        // 绑定全局根签名对应的绑定集合
-        if (!state.bindingSets.empty()) {
-            BindingSetVector bindingSets;
-            for (IBindingSet* bs : state.bindingSets) {
-                if (bs != nullptr) bindingSets.push_back(RefPtr<IBindingSet>(bs));
-            }
-            if (!bindingSets.empty()) {
-                CommitDescriptorHeaps();
-                uint32_t bindingUpdateMask = uint32_t(-1);
-                SetResourceBindings(bindingSets, bindingUpdateMask, nullptr, false, globalRS, false);
+        if(updatePipeline){
+            m_CurrCmdList->cmdList4->SetPipelineState1(pso->GetStateObject());
+            if(m_Instance != nullptr){
+                m_Instance->refResources.push_back(pso);
             }
         }
+
+        SetResourceBindings(state.bindingSets, bindingUpdateMask, nullptr, false, pso->GetGlobalRootSignature(), false);
 
         CommitBarriers();
 
@@ -1013,8 +1025,7 @@ namespace DSM::D3D12{
         m_CurrCmdList->cmdList4->DispatchRays(&desc);
     }
 
-    void CommandList::BuildBottomLevelAccelStruct(RT::IAccelStruct *as,
-        std::span<const RT::GeometryDesc> geometries, RT::AccelStructBuildFlags buildFlags)
+    void CommandList::BuildBottomLevelAccelStruct(RT::IAccelStruct *as, std::span<const RT::GeometryDesc> geometries, RT::AccelStructBuildFlags buildFlags)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
         if(accel == nullptr || accel->dataBuffer == nullptr || m_CurrCmdList->cmdList4 == nullptr)
@@ -1033,12 +1044,8 @@ namespace DSM::D3D12{
             if(geom.geometryType == RT::GeometryType::Triangles){
                 const auto& triangle = geom.geometryData.triangles;
                 if(m_EnableAutomaticBarriers){
-                    if (triangle.vertexBuffer != nullptr) {
-                        m_StateTracker.RequireBufferState(triangle.vertexBuffer, ResourceStates::AccelStructBuildInput);
-                    }
-                    if (triangle.indexBuffer != nullptr) {
-                        m_StateTracker.RequireBufferState(triangle.indexBuffer, ResourceStates::AccelStructBuildInput);
-                    }
+                    m_StateTracker.RequireBufferState(triangle.vertexBuffer, ResourceStates::AccelStructBuildInput);
+                    m_StateTracker.RequireBufferState(triangle.indexBuffer, ResourceStates::AccelStructBuildInput);
                 }
 
                 if(m_Instance != nullptr){
@@ -1097,6 +1104,7 @@ namespace DSM::D3D12{
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo{};
         context.device5->GetRaytracingAccelerationStructurePrebuildInfo(&buildInputs, &prebuildInfo);
 
+        // 检查加速结构的缓冲区大小是否足够
         if(prebuildInfo.ResultDataMaxSizeInBytes > dataBuffer->GetDesc().byteSize){
             std::string msg = std::format("The buffer size of the bottom-level acceleration structure is too small. "
                 "Required size: {}, actual size: {}", prebuildInfo.ResultDataMaxSizeInBytes, dataBuffer->GetDesc().byteSize);
@@ -1126,6 +1134,29 @@ namespace DSM::D3D12{
         }
     }
 
+    void CommandList::CopyBottomLevelAccelStruct(RT::IAccelStruct *dest, RT::IAccelStruct *src)
+    {
+        AccelStruct* destAccel = Utility::CheckedCast<AccelStruct*>(dest);
+        AccelStruct* srcAccel = Utility::CheckedCast<AccelStruct*>(src);
+        if(destAccel == nullptr || srcAccel == nullptr || destAccel->dataBuffer == nullptr || srcAccel->dataBuffer == nullptr)
+            return;
+
+        if(m_EnableAutomaticBarriers){
+            m_StateTracker.RequireBufferState(destAccel->dataBuffer, ResourceStates::AccelStructBuildBlas);
+            m_StateTracker.RequireBufferState(srcAccel->dataBuffer, ResourceStates::AccelStructWrite);
+        }
+        CommitBarriers();
+
+        m_CurrCmdList->cmdList4->CopyRaytracingAccelerationStructure(
+            destAccel->dataBuffer->GetGpuVirtualAddress(),
+            srcAccel->dataBuffer->GetGpuVirtualAddress(),
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE);
+
+        if(destAccel->GetDesc().trackLiveness){
+            m_Instance->refResources.push_back(destAccel);
+        }
+    }
+
     void CommandList::BuildTopLevelAccelStruct(RT::IAccelStruct *as, std::span<const RT::InstanceDesc> instances, RT::AccelStructBuildFlags buildFlags)
     {
         AccelStruct* accel = Utility::CheckedCast<AccelStruct*>(as);
@@ -1138,6 +1169,7 @@ namespace DSM::D3D12{
             AccelStruct* blas = Utility::CheckedCast<AccelStruct*>(instance.bottomLevelAS);
             auto& instanceDesc = accel->instanceDescs[index];
             if(blas != nullptr){
+                static_assert(sizeof(instanceDesc) == sizeof(instance), "Size mismatch between D3D12_RAYTRACING_INSTANCE_DESC and RT::InstanceDesc");
                 memcpy(&instanceDesc, &instance, sizeof(instance));
                 instanceDesc.AccelerationStructure = blas->dataBuffer->GetGpuVirtualAddress();
 
@@ -1234,7 +1266,8 @@ namespace DSM::D3D12{
         auto heapSRV = resources->shaderResourceViewHeap.GetShaderVisibleHeap();
         auto heapSampler = resources->samplerHeap.GetShaderVisibleHeap();
 
-        if(m_CurrSRVHeap == heapSRV && m_CurrSamplerHeap == heapSampler) return false;
+        if(m_CurrSRVHeap == heapSRV && m_CurrSamplerHeap == heapSampler)
+            return false;
 
         m_Instance->refNativeResources.push_back(heapSRV);
         m_Instance->refNativeResources.push_back(heapSampler);
@@ -1694,6 +1727,10 @@ namespace DSM::D3D12{
             return;
         }
 
+        auto& context = m_Device.GetContext();
+        if(context.device5 == nullptr)
+            return;
+
         std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geoDescs{};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS buildInputs = GetAccelerationStructureBuildInputs(desc, geoDescs);
         buildInputs.Flags = ConvertAccelerationStructureBuildFlags(buildFlags);
@@ -1702,15 +1739,12 @@ namespace DSM::D3D12{
         }
         buildInputs.NumDescs = static_cast<UINT>(numInstances);
         buildInputs.InstanceDescs = instanceDescsGpuVA;
-
-        auto& context = m_Device.GetContext();
-        if(context.device5 == nullptr)
-            return;
         
         // 获取加速结构的构建信息
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo{};
         context.device5->GetRaytracingAccelerationStructurePrebuildInfo(&buildInputs, &prebuildInfo);
 
+        // 检查加速结构的缓冲区大小是否足够
         const auto& dataBuffer = accel->dataBuffer;
         if(prebuildInfo.ResultDataMaxSizeInBytes > dataBuffer->GetDesc().byteSize){
             std::string msg = std::format("The buffer size of the top-level acceleration structure is too small. "

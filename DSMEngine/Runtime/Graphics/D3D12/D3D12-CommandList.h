@@ -143,8 +143,8 @@ namespace DSM::D3D12 {
         void SetRayTracingState(const RT::State& state) override;
         void DispatchRays(const RT::DispatchRaysArguments& args) override;
         
-        void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::GeometryDesc> geometries,
-            RT::AccelStructBuildFlags buildFlags) override;
+        void BuildBottomLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::GeometryDesc> geometries, RT::AccelStructBuildFlags buildFlags) override;
+        void CopyBottomLevelAccelStruct(RT::IAccelStruct* dest, RT::IAccelStruct* src) override;
         void BuildTopLevelAccelStruct(RT::IAccelStruct* as, std::span<const RT::InstanceDesc> instances, RT::AccelStructBuildFlags buildFlags) override;
         void BuildTopLevelAccelStructFromBuffer(RT::IAccelStruct* as, IBuffer* instanceBuffer, uint64_t instanceBufferOffset, size_t numInstances,
             RT::AccelStructBuildFlags buildFlags = RT::AccelStructBuildFlags::None) override;

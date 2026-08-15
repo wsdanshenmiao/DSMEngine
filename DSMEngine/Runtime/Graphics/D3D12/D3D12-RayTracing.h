@@ -54,8 +54,10 @@ namespace DSM::D3D12 {
             const void* identifier = nullptr;
         };
 
-        RayTracingPipeline(const Context& context, Device* device);
+        RayTracingPipeline(Device* device);
         ~RayTracingPipeline() override = default;
+
+        bool Create(RT::PipelineDesc desc);
 
         const ExportEntry* GetExport(const char* name) const;
         uint32_t GetShaderTableEntrySize() const;
@@ -67,7 +69,6 @@ namespace DSM::D3D12 {
         RT::ShaderTableHandle CreateShaderTable(const RT::ShaderTableDesc& desc) override;
 
     private:
-        const Context& m_Context;
         Device* m_Device = nullptr;
         RT::PipelineDesc m_Desc{};
 
@@ -110,7 +111,7 @@ namespace DSM::D3D12 {
 
         inline const RT::ShaderTableDesc& GetDesc() const override { return m_Desc; }
         inline uint32_t GetNumEntries() const override { return 1 + m_MissShaders.size() + m_HitGroups.size() + m_CallableShaders.size(); }
-        inline RT::IPipeline* GetPipeline() const override { return m_Pipeline; }
+        inline RayTracingPipeline* GetPipeline() const override { return m_Pipeline; }
 
         void SetGenerationShader(const char* exportName, IBindingSet* bindingSet = nullptr) override;
         int AddMissShader(const char* exportName, IBindingSet* bindingSet = nullptr) override;

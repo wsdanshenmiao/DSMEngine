@@ -269,8 +269,8 @@ namespace DSM {
 
         struct State
         {
-            BindingSetVector bindingSets;
-            IShaderTable* shaderTable;
+            BindingSetVector bindingSets{};
+            IShaderTable* shaderTable{};
 
             State& AddBindingSet(IBindingSet* bindingSet) { bindingSets.push_back(bindingSet); return *this; }
             State& SetShaderTable(IShaderTable* table) { shaderTable = table; return *this; }
