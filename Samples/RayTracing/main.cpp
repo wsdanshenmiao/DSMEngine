@@ -152,7 +152,7 @@ int main()
     SampleMessageCallback callback;
     D3D12::DeviceDesc deviceDesc{};
     deviceDesc.errorCB = &callback;
-    deviceDesc.enableDebugLayer = false;
+    deviceDesc.enableDebugLayer = true;
 
     D3D12::DeviceHandle device = D3D12::CreateDevice(deviceDesc);
     if (!device) {

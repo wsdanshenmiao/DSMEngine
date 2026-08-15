@@ -969,7 +969,7 @@ namespace DSM::D3D12{
         
         uint32_t bindingUpdateMask = 0;
         // 若光追管线状态无效或描述符堆更新，则需要重新绑定所有资源
-        if(!m_CurrRayTracingStateValid || updateRootSig || CommitDescriptorHeaps()){
+        if(CommitDescriptorHeaps() || !m_CurrRayTracingStateValid || updateRootSig){
             bindingUpdateMask = uint32_t(-1);
         }
 
