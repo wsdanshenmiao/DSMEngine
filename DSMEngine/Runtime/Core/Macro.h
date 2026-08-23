@@ -3,6 +3,8 @@
 #define __MACRO_H__
 
 #include <format>
+#include <source_location>
+#include <string_view>
 #include "Runtime/Core/PlatformDetection.h"
 #include "Runtime/Core/LogSystem.h"
 #include "Runtime/DSMEngine.h"
@@ -25,27 +27,60 @@
 #define DSM_ERROR(...)         DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Error, __VA_ARGS__)
 #define DSM_CRITICAL(...)      DSM::DSMEngine::sm_GlobalContext.loggerSystem->Log(DSM::LogSystem::Fatal, __VA_ARGS__)
 
-#define DSM_ASSERT_IMPL(isFalse, message, logMacro) \
+namespace DSM::Detail {
+
+    enum class AssertLogTarget
+    {
+        Core,
+        Client
+    };
+
+    constexpr std::string_view GetAssertionMessage() noexcept
+    {
+        return {};
+    }
+
+    constexpr std::string_view GetAssertionMessage(std::string_view message) noexcept
+    {
+        return message;
+    }
+
+    inline void ReportAssertionFailure(
+        AssertLogTarget target,
+        std::string_view expression,
+        std::string_view message,
+        std::source_location location = std::source_location::current())
+    {
+        auto error = std::format(
+            "\nAssertion failed in {} @ {}\n'{}' is false\n{}\n",
+            location.file_name(), location.line(), expression, message);
+
+        if (target == AssertLogTarget::Core) {
+            DSMEngine::sm_GlobalContext.loggerSystem->CoreLog(LogSystem::Error, error);
+        }
+        else {
+            DSMEngine::sm_GlobalContext.loggerSystem->Log(LogSystem::Error, error);
+        }
+
+        __debugbreak();
+    }
+
+}
+
+#define DSM_ASSERT_IMPL(condition, message, target) \
     do { \
-        if (!(bool)(isFalse)) { \
-            auto error = std::format("\nAssertion failed in {} @ {}\n", __FILE__, __LINE__); \
-            error += std::format("\'{}\' is false\n", #isFalse); \
-            error += (message); \
-            error += "\n"; \
-            logMacro(error); \
-            __debugbreak(); \
+        if (!static_cast<bool>(condition)) { \
+            ::DSM::Detail::ReportAssertionFailure(target, #condition, message); \
         } \
-    } while (0)
+    } while (false)
 
-#define DSM_GET_ASSERT_MACRO(_1, _2, NAME, ...) NAME
+#define DSM_ASSERT(condition, ...) \
+    DSM_ASSERT_IMPL(condition, ::DSM::Detail::GetAssertionMessage(__VA_ARGS__), \
+        ::DSM::Detail::AssertLogTarget::Client)
 
-#define DSM_ASSERT_1(isFalse) DSM_ASSERT_IMPL(isFalse, "", DSM_ERROR)
-#define DSM_ASSERT_2(isFalse, message) DSM_ASSERT_IMPL(isFalse, message, DSM_ERROR)
-#define DSM_ASSERT(...) DSM_GET_ASSERT_MACRO(__VA_ARGS__, DSM_ASSERT_2, DSM_ASSERT_1)(__VA_ARGS__)
-
-#define DSM_CORE_ASSERT_1(isFalse) DSM_ASSERT_IMPL(isFalse, "", DSM_CORE_ERROR)
-#define DSM_CORE_ASSERT_2(isFalse, message) DSM_ASSERT_IMPL(isFalse, message, DSM_CORE_ERROR)
-#define DSM_CORE_ASSERT(...) DSM_GET_ASSERT_MACRO(__VA_ARGS__, DSM_CORE_ASSERT_2, DSM_CORE_ASSERT_1)(__VA_ARGS__)
+#define DSM_CORE_ASSERT(condition, ...) \
+    DSM_ASSERT_IMPL(condition, ::DSM::Detail::GetAssertionMessage(__VA_ARGS__), \
+        ::DSM::Detail::AssertLogTarget::Core)
 
 
 
