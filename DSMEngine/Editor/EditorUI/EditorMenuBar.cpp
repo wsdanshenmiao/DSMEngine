@@ -150,20 +150,16 @@ namespace DSM {
            auto& renderer = *DSMEngine::sm_GlobalContext.renderer;
 
            if (ImGui::MenuItem("Deferred", nullptr, m_IsDeferred)) {
-               if (!m_IsDeferred) {
-                   m_IsDeferred = true;
-                    renderer.GetDevice()->WaitForIdle();
-                    renderer.ResetRenderPipeline();
-                    engine->SetRenderPipeline(std::make_unique<DeferredRenderPipeline>());
-               }
+               m_IsDeferred = true;
+               renderer.GetDevice()->WaitForIdle();
+               renderer.ResetRenderPipeline();
+               engine->SetRenderPipeline(std::make_unique<DeferredRenderPipeline>());
            }
            if (ImGui::MenuItem("Forward", nullptr, !m_IsDeferred)) {
-               if (m_IsDeferred) {
-                   m_IsDeferred = false;
-                    renderer.GetDevice()->WaitForIdle();
-                    renderer.ResetRenderPipeline();
-                    engine->SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
-               }
+               m_IsDeferred = false;
+               renderer.GetDevice()->WaitForIdle();
+               renderer.ResetRenderPipeline();
+               engine->SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
            }
 
            ImGui::EndMenu();

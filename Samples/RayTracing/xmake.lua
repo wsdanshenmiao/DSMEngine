@@ -6,3 +6,5 @@ target("RayTracing")
     add_files("main.cpp")
     add_rules("ShaderCopy")
 target_end()
+
+includes("RestirDI")

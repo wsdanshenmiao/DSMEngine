@@ -42,6 +42,12 @@ namespace DSM {
             }
             return m_SubMeshMaterialIndices[subMeshIndex];
         }
+        size_t GetMaterialIndexOrDefault(size_t subMeshIndex) const noexcept
+        {
+            return subMeshIndex < m_SubMeshMaterialIndices.size()
+                ? m_SubMeshMaterialIndices[subMeshIndex]
+                : 0;
+        }
         void SetMaterialIndex(size_t subMeshIndex, size_t materialIndex) noexcept
         {
             if(subMeshIndex >= m_SubMeshMaterialIndices.size()) {

@@ -16,6 +16,7 @@ namespace DSM {
     {
     public:
         void StartEditor(DSMEngine* engine);
+        bool RunFrame();
         void Run();
         void ShutDownEditor();
 

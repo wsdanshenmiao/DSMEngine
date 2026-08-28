@@ -18,17 +18,27 @@ namespace DSM{
         m_EditorUI = std::make_unique<EditorUI>(this);
     }
 
+    bool DSMEditor::RunFrame()
+    {
+        if (m_Engine == nullptr || !m_Engine->IsRunning()) {
+            return false;
+        }
+
+        if(m_ShouldResizeRenderer && m_ResizeWidth > 0 && m_ResizeHeight > 0) {
+            if (auto renderer = DSMEngine::sm_GlobalContext.renderer) {
+                renderer->ResizeRenderTexture(m_ResizeWidth, m_ResizeHeight);
+            }
+            m_ShouldResizeRenderer = false;
+            m_ResizeWidth = m_ResizeHeight = 0;
+        }
+
+		m_Engine->Update();
+        return m_Engine->IsRunning();
+    }
+
     void DSMEditor::Run()
     {
-        while (m_Engine->IsRunning()) {
-            if(m_ShouldResizeRenderer && m_ResizeWidth > 0 && m_ResizeHeight > 0) {
-                if (auto renderer = DSMEngine::sm_GlobalContext.renderer) {
-                    renderer->ResizeRenderTexture(m_ResizeWidth, m_ResizeHeight);
-                }
-                m_ShouldResizeRenderer = false;
-                m_ResizeWidth = m_ResizeHeight = 0;
-            }
-			m_Engine->Update();
+        while (RunFrame()) {
         }
     }
     

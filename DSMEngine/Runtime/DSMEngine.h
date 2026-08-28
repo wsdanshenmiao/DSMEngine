@@ -13,6 +13,7 @@ namespace DSM {
     class Window;
     class GraphicsRenderer;
     class Scene;
+    struct IMessageCallback;
 
     struct EngineGlobalContext
     {
@@ -26,6 +27,7 @@ namespace DSM {
     struct EngineParameters
     {
         bool enableDebugLayer = true;
+        IMessageCallback* graphicsMessageCallback = nullptr;
     };
 
     class DSMEngine

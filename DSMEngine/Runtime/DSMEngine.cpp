@@ -17,6 +17,7 @@ namespace DSM {
         RenderParameters renderParams{};
         renderParams.window = sm_GlobalContext.window.get();
         renderParams.enableDebugLayer = params.enableDebugLayer;
+        renderParams.callback = params.graphicsMessageCallback;
         sm_GlobalContext.renderer = std::make_shared<GraphicsRenderer>(renderParams);
         sm_GlobalContext.scene = std::make_shared<Scene>();
 
