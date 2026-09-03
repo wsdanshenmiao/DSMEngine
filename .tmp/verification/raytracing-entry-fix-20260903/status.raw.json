@@ -1,0 +1,11 @@
+{
+  "artifacts_ok": true,
+  "capture_error": "",
+  "debug_layer_passed": true,
+  "exit_code": 0,
+  "mode": "render",
+  "numeric_passed": true,
+  "passed": true,
+  "spp_passed": true,
+  "spp_quality_passed": true
+}

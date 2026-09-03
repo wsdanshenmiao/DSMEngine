@@ -1,34 +1,44 @@
+#include "RestirDI.h"
+
 #include "RestirDIRenderPipeline.h"
 #include "RestirDIValidation.h"
 
 #include "Editor/DSMEditor.h"
 #include "Runtime/DSMEngine.h"
 
-#include <memory>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <format>
+#include <memory>
 #include <string>
 #include <string_view>
 
-using namespace DSM;
+namespace DSM::RestirDI {
 
-int main(int argc, char** argv)
+int Run(int argc, char** argv)
 {
     bool validateRender = false;
     bool validateEditor = false;
-    RestirDI::ValidationOptions validationOptions{};
+    ValidationOptions validationOptions{};
+
     for (int argumentIndex = 1; argumentIndex < argc; ++argumentIndex) {
         const std::string_view argument = argv[argumentIndex];
-        if (argument == "--validate-render") validateRender = true;
-        else if (argument == "--validate-editor") validateEditor = true;
+        if (argument == "--validate-render") {
+            validateRender = true;
+        }
+        else if (argument == "--validate-editor") {
+            validateEditor = true;
+        }
         else if (argument == "--output" && argumentIndex + 1 < argc) {
             validationOptions.outputDirectory = argv[++argumentIndex];
         }
         else if (argument == "--frames" && argumentIndex + 1 < argc) {
-            validationOptions.editorFrameCount = static_cast<uint32_t>(std::stoul(argv[++argumentIndex]));
+            validationOptions.editorFrameCount = static_cast<std::uint32_t>(
+                std::stoul(argv[++argumentIndex]));
         }
     }
+
     if (validateRender || validateEditor) {
         if (validationOptions.outputDirectory.empty()) {
             const auto timestamp = std::chrono::floor<std::chrono::seconds>(
@@ -37,15 +47,17 @@ int main(int argc, char** argv)
                 "build" / "verification" / "restir-di" /
                 std::format("{}", timestamp) / "attempt-1";
         }
-        if (validateRender) return RestirDI::RunRenderValidation(validationOptions);
-        return RestirDI::RunEditorValidation(validationOptions);
+        if (validateRender) {
+            return RunRenderValidation(validationOptions);
+        }
+        return RunEditorValidation(validationOptions);
     }
 
     DSMEngine engine;
     EngineParameters parameters{};
     parameters.enableDebugLayer = false;
     engine.StartEngine(parameters);
-    engine.SetRenderPipeline(std::make_unique<RestirDI::RenderPipeline>());
+    engine.SetRenderPipeline(std::make_unique<RenderPipeline>());
 
     DSMEditor editor;
     editor.StartEditor(&engine);
@@ -55,3 +67,5 @@ int main(int argc, char** argv)
     engine.ShutDownEngine();
     return 0;
 }
+
+} // namespace DSM::RestirDI

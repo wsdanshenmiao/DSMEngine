@@ -78,7 +78,8 @@ namespace DSM::RestirDI {
         {
             std::vector<ObjectID> entities{};
             const auto scene = DSMEngine::sm_GlobalContext.scene;
-            if (scene == nullptr) return entities;
+            if (scene == nullptr)
+                return entities;
             auto view = scene->GetObjectsWithComponents<MeshRenderer, TransformComponent>();
             entities.reserve(view.size_hint());
             for (ObjectID id : view) {
@@ -98,8 +99,10 @@ namespace DSM::RestirDI {
             const TextureHandle& texture,
             uint32_t fallback)
         {
-            if (texture == nullptr) return fallback;
-            if (const auto it = indices.find(texture.Get()); it != indices.end()) return it->second;
+            if (texture == nullptr)
+                return fallback;
+            if (const auto it = indices.find(texture.Get()); it != indices.end())
+                return it->second;
             const uint32_t index = static_cast<uint32_t>(textures.size());
             textures.push_back(texture);
             indices.emplace(texture.Get(), index);
@@ -253,7 +256,8 @@ namespace DSM::RestirDI {
         std::unordered_map<Mesh*, uint32_t> meshIndices{};
         std::unordered_map<Mesh*, uint32_t> meshVertexBases{};
         const auto scene = DSMEngine::sm_GlobalContext.scene;
-        if (scene == nullptr) return;
+        if (scene == nullptr)
+            return;
         auto view = scene->GetObjectsWithComponents<MeshRenderer, TransformComponent>();
 
         for (ObjectID id : GetSortedMeshEntities()) {

@@ -9,7 +9,8 @@ bool PixelInBounds(uint2 pixel)
 void InitialRISCS(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
     uint2 pixel = dispatchThreadID.xy;
-    if (!PixelInBounds(pixel)) return;
+    if (!PixelInBounds(pixel))
+        return;
     uint index = pixel.y * g_Frame.resolutionFrame.x + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
     GpuReservoirSample reservoirSample;

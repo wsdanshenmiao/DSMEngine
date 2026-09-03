@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Runtime/Graphics/D3D12.h"
 #include "Runtime/Graphics/RayTracing.h"
 #include "Runtime/Graphics/ResourceBindings.h"
@@ -15,7 +17,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace DSM;
+namespace DSM {
 
 // 错误回调：记录是否有 Error/Fatal 级别消息，用于功能验证
 static bool g_HadError = false;
@@ -396,3 +398,5 @@ static void RayTracingTriangle()
 
     std::cout << "DXR 示例执行成功：已导出光追图片 " << imagePath.string() << '\n';
 }
+
+} // namespace DSM

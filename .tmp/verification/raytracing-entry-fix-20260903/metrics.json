@@ -1,0 +1,536 @@
+{
+  "alpha_opaque_hit": true,
+  "alpha_opaque_probe": [
+    144,
+    84
+  ],
+  "alpha_surface": {
+    "bounds": [
+      142,
+      82,
+      177,
+      111
+    ],
+    "maximum_position": [
+      1.77500581741333,
+      2.0709662437438965,
+      0.5000011324882507
+    ],
+    "minimum_position": [
+      -1.7676194906234741,
+      -0.8616290092468262,
+      0.4999988079071045
+    ],
+    "pixel_count": 542,
+    "visible_count": 465
+  },
+  "alpha_transparent_passed": true,
+  "alpha_transparent_probe": [
+    153,
+    84
+  ],
+  "analytic_mode": {
+    "analytic_samples": 26581,
+    "emissive_samples": 0,
+    "environment_samples": 0,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 1,
+    "mean_luminance": 0.1725973466183246,
+    "overexposed_ratio": 0.002204861111111111,
+    "spatial_accepted": 166859,
+    "spatial_rejected": 409141,
+    "temporal_accept_ratio": 0.9553950111422616,
+    "temporal_accept_ratio_all_hits": 0.9553950111422616,
+    "temporal_accepted_samples": 26581,
+    "temporal_eligible_samples": 27822,
+    "valid_reservoir_ratio": 0.9553950111422616,
+    "visibility_samples": 55156,
+    "width": 320
+  },
+  "analytic_samples": 8509,
+  "daylight_restored": true,
+  "emissive_mode": {
+    "analytic_samples": 0,
+    "emissive_samples": 25085,
+    "environment_samples": 0,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 1,
+    "mean_luminance": 0.13567197773306838,
+    "overexposed_ratio": 0.0022395833333333334,
+    "spatial_accepted": 167511,
+    "spatial_rejected": 408489,
+    "temporal_accept_ratio": 0.9016246136151247,
+    "temporal_accept_ratio_all_hits": 0.9016246136151247,
+    "temporal_accepted_samples": 25085,
+    "temporal_eligible_samples": 27822,
+    "valid_reservoir_ratio": 0.9016246136151247,
+    "visibility_samples": 38652,
+    "width": 320
+  },
+  "emissive_samples": 7842,
+  "environment_mode": {
+    "analytic_samples": 0,
+    "emissive_samples": 0,
+    "environment_samples": 27722,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 1,
+    "mean_luminance": 0.15316752725655938,
+    "overexposed_ratio": 0.0021875,
+    "spatial_accepted": 172770,
+    "spatial_rejected": 403230,
+    "temporal_accept_ratio": 0.996405722090432,
+    "temporal_accept_ratio_all_hits": 0.996405722090432,
+    "temporal_accepted_samples": 27722,
+    "temporal_eligible_samples": 27822,
+    "valid_reservoir_ratio": 0.996405722090432,
+    "visibility_samples": 45035,
+    "width": 320
+  },
+  "environment_samples": 11370,
+  "finite_ratio": 1.0,
+  "height": 180,
+  "hit_pixels": 27822,
+  "invalid_hdr_rejected": true,
+  "max_visibility_samples": 1,
+  "mean_luminance": 0.20907459135927872,
+  "motion": {
+    "analytic_samples": 8767,
+    "emissive_samples": 8209,
+    "environment_samples": 10741,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 1,
+    "mean_luminance": 0.2088096489520469,
+    "overexposed_ratio": 0.0022916666666666667,
+    "spatial_accepted": 172209,
+    "spatial_rejected": 403791,
+    "temporal_accept_ratio": 0.9944288692401696,
+    "temporal_accept_ratio_all_hits": 0.9944288692401696,
+    "temporal_accepted_samples": 27667,
+    "temporal_eligible_samples": 27822,
+    "valid_reservoir_ratio": 0.9962260081949537,
+    "visibility_samples": 47186,
+    "width": 320
+  },
+  "no_shadow_primary_visible": true,
+  "no_shadow_receiver_probe": [
+    152,
+    96
+  ],
+  "no_shadow_receiver_surface": {
+    "bounds": [
+      152,
+      94,
+      154,
+      97
+    ],
+    "maximum_position": [
+      -0.8958690166473389,
+      0.29080548882484436,
+      6.100000381469727
+    ],
+    "minimum_position": [
+      -1.2238142490386963,
+      -0.20069976150989532,
+      6.0999979972839355
+    ],
+    "pixel_count": 12,
+    "visible_count": 12
+  },
+  "no_shadow_surface": {
+    "bounds": [
+      157,
+      90,
+      162,
+      103
+    ],
+    "maximum_position": [
+      0.3794347047805786,
+      1.0,
+      5.136147499084473
+    ],
+    "minimum_position": [
+      -0.3794347047805786,
+      -0.8614493012428284,
+      4.499998569488525
+    ],
+    "pixel_count": 84,
+    "visible_count": 78
+  },
+  "no_shadow_visibility_passed": true,
+  "overexposed_ratio": 0.0022222222222222222,
+  "reference_comparison": {
+    "block_nrmse": 0.044168942697708755,
+    "compared_pixels": 27822,
+    "mean_relative_error": 0.020621382534344028,
+    "pixel_nrmse": 0.2813250562704447,
+    "reference_mean_luminance": 0.20485029506252123,
+    "restir_mean_luminance": 0.20907459135927872,
+    "tonemapped_rmse": 0.21398894586302594
+  },
+  "reference_effective_samples_per_pixel": 4096,
+  "reference_frame_count": 8,
+  "resize_down_valid": true,
+  "resize_up_valid": true,
+  "scene_surfaces": [
+    {
+      "bounds": [
+        44,
+        100,
+        275,
+        142
+      ],
+      "maximum_position": [
+        5.96808385848999,
+        -0.999999463558197,
+        7.891434669494629
+      ],
+      "minimum_position": [
+        -5.968082904815674,
+        -1.1555129289627075,
+        -4.000000953674316
+      ],
+      "name": "Floor",
+      "pixel_count": 6147,
+      "stable_id": 0,
+      "visible_count": 3518
+    },
+    {
+      "bounds": [
+        127,
+        57,
+        192,
+        99
+      ],
+      "maximum_position": [
+        5.897587776184082,
+        6.756533145904541,
+        7.900001525878906
+      ],
+      "minimum_position": [
+        -5.897587776184082,
+        -0.8165607452392578,
+        7.899997234344482
+      ],
+      "name": "Back Wall",
+      "pixel_count": 2170,
+      "stable_id": 1,
+      "visible_count": 1239
+    },
+    {
+      "bounds": [
+        32,
+        0,
+        127,
+        140
+      ],
+      "maximum_position": [
+        -5.899999141693115,
+        6.898679256439209,
+        7.8969831466674805
+      ],
+      "minimum_position": [
+        -6.099829196929932,
+        -1.048850178718567,
+        -4.000000476837158
+      ],
+      "name": "Left Wall",
+      "pixel_count": 9198,
+      "stable_id": 2,
+      "visible_count": 5049
+    },
+    {
+      "bounds": [
+        192,
+        0,
+        287,
+        140
+      ],
+      "maximum_position": [
+        6.099829196929932,
+        6.898677825927734,
+        7.8969831466674805
+      ],
+      "minimum_position": [
+        5.899998188018799,
+        -1.0488502979278564,
+        -4.000000476837158
+      ],
+      "name": "Right Wall",
+      "pixel_count": 9197,
+      "stable_id": 3,
+      "visible_count": 6902
+    },
+    {
+      "bounds": [
+        133,
+        88,
+        151,
+        106
+      ],
+      "maximum_position": [
+        -1.060370922088623,
+        1.3856163024902344,
+        2.9576761722564697
+      ],
+      "minimum_position": [
+        -3.2489569187164307,
+        -0.8425841927528381,
+        1.8083672523498535
+      ],
+      "name": "PBR Sphere",
+      "pixel_count": 202,
+      "stable_id": 4,
+      "visible_count": 119
+    },
+    {
+      "bounds": [
+        168,
+        93,
+        184,
+        109
+      ],
+      "maximum_position": [
+        2.8427445888519287,
+        0.800000011920929,
+        3.106487989425659
+      ],
+      "minimum_position": [
+        1.0999999046325684,
+        -0.9836224913597107,
+        1.6999995708465576
+      ],
+      "name": "Moving PBR Box",
+      "pixel_count": 195,
+      "stable_id": 5,
+      "visible_count": 146
+    },
+    {
+      "bounds": [
+        147,
+        54,
+        172,
+        58
+      ],
+      "maximum_position": [
+        1.4643731117248535,
+        5.227147579193115,
+        3.02673602104187
+      ],
+      "minimum_position": [
+        -1.4643731117248535,
+        5.159999370574951,
+        1.7499994039535522
+      ],
+      "name": "Emissive Panel",
+      "pixel_count": 126,
+      "stable_id": 6,
+      "visible_count": 20
+    },
+    {
+      "bounds": [
+        142,
+        82,
+        177,
+        111
+      ],
+      "maximum_position": [
+        1.77500581741333,
+        2.0709662437438965,
+        0.5000011324882507
+      ],
+      "minimum_position": [
+        -1.7676194906234741,
+        -0.8616290092468262,
+        0.4999988079071045
+      ],
+      "name": "Alpha Checker",
+      "pixel_count": 542,
+      "stable_id": 7,
+      "visible_count": 465
+    },
+    {
+      "bounds": [
+        157,
+        90,
+        162,
+        103
+      ],
+      "maximum_position": [
+        0.3794347047805786,
+        1.0,
+        5.136147499084473
+      ],
+      "minimum_position": [
+        -0.36452776193618774,
+        -0.8614493012428284,
+        4.499998569488525
+      ],
+      "name": "No Shadow Probe",
+      "pixel_count": 42,
+      "stable_id": 8,
+      "visible_count": 25
+    },
+    {
+      "bounds": [
+        152,
+        97,
+        154,
+        97
+      ],
+      "maximum_position": [
+        -0.8974640965461731,
+        -0.20069962739944458,
+        6.099999904632568
+      ],
+      "minimum_position": [
+        -1.2238142490386963,
+        -0.20069976150989532,
+        6.09999942779541
+      ],
+      "name": "No Shadow Receiver",
+      "pixel_count": 3,
+      "stable_id": 9,
+      "visible_count": 2
+    }
+  ],
+  "spatial_accepted": 172607,
+  "spatial_rejected": 403393,
+  "spp_1": {
+    "analytic_samples": 8509,
+    "emissive_samples": 7842,
+    "environment_samples": 11370,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 1,
+    "mean_luminance": 0.20907459135927872,
+    "overexposed_ratio": 0.0022222222222222222,
+    "requested_samples_per_pixel": 1,
+    "spatial_accepted": 172607,
+    "spatial_rejected": 403393,
+    "temporal_accept_ratio": 0.9963697793113363,
+    "temporal_accept_ratio_all_hits": 0.9963697793113363,
+    "temporal_accepted_samples": 27721,
+    "temporal_eligible_samples": 27822,
+    "valid_reservoir_ratio": 0.9963697793113363,
+    "visibility_samples": 47263,
+    "width": 320
+  },
+  "spp_2": {
+    "analytic_samples": 8702,
+    "emissive_samples": 7846,
+    "environment_samples": 11174,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 2,
+    "mean_luminance": 0.20997681823275843,
+    "overexposed_ratio": 0.0022743055555555555,
+    "requested_samples_per_pixel": 2,
+    "spatial_accepted": 345591,
+    "spatial_rejected": 806409,
+    "temporal_accept_ratio": 0.9963518079217886,
+    "temporal_accept_ratio_all_hits": 0.996405722090432,
+    "temporal_accepted_samples": 55441,
+    "temporal_eligible_samples": 55644,
+    "valid_reservoir_ratio": 0.996405722090432,
+    "visibility_samples": 94628,
+    "width": 320
+  },
+  "spp_4": {
+    "analytic_samples": 8575,
+    "emissive_samples": 7890,
+    "environment_samples": 11257,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 4,
+    "mean_luminance": 0.20960341302632637,
+    "overexposed_ratio": 0.0022395833333333334,
+    "requested_samples_per_pixel": 4,
+    "spatial_accepted": 690789,
+    "spatial_rejected": 1613211,
+    "temporal_accept_ratio": 0.9963428222270146,
+    "temporal_accept_ratio_all_hits": 0.996405722090432,
+    "temporal_accepted_samples": 110881,
+    "temporal_eligible_samples": 111288,
+    "valid_reservoir_ratio": 0.996405722090432,
+    "visibility_samples": 188978,
+    "width": 320
+  },
+  "spp_8": {
+    "analytic_samples": 8652,
+    "emissive_samples": 7955,
+    "environment_samples": 11113,
+    "finite_ratio": 1.0,
+    "height": 180,
+    "hit_pixels": 27822,
+    "max_visibility_samples": 8,
+    "mean_luminance": 0.2090551704250372,
+    "overexposed_ratio": 0.0022395833333333334,
+    "requested_samples_per_pixel": 8,
+    "spatial_accepted": 1382545,
+    "spatial_rejected": 3225455,
+    "temporal_accept_ratio": 0.9963473150744016,
+    "temporal_accept_ratio_all_hits": 0.996405722090432,
+    "temporal_accepted_samples": 221763,
+    "temporal_eligible_samples": 222576,
+    "valid_reservoir_ratio": 0.9963338365322407,
+    "visibility_samples": 377890,
+    "width": 320
+  },
+  "spp_quality": {
+    "spp_1": {
+      "block_nrmse": 0.044168942697708755,
+      "compared_pixels": 27822,
+      "mean_relative_error": 0.020621382534344028,
+      "pixel_nrmse": 0.2813250562704447,
+      "reference_mean_luminance": 0.20485029506252123,
+      "restir_mean_luminance": 0.20907459135927872,
+      "tonemapped_rmse": 0.21398894586302594
+    },
+    "spp_2": {
+      "block_nrmse": 0.03829815195977346,
+      "compared_pixels": 27822,
+      "mean_relative_error": 0.02502570557036576,
+      "pixel_nrmse": 0.20888295002306326,
+      "reference_mean_luminance": 0.20485029506252123,
+      "restir_mean_luminance": 0.20997681823275843,
+      "tonemapped_rmse": 0.16252234264770044
+    },
+    "spp_4": {
+      "block_nrmse": 0.03810528989476795,
+      "compared_pixels": 27822,
+      "mean_relative_error": 0.023202885611438708,
+      "pixel_nrmse": 0.1609899352682731,
+      "reference_mean_luminance": 0.20485029506252123,
+      "restir_mean_luminance": 0.20960341302632637,
+      "tonemapped_rmse": 0.1324818242917319
+    },
+    "spp_8": {
+      "block_nrmse": 0.03498245775703202,
+      "compared_pixels": 27822,
+      "mean_relative_error": 0.02052657703633104,
+      "pixel_nrmse": 0.1142142087804362,
+      "reference_mean_luminance": 0.20485029506252123,
+      "restir_mean_luminance": 0.2090551704250372,
+      "tonemapped_rmse": 0.10792387775630236
+    }
+  },
+  "temporal_accept_ratio": 0.9963697793113363,
+  "temporal_accept_ratio_all_hits": 0.9963697793113363,
+  "temporal_accepted_samples": 27721,
+  "temporal_eligible_samples": 27822,
+  "valid_hdr_loaded": true,
+  "valid_reservoir_ratio": 0.9963697793113363,
+  "visibility_samples": 47263,
+  "width": 320
+}

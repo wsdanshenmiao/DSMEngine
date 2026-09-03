@@ -3,9 +3,9 @@
 // 采用独立控制台程序，直接 CreateDevice，不依赖编辑器框架。
 
 #include "TestTriangle.h"
+#include "RestirDI/RestirDI.h"
 
-int main()
+int main(int argc, char** argv)
 {
-    RayTracingTriangle();
-    return 0;
+    return DSM::RestirDI::Run(argc, argv);
 }
