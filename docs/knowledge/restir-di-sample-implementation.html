@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DSMEngine RestirDI 纯光追 Sample 的实现原理、论文映射、参数调节与验证记录。">
+  <link rel="icon" href="data:,">
+  <title>DSMEngine · ReSTIR DI 实现地图</title>
+  <style>
+    :root {
+      --bg: #070b12;
+      --panel: #0f1724;
+      --panel-2: #131e2f;
+      --panel-3: #182840;
+      --ink: #e6edf6;
+      --muted: #9cafc5;
+      --faint: #6f8198;
+      --line: rgba(151, 180, 215, .18);
+      --cyan: #6de1ff;
+      --blue: #7f9cff;
+      --green: #64e7ad;
+      --amber: #ffca72;
+      --red: #ff8e9d;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .28);
+      --radius: 18px;
+      --max: 1180px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: var(--bg); }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 500px at 12% -8%, rgba(64, 125, 190, .22), transparent 65%),
+        radial-gradient(800px 560px at 94% 8%, rgba(102, 78, 180, .18), transparent 62%),
+        var(--bg);
+      font: 15px/1.72 "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, kbd, .mono { font-family: "Cascadia Code", Consolas, monospace; }
+    code { color: #c6d8ff; background: rgba(127,156,255,.12); padding: .1em .35em; border-radius: 5px; }
+    .progress { position: fixed; z-index: 10; inset: 0 0 auto; height: 3px; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--cyan), var(--blue), var(--green)); }
+    .wrap { width: min(var(--max), calc(100% - 40px)); margin: auto; }
+    .hero { padding: 76px 0 40px; }
+    .eyebrow { color: var(--cyan); font: 700 12px/1.2 "Cascadia Code", monospace; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { max-width: 900px; margin: 14px 0 14px; font-size: clamp(34px, 6vw, 68px); line-height: 1.05; letter-spacing: -.045em; }
+    .lead { max-width: 820px; margin: 0; color: var(--muted); font-size: clamp(17px, 2.1vw, 21px); }
+    .pills { display: flex; flex-wrap: wrap; gap: 9px; margin: 24px 0 0; }
+    .pill { border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; color: #c8d6e9; background: rgba(19, 30, 47, .75); font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border: 1px solid rgba(109,225,255,.42); border-radius: 10px; background: rgba(109,225,255,.1); color: var(--ink); font-weight: 650; }
+    .button.secondary { border-color: var(--line); background: rgba(255,255,255,.03); }
+    .button:hover { text-decoration: none; background: rgba(109,225,255,.18); }
+    .hero-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 18px; margin-top: 34px; }
+    .card { border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, rgba(19,30,47,.94), rgba(10,16,27,.94)); box-shadow: var(--shadow); }
+    .pipeline { padding: 20px; }
+    .pipeline h2, .stat h2 { margin: 0 0 15px; font-size: 13px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: stretch; }
+    .flow-step { position: relative; min-height: 82px; padding: 11px 9px; border: 1px solid rgba(127,156,255,.27); border-radius: 12px; background: rgba(127,156,255,.08); }
+    .flow-step:not(:last-child)::after { content: "→"; position: absolute; right: -13px; top: 28px; z-index: 1; color: var(--cyan); }
+    .flow-step b { display: block; font-size: 13px; line-height: 1.25; }
+    .flow-step small { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 16px; }
+    .stat { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.025); }
+    .stat .number { display: block; color: var(--cyan); font: 700 29px/1.1 "Cascadia Code", monospace; }
+    .stat p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .tocbar { position: sticky; top: 3px; z-index: 5; margin: 22px 0 30px; border: 1px solid var(--line); border-radius: 13px; background: rgba(10,16,27,.9); backdrop-filter: blur(14px); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
+    .toc-inner { display: flex; align-items: center; gap: 12px; padding: 10px 12px; overflow-x: auto; }
+    .toc-inner a { flex: 0 0 auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .toc-inner a:hover, .toc-inner a.active { color: var(--cyan); }
+    .search { width: 170px; flex: 0 0 auto; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: rgba(255,255,255,.05); outline: none; }
+    .search:focus { border-color: var(--cyan); }
+    main { padding-bottom: 80px; }
+    section { scroll-margin-top: 76px; margin: 42px 0; }
+    .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 15px; }
+    .section-no { color: var(--cyan); font: 700 12px "Cascadia Code", monospace; }
+    h2 { margin: 0; font-size: clamp(23px, 3vw, 34px); line-height: 1.2; letter-spacing: -.025em; }
+    h3 { margin: 23px 0 9px; font-size: 18px; }
+    p { color: #c1cedd; }
+    .prose { max-width: 920px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .panel { padding: 20px; }
+    .panel > :first-child { margin-top: 0; }
+    .panel > :last-child { margin-bottom: 0; }
+    .callout { margin: 18px 0; padding: 15px 17px; border-left: 3px solid var(--cyan); border-radius: 0 12px 12px 0; background: rgba(109,225,255,.07); }
+    .callout.warn { border-color: var(--amber); background: rgba(255,202,114,.07); }
+    .callout.danger { border-color: var(--red); background: rgba(255,142,157,.07); }
+    .callout strong { color: var(--cyan); }
+    .callout.warn strong { color: var(--amber); }
+    .callout.danger strong { color: var(--red); }
+    .equation { overflow-x: auto; margin: 15px 0; padding: 15px 12px; border: 1px solid rgba(109,225,255,.18); border-radius: 11px; background: rgba(4,9,16,.65); text-align: center; color: #f0f6ff; font-size: 20px; }
+    .equation math { min-width: max-content; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.02); }
+    th, td { padding: 10px 11px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: #d7e5f6; background: rgba(127,156,255,.1); font-size: 12px; }
+    td { color: #bdcad9; font-size: 13px; }
+    tr:last-child td { border-bottom: 0; }
+    .tag { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 7px; border-radius: 5px; background: rgba(100,231,173,.12); color: var(--green); font: 11px "Cascadia Code", monospace; }
+    .list { margin: 9px 0; padding-left: 20px; color: #c1cedd; }
+    .list li { margin: 6px 0; }
+    .diagram { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: center; margin: 16px 0; }
+    .node { padding: 14px 11px; border: 1px solid rgba(127,156,255,.3); border-radius: 12px; background: rgba(127,156,255,.08); text-align: center; }
+    .node b { display: block; color: #edf4ff; }
+    .node small { color: var(--muted); }
+    .arrow { color: var(--cyan); text-align: center; font-size: 22px; }
+    .source-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .source { padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.025); }
+    .source b { display: block; margin-bottom: 4px; }
+    .source small { color: var(--muted); }
+    footer { padding: 24px 0 54px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12px; }
+    .backtop { position: fixed; right: 20px; bottom: 20px; display: none; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: rgba(15,23,36,.9); cursor: pointer; }
+    .backtop.show { display: block; }
+    [data-hidden="true"] { display: none !important; }
+    @media (max-width: 900px) { .hero-grid, .grid-2 { grid-template-columns: 1fr; } .flow { grid-template-columns: repeat(3, 1fr); } .flow-step:nth-child(3)::after { display: none; } }
+    @media (max-width: 620px) { .wrap { width: min(var(--max), calc(100% - 24px)); } .hero { padding-top: 48px; } .flow { grid-template-columns: repeat(2, 1fr); } .flow-step::after { display: none !important; } .grid-3, .source-list, .diagram { grid-template-columns: 1fr; } .stats { grid-template-columns: 1fr 1fr; } .toc-inner { gap: 9px; } .search { width: 130px; } }
+    @media print { :root { --bg: #fff; --ink: #111; --muted: #444; --line: #ccd4dd; } body { background: #fff; color: #111; } .progress, .tocbar, .actions, .backtop { display: none !important; } .hero { padding-top: 18px; } .card, .panel, .source, .stat { box-shadow: none; break-inside: avoid; } a { color: #124b9b; } p, td, .list { color: #222; } section { margin: 24px 0; } }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="hero wrap">
+    <div class="eyebrow">DSMENGINE / RAYTRACING / KNOWLEDGE</div>
+    <h1>ReSTIR DI 实现地图</h1>
+    <p class="lead">从候选 PDF、Reservoir 数学、DXR 可见性到 SPP 与验证指标，逐层解释 <code>Samples/RayTracing/RestirDI</code> 当前实现到底做了什么，以及它和原论文严格无偏版本的边界。</p>
+    <div class="pills"><span class="pill">纯光追 Sample</span><span class="pill">实用有偏 ReSTIR DI</span><span class="pill">DXR + Compute</span><span class="pill">2026-09-07 事实基线</span></div>
+    <div class="actions"><a class="button" href="restir-di-sample-implementation.md">阅读 Markdown 版</a><a class="button secondary" href="https://research.nvidia.com/publication/2020-07_spatiotemporal-reservoir-resampling-real-time-ray-tracing-dynamic-direct">打开 NVIDIA 原论文</a><button class="button secondary" id="print" type="button">打印 / 导出 PDF</button></div>
+    <div class="hero-grid">
+      <div class="card pipeline">
+        <h2>一帧的 GPU 路径</h2>
+        <div class="flow"><div class="flow-step"><b>Scene Sync</b><small>Mesh / 光源 / 环境</small></div><div class="flow-step"><b>Primary DXR</b><small>表面与运动</small></div><div class="flow-step"><b>Initial RIS</b><small>每 lane 32 候选</small></div><div class="flow-step"><b>Temporal</b><small>重投影合并</small></div><div class="flow-step"><b>Spatial</b><small>邻域 0–2 pass</small></div><div class="flow-step"><b>Visibility</b><small>最终阴影 + ACES</small></div></div>
+      </div>
+      <div class="card stats"><div class="stat"><h2>候选域</h2><span class="number">3</span><p>解析灯、自发光三角形、环境贴图</p></div><div class="stat"><h2>Reservoir lane</h2><span class="number">1–8</span><p>每个 SPP 是独立完整复用链</p></div><div class="stat"><h2>默认初始样本</h2><span class="number">32</span><p>每像素、每 lane 的候选数</p></div><div class="stat"><h2>最终目标</h2><span class="number">W·V</span><p>代表候选的未遮挡贡献乘可见性</p></div></div>
+    </div>
+  </header>
+  <div class="wrap tocbar"><nav class="toc-inner" aria-label="文档目录"><input class="search" id="search" type="search" placeholder="搜索本页…"><a href="#overview">总览</a><a href="#math">数学合同</a><a href="#proposal">候选 PDF</a><a href="#dxr">场景与 DXR</a><a href="#reuse">时空复用</a><a href="#spp">SPP</a><a href="#controls">模式与参数</a><a href="#mapping">论文映射</a><a href="#validation">验证</a></nav></div>
+  <main class="wrap">
+    <section id="overview" data-section>
+      <div class="section-head"><span class="section-no">01</span><h2>先给结论：它是什么</h2></div>
+      <div class="prose"><p>当前 Sample 是一套不复用 Forward/Deferred 的纯光追直接光管线。DXR 负责主表面和最终可见性，Compute 负责 Initial RIS、Temporal 与 Spatial Reservoir Resampling，最后只用一个全屏光栅 Pass 做曝光和 ACES 显示。</p><p>它具备 ReSTIR DI 的核心闭环：<code>w = pHat / q</code> 初始加权采样、固定大小 Reservoir、时空合并，以及只给幸存候选补一条阴影射线。更准确的分类是<strong>原论文 Algorithm 5 的实用有偏实现</strong>，而不是带 MIS 校正的严格无偏 Algorithm 6。</p></div>
+      <div class="callout warn"><strong>阅读边界：</strong>“标准 ReSTIR 核心流程”与“严格无偏估计器”不是同一个承诺。当前代码明确没有实现论文 4.3/4.4 节的 MIS 修正，也没有在 Initial RIS 阶段复用上一帧 Visibility。</div>
+      <div class="grid-2"><div class="card panel"><h3>主流程</h3><p>Scene Sync → Primary DXR → Initial RIS → Temporal → Spatial → Visibility DXR → HDR StructuredBuffer → ACES Present。</p></div><div class="card panel"><h3>资源策略</h3><p>BLAS/TLAS、Surface 和 Reservoir 历史全部由 Sample 自己维护；稳态帧在 Graphics Queue 上提交，不调用 <code>WaitForIdle()</code>。</p></div></div>
+    </section>
+    <section id="math" data-section>
+      <div class="section-head"><span class="section-no">02</span><h2>数学合同：q、pHat、M 与 W</h2></div>
+      <div class="grid-2">
+        <div class="card panel"><h3>直接光目标</h3><p>BRDF、辐射亮度与几何项组成未遮挡贡献；可见性被延迟到最终 DXR 阴影射线。Reservoir 使用未遮挡贡献的亮度作为标量目标函数。</p>
+          <div class="equation"><math display="block"><mrow><mover><mi>p</mi><mo>^</mo></mover><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mi>luminance</mi><mo>(</mo><msub><mi>f</mi><mi>unshadowed</mi></msub><mo>(</mo><mi>x</mi><mo>)</mo><mo>)</mo></mrow></math></div>
+        </div>
+        <div class="card panel"><h3>Initial RIS</h3><p>候选由 proposal distribution <code>q(x)</code> 生成。候选越匹配目标函数，方差越低；PDF 写错则会直接产生偏色、亮点或能量错误。</p>
+          <div class="equation"><math display="block"><mrow><msub><mi>w</mi><mi>i</mi></msub><mo>=</mo><mfrac><mrow><mover><mi>p</mi><mo>^</mo></mover><mo>(</mo><msub><mi>x</mi><mi>i</mi></msub><mo>)</mo></mrow><mrow><mi>q</mi><mo>(</mo><msub><mi>x</mi><mi>i</mi></msub><mo>)</mo></mrow></mfrac></mrow></math></div>
+        </div>
+      </div>
+      <div class="card panel" style="margin-top:16px"><h3>加权 Reservoir Sampling</h3><div class="diagram"><div class="node"><b>累计</b><small>weightSum += w<br>M += candidateM</small></div><div class="arrow">→</div><div class="node"><b>随机替换</b><small>概率 w / weightSum</small></div></div><p>最终只保存一个代表候选 <code>y</code>。<code>ReservoirFinalize</code> 用累计量恢复 RIS 估计器的归一化权重：</p>
+        <div class="equation"><math display="block"><mrow><mi>W</mi><mo>=</mo><mfrac><mrow><msub><mo>∑</mo><mi>i</mi></msub><msub><mi>w</mi><mi>i</mi></msub></mrow><mrow><mi>M</mi><mo>·</mo><mover><mi>p</mi><mo>^</mo></mover><mo>(</mo><mi>y</mi><mo>)</mo></mrow></mfrac></mrow></math></div>
+        <table><thead><tr><th>论文符号</th><th>GPU 字段</th><th>职责</th></tr></thead><tbody><tr><td><code>y</code></td><td><code>GpuReservoirSample</code></td><td>源类型、稳定 ID、索引、随机种子</td></tr><tr><td><code>Σw</code></td><td><code>weightSum</code></td><td>输入候选累计权重</td></tr><tr><td><code>M</code></td><td><code>M</code></td><td>Reservoir 代表的候选数</td></tr><tr><td><code>pHat(y)</code></td><td><code>selectedPHat</code></td><td>被选候选在当前表面的目标值</td></tr><tr><td><code>W</code></td><td><code>W</code></td><td>最终估计量的归一化权重</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section id="proposal" data-section>
+      <div class="section-head"><span class="section-no">03</span><h2>三个候选域与完整 proposal PDF</h2></div>
+      <p class="prose">候选空间被拆为三个域。CPU 按域总功率和 UI 倍率得到混合概率，GPU 再乘域内 Alias PMF。完整 PDF 是 <code>q(x) = P(D) × q(x | D)</code>，不能漏掉任何一项。</p>
+      <div class="equation"><math display="block"><mrow><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><msub><mi>P</mi><mi>D</mi></msub><mo>·</mo><msub><mi>q</mi><mi>D</mi></msub><mo>(</mo><mi>x</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>D</mi><mo>∈</mo><mo>{</mo><mi>Analytic</mi><mo>,</mo><mi>Emissive</mi><mo>,</mo><mi>Environment</mi><mo>}</mo></mrow></math></div>
+      <div class="grid-3">
+        <div class="card panel"><span class="tag">ANALYTIC</span><h3>解析灯</h3><p>Directional、Point、Spot 全部进入灯光 Alias Table。PDF 为域概率乘灯的离散 PMF，沿用 DSMEngine 现有衰减语义。</p></div>
+        <div class="card panel"><span class="tag">EMISSIVE</span><h3>自发光三角形</h3><p>权重使用世界面积与自发光功率；选中后在三角形内部连续采样。PDF 还要除以三角形面积。</p></div>
+        <div class="card panel"><span class="tag">ENVIRONMENT</span><h3>环境贴图</h3><p>经纬度像素权重包含亮度和纬度立体角。选中后像素内抖动，PDF 再除以该像素对应的立体角。</p></div>
+      </div>
+      <div class="callout"><strong>为什么用 Walker Alias：</strong>每个候选都能 O(1) 选择离散对象。<code>GpuAliasEntry</code> 额外保存归一化 PMF，是为了让后续 <code>pHat/q</code> 使用真实分布，而不是 Alias 分桶的内部概率。</div>
+    </section>
+
+    <section id="dxr" data-section>
+      <div class="section-head"><span class="section-no">04</span><h2>场景转译与 DXR 可见性</h2></div>
+      <div class="grid-2"><div class="card panel"><h3>加速结构</h3><ul class="list"><li>每个唯一 Mesh 缓存统一顶点、32 位索引与 BLAS。</li><li>每个 Submesh 对应一个 DXR Geometry。</li><li>实例按稳定 ObjectID 排序；TLAS 拓扑变化时重建，只有变换变化时 refit。</li><li>Primary 与 Shadow 使用不同 Instance Mask。</li></ul></div><div class="card panel"><h3>材质与 Alpha</h3><ul class="list"><li>不透明实例使用 <code>ForceOpaque</code>。</li><li>透明材质进入 any-hit，以基础色 Alpha 和 cutoff 裁剪。</li><li>支持双面、法线、粗糙度、金属度、自发光及纹理索引。</li><li><code>CastShadow=false</code> 仍可被 Primary 看见，但不遮挡 Shadow。</li></ul></div></div>
+      <h3>Primary 输出为什么决定复用质量</h3><p class="prose"><code>GpuSurface</code> 保存位置/深度、法线/粗糙度、反照率/金属度、自发光、运动与稳定实例 ID。Temporal 和 Spatial 所有兼容性判断都依赖这份数据，因此法线、运动向量或稳定 ID 错误会被放大成拖影、漏光或完全拒绝历史。</p>
+      <div class="callout warn"><strong>历史清除：</strong>Resize、场景切换、拓扑/材质集合、光源分布、环境或算法参数变化会清空历史。连续相机、物体和灯光运动不会直接清空，而由重投影校验决定保留区域。</div>
+    </section>
+    <section id="reuse" data-section>
+      <div class="section-head"><span class="section-no">05</span><h2>Temporal 与 Spatial Reservoir Reuse</h2></div>
+      <div class="grid-2"><div class="card panel"><h3>Temporal：重投影上一帧</h3><p>motion vector 把当前像素映射到上一帧。只有命中有效、稳定 ID 相容、法线夹角和相对深度都通过阈值、且坐标在屏幕内时，历史 Reservoir 才会进入合并。</p><span class="tag">Algorithm 4 / 5</span></div><div class="card panel"><h3>Spatial：邻域候选</h3><p>在半径内随机选择邻居，按同一套表面兼容条件拒绝跨物体、跨深度或跨法线的邻居。每个邻居只带一个代表样本，但保留它的 <code>W × M</code> 信息。</p><span class="tag">Algorithm 5</span></div></div>
+      <div class="equation"><math display="block"><mrow><msub><mi>w</mi><mi>merge</mi></msub><mo>=</mo><msub><mover><mi>p</mi><mo>^</mo></mover><mi>current</mi></msub><mo>(</mo><msub><mi>y</mi><mi>source</mi></msub><mo>)</mo><mo>·</mo><msub><mi>W</mi><mi>source</mi></msub><mo>·</mo><msub><mi>M</mi><mi>source</mi></msub></mrow></math></div>
+      <div class="card panel"><h3>为什么必须重新评价 pHat</h3><p>邻居或历史 Reservoir 的代表光源来自另一个表面。合并前要在当前表面重新计算该候选的未遮挡目标值，否则会把邻居的 BRDF、距离和入射方向错误地当作当前像素的值。合并后重新 Finalize，才能得到当前表面的 <code>W</code>。</p><div class="callout danger"><strong>有偏来源：</strong><code>historyMCapMultiplier</code> 把历史 M 限制在初始候选数的固定倍数内；它能阻止拖影和数值膨胀，但不是严格无偏论文公式的一部分。Spatial 邻居筛选和只保留一个代表样本也会引入工程偏差。</div></div>
+    </section>
+
+    <section id="spp" data-section>
+      <div class="section-head"><span class="section-no">06</span><h2>最终可见性与 SPP</h2></div>
+      <p class="prose">最终 shade 只给幸存候选发一条 DXR 阴影射线，直接光估计量是：</p>
+      <div class="equation"><math display="block"><mrow><msub><mover><mi>L</mi><mo>^</mo></mover><mi>direct</mi></msub><mo>=</mo><msub><mi>f</mi><mi>unshadowed</mi></msub><mo>(</mo><mi>y</mi><mo>)</mo><mo>·</mo><mi>W</mi><mo>·</mo><mi>V</mi><mo>(</mo><mi>y</mi><mo>)</mo></mrow></math></div>
+      <div class="grid-2"><div class="card panel"><h3>SPP 的真实语义</h3><p><code>samplesPerPixel</code> 表示 1～8 条独立完整 ReSTIR lane。每条 lane 有自己的随机序列、Reservoir 历史、Temporal/Spatial 合并和 Visibility，只有最终结果才平均。</p><p>因此它不会把同一个 Reservoir 错误重复放大，但会近似线性增加候选、历史显存和阴影射线开销。</p></div><div class="card panel"><h3>为什么高 SPP 不会自动无噪声</h3><p>剩余误差可能来自 proposal 不匹配、极亮长尾、时空相关、没有去噪和色调映射。提高 SPP 主要降低独立阴影样本噪声；如果 Alias PDF 或环境立体角错了，应该先修分布而不是无限增加 SPP。</p></div></div>
+      <div class="callout"><strong>性能判断：</strong>Primary 表面通常共享一条主射线；SPP 增长的主要成本来自每 lane 的候选生成、Reservoir 读写和最终 Visibility。可以用 <code>Independent RIS</code> 对照判断噪声来源，再决定提高初始候选、Spatial 邻居还是 SPP。</div>
+    </section>
+
+    <section id="controls" data-section>
+      <div class="section-head"><span class="section-no">07</span><h2>模式、调试视图与调参</h2></div>
+      <table><thead><tr><th>模式</th><th>时空复用</th><th>用途</th></tr></thead><tbody><tr><td><code>ReSTIR</code></td><td>Temporal + Spatial</td><td>日常质量/性能</td></tr><tr><td><code>Independent RIS</code></td><td>关闭</td><td>隔离 proposal 与初始采样噪声</td></tr><tr><td><code>Reference</code></td><td>关闭</td><td>高数量独立候选与逐样本可见性，作为验证基线</td></tr></tbody></table>
+      <div class="grid-2" style="margin-top:16px"><div class="card panel"><h3>Debug View</h3><p>Surface、Normal、Albedo、Source Type/ID、<code>pHat</code>、Reservoir <code>M</code>/<code>W</code>、Temporal/Spatial Accept、Visibility。</p><p>排查顺序：Surface/Normal → Source ID 与 pHat → 接受率 → Visibility。</p></div><div class="card panel"><h3>默认参数</h3><p><code>32</code> 初始候选；Temporal 开启；历史 M 上限倍率 <code>20</code>；Spatial <code>2 × 5</code> 邻居；半径 <code>30 px</code>；法线 <code>25°</code>；相对深度 <code>0.1</code>；Alpha cutoff <code>0.5</code>。</p></div></div>
+      <div class="card panel" style="margin-top:16px"><h3>建议的调参顺序</h3><ol class="list"><li>先用 Independent RIS 调三个候选域权重和初始候选数。</li><li>打开 Temporal，观察静止画面的接受率及运动后的拒绝区域。</li><li>最后打开 Spatial，逐步增加邻居数或 pass。</li><li>法线偏移只用于消除自遮挡；不要用大偏移掩盖错误法线。</li><li>高亮火花优先检查 <code>pHat/q</code>、环境立体角和 Alias PMF。</li></ol></div>
+    </section>
+    <section id="mapping" data-section>
+      <div class="section-head"><span class="section-no">08</span><h2>与原论文的对应关系</h2></div>
+      <table><thead><tr><th>当前代码 / 概念</th><th>论文位置</th><th>在 Sample 中的含义</th></tr></thead><tbody><tr><td><code>ReservoirUpdate</code></td><td>Algorithm 2</td><td>加权 Reservoir Sampling</td></tr><tr><td><code>ReservoirFinalize</code></td><td>Eq. (6)、Algorithm 3</td><td><code>W = sum(w) / (M · pHat(y))</code></td></tr><tr><td><code>InitialRISCS</code></td><td>第 3 节、Algorithm 1/2</td><td>每像素初始候选与 RIS</td></tr><tr><td><code>TemporalReuseCS</code></td><td>Algorithm 4/5</td><td>历史 Reservoir 重投影合并</td></tr><tr><td><code>SpatialReuseCS</code></td><td>Algorithm 5</td><td>邻域 Reservoir 合并与表面相似性</td></tr><tr><td><code>VisibilityRayGen</code></td><td>第 5 节最终 shade</td><td>对代表候选补做可见性</td></tr><tr><td>三域 Alias proposal</td><td>通用 <code>q(x)</code> 的工程扩展</td><td>让解析灯、发光几何和环境共存</td></tr><tr><td><code>historyMCapMultiplier</code></td><td>工程扩展</td><td>限制历史置信度，带来可控偏差</td></tr></tbody></table>
+      <div class="callout"><strong>推荐原文：</strong><a href="https://research.nvidia.com/publication/2020-07_spatiotemporal-reservoir-resampling-real-time-ray-tracing-dynamic-direct">Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting</a>（NVIDIA Research，SIGGRAPH 2020）。论文给出通用框架；Stable ID、Alpha any-hit、三域候选和 SPP lane 是 DSMEngine 的落地扩展。</div>
+    </section>
+
+    <section id="boundary" data-section>
+      <div class="section-head"><span class="section-no">09</span><h2>必须保留的实现边界</h2></div>
+      <div class="grid-2"><div class="card panel"><h3>当前没有实现</h3><ul class="list"><li>论文 4.3/4.4 节的 MIS 校正。</li><li>Algorithm 6 的严格无偏合并。</li><li>Initial RIS 阶段的上一帧 Visibility 复用。</li><li>无限历史 M 或免费无限 SPP。</li></ul></div><div class="card panel"><h3>工程约束</h3><ul class="list"><li>不复用 Forward/Deferred 的 GBuffer、Lighting、Shadow Pass。</li><li>不修改 <code>DSMEngine/Runtime/Graphics/**</code>。</li><li>只有最终显示使用全屏光栅 Pass。</li><li>Reservoir 布局与 HLSL enum 序号由静态断言守护。</li></ul></div></div>
+      <p class="prose">如果目标是严格无偏参考实现，需要另行加入 MIS 权重、可见性历史和偏差/方差验证；不能只把 UI 中的历史 M 上限调大。</p>
+    </section>
+
+    <section id="validation" data-section>
+      <div class="section-head"><span class="section-no">10</span><h2>验证证据与源码入口</h2></div>
+      <p class="prose">验证入口位于 <a href="../../Samples/RayTracing/RestirDI/RestirDIValidation.cpp"><code>RestirDIValidation.cpp</code></a>，覆盖有限值、Reservoir 有效率、三候选域能量、Temporal/Spatial 接受拒绝、Resize、Alpha、CastShadow、HDR 加载和 Reference 对比。</p>
+      <table><thead><tr><th>指标</th><th>最近通过结果</th></tr></thead><tbody><tr><td>验证退出码</td><td><span class="tag">0</span></td></tr><tr><td>HDR 有限像素</td><td>1.0</td></tr><tr><td>有效 Reservoir 比例</td><td>0.999964</td></tr><tr><td>平均亮度相对误差</td><td>0.031412</td></tr><tr><td>16×16 分块归一化 RMSE</td><td>0.062496</td></tr><tr><td>Editor 自动帧</td><td>120 / 120</td></tr><tr><td>D3D12 / DXGI Debug 消息</td><td>0 条</td></tr></tbody></table>
+      <div class="card panel" style="margin-top:16px"><h3>源码索引</h3><div class="source-list"><a class="source" href="../../Samples/RayTracing/RestirDI/RestirDIRenderPipeline.cpp"><b>RenderPipeline</b><small>调度、资源轮换、UI 与模式切换</small></a><a class="source" href="../../Samples/RayTracing/RestirDI/Shaders/RestirDICommon.hlsli"><b>RestirDICommon.hlsli</b><small>候选评价、PDF、Reservoir 与 enum</small></a><a class="source" href="../../Samples/RayTracing/RestirDI/Shaders/RestirDICompute.hlsl"><b>RestirDICompute.hlsl</b><small>Initial / Temporal / Spatial Compute</small></a><a class="source" href="../../Samples/RayTracing/RestirDI/Shaders/RestirDITrace.hlsl"><b>RestirDITrace.hlsl</b><small>Primary、Visibility、Reference RayGen</small></a><a class="source" href="../../Samples/RayTracing/RestirDI/RestirDIShared.h"><b>RestirDIShared.h</b><small>C++ / HLSL 共享布局和 static_assert</small></a><a class="source" href="../../Samples/RayTracing/RestirDI/RestirDIValidation.cpp"><b>RestirDIValidation.cpp</b><small>DebugLayer、数值和图像验证</small></a></div></div>
+      <div class="callout warn"><strong>维护提示：</strong>修改候选分布、Reservoir 布局或 HLSL 常数时，应同时检查 C++/HLSL enum 序号、结构体偏移、Debug/Release 编译和 DebugLayer 验证。</div>
+    </section>
+  </main>
+  <footer class="wrap"><div>DSMEngine · RestirDI knowledge note · 事实基线 2026-09-07</div><div>完整解释见 <a href="restir-di-sample-implementation.md">Markdown 版</a>；原论文请访问 NVIDIA Research 官方页面。</div></footer>
+  <button class="backtop" id="backtop" type="button" aria-label="返回顶部">↑ 顶部</button>
+  <script>
+    (() => {
+      const progress = document.querySelector('#progress');
+      const backtop = document.querySelector('#backtop');
+      const search = document.querySelector('#search');
+      const sections = [...document.querySelectorAll('[data-section]')];
+      const links = [...document.querySelectorAll('.toc-inner a')];
+      const update = () => {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        progress.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+        backtop.classList.toggle('show', scrollY > 500);
+        let current = sections[0]?.id;
+        for (const section of sections) if (section.getBoundingClientRect().top <= 120) current = section.id;
+        links.forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${current}`));
+      };
+      addEventListener('scroll', update, {passive: true});
+      addEventListener('resize', update);
+      update();
+      backtop.addEventListener('click', () => scrollTo({top: 0, behavior: 'smooth'}));
+      document.querySelector('#print').addEventListener('click', () => print());
+      search.addEventListener('input', () => {
+        const query = search.value.trim().toLowerCase();
+        sections.forEach(section => section.dataset.hidden = query && !section.innerText.toLowerCase().includes(query) ? 'true' : 'false');
+      });
+    })();
+  </script>
+</body>
+</html>

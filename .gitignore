@@ -43,6 +43,8 @@ bin/
 .codebuddy/
 vsxmake2022/
 vsxmake2026/
+.tmp/
+tmp/
 
 *.claude
 *.cache
