@@ -223,8 +223,27 @@ namespace DSM::RestirDI {
         return hash;
     }
 
+    uint64_t SceneAdapter::CalculateEmissiveDistributionHash() const
+    {
+        uint64_t hash = kFnvOffset;
+        HashValue(hash, m_EmissiveAlias.totalWeight);
+        for (const auto& triangle : m_EmissiveTriangles) {
+            HashValue(hash, triangle.data);
+            HashValue(hash, triangle.areaPower.x);
+            HashValue(hash, triangle.areaPower.y);
+        }
+        for (const auto& entry : m_EmissiveAlias.entries) {
+            HashValue(hash, entry.pmf);
+        }
+        return hash;
+    }
+
     void SceneAdapter::GatherScene(const Settings& settings)
     {
+        // 场景转译只为本 Sample 建立 GPU 数据：唯一 Mesh 生成一份 BLAS 几何，
+        // 每个对象生成一个 TLAS instance，并把稳定 ObjectID 与稠密 InstanceID
+        // 同时写入缓冲。这样历史 Reservoir 可以按稳定 ID 做重投影校验，而 DXR
+        // InstanceID 仍可直接索引当前帧的材质/变换。
         m_Vertices.clear();
         m_Indices.clear();
         m_Geometries.clear();
@@ -410,6 +429,9 @@ namespace DSM::RestirDI {
 
     void SceneAdapter::RefreshEmissiveDistribution()
     {
+        // 自发光候选的离散 proposal 权重 = 三角形世界面积 * 发光亮度，
+        // 与论文第 5 节的 power sampling 一致；实际点位置在 HLSL 中按面积
+        // 均匀采样，EvaluateCandidate 再乘面积 PDF 的倒数。
         m_EmissiveTriangles.clear();
         std::vector<float> weights{};
         for (uint32_t instanceIndex = 0; instanceIndex < m_LogicalInstanceCount; ++instanceIndex) {
@@ -444,10 +466,14 @@ namespace DSM::RestirDI {
         }
         m_EmissiveAlias = BuildAliasTable(weights);
         m_EmissiveCount = static_cast<uint32_t>(m_EmissiveTriangles.size());
+        m_EmissiveDistributionHash = CalculateEmissiveDistributionHash();
     }
 
     void SceneAdapter::GatherLights()
     {
+        // 解析灯不截断为 Forward 的固定灯数；所有启用的 Directional/Point/Spot
+        // 都进入独立 Alias Table，权重沿用引擎的距离/锥角语义，并在 GPU 端
+        // 以 domain probability * alias PMF 组成完整混合 proposal q。
         m_Lights.clear();
         std::vector<float> weights{};
         const auto scene = DSMEngine::sm_GlobalContext.scene;
@@ -492,6 +518,9 @@ namespace DSM::RestirDI {
 
     void SceneAdapter::BuildTLASInstances()
     {
+        // 变换变化只更新实例描述；TLAS 保留 AllowUpdate，拓扑变化才走完整重建。
+        // Primary mask 与 Shadow mask 分离，使 CastShadow=false 的物体仍能被主
+        // 射线看到，却不会遮挡最终 Visibility 射线。
         m_TLASInstances.resize(m_Instances.size());
         for (uint32_t index = 0; index < m_Instances.size(); ++index) {
             RT::AffineTransform affine{};
@@ -609,6 +638,9 @@ namespace DSM::RestirDI {
 
     SceneSyncResult SceneAdapter::Synchronize(IDevice* device, const Settings& settings, std::string& error)
     {
+        // 同步顺序对应每帧流水线的第 1 步：先判断拓扑/变换/光源分布 hash，
+        // 再选择重建 BLAS/TLAS、refit，或仅上传分布。只有会改变候选支持集的
+        // 变化请求清空历史；连续相机/对象运动保留历史并依赖 motion reprojection。
         SceneSyncResult result{};
         if (device == nullptr || DSMEngine::sm_GlobalContext.scene == nullptr) {
             error = "ReSTIR DI 场景同步缺少 Device 或 Scene。";
@@ -639,11 +671,14 @@ namespace DSM::RestirDI {
         else {
             UpdateTransforms();
             if (transformHash != m_TransformHash) {
+                const uint64_t previousEmissiveDistributionHash = m_EmissiveDistributionHash;
                 BuildTLASInstances();
                 RefreshEmissiveDistribution();
                 RecreateDistributionResources(device);
                 m_NeedsTLASUpdate = true;
                 result.transformsUpdated = true;
+                result.historyResetRequired =
+                    previousEmissiveDistributionHash != m_EmissiveDistributionHash;
             }
             if (lightHash != m_LightHash) {
                 GatherLights();
@@ -751,6 +786,7 @@ namespace DSM::RestirDI {
         m_TLAS = nullptr;
         m_TLASHeap = nullptr;
         m_TopologyHash = m_TransformHash = m_LightHash = m_LightDistributionHash = 0;
+        m_EmissiveDistributionHash = 0;
         m_LogicalInstanceCount = m_LightCount = m_EmissiveCount = 0;
         m_NeedsFullBuild = m_NeedsTLASUpdate = m_NeedsDistributionUpload = false;
         m_FirstSync = true;

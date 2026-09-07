@@ -81,6 +81,7 @@ namespace DSM::RestirDI {
         [[nodiscard]] uint64_t CalculateTransformHash() const;
         [[nodiscard]] uint64_t CalculateLightHash() const;
         [[nodiscard]] uint64_t CalculateLightDistributionHash() const;
+        [[nodiscard]] uint64_t CalculateEmissiveDistributionHash() const;
 
     private:
         std::vector<GpuVertex> m_Vertices{};
@@ -119,6 +120,7 @@ namespace DSM::RestirDI {
         uint64_t m_TransformHash = 0;
         uint64_t m_LightHash = 0;
         uint64_t m_LightDistributionHash = 0;
+        uint64_t m_EmissiveDistributionHash = 0;
         uint32_t m_LogicalInstanceCount = 0;
         uint32_t m_LightCount = 0;
         uint32_t m_EmissiveCount = 0;

@@ -6,32 +6,40 @@ namespace DSM::RestirDI {
 
     enum class RenderMode : uint32_t
     {
-        Restir,
-        IndependentRIS,
-        Reference
+        Restir = 0u,
+        IndependentRIS = 1u,
+        Reference = 2u
     };
 
     enum class DebugView : uint32_t
     {
-        Final,
-        Surface,
-        Normal,
-        Albedo,
-        SourceType,
-        SourceID,
-        PHat,
-        ReservoirM,
-        ReservoirW,
-        TemporalAcceptance,
-        SpatialAcceptance,
-        Visibility
+        Final = 0u,
+        Surface = 1u,
+        Normal = 2u,
+        Albedo = 3u,
+        SourceType = 4u,
+        SourceID = 5u,
+        PHat = 6u,
+        ReservoirM = 7u,
+        ReservoirW = 8u,
+        TemporalAcceptance = 9u,
+        SpatialAcceptance = 10u,
+        Visibility = 11u
     };
 
     enum class EnvironmentSource : uint32_t
     {
-        DaylightCube,
-        RadianceHDR
+        DaylightCube = 0u,
+        RadianceHDR = 1u
     };
+
+    // HLSL 端 RestirRenderMode/RestirDebugView 使用同一序号写入 GpuFrameConstants。
+    // 显式断言可在调整菜单顺序时立刻暴露协议破坏，而不是等到 GPU 显示错误模式。
+    static_assert(static_cast<uint32_t>(RenderMode::Restir) == 0u);
+    static_assert(static_cast<uint32_t>(RenderMode::IndependentRIS) == 1u);
+    static_assert(static_cast<uint32_t>(RenderMode::Reference) == 2u);
+    static_assert(static_cast<uint32_t>(DebugView::Final) == 0u);
+    static_assert(static_cast<uint32_t>(DebugView::Visibility) == 11u);
 
     struct Settings
     {
@@ -50,6 +58,9 @@ namespace DSM::RestirDI {
 
         bool enableTemporalReuse = true;
         bool enableSpatialReuse = true;
+        // 原论文 Algorithm 5 可在初始 RIS 前复用上一帧可见性；当前实现只对
+        // 最终 Reservoir 样本追踪一次 DXR 阴影射线，因此该开关作为保留字段，
+        // 不应被误认为已经启用了“初始可见性复用”。
         bool enableVisibilityReuse = false;
         bool enableAnalyticLights = true;
         bool enableEmissiveTriangles = true;

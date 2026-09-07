@@ -14,7 +14,7 @@ float3 CameraRayDirection(uint2 pixel)
     float2 ndc = float2(uv.x * 2.0f - 1.0f, 1.0f - uv.y * 2.0f);
     float4 world = MulRow(float4(ndc, 1.0f, 1.0f), g_Frame.inverseViewProjection);
     world.xyz /= max(abs(world.w), RESTIR_EPSILON);
-    return normalize(world.xyz - g_Frame.cameraExposure.xyz);
+    return SafeNormalize(world.xyz - g_Frame.cameraExposure.xyz, float3(0, 0, 1));
 }
 
 float2 ProjectUV(float3 worldPosition, GpuMatrix viewProjection, out float deviceDepth)
@@ -29,12 +29,15 @@ float2 ProjectUV(float3 worldPosition, GpuMatrix viewProjection, out float devic
 [shader("raygeneration")]
 void PrimaryRayGen()
 {
+    // 主可见性阶段：每像素一条相机射线，写入重投影所需的 position/normal/
+    // material/stableID/motion。背景也写入有效的环境颜色，但不创建 Reservoir。
     uint2 pixel = DispatchRaysIndex().xy;
     uint index = pixel.y * g_Frame.resolutionFrame.x + pixel.x;
     float3 rayDirection = CameraRayDirection(pixel);
     GpuSurface surface = (GpuSurface)0;
     surface.emissive = float4(SampleEnvironment(rayDirection), 1.0f);
-    surface.ids = uint4(RESTIR_INVALID_INDEX, RESTIR_INVALID_INDEX, RESTIR_INVALID_INDEX, 2u);
+    surface.ids = uint4(RESTIR_INVALID_INDEX, RESTIR_INVALID_INDEX, RESTIR_INVALID_INDEX,
+        BackgroundSurface);
     g_SurfaceOutput[index] = surface;
 
     if (g_Frame.sourceCounts.w == 0u) return;
@@ -43,23 +46,25 @@ void PrimaryRayGen()
     ray.Direction = rayDirection;
     ray.TMin = g_Frame.reuseThresholds.w;
     ray.TMax = g_Frame.rayEnvironment.y;
-    RayPayload payload = {0u, 0u};
-    TraceRay(g_Scene, RAY_FLAG_NONE, 1u, 0u, 0u, 0u, ray, payload);
+    RayPayload payload = {PrimaryRay, 0u};
+    TraceRay(g_Scene, RAY_FLAG_NONE, PrimaryInstanceMask, 0u, 0u, 0u, ray, payload);
 }
 
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-    if (payload.rayType == 0u) payload.value = 0u;
+    if (payload.rayType == PrimaryRay) payload.value = 0u;
 }
 
 [shader("anyhit")]
 void AlphaAnyHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attributes)
 {
+    // 透明材质只在 AlphaTestMaterial 标志存在时采样基础色 alpha；透明 texel
+    // IgnoreHit 后继续寻找后面的三角形，满足独立于 Forward/Deferred 的裁剪语义。
     GpuInstance instance = g_Instances[InstanceID()];
     GpuGeometry geometry = g_Geometries[instance.data.y + GeometryIndex()];
     GpuMaterial material = g_Materials[geometry.data.w];
-    if ((material.texture1.z & 1u) == 0u) return;
+    if ((material.texture1.z & AlphaTestMaterial) == 0u) return;
     uint triangleOffset = geometry.data.y + PrimitiveIndex() * 3u;
     GpuVertex v0 = g_Vertices[geometry.data.x + g_Indices[triangleOffset]];
     GpuVertex v1 = g_Vertices[geometry.data.x + g_Indices[triangleOffset + 1u]];
@@ -75,7 +80,7 @@ void AlphaAnyHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
 [shader("closesthit")]
 void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attributes)
 {
-    if (payload.rayType != 0u) {
+    if (payload.rayType != PrimaryRay) {
         payload.value = 0u;
         return;
     }
@@ -95,16 +100,16 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     float4 localTangent = v0.tangent * bary.x + v1.tangent * bary.y + v2.tangent * bary.z;
     float2 uv = v0.uv.xy * bary.x + v1.uv.xy * bary.y + v2.uv.xy * bary.z;
     float3 worldPosition = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-    float3 worldNormal = normalize(mul(localNormal, (float3x3)WorldToObject3x4()));
-    float3 worldTangent = normalize(mul((float3x3)ObjectToWorld3x4(), localTangent.xyz));
-    worldTangent = normalize(worldTangent - worldNormal * dot(worldNormal, worldTangent));
-    float3 worldBitangent = normalize(cross(worldNormal, worldTangent)) *
+    float3 worldNormal = SafeNormalize(mul(localNormal, (float3x3)WorldToObject3x4()), float3(0, 1, 0));
+    float3 worldTangent = SafeNormalize(mul((float3x3)ObjectToWorld3x4(), localTangent.xyz), float3(1, 0, 0));
+    worldTangent = SafeNormalize(worldTangent - worldNormal * dot(worldNormal, worldTangent), float3(1, 0, 0));
+    float3 worldBitangent = SafeNormalize(cross(worldNormal, worldTangent), float3(0, 0, 1)) *
         (localTangent.w < 0.0f ? -1.0f : 1.0f);
     float3 tangentNormal = g_Textures[NonUniformResourceIndex(material.texture0.w)]
         .SampleLevel(g_LinearSampler, uv, 0.0f).xyz * 2.0f - 1.0f;
     tangentNormal.xy *= material.factors.x;
-    worldNormal = normalize(worldTangent * tangentNormal.x +
-        worldBitangent * tangentNormal.y + worldNormal * tangentNormal.z);
+    worldNormal = SafeNormalize(worldTangent * tangentNormal.x +
+        worldBitangent * tangentNormal.y + worldNormal * tangentNormal.z, worldNormal);
     if (HitKind() == HIT_KIND_TRIANGLE_BACK_FACE) worldNormal = -worldNormal;
 
     float4 baseSample = g_Textures[NonUniformResourceIndex(material.texture0.x)]
@@ -121,6 +126,8 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     ProjectUV(worldPosition, g_Frame.viewProjection, currentDepth);
     float2 previousUV = ProjectUV(previousWorldPosition, g_Frame.previousViewProjection, previousDepth);
 
+    // 命中记录对应论文 Algorithm 5 的“当前表面 q/target 评价上下文”，不存
+    // 光源样本本身；这样同一 surface 可以被多个 SPP lane 独立采样。
     GpuSurface surface;
     surface.positionDepth = float4(worldPosition, RayTCurrent());
     surface.normalRoughness = float4(worldNormal, clamp(material.factors.z * roughnessSample, 0.045f, 1.0f));
@@ -129,7 +136,7 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     surface.emissive = float4(material.emissiveColor.rgb * emissiveSample, 1.0f);
     surface.motion = float4(previousUV, currentDepth, previousDepth);
     surface.ids = uint4(instance.data.x, instanceIndex, geometry.data.w,
-        1u | ((instance.data.w & 1u) << 1u));
+        ValidSurface | ((instance.data.w & ReceivesShadowInstance) << 1u));
     uint2 pixel = DispatchRaysIndex().xy;
     g_SurfaceOutput[pixel.y * g_Frame.resolutionFrame.x + pixel.x] = surface;
     payload.value = 1u;
@@ -143,27 +150,27 @@ float3 DebugColor(
     float3 finalColor)
 {
     uint view = g_Frame.modes.y;
-    if (view == 0u) return finalColor;
-    if (view == 1u) return frac(abs(surface.positionDepth.xyz) * 0.2f);
-    if (view == 2u) return normalize(surface.normalRoughness.xyz) * 0.5f + 0.5f;
-    if (view == 3u) return surface.albedoMetallic.rgb;
-    if (view == 4u) {
-        if (sample.sourceType == 1u) return float3(1, 0.2f, 0.1f);
-        if (sample.sourceType == 2u) return float3(0.1f, 1, 0.2f);
-        if (sample.sourceType == 3u) return float3(0.1f, 0.3f, 1);
+    if (view == FinalDebugView) return finalColor;
+    if (view == SurfaceDebugView) return frac(abs(surface.positionDepth.xyz) * 0.2f);
+    if (view == NormalDebugView) return normalize(surface.normalRoughness.xyz) * 0.5f + 0.5f;
+    if (view == AlbedoDebugView) return surface.albedoMetallic.rgb;
+    if (view == SourceTypeDebugView) {
+        if (sample.sourceType == AnalyticSource) return float3(1, 0.2f, 0.1f);
+        if (sample.sourceType == EmissiveTriangleSource) return float3(0.1f, 1, 0.2f);
+        if (sample.sourceType == EnvironmentSource) return float3(0.1f, 0.3f, 1);
         return 0.0f.xxx;
     }
-    if (view == 5u) {
+    if (view == SourceIDDebugView) {
         uint value = Hash(sample.stableID);
         return float3(value & 255u, (value >> 8) & 255u, (value >> 16) & 255u) / 255.0f;
     }
-    if (view == 6u) return log2(1.0f + stats.selectedPHat).xxx * 0.2f;
-    if (view == 7u) return saturate(stats.M / max((float)g_Frame.algorithm.y, 1.0f)).xxx;
-    if (view == 8u) return log2(1.0f + stats.W).xxx * 0.2f;
-    if (view == 9u) return acceptance.temporalAccepted != 0u ? float3(0, 1, 0) : float3(1, 0, 0);
-    if (view == 10u) return acceptance.spatialAccepted != 0u ? float3(0, 1, 0) : float3(1, 0, 0);
-    if (view == 11u) {
-        float sampleCount = g_Frame.modes.x == 2u
+    if (view == PHatDebugView) return log2(1.0f + stats.selectedPHat).xxx * 0.2f;
+    if (view == ReservoirMDebugView) return saturate(stats.M / max((float)g_Frame.algorithm.y, 1.0f)).xxx;
+    if (view == ReservoirWDebugView) return log2(1.0f + stats.W).xxx * 0.2f;
+    if (view == TemporalAcceptanceDebugView) return acceptance.temporalAccepted != 0u ? float3(0, 1, 0) : float3(1, 0, 0);
+    if (view == SpatialAcceptanceDebugView) return acceptance.spatialAccepted != 0u ? float3(0, 1, 0) : float3(1, 0, 0);
+    if (view == VisibilityDebugView) {
+        float sampleCount = g_Frame.modes.x == ReferenceMode
             ? max((float)g_Frame.sampling.y, 1.0f)
             : max((float)g_Frame.sampling.x, 1.0f);
         return saturate(acceptance.visibility / sampleCount).xxx;
@@ -173,20 +180,27 @@ float3 DebugColor(
 
 uint TraceVisibility(GpuSurface surface, CandidateEvaluation evaluation)
 {
-    if ((surface.ids.w & 2u) == 0u || !(Luminance(evaluation.contribution) > 0.0f)) return 1u;
+    if ((surface.ids.w & ReceivesShadowSurface) == 0u || !HasValidProposalPdf(evaluation) ||
+        !(Luminance(evaluation.contribution) > 0.0f)) return 1u;
     RayDesc ray;
-    ray.Origin = surface.positionDepth.xyz + normalize(surface.normalRoughness.xyz) * g_Frame.reuseThresholds.w;
-    ray.Direction = evaluation.direction;
+    ray.Origin = surface.positionDepth.xyz +
+        SafeNormalize(surface.normalRoughness.xyz, float3(0, 1, 0)) * g_Frame.reuseThresholds.w;
+    ray.Direction = SafeNormalize(evaluation.direction,
+        SafeNormalize(surface.normalRoughness.xyz, float3(0, 1, 0)));
     ray.TMin = g_Frame.reuseThresholds.w;
     ray.TMax = max(evaluation.distance, ray.TMin);
-    RayPayload payload = {1u, 1u};
-    TraceRay(g_Scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 2u, 0u, 0u, 0u, ray, payload);
+    RayPayload payload = {VisibilityRay, 1u};
+    TraceRay(g_Scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+        ShadowInstanceMask, 0u, 0u, 0u, ray, payload);
     return payload.value;
 }
 
 [shader("raygeneration")]
 void VisibilityRayGen()
 {
+    // 论文 Algorithm 5 的最终 shade：Reservoir 给出 candidate * W，只有此处
+    // 追加一次 DXR 可见性测试。samplesPerPixel 是独立的完整 Reservoir lane，
+    // 各 lane 的结果在线程内累加后除以 N，不是把同一个 Reservoir 重复放大。
     uint2 pixel = DispatchRaysIndex().xy;
     uint index = pixel.y * g_Frame.resolutionFrame.x + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
@@ -199,14 +213,16 @@ void VisibilityRayGen()
     bool lastSample = sampleIndex + 1u >= sampleCount;
     float3 color = firstSample ? surface.emissive.rgb : g_HdrOutput[index].rgb;
     uint visibility = 0u;
-    if ((surface.ids.w & 1u) != 0u) {
-        if (sample.sourceType != 0u && stats.W > 0.0f) {
+    if ((surface.ids.w & ValidSurface) != 0u) {
+        if (sample.sourceType != InvalidSource && stats.W > 0.0f) {
             CandidateEvaluation evaluation = EvaluateCandidate(surface, sample);
-            visibility = TraceVisibility(surface, evaluation);
-            color += evaluation.contribution * stats.W * visibility / sampleCount;
+            if (HasValidProposalPdf(evaluation)) {
+                visibility = TraceVisibility(surface, evaluation);
+                color += evaluation.contribution * stats.W * visibility / sampleCount;
+            }
         }
     }
-    else if ((surface.ids.w & 2u) != 0u) {
+    else if ((surface.ids.w & BackgroundSurface) != 0u) {
         visibility = 1u;
     }
 
@@ -226,12 +242,14 @@ void VisibilityRayGen()
 [shader("raygeneration")]
 void ReferenceRayGen()
 {
+    // 验证专用参考路径：对同一混合 proposal 做大量独立候选并逐个追踪可见性，
+    // 对应论文 Eq. (2) 的直接光 Monte Carlo 积分；它不参与正式 ReSTIR 历史。
     uint2 pixel = DispatchRaysIndex().xy;
     uint index = pixel.y * g_Frame.resolutionFrame.x + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
     float3 color = surface.emissive.rgb;
     uint visibleCount = 0u;
-    if ((surface.ids.w & 1u) != 0u) {
+    if ((surface.ids.w & ValidSurface) != 0u) {
         uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^
             Hash(g_Frame.resolutionFrame.z + 0x51ed270bu));
         float3 direct = 0.0f.xxx;
@@ -239,7 +257,7 @@ void ReferenceRayGen()
         [loop] for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
             GpuReservoirSample sample = GenerateCandidate(randomState);
             CandidateEvaluation evaluation = EvaluateCandidate(surface, sample);
-            if (!(evaluation.proposalPdf > RESTIR_EPSILON)) continue;
+            if (!HasValidProposalPdf(evaluation)) continue;
             uint visibility = TraceVisibility(surface, evaluation);
             visibleCount += visibility;
             direct += evaluation.contribution * visibility / evaluation.proposalPdf;

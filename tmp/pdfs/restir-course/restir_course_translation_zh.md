@@ -88,7 +88,7 @@ ReSTIR 建立在 Talbot 等人提出的重采样重要性采样 RIS 数学基础
 
 - 摘要；课程形式与预备知识；为什么在 2023 年开设本课程；课程安排；作者简介。
 - 第 1 章 引言：1.1 ReSTIR 的动机。
-- 第 2 章 预备知识：2.1 蒙特卡洛积分；2.2 支持集；2.3 多重重要性采样；2.4 无偏贡献权重。
+- 第 2 章 预备知识：2.1 蒙特卡洛积分；2.2 支撑集；2.3 多重重要性采样；2.4 无偏贡献权重。
 - 第 3 章 重采样重要性采样：3.1 RIS；3.2 MIS 权重；3.3 BSDF 与 NEE 之间的 RIS 示例；3.4 输入 PDF 未知时的处理。
 - 第 4 章 ReSTIR：时空 Reservoir 重采样：4.1 加权 Reservoir 采样；4.2 时空复用；4.3 ReSTIR 直接光照示例；4.4 历史长度；4.5 高级主题。
 - 第 5 章 跨域复用：5.1 预备知识；5.1.1 Shift Mapping；5.1.2 Jacobian 行列式；5.2 跨域复用样本；5.3 跨域 MIS。
@@ -109,15 +109,15 @@ ReSTIR 建立在 Talbot 等人提出的重采样重要性采样 RIS 数学基础
 
 ReSTIR 是对 RIS 的迭代应用。它不断把多个邻居样本聚合成一个质量更高的样本，因此可以从大量历史帧中进行无偏样本复用。
 
-有经验的实践者经常问：“你怎么保证邻居的样本与当前像素有关？”这是一个非常准确的问题。答案是：必须极其谨慎。正确处理样本的支持集与积分域，正是 ReSTIR 最核心、也最困难的问题。
+有经验的实践者经常问：“你怎么保证邻居的样本与当前像素有关？”这是一个非常准确的问题。答案是：必须极其谨慎。正确处理样本的支撑集与积分域，正是 ReSTIR 最核心、也最困难的问题。
 
-不过，样本复用本身并不反直觉。现代降噪器和上采样器早已在像素之间复用和过滤颜色；这也可视为在不同积分域之间复用样本。后处理降噪器通常忽略支持集问题，因此常会损失能量或产生其他偏差。
+不过，样本复用本身并不反直觉。现代降噪器和上采样器早已在像素之间复用和过滤颜色；这也可视为在不同积分域之间复用样本。后处理降噪器通常忽略支撑集问题，因此常会损失能量或产生其他偏差。
 
 RIS 与 ReSTIR 的巨大优势在于，它们在丢弃任何候选信息之前就完成过滤、重采样和复用。此时我们仍然拥有中间概率、分布和样本，因此可以构造无偏算法；而后处理降噪通常只能访问颜色和少量显式引导缓冲区。
 
 从这个角度看，ReSTIR 是一种对采样分布进行过滤的技术：把多个样本聚合成一个具有更优 PDF 的样本。如果混合邻域颜色能改善图像，那么过滤 PDF 同样可能减少噪声。
 
-Path Guiding 已证明过滤 PDF 有效，它通过历史样本拟合某个 PDF 族。ReSTIR 则跳过显式学习，直接对其他像素和历史帧的既有样本进行加权复用，使 PDF 在反复重采样中得到改善。
+路径引导（Path Guiding）已经证明过滤 PDF 有效：它通过历史样本拟合某个 PDF 族。ReSTIR 则跳过显式学习，直接对其他像素和历史帧的既有样本进行加权复用，使 PDF 在反复重采样中得到改善。
 
 ReSTIR 与许多已有采样技术相似。它的一项关键贡献，是借助加权 Reservoir 采样，让这些思想拥有惰性、流式且适合 GPU 的实现。
 
@@ -126,28 +126,32 @@ ReSTIR 与许多已有采样技术相似。它的一项关键贡献，是借助�
 
 假定读者熟悉光传输的路径积分形式。一个像素接收到的辐射亮度，是从所有发光体到传感器的全部可能路径之和：
 
-```text
-I_i = integral_Omega h_i(x) f(x) dx                         (1.1)
+```math
+I_i = \int_{\Omega} h_i(\mathbf{x})\,f(\mathbf{x})\,\mathrm{d}\mathbf{x}
+\tag{1.1}
 ```
 
-其中，Omega 包含所有长度的路径，h_i 是像素的图像滤波器，f 是测量贡献函数，dx 是各顶点面积测度的乘积。若使用盒式滤波器，可以定义只包含穿过像素 i 的路径域 Omega_i：
+其中，Ω 包含所有长度的路径，h_i 是像素的图像滤波器，f 是测量贡献函数，dx 是各顶点面积测度的乘积。若使用盒式滤波器，可以定义只包含穿过像素 i 的路径域 Ω_i：
 
-```text
-I_i = integral_Omega_i f(x) dx                              (1.2)
+```math
+I_i = \int_{\Omega_i} f(\mathbf{x})\,\mathrm{d}\mathbf{x}
+\tag{1.2}
 ```
 
 路径追踪器从相机出发随机采样路径 X，让路径在场景交互点上反弹，并以路径携带的辐射贡献 f(X) 除以其采样概率密度 p(X)：
 
-```text
-<I_i> = f(X) / p(X) approximately equals I_i                (1.3)
+```math
+\langle I_i\rangle = \frac{f(\mathbf{X})}{p(\mathbf{X})} \approx I_i
+\tag{1.3}
 ```
 
 该估计器在有符号误差意义上平均正确，即无偏，但会有噪声。p 与 f 的偏离越大，方差越高。如果 p 与 f 成正比，便得到零方差估计。
 
 也可以平均 N 个样本来降低噪声：
 
-```text
-<I_i> = (1/N) * sum_j [ f(X_j) / p(X_j) ]                   (1.4)
+```math
+\langle I_i\rangle = \frac{1}{N}\sum_{j=1}^{N}\frac{f(\mathbf{X}_j)}{p(\mathbf{X}_j)}
+\tag{1.4}
 ```
 
 但这种方式很快变得低效：噪声幅度每减半，样本数约需增加四倍。更好的方向是让 p 更接近 f；然而，在实际光传输中，预判哪些路径承载大量光能本身就很困难。
@@ -168,22 +172,24 @@ RIS 正是为此服务。给定输入序列 X_1...X_M，RIS 为每个输入计�
 @@PAGE 11
 # 第 2 章 预备知识
 
-在进入 RIS 与 ReSTIR 的细节前，本章简要回顾随机变量、支持集和蒙特卡洛积分。熟悉这些内容的读者可直接阅读第 3 章。
+在进入 RIS 与 ReSTIR 的细节前，本章简要回顾随机变量、支撑集和蒙特卡洛积分。熟悉这些内容的读者可直接阅读第 3 章。
 
 ## 2.1 蒙特卡洛积分
 
 对无法以闭式求解的积分：
 
-```text
-I = integral_Omega f(x) dx                                  (2.1)
+```math
+I = \int_{\Omega} f(x)\,\mathrm{d}x
+\tag{2.1}
 ```
 
 蒙特卡洛积分用 M 个随机样本 X_1...X_M 近似它；函数 f 只需在这些位置求值。本文用大写 X 表示随机变量，用小写 x 表示普通积分变量，这一约定在同时出现两类变量时可以避免混淆。
 
-若 X_i 在 Omega 中均匀分布：
+若 X_i 在 Ω 中均匀分布：
 
-```text
-<I> = |Omega| * (1/M) * sum_i f(X_i)                        (2.2)
+```math
+\langle I\rangle = |\Omega|\,\frac{1}{M}\sum_{i=1}^{M} f(X_i)
+\tag{2.2}
 ```
 
 估计值本身是随机变量，单次不一定等于真实积分；但只要样本覆盖完整积分域，其期望就是 I，而且当 M 趋于无穷时会依概率收敛到 I。
@@ -195,16 +201,18 @@ I = integral_Omega f(x) dx                                  (2.1)
 @@PAGE 12
 一般蒙特卡洛估计器为：
 
-```text
-<I> = sum_i [ (1/M) * f(X_i) / p_i(X_i) ]                   (2.3)
+```math
+\langle I\rangle = \sum_{i=1}^{M}\frac{1}{M}\frac{f(X_i)}{p_i(X_i)}
+\tag{2.3}
 ```
 
 每个样本都除以自己的概率密度。不同样本可以使用不同 PDF；虽然很多应用让所有样本共享同一 PDF，但组合不同 PDF 正是 ReSTIR 的关键组成部分。
 
 即使 M=1，也可使用：
 
-```text
-<I> = f(X) / p(X)                                           (2.4)
+```math
+\langle I\rangle = \frac{f(X)}{p(X)}
+\tag{2.4}
 ```
 
 它的准确度完全取决于 p 与 f 的关系。如果 f(x)/p(x) 在整个积分域中为常数，p 就是完美 PDF，单个样本也足以精确估计积分。然而构造完美 PDF 通常需要预先知道积分值，现实中不可行。ReSTIR 的目标，是让有效 PDF 尽可能接近这个完美 PDF，使极少量样本也能给出良好估计。
@@ -213,34 +221,37 @@ I = integral_Omega f(x) dx                                  (2.1)
 
 估计器期望偏离真实积分称为偏差；没有偏差的算法称为无偏。上述 MC 估计器在较温和条件下无偏，但破坏这些条件会引入偏差。
 
-## 2.2 支持集
+## 2.2 支撑集
 
-函数 f 的支持集 supp(f)，就是 f(x) 不为零的所有 x。随机变量 X 的支持集 supp(X)，是 X 能够取到的所有值。若 X 具有 PDF p，则 supp(X)=supp(p)。
+函数 f 的支撑集 supp(f)，就是 f(x) 不为零的所有 x。随机变量 X 的支撑集 supp(X)，是 X 能够取到的所有值。若 X 具有 PDF p，则 supp(X)=supp(p)。
 
 @@PAGE 13
-蒙特卡洛积分无偏只需要一个核心条件：随机变量 X 的支持集必须包含 f 的支持集，即 supp(f) 是 supp(X) 的子集。也可以说 X 必须“覆盖”f：
+蒙特卡洛积分无偏只需要一个核心条件：随机变量 X 的支撑集必须包含 f 的支撑集，即 supp(f) 是 supp(X) 的子集。也可以说 X 必须“覆盖”f：
 
-```text
-E_X[<I>] = integral_supp(X) [f(x)/p(x)] p(x) dx
-         = integral_supp(X) f(x) dx                         (2.5)
+```math
+\mathbb{E}_{X}[\langle I\rangle] = \int_{\operatorname{supp}(X)} \frac{f(x)}{p(x)}\,p(x)\,\mathrm{d}x
+= \int_{\operatorname{supp}(X)} f(x)\,\mathrm{d}x
+\tag{2.5}
 ```
 
-积分只会发生在 X 的支持集内，落在支持集之外的 f 永远被忽略。传统写法是：只要 f(x)>0，就必须有 p(x)>0。普通算法中这通常不是问题；ReSTIR 会混合来自邻居、历史帧和不同技术的分布，这些分布不一定各自覆盖被积函数，因此支持集会直接影响算法设计。
+积分只会发生在 X 的支撑集内，落在支撑集之外的 f 永远被忽略。传统写法是：只要 f(x)>0，就必须有 p(x)>0。普通算法中这通常不是问题；ReSTIR 会混合来自邻居、历史帧和不同技术的分布，这些分布不一定各自覆盖被积函数，因此支撑集会直接影响算法设计。
 
 ## 2.3 多重重要性采样
 
 MIS 用于高效组合多个随机变量的样本。朴素公式会把不同技术的方差直接相加，而且只要其中任一技术不覆盖 f，就可能产生偏差。MIS 改为加权组合：
 
-```text
-<I> = sum_i m_i(X_i) * f(X_i) / p_i(X_i)                   (2.6)
+```math
+\langle I\rangle = \sum_{i=1}^{M} m_i(X_i)\frac{f(X_i)}{p_i(X_i)}
+\tag{2.6}
 ```
 
-无偏所需条件是：对 f 支持集内任意 x，所有 m_i(x) 之和为 1；当 x 不在 X_i 的支持集时，m_i(x)=0。这样只要求所有输入支持集的并集覆盖 f。
+无偏所需条件是：对 f 支撑集内任意 x，所有 m_i(x) 之和为 1；当 x 不在 X_i 的支撑集时，m_i(x)=0。这样只要求所有输入支撑集的并集覆盖 f。
 
-简单平均对应 m_i=1/M，只在每个 X_i 都单独覆盖 f 时无偏。常用 balance heuristic 为：
+简单平均对应 m_i=1/M，只在每个 X_i 都单独覆盖 f 时无偏。常用的平衡启发式（balance heuristic）为：
 
-```text
-m_i(x) = p_i(x) / sum_j p_j(x)                             (2.7)
+```math
+m_i(x) = \frac{p_i(x)}{\sum_{j=1}^{M}p_j(x)}
+\tag{2.7}
 ```
 
 在通常假设 MIS 权重非负时，它在方差意义上是“最优”的一种权重方案。
@@ -248,16 +259,18 @@ m_i(x) = p_i(x) / sum_j p_j(x)                             (2.7)
 @@PAGE 14
 ## 2.4 无偏贡献权重
 
-此前假定 p(x) 可闭式求值。但若 X 的生成过程很复杂，例如 Woodcock tracking 或 Photon Mapping，p(X) 可能根本无法实际计算。幸运的是，只要知道随机变量 W_X，并且在给定 X 时满足：
+此前假定 p(x) 可闭式求值。但若 X 的生成过程很复杂，例如 Woodcock 跟踪（也称 delta tracking）或光子映射（Photon Mapping），p(X) 可能根本无法实际计算。幸运的是，只要知道随机变量 W_X，并且在给定 X 时满足：
 
-```text
-E[W_X | X] = 1 / p(X)
+```math
+\mathbb{E}[W_X\mid X] = \frac{1}{p(X)}
 ```
 
 就仍可使用修改后的估计器：
 
-```text
-<I> = f(X) * W_X                                            (2.8)
+```math
+\langle I\rangle=f(X)\,W_X
+\mathbb{E}[f(X)W_X]=\mathbb{E}\!\left[\frac{f(X)}{p(X)}\right]=I
+\tag{2.8}
 ```
 
 尽管 p(X) 不可计算，某些图形学过程仍存在公式简单的 W_X。RIS 输出正属于这一类：输出 PDF 是随每次重采样增长的高维积分，实际不可处理，但对应的 W_X 可以廉价求得。在 RIS 语境中，W_X 被称为无偏贡献权重，它是跨域广义复用的关键。
@@ -267,14 +280,14 @@ E[W_X | X] = 1 / p(X)
 
 重要性采样的效果取决于生成样本所用的 PDF。理想 PDF 常常没有显式表达式；即便知道表达式，也可能无法直接从它采样。RIS 为此提供解决方案：输入候选 X_1...X_M，为每个候选赋予重采样权重 w_i，再按 w_i 的比例随机选出一个候选。输出样本的 PDF 可以不同于生成候选时的 PDF，而我们通过权重控制它。
 
-候选和输出都是连续随机变量。虽然中间执行了离散选择，RIS 仍可与 Path Guiding 类比：它接收若干随机变量，输出具有不同连续分布的随机变量。不同之处在于，RIS 不拟合分布，而是随机保留一个既有样本，让一个样本在分布意义上聚合多个候选。
+候选和输出都是连续随机变量。虽然中间执行了离散选择，RIS 仍可与路径引导类比：它接收若干随机变量，输出具有不同连续分布的随机变量。不同之处在于，RIS 不拟合分布，而是随机保留一个既有样本，让一个样本在分布意义上聚合多个候选。
 
 困难是：RIS 输出样本的 PDF 通常不可处理，其求值至少和完整着色一样昂贵。那么没有 p(X)，如何使用 f(X)/p(X)？答案是 RIS 给输出样本附带 W_X。f(X)W_X 是积分的无偏估计；需要的是正确权重，而不是必须显式得到 PDF。
 
 W_X 替代 1/p(X)，但同一个 X 在不同候选集合下可能得到不同 W_X。它不是 X 的确定函数，而是随机变量，故称为“无偏贡献权重”。定义上，不论选择什么被积函数 f，都有：
 
-```text
-E[f(X) W_X] = integral_Omega f(x) dx
+```math
+\mathbb{E}[f(X)W_X] = \int_{\Omega} f(x)\,\mathrm{d}x
 ```
 
 记号写作 W_X 而不是 W(X)，正是为了强调它不是可以在任意 X 上重新求值的函数；不要把它用于普通 MIS 权重。
@@ -282,29 +295,31 @@ E[f(X) W_X] = integral_Omega f(x) dx
 @@PAGE 16
 早期 RIS 与 ReSTIR 文献常写成：
 
-```text
-w_i = pHat(X_i) / p(X_i)
-W_X = [ (1/M) sum_i w_i ] / pHat(X)                       (3.1)
+```math
+w_i = \frac{\hat{p}(X_i)}{p(X_i)}
+W_X = \frac{\frac{1}{M}\sum_{i=1}^{M}w_i}{\hat{p}(X)}
+\tag{3.1}
 ```
 
 其中 pHat 是目标函数。本文采用 GRIS 的广义写法，把 1/M 放入重采样 MIS 权重：
 
-```text
-w_i = (1/M) * pHat(X_i) / p(X_i)
-W_X = sum_i w_i / pHat(X)                                 (3.2)
+```math
+w_i = \frac{1}{M}\frac{\hat{p}(X_i)}{p(X_i)}
+W_X = \frac{\sum_{i=1}^{M}w_i}{\hat{p}(X)}
+\tag{3.2}
 ```
 
-两种写法等价，但后一种更清楚：1/M 的职责是 MIS 权重，不是对 weightSum 进行随意平均。当 sum(w_i) 的方差趋于零时，输出 PDF 趋于 pHat 的归一化形式 pBar。若选择 pHat=f，极限情况下 RIS 将趋于零方差估计器。
+两种写法等价，但后一种更清楚：1/M 的职责是 MIS 权重，不是对权重和进行随意平均。当 sum(w_i) 的方差趋于零时，输出 PDF 趋于 pHat 的归一化形式 pBar。若选择 pHat=f，极限情况下 RIS 将趋于零方差估计器。
 
 pHat 常被不准确地称为“目标 PDF”。它其实是未归一化函数，通常直接取被积函数 f 或与 f 接近的代理。真正的目标 PDF 是：
 
-```text
-pBar(x) = pHat(x) / integral_Omega pHat(x) dx
+```math
+\bar{p}(x) = \frac{\hat{p}(x)}{\int_{\Omega}\hat{p}(x)\,\mathrm{d}x}
 ```
 
 ## 3.1 RIS 的完整过程
 
-1. 在同一积分域 Omega 中取得候选 X_1...X_M。
+1. 在同一积分域 Ω 中取得候选 X_1...X_M。
 2. 计算每个候选的重采样 MIS 权重 m_i(X_i)。
 3. 计算 w_i = m_i(X_i) pHat(X_i) W_Xi。
 4. 按照 w_i 的比例随机选出 X。
@@ -335,13 +350,30 @@ RIS(M):
     return Y, W_Y
 ```
 
-W_X 的条件期望等于 1/p(X)。要正确使用输出 X，必须理解其支持集：输入支持集的并集，再去掉 pHat=0 的部分。为了用 X 积分 f，必须保证 f 非零处 pHat 为正，并且输入联合覆盖 f 的支持集。
+形式化地说，W_X 在给定 X 条件下的期望等于未知的逆 PDF：
+
+```math
+\mathbb{E}[W_X\mid X] = \frac{1}{p(X)}
+\tag{3.3}
+```
+
+要正确使用输出 X，必须理解其支撑集：输入支撑集的并集，再去掉 pHat=0 的部分。为了用 X 积分 f，必须保证 f 非零处 pHat 为正，并且输入联合覆盖 f 的支撑集。更一般地，无偏贡献权重满足：
+
+```math
+\mathbb{E}[f(X)W_X] = \int_{\operatorname{supp}(X)}f(x)\,\mathrm{d}x
+\tag{3.5}
+```
 
 只要这些条件成立：
 
-```text
-<I> = f(X) W_X                                             (3.4)
-E[<I>] = integral_Omega f(x) dx = I                        (3.6)
+```math
+\langle I\rangle = f(X)W_X
+\tag{3.4}
+```
+
+```math
+\mathbb{E}[\langle I\rangle] = \int_{\Omega}f(x)\,\mathrm{d}x = I
+\tag{3.6}
 ```
 
 若所有 w_i 都为零，应返回 W=0 的空样本。不要反复抽样直到得到非空结果，因为那会改变随机变量的分布并引入偏差。空样本仍是随机变量的合法一次实现；它不意味着整个输入分布失效。
@@ -349,16 +381,16 @@ E[<I>] = integral_Omega f(x) dx = I                        (3.6)
 @@PAGE 18
 ### 示例 3.1.1：简单积分
 
-假设 M 个候选独立同分布，已知 PDF p，且 p 覆盖 f；同时 pHat 在 f 的支持集上为正。输入贡献权重为 1/p(X_i)，相同分布允许使用 m_i=1/M：
+假设 M 个候选独立同分布，已知 PDF p，且 p 覆盖 f；同时 pHat 在 f 的支撑集上为正。输入贡献权重为 1/p(X_i)，相同分布允许使用 m_i=1/M：
 
-```text
-w_i = (1/M) * pHat(X_i) / p(X_i)
+```math
+w_i = \frac{1}{M}\frac{\hat{p}(X_i)}{p(X_i)}
 ```
 
 按 w_i 选出 X 后，必须重新设置：
 
-```text
-W_X = sum_j(w_j) / pHat(X)
+```math
+W_X = \frac{\sum_j w_j}{\hat{p}(X)}
 ```
 
 不能沿用被选候选原来的 W_Xs；那会忽略选择过程并导致偏差。最终 f(X)W_X 是积分的无偏估计。
@@ -367,53 +399,69 @@ W_X = sum_j(w_j) / pHat(X)
 
 ### 示例 3.1.2：BSDF 重要性采样
 
-把 X_i 视为方向，由 PDF p 的 BSDF sampler 生成；pHat 是完整 BSDF 的廉价代理，并拥有相同支持集。RIS 从 M 个方向中选一个，使输出方向的分布更接近 pHat。随后沿该方向追踪光线，并在蒙特卡洛估计器中用 W_X 替代 1/p(X)。
+把 X_i 视为方向，由 PDF p 的 BSDF 采样器生成；pHat 是完整 BSDF 的廉价代理，并拥有相同支撑集。RIS 从 M 个方向中选一个，使输出方向的分布更接近 pHat。随后沿该方向追踪光线，并在蒙特卡洛估计器中用 W_X 替代 1/p(X)。
 
-当候选来自不同分布，例如混合 BSDF sampling 与 light sampling，或复用不同像素时，就需要更一般的 MIS 权重。
+当候选来自不同分布，例如混合 BSDF 采样与光源采样，或复用不同像素时，就需要更一般的 MIS 权重。
 
 @@PAGE 19
 ## 3.2 MIS 权重
 
-RIS 的直接目标是产生近似服从 pHat 的样本，之后才用它积分 f。若候选支持集的并集覆盖 pHat，且 pHat 覆盖 f，则输出 X 配合 W_X 能无偏积分 f。
+RIS 的直接目标是产生近似服从 pHat 的样本，之后才用它积分 f。若候选支撑集的并集覆盖 pHat，且 pHat 覆盖 f，则输出 X 配合 W_X 能无偏积分 f。
 
 若所有输入都各自覆盖 pHat，1/M 在技术上无偏，但只要其中一个输入在某些困难区域表现极差，就可能产生严重离群值。若某输入在 pHat 非零处拥有零 PDF，1/M 甚至会导致有偏结果。
 
-当 PDF 可知时，可以使用 balance heuristic：
+当 PDF 可知时，可以使用平衡启发式：
 
-```text
-m_i(x) = p_i(x) / sum_j p_j(x)                             (3.7)
+```math
+m_i(x) = \frac{p_i(x)}{\sum_{j=1}^{M}p_j(x)}
+\tag{3.7}
 ```
 
 该权重在所有输入分布上对同一个 x 求值，只依赖其他输入的分布，不依赖其他输入本轮实际抽到了什么值。把 X_j 的具体实现值掺进 m_i(X_i) 通常是错误的。
 
-Balance heuristic 的弱点是 M 个样本各需评估 M 个 PDF，总复杂度 O(M^2)。样本较多时应考虑 Pairwise MIS 等高级方法；在基线实现完全正确前，仍建议从 balance heuristic 开始。
+平衡启发式的弱点是 M 个样本各需评估 M 个 PDF，总复杂度为 O(M^2)。样本较多时应考虑 Pairwise MIS 等高级方法；在基线实现完全正确前，仍建议从平衡启发式开始。
 
 工程经验法则：当且仅当全部输入同分布时使用 1/M 权重。
 
-当输入 PDF 不同，只要求它们支持集的并集覆盖 pHat。实践中最稳妥的方法，是加入一个由当前目标直接生成、完整覆盖 pHat 的 canonical sample。
+当输入 PDF 不同，只要求它们支撑集的并集覆盖 pHat。实践中最稳妥的方法，是加入一个由当前目标直接生成、完整覆盖 pHat 的规范样本（canonical sample）。
 
 @@PAGE 20
+只要加入一个覆盖目标函数支撑集的规范样本，或由全部候选共同覆盖该支撑集，RIS 输出便可无偏积分目标函数支撑集内的任意函数：
+
+```math
+\mathbb{E}[f(X)W_X] = \int_{\operatorname{supp}(\hat{p})}f(x)\,\mathrm{d}x
+\tag{3.8}
+```
+
 ### 示例 3.3：在 BSDF 与 NEE 之间执行 RIS
 
-为了产生可复用的直接光照样本，从 PDF p_1 的 BSDF sampler 取得 M_1 个候选，从 PDF p_2 的灯光 sampler 取得 M_2 个候选。两种 PDF 必须转换到同一测度。
+为了产生可复用的直接光照样本，从 PDF p_1 的 BSDF 采样器取得 M_1 个候选，从 PDF p_2 的光源采样器取得 M_2 个候选。两种 PDF 必须转换到同一测度。
 
-BSDF 候选的 balance heuristic 权重为：
+BSDF 候选的平衡启发式权重为：
 
-```text
-m_i(x) = p_1(x) / [M_1 p_1(x) + M_2 p_2(x)]                (3.9)
+```math
+m_i(x) = \frac{p_1(x)}{M_1p_1(x)+M_2p_2(x)}
+\tag{3.9}
 ```
 
 灯光候选则在分子和自身贡献权重中使用 p_2。实现基线时建议令 pHat=f，即使用完整路径贡献，并在验证正确后再测试更廉价的代理。
 
 按 w_i 选择样本 X，并令：
 
-```text
-W_X = sum_j(w_j) / pHat(X)
+```math
+W_X = \frac{1}{\hat{p}(X)}\sum_{j=1}^{M_1+M_2}w_j
 ```
 
-这样得到覆盖 f 完整支持集的直接光照样本，可继续在像素之间共享。
+这样得到覆盖 f 完整支撑集的直接光照样本，可继续在像素之间共享。
 
-虽然 BSDF 和灯光 sampler 各自可能覆盖所有有效直接光，因此 1/(M_1+M_2) 不一定产生偏差，但其噪声可能退化到仅使用 BSDF sampling 的水平。RIS 中的 MIS 权重和传统蒙特卡洛中的 MIS 同样重要。
+当理想情况 pHat=f 成立时，一个 RIS 样本的贡献与最终选中了哪个候选无关，并且恰好等于使用同一批候选得到的蒙特卡洛估计：
+
+```math
+f(X)W_X = \sum_{i=1}^{M}m_i(X_i)f(X_i)W_{X_i}
+\tag{3.10}
+```
+
+虽然 BSDF 与光源采样器各自可能覆盖所有有效直接光，因此 1/(M_1+M_2) 不一定产生偏差，但其噪声可能退化到仅使用 BSDF 采样的水平。RIS 中的 MIS 权重和传统蒙特卡洛中的 MIS 同样重要。
 
 面积 PDF 与立体角 PDF 必须统一：面积 PDF 乘几何变换项可转为立体角 PDF，反向转换则除以该项。不要把两种测度下的数值直接相加。
 
@@ -422,13 +470,14 @@ W_X = sum_j(w_j) / pHat(X)
 
 现在假设输入 X_i 来自先前的 RIS，只知道 W_Xi，不知道闭式 PDF。MIS 仍是难点，因为不能使用需要真实 PDF 的公式。
 
-RIS 输出样本的分布大致正比于它当时使用的目标函数 pHat_i，因此可把 pHat_i 当作未知 p_i 的代理，得到广义 balance heuristic：
+RIS 输出样本的分布大致正比于它当时使用的目标函数 pHat_i，因此可把 pHat_i 当作未知 p_i 的代理，得到广义平衡启发式：
 
-```text
-m_i(x) = pHat_i(x) / sum_j pHat_j(x)                       (3.11)
+```math
+m_i(x) = \frac{\hat{p}_i(x)}{\sum_{j=1}^{M}\hat{p}_j(x)}
+\tag{3.11}
 ```
 
-每轮都要保证输入随机变量的支持集与各自目标函数支持集一致。如果候选无法联合覆盖当前 pHat，就加入 canonical sample。
+每轮都要保证输入随机变量的支撑集与各自目标函数支撑集一致。如果候选无法联合覆盖当前 pHat，就加入规范样本。
 
 这里存在一个细节：pHat_i 没有归一化。如果不同像素的 integral(pHat_i) 差别很大，直接把它们当作 PDF 代理可能扭曲 MIS 权重。
 
@@ -439,7 +488,7 @@ m_i(x) = pHat_i(x) / sum_j pHat_j(x)                       (3.11)
 @@PAGE 22
 # 第 4 章 ReSTIR：时空 Reservoir 重采样
 
-RIS 能改善样本分布，但复杂 pHat 和低质量初始 proposal 可能需要远超预算的候选数。ReSTIR 通过链式调用 RIS，并在空间和时间上复用样本来解决这一问题。本章先介绍 Reservoir Resampling，再讨论时空复用。
+RIS 能改善样本分布，但复杂 pHat 和低质量的初始提议分布（proposal）可能需要远超预算的候选数。ReSTIR 通过链式调用 RIS，并在空间和时间上复用样本来解决这一问题。本章先介绍 Reservoir 重采样，再讨论时空复用。
 
 ## 4.1 加权 Reservoir 采样
 
@@ -482,7 +531,7 @@ Resample(M):
 
 **时间复用。** 用运动矢量找到上一帧对应像素，把历史样本与当前样本进行 RIS。逐帧执行时，样本可以无限向前传播；之后再进行空间复用，还能让历史好样本快速扩散。
 
-一种自然的帧内顺序是：初始候选、Temporal Reuse、Spatial Reuse，最后用选中样本计算 f(X)W_X。
+一种自然的帧内顺序是：初始候选、时间复用（Temporal Reuse）、空间复用（Spatial Reuse），最后用选中样本计算 f(X)W_X。
 
 重要警告：不能根据邻居 Reservoir 中具体保存的随机样本来决定是否选择这个邻居，否则会对样本进行条件化并产生偏差。可以依据与随机样本无关的 G-buffer 几何属性选择邻居。
 
@@ -493,76 +542,88 @@ Resample(M):
 
 x0 与 x1 可以是确定的，也可以由随机镜头坐标决定；一旦确定本像素本帧的主射线，就把它们视为常量，只把 x2 当作自由变量：
 
-```text
-xBar = [x0, x1, x2]                                        (4.1)
+```math
+\bar{\mathbf{x}} = [\mathbf{x}_0,\mathbf{x}_1,\mathbf{x}_2]
+\tag{4.1}
 ```
 
 为完成像素着色，需要对发光表面上的 x2 积分：
 
-```text
-L(x1 -> x0) = integral_A fs(x2 -> x1 -> x0)
-              * G(x1 <-> x2) * V(x1 <-> x2)
-              * Le(x2 -> x1) dx2                          (4.2)
+```math
+L(\mathbf{x}_1\!\to\!\mathbf{x}_0) = \int_{A} f_s(\mathbf{x}_2\!\to\!\mathbf{x}_1\!\to\!\mathbf{x}_0)
+\quad G(\mathbf{x}_1\!\leftrightarrow\!\mathbf{x}_2)\,V(\mathbf{x}_1\!\leftrightarrow\!\mathbf{x}_2)\,L_e(\mathbf{x}_2\!\to\!\mathbf{x}_1)\,\mathrm{d}\mathbf{x}_2
+\tag{4.2}
 ```
 
 fs 是 x1 处 BSDF，Le 是 x2 朝 x1 的发射辐射亮度，G 是几何项，V 是可见性。固定 x0、x1 后，可简写为：
 
-```text
-L(x1 -> x0) = integral_A f(x2) dx2                         (4.3)
+```math
+L(\mathbf{x}_1\!\to\!\mathbf{x}_0) = \int_{A}f(\mathbf{x}_2)\,\mathrm{d}\mathbf{x}_2
+\tag{4.3}
 ```
 
-不同像素 i 拥有不同的 x0、x1，因而拥有不同 f_i，但它们都在相同的发光表面空间 A 上积分。ReSTIR 在当前像素的 canonical sample 与空间/时间借来的样本之间重采样 x2，逐步改善 x2 的分布。
+不同像素 i 拥有不同的 x0、x1，因而拥有不同 f_i，但它们都在相同的发光表面空间 A 上积分。ReSTIR 在当前像素的规范样本与空间、时间借来的样本之间重采样 x2，逐步改善 x2 的分布。
 
 图 4.1：一条直接光照路径，依次包含像平面点、主命中点和发光表面点。
 
 @@PAGE 25
 直接光照被积函数为：
 
-```text
-f(x) = fs(x) * G(x) * V(x) * Le(x)
+```math
+f(x) = f_s(x)\,G(x)\,V(x)\,L_e(x)
 ```
 
 最易验证的基线直接选择完整被积函数作为目标：
 
-```text
-pHat(x) = fs(x) * G(x) * V(x) * Le(x)                      (4.4)
+```math
+\hat{p}(x) = f_s(x)\,G(x)\,V(x)\,L_e(x)
+\tag{4.4}
 ```
 
 为减少候选阶段的阴影光线，也可从 pHat 中去掉 V，只保留 fs、G、Le。这会使极限采样分布变差，并需要额外条件保证正确，但实践中可能更高效。作者强烈建议先把可见性包含在 pHat 中，建立正确基线；修复一个已经叠加多种优化的错误实现，会比在正确实现上逐项优化困难得多。
 
-**初始候选。** 可用标准 light sampler 在发光表面上生成 M 个样本，以 1/M 的 MIS 权重做 RIS。先实现最简单、正确的版本。
+**初始候选。** 可用标准光源采样器在发光表面上生成 M 个样本，以 1/M 的 MIS 权重做 RIS。先实现最简单、正确的版本。
 
-**时空复用。** 对来自像素 j 的输入，要用该像素自己的传感器点与主命中点评估 pHat_j。广义 balance heuristic 为：
+**时空复用。** 对来自像素 j 的输入，要用该像素自己的传感器点与主命中点评估 pHat_j。广义平衡启发式为：
 
-```text
-m_i(x) = pHat_i(x) / sum_j pHat_j(x)                       (4.5)
+```math
+m_i(x) = \frac{\hat{p}_i(x)}{\sum_{j=1}^{M}\hat{p}_j(x)}
+\tag{4.5}
 ```
 
-完整贡献作为目标时，就是在所有输入像素的路径 x -> x_j,1 -> x_j,0 上分别评估 fs、G、V、Le。
+完整贡献作为目标时，重采样 MIS 权重具体为：
+
+```math
+m_i(x) = \frac{f(x\!\to\!\mathbf{x}_{i,1}\!\to\!\mathbf{x}_{i,0})}{\sum_{j=1}^{M}f(x\!\to\!\mathbf{x}_{j,1}\!\to\!\mathbf{x}_{j,0})}
+\tag{4.6}
+```
+
+也就是在所有输入像素的路径 x -> x_j,1 -> x_j,0 上分别评估 fs、G、V、Le。
 
 **空间邻居。** 可在当前像素附近的方形或圆盘区域随机选邻居。用 G-buffer 法线、深度等属性启发式筛选相似像素通常是安全的，只要决定不依赖 Reservoir 中的具体样本。对不同像素直接使用 1/M 权重通常不会收敛到正确目标分布，并会产生偏差。
 
 @@PAGE 26
 **时间复用。** 运动矢量必须准确描述表面点从上一帧到当前帧的像素位置。当前像素与上一帧匹配像素进行 RIS。严格的无偏 MIS 可能要求在上一帧的场景中评估上一帧 pHat，进而需要保留上一帧加速结构；这在生产实现中通常过于昂贵，因而常采用受控近似。
 
-## 4.4 历史长度与置信度
+## 4.4 历史长度与置信权重
 
-如果 Temporal Reuse 总是把历史样本与新样本等权合并，每帧会丢失约一半已经积累的历史。为解决这一问题，可为每个 Reservoir 存储置信度 c，并用加权 MIS：
+如果时间复用总是把历史样本与新样本等权合并，每帧会丢失约一半已经积累的历史。为解决这一问题，可为每个 Reservoir 存储置信权重 c，并用加权 MIS：
 
-```text
-m_i(x) = c_i pHat_i(x) / sum_j [c_j pHat_j(x)]              (4.7)
+```math
+m_i(x) = \frac{c_i\hat{p}_i(x)}{\sum_{j=1}^{M}c_j\hat{p}_j(x)}
+\tag{4.7}
 ```
 
-c 可近似理解为该 Reservoir 聚合过的有效样本数。一个输入代表 7 个近似独立样本、另一个代表 2 个样本时，前者应获得更高权重。合并 Reservoir 时，输出置信度通常取输入置信度之和。
+c 可近似理解为该 Reservoir 聚合过的有效样本数。一个输入代表 7 个近似独立样本、另一个代表 2 个样本时，前者应获得更高权重。合并 Reservoir 时，输出置信权重通常取输入置信权重之和。
 
-但这个和只是有效样本数的上界。空间复用会反复传播同一祖先样本，若每轮都机械累加 c，置信度会指数增长，而真正新增的独立样本很少。新样本权重将指数衰减，算法可能收敛到错误结果。
+但这个和只是有效样本数的上界。空间复用会反复传播同一祖先样本，若每轮都机械累加 c，置信权重会指数增长，而真正新增的独立样本很少。新样本权重将指数衰减，算法可能收敛到错误结果。
 
-实践中必须把 c 截断到固定上限，在噪声与相关性之间取得平衡。常用上限约为 5 至 30，20 是很好的起点。历史原因使许多实现把置信度字段命名为 M，把截断称为 M-capping。
+实践中必须把 c 截断到固定上限，在噪声与相关性之间取得平衡。常用上限约为 5 至 30，20 是很好的起点。历史原因使许多实现把置信权重字段命名为 M，把截断称为 M-capping。
 
 建议验证顺序：只做初始候选；加入 Spatial；再加入无运动 Temporal；最后才加入运动。每一步都应在静止场景中累计大量独立帧，并验证是否收敛到路径追踪参考结果。
 
 @@PAGE 27
-## 算法 3：带置信度的重采样
+## 算法 3：带置信权重的重采样
 
 ```text
 Reservoir:
@@ -586,16 +647,16 @@ Resample(inputs):
     c = min(c, cCap)
 ```
 
-一个新独立样本的置信度为 1；从 M 个新样本中执行 RIS 后，输出置信度可设为 M。相机移动时新进入画面的像素没有历史前驱，应把 c 重置为 0；遮挡或显露检测也可触发重置。重置条件只能依赖 G-buffer 或其变化，若依赖 Reservoir 样本内容会引入偏差。
+一个新独立样本的置信权重为 1；从 M 个新样本中执行 RIS 后，输出置信权重可设为 M。相机移动时新进入画面的像素没有历史前驱，应把 c 重置为 0；遮挡或显露检测也可触发重置。重置条件只能依赖 G-buffer 或其变化，若依赖 Reservoir 样本内容会引入偏差。
 
 ## 4.5 高级主题：更好的初始采样
 
 直接光照可以按光源功率选择一个光源，再在其表面均匀采样。原始 ReSTIR DI 每像素生成 32 个灯光候选并通过 WRS 选一个。还可把候选预生成到由屏幕块共享的 light tiles 中，以提高缓存局部性。
 
 @@PAGE 28
-按功率采光不考虑当前着色点属性，对高光材质可能很差。高光表面可增加 BSDF sampling，并与 light sampling 通过 MIS 混合。必须先把两者 PDF 转换到同一测度。
+按功率采光不考虑当前着色点属性，对高光材质可能很差。高光表面可增加 BSDF 采样，并与光源采样通过 MIS 混合。必须先把两者 PDF 转换到同一测度。
 
-作者仍建议先完成不含 BSDF sampling 的基础版本，因为同时调试多个系统非常困难。加入 BSDF 候选后，为了正确处理高光和镜面路径，往往还需要下一章的 shift mapping。
+作者仍建议先完成不含 BSDF 采样的基础版本，因为同时调试多个系统非常困难。加入 BSDF 候选后，为了正确处理高光和镜面路径，往往还需要下一章的 shift mapping。
 
 此前介绍的 RIS 默认所有复用样本属于同一个积分域。当物体运动、帧间场景域发生变化时，直接复用旧顶点并不完整。样本需要通过一个确定映射进行修改，再在新积分域中使用；概率密度也必须按映射的 Jacobian 修正。
 
@@ -610,9 +671,10 @@ Shift mapping 这一名称来自梯度域渲染。在梯度域方法中，为估
 
 映射 T 把域 A 中的路径 x 映到域 B 中的路径 y=T(x)。简单的 reconnection shift 会保留从第二个表面顶点开始的自由顶点，只把路径开头重新连接到目标像素：
 
-```text
-T_i->j([x_i,0, x_i,1, x2, x3, ...])
-    = [x_j,0, x_j,1, x2, x3, ...]                           (5.1)
+```math
+T_{i\to j}\!\left([x_{i,0},x_{i,1},x_2,x_3,\ldots]\right)
+=\left[x_{j,0},x_{j,1},x_2,x_3,\ldots\right]
+\tag{5.1}
 ```
 
 它适合漫反射和粗糙表面，却不适合光滑或理想镜面，因为新的连接方向不一定满足反射定律。其他映射包括 half-vector shift、random replay shift 及其混合形式。
@@ -630,22 +692,27 @@ T_i->j([x_i,0, x_i,1, x2, x3, ...])
 
 若 Y=T(X)：
 
-```text
-p_Y(Y) = p_X(X) / |T'(X)|                                  (5.2)
-W_Y    = W_X * |T'(X)|                                      (5.3)
+```math
+p_Y(Y)=\frac{p_X(X)}{|T'(X)|}
+\tag{5.2}
+```
+
+```math
+W_Y=W_X\,|T'(X)|
+\tag{5.3}
 ```
 
 Jacobian 必须出现在重采样权重和 MIS 权重的正确位置，既用于保持无偏，也能帮助抑制离群值。具体渲染映射通常拥有可计算的几何公式。
 
 ## 5.2 跨域 RIS
 
-1. 取得输入 X_i，每个来自自己的域 Omega_i。
-2. 用 Y_i=T_i(X_i) 把它们映到目标域 Omega。
+1. 取得输入 X_i，每个来自自己的域 Ω_i。
+2. 用 Y_i=T_i(X_i) 把它们映到目标域 Ω。
 3. 计算重采样 MIS 权重 m_i(Y_i)。
 4. 计算：
 
-```text
-w_i = m_i(Y_i) * pHat(Y_i) * W_Xi * |T_i'(X_i)|
+```math
+w_i=m_i(Y_i)\,\widehat p(Y_i)\,W_{X_i}\,|T_i'(X_i)|
 ```
 
 5. 按 w_i 比例选择 Y。
@@ -672,14 +739,34 @@ Resample(inputs):
     R.c = min(R.c, cCap)
 ```
 
-利用 W_Yi=W_Xi|T_i'|，权重仍可看成普通形式 w_i=m_i(Y_i)pHat(Y_i)W_Yi。为了链式重采样或积分，所有输入映到目标域后的支持集必须联合覆盖 pHat。常让一个输入直接由当前目标 sampler 生成，并使用 Jacobian=1 的恒等映射，作为 canonical sample。
+利用无偏贡献权重的变换规则，可以把源域权重转换为目标域权重：
+
+```math
+W_{X_i}\,|T_i'(X_i)|=W_{Y_i}
+\tag{5.4}
+```
+
+于是重采样权重恢复为熟悉的单域形式：
+
+```math
+w_i=m_i(Y_i)\,\widehat p(Y_i)\,W_{Y_i}
+\tag{5.5}
+```
+
+为了链式重采样或积分，所有输入映到目标域后的支撑集必须联合覆盖目标函数 pHat。通常让一个输入直接由当前目标采样器生成，并使用 Jacobian 为 1 的恒等映射；这种输入称为规范样本（canonical sample）。作为对照，单域中的广义平衡启发式为：
+
+```math
+m_i(x)=\frac{\widehat p_i(x)}{\sum_{j=1}^{M}\widehat p_j(x)}
+\tag{5.6}
+```
 
 ## 5.3 跨域 MIS
 
-单域广义 balance heuristic 用各输入 pHat_i 作为未知 PDF 的代理。跨域时，pHat_i 定义在源域 Omega_i，无法直接在目标域样本 y 上求值。若真实 PDF 已知，理想权重应使用每个映射后随机变量 Y_i 的 PDF：
+单域广义平衡启发式用各输入的目标函数 pHat_i 作为未知 PDF 的代理。跨域时，pHat_i 定义在源域 Ω_i，无法直接在目标域样本 y 上求值。若真实 PDF 已知，理想权重应使用每个映射后随机变量 Y_i 的 PDF：
 
-```text
-m_i(y) = p_Yi(y) / sum_j p_Yj(y)                            (5.7)
+```math
+m_i(y)=\frac{p_{Y_i}(y)}{\sum_{j=1}^{M}p_{Y_j}(y)}
+\tag{5.7}
 ```
 
 要得到 p_Yi(y)，先用逆映射把 y 移回 x_i=T_i^-1(y)，再乘逆映射的 Jacobian。
@@ -687,34 +774,47 @@ m_i(y) = p_Yi(y) / sum_j p_Yj(y)                            (5.7)
 @@PAGE 32
 映射后 PDF 可写成：
 
-```text
-p_Yi(y) = p_Xi(T_i^-1(y)) * |(T_i^-1)'(y)|                 (5.8)
+```math
+p_{Y_i}(y)=p_{X_i}\!\left(T_i^{-1}(y)\right)\,\left|\left(T_i^{-1}\right)'(y)\right|
+\tag{5.8}
 ```
 
 若 y 无法逆向映回源域，则该项为零。真实 p_Xi 不可知时，用 pHat_i 代理，定义“来自 i 的目标密度”：
 
-```text
-pHatFrom_i(y) = pHat_i(T_i^-1(y)) * |(T_i^-1)'(y)|         (5.9)
+```math
+\widehat p_{\leftarrow i}(y)=\widehat p_i\!\left(T_i^{-1}(y)\right)\,\left|\left(T_i^{-1}\right)'(y)\right|,
+\quad y\in T_i(\operatorname{supp}X_i)
+\widehat p_{\leftarrow i}(y)=0,\quad\operatorname{otherwise}
+\tag{5.9}
 ```
 
-映射失败或逆向样本不在 X_i 支持集时取零。于是跨域广义 balance heuristic 为：
+若 y 无法逆向映入 Ω_i，或逆向样本落在 X_i 的支撑集之外，则该量取零。于是跨域广义平衡启发式为：
 
-```text
-m_i(y) = pHatFrom_i(y) / sum_j pHatFrom_j(y)                (5.10)
+```math
+m_i(y)=\frac{\widehat p_{\leftarrow i}(y)}{\sum_{j=1}^{M}\widehat p_{\leftarrow j}(y)}
+\tag{5.10}
 ```
 
-加入置信度：
+加入置信权重 c_i：
 
-```text
-m_i(y) = c_i pHatFrom_i(y) / sum_j[c_j pHatFrom_j(y)]       (5.11)
+```math
+m_i(y)=\frac{c_i\,\widehat p_{\leftarrow i}(y)}{\sum_{j=1}^{M}c_j\,\widehat p_{\leftarrow j}(y)}
+\tag{5.11}
 ```
 
-这些权重在所有能覆盖 y 的输入之间总和为 1。图 5.1 表明：多个源域经 shift mapping 后可能在目标域中不均匀重叠，MIS 的作用就是保证每个目标点的总覆盖权重恰好为 1。
+这些权重在所有能覆盖 y 的输入之间总和为 1：
+
+```math
+\sum_{\substack{i=1\\y\in T_i(\operatorname{supp}X_i)}}^{M}m_i(y)=1
+\tag{5.12}
+```
+
+图 5.1 表明：多个源域经 shift mapping 后可能在目标域中不均匀重叠，MIS 的作用就是保证每个目标点的总覆盖权重恰好为 1。
 
 Balance heuristic 对少量候选很稳健，但总成本为 O(M^2)。后文会介绍更廉价的替代方案。作者再次强调：先实现正确、原理清楚但较慢的版本，往往能显著缩短总开发时间。
 
 @@PAGE 33
-## 算法 5：广义 Balance Heuristic
+## 算法 5：广义平衡启发式（Generalized Balance Heuristic）
 
 ```text
 pHatFrom(j, y):
@@ -746,18 +846,17 @@ GeneralizedBalance(i, y, sourceX, sourceJ):
 
 光路可以包含任意次反弹。若 A 为全部场景表面的集合，全局光照积分跨越所有路径长度和面积乘积空间：
 
-```text
-L(x1 -> x0) = sum_D integral_A^(D-1)
-    product_j [ fs(x_j+1 -> x_j -> x_j-1)
-                * G(x_j <-> x_j+1)
-                * V(x_j <-> x_j+1) ]
-    * Le(x_D -> x_D-1) dx2...dxD                           (6.1)
+```math
+L(x_1\to x_0)=\sum_{D=2}^{\infty}\int_{A^{D-1}}
+\left[\prod_{j=1}^{D-1} f_s(x_{j+1}\to x_j\to x_{j-1})\,G(x_j\leftrightarrow x_{j+1})\,V(x_j\leftrightarrow x_{j+1})\right]L_e(x_D\to x_{D-1})\,\mathrm{d}x_2\cdots\mathrm{d}x_D
+\tag{6.1}
 ```
 
 一条包含 D-1 次反弹的面积测度路径写成：
 
-```text
-[x0, x1, x2, x3, ..., xD]                                  (6.2)
+```math
+[x_0,x_1,x_2,x_3,\ldots,x_D]
+\tag{6.2}
 ```
 
 ## 6.2 在路径追踪器中使用 RIS
@@ -773,8 +872,9 @@ L(x1 -> x0) = sum_D integral_A^(D-1)
 
 最简单的方法是在面积测度下使用恒等式式重连接：
 
-```text
-T([x0, x1, x2, ..., xD]) = [y0, y1, x2, ..., xD]           (6.3)
+```math
+T([x_0,x_1,x_2,\ldots,x_D])=[y_0,y_1,x_2,\ldots,x_D]
+\tag{6.3}
 ```
 
 它保留整个自由顶点序列 [x2...xD]，类似直接光照。ReSTIR GI 使用了这种思路。严格实现需要把 y1 重新连接到 x2，重新评估两个 BSDF、一个几何项，并追踪一条可见性光线。
@@ -783,10 +883,11 @@ T([x0, x1, x2, ..., xD]) = [y0, y1, x2, ..., xD]           (6.3)
 
 ## 6.4 什么是好的 Shift Mapping
 
-假设各像素已有质量相近的 sampler，从像素 i 映到像素 j 时，理想映射应让映射后样本的分布接近像素 j 自身的分布：
+假设各像素已有质量相近的采样器，从像素 i 映到像素 j 时，理想映射应让映射后样本的分布接近像素 j 自身的分布：
 
-```text
-pBar_j(T(x)) * |dT/dx| approximately equals pBar_i(x)       (6.4)
+```math
+\overline{p}_j(T(x))\left|\frac{\mathrm{d}T}{\mathrm{d}x}\right|\approx\overline{p}_i(x)
+\tag{6.4}
 ```
 
 面积测度恒等重连接对远处漫反射 x2 通常有效；如果 x1、y1 或 x2 是镜面/低粗糙度表面，目标贡献可能差异巨大。重连接距离若从很短变得很长，几何项比值也可能爆炸。好的映射应避免这些情况，同时尽量保留更多原路径顶点，因为重合段具有单位 Jacobian 且贡献项相同。
@@ -798,8 +899,9 @@ pBar_j(T(x)) * |dT/dx| approximately equals pBar_i(x)       (6.4)
 
 若相邻像素亮度变化平滑，并令 pHat 近似 f，可用贡献函数检查映射质量：
 
-```text
-f_j(T(x)) * |dT/dx| approximately equals f_i(x)             (6.5)
+```math
+f_j(T(x))\left|\frac{\mathrm{d}T}{\mathrm{d}x}\right|\approx f_i(x)
+\tag{6.5}
 ```
 
 这与梯度域渲染使用的条件一致，因此梯度域开发的映射也可用于路径重采样。
@@ -823,15 +925,16 @@ ReSTIR PT 提出的 hybrid shift 面向 GPU，和梯度域路径追踪一样延�
 
 为保证可逆，源路径候选重连接顶点 x_k 必须满足距离条件：
 
-```text
-min(|x_k-x_k-1|, |x_k-y_k-1|) >= dMin                    (6.6)
+```math
+\min\!\left(\|x_k-x_{k-1}\|,\|x_k-y_{k-1}\|\right)\geq d_{\min}
+\tag{6.6}
 ```
 
 以及粗糙度条件：
 
-```text
-min(alpha_xk-1(l_k-1), alpha_yk-1(l'_k-1),
-    alpha_xk(l_k)) >= alphaMin                              (6.7)
+```math
+\min\!\left(\alpha_{x_{k-1}}(\ell_{k-1}),\alpha_{y_{k-1}}(\ell'_{k-1}),\alpha_{x_k}(\ell_k)\right)\geq\alpha_{\min}
+\tag{6.7}
 ```
 
 alpha 衡量本次采样 lobe 的粗糙度；漫反射可设为很大值。多 lobe 顶点可选择粗糙度最大的相关 lobe。图 6.2 展示 hybrid shift：偏移路径先通过 random replay 生成，在最早满足距离和粗糙度条件的位置重新连接到源路径。
@@ -839,16 +942,26 @@ alpha 衡量本次采样 lobe 的粗糙度；漫反射可设为很大值。多 l
 @@PAGE 38
 初次追踪源路径时，保存最小的 k>=2，使：
 
-```text
-|x_k-x_k-1| >= dMin                                        (6.8)
-min(alpha_xk-1(l_k-1), alpha_xk(l_k)) >= alphaMin           (6.9)
+```math
+\|x_k-x_{k-1}\|\geq d_{\min}
+\tag{6.8}
+```
+
+```math
+\min\!\left(\alpha_{x_{k-1}}(\ell_{k-1}),\alpha_{x_k}(\ell_k)\right)\geq\alpha_{\min}
+\tag{6.9}
 ```
 
 偏移时 random replay 生成到 y_k-1，再连接 x_k。目标侧同样必须满足距离和粗糙度条件：
 
-```text
-|x_k-y_k-1| >= dMin                                        (6.10)
-min(alpha_yk-1(l_k-1), alpha_xk(l_k)) >= alphaMin           (6.11)
+```math
+\|x_k-y_{k-1}\|\geq d_{\min}
+\tag{6.10}
+```
+
+```math
+\min\!\left(\alpha_{y_{k-1}}(\ell'_{k-1}),\alpha_{x_k}(\ell_k)\right)\geq\alpha_{\min}
+\tag{6.11}
 ```
 
 还必须确认目标路径不存在更早的 k' 也满足同样条件；否则当目标路径反过来作为源路径时会选择不同重连接点，破坏可逆性。不可逆样本在 RIS 中权重为零。
@@ -857,14 +970,23 @@ min(alpha_yk-1(l_k-1), alpha_xk(l_k)) >= alphaMin           (6.11)
 
 为了让路径空间与生成它的随机数序列一一对应，ReSTIR PT 给路径样本附加 lobe 和灯光采样技术标签：
 
-```text
-xBar = [x0, (x1,l1), (x2,l2), ..., (xD-1,lD-1), xD]       (6.12)
+```math
+\overline{x}=[x_0,(x_1,\ell_1),(x_2,\ell_2),\ldots,(x_{D-1},\ell_{D-1}),x_D]
+\tag{6.12}
 ```
 
 l_j 标识顶点使用的采样 lobe。若光源顶点来自 NEE，则用特殊标签表示，并在前一顶点包含全部 lobe。Random replay 依靠这些标签精确重建同一类子路径。重连接时必须复制对应 lobe 索引；目标顶点不存在该 lobe 时映射失败。
 
 @@PAGE 39
-扩展路径把路径积分拆成所有路径长度以及所有 lobe/technique 序列之和。扩展路径的 integrand 包含传统灯光采样 MIS 权重，并且只评估被选 lobe 的部分路径贡献。
+扩展路径把路径积分拆成所有路径长度以及所有 lobe/technique 序列之和：
+
+```math
+I=\sum_{D=1}^{\infty}\int_{\overline{\Omega}_D}\overline{f}(\overline{x})\,\mathrm{d}\overline{x}
+=\sum_{D=1}^{\infty}\sum_{\overline{\ell}\in\mathcal{L}_D}\int_{A^D}m_t(x)\,f_{\overline{\ell}}(x)\,\mathrm{d}x
+\tag{6.13}
+```
+
+其中 f_lBar 只评估每个路径顶点实际抽中的 BSDF lobe 所对应的部分路径贡献；m_t(x) 是灯光采样技术的 MIS 权重，t∈{0,1} 区分光源顶点由 BSDF 采样还是 NEE 生成。因此，扩展路径的被积函数已经包含传统灯光采样 MIS 权重，并且只使用部分路径贡献。
 
 ### Primary Sample Space
 
@@ -875,28 +997,47 @@ ReSTIR PT 用 Primary Sample Space（PSS）参数化路径，带来两个优势�
 
 PSS 路径积分写成：
 
-```text
-I = sum_D integral_U_D F(uBar) duBar                        (6.14)
+```math
+I=\sum_{D=1}^{\infty}\int_{U_D}F(\overline{u})\,\mathrm{d}\overline{u}
+\tag{6.14}
 ```
 
 uBar 是生成对应长度路径的随机数序列，U_D 是单位超立方体。F(uBar) 等于扩展路径贡献除以路径空间 PDF。
 
 固体角参数化下，重连接的局部 Jacobian 包含目标和源顶点余弦比，以及两条连接线段长度平方比：
 
-```text
-|d omega_y / d omega_x|
-  = |cosTheta_y / cosTheta_x|
-    * |x_k-x_k-1|^2 / |x_k-y_k-1|^2                       (6.15)
+```math
+\left|\frac{\partial\omega_{k-1}^{y}}{\partial\omega_{k-1}^{x}}\right|
+=\left|\frac{\cos\theta_k^{y}}{\cos\theta_k^{x}}\right|\frac{\|x_k-x_{k-1}\|^2}{\|x_k-y_{k-1}\|^2}
+\tag{6.15}
 ```
 
 @@PAGE 40
 PSS 中 hybrid shift 的完整 Jacobian 等于重连接阶段的局部 Jacobian。映射会改变 x_k-1 和 x_k 对应的随机数，其行列式可分解为两个局部项（若 x_k 本身是光源顶点，则不存在后一个项）：
 
-```text
-|du_y/du_x| = |du_y,k-1 / du_x,k-1| * |du_y,k / du_x,k|   (6.16)
+```math
+\left|\frac{\partial\overline{u}^{y}}{\partial\overline{u}^{x}}\right|
+=\left|\frac{\partial\overline{u}_{k-1}^{y}}{\partial\overline{u}_{k-1}^{x}}\right|\left|\frac{\partial\overline{u}_k^{y}}{\partial\overline{u}_k^{x}}\right|
+\tag{6.16}
 ```
 
-每个局部项由源/目标路径上 lobe 与方向的联合 PDF 比值以及几何映射 Jacobian 构成。虽然重连接后某段方向相同，其采样 PDF 仍可能不同，因为前一个出射方向不同。
+第一个局部项由源/目标路径在顶点 k-1 处的 lobe—方向联合 PDF 比值与重连接的固体角 Jacobian 构成：
+
+```math
+\left|\frac{\partial\overline{u}_{k-1}^{y}}{\partial\overline{u}_{k-1}^{x}}\right|
+=\frac{p_{k-1}^{(\omega,\ell)y}(y_k)}{p_{k-1}^{(\omega,\ell)x}(x_k)}\left|\frac{\partial\omega_{k-1}^{y}}{\partial\omega_{k-1}^{x}}\right|
+\tag{6.17}
+```
+
+第二个局部项为下一顶点的联合 PDF 比值；当 x_k=y_k 已是由 NEE 直接采得的光源顶点时，这一项不存在：
+
+```math
+\left|\frac{\partial\overline{u}_k^{y}}{\partial\overline{u}_k^{x}}\right|
+=\frac{p_k^{(\omega,\ell)y}(y_{k+1})}{p_k^{(\omega,\ell)x}(x_{k+1})}
+\tag{6.18}
+```
+
+这里 p^(ω,ℓ) 是在固体角测度下联合采样 lobe ℓ 与方向 ω 的 PDF。虽然重连接定义使后续某段方向相同，其采样 PDF 仍可能不同，因为前一个出射方向不同。
 
 ### ReSTIR PT Reservoir 中需要保存的路径信息
 
@@ -907,7 +1048,7 @@ Reservoir 不保存整条路径，而保存足以重放和重连的紧凑描述�
 - 重连接两侧的 lobe 标签。
 - 两个 RNG seed：一个重放前半路径，一个恢复后半路径或相关采样。
 - 重连接深度 k 与可复用的源侧 Jacobian 部分 J。
-- 选中样本 Y、无偏贡献权重 W_Y、weightSum 与置信度 c。
+- 选中样本 Y、无偏贡献权重 W_Y、权重和 weightSum 与置信权重 c。
 
 用第一个 seed 重放偏移子路径并得到 throughput beta；恢复重连接顶点后，重新评估连接处 BSDF、方向 PDF、灯光采样 MIS 和辐射 L，得到目标函数与路径贡献。预存源侧 J 可避免下一轮复用时重复计算。
 
@@ -933,15 +1074,38 @@ Reservoir:
 
 ## 6.7 体渲染
 
-参与介质使每次反弹的积分域从表面 A 扩展到表面与体积的并集 M=A union V。路径贡献除表面 BSDF、几何项、可见性和发光外，还包含介质中的透射率、散射、吸收和体发射。
+参与介质使每次反弹的积分域从表面 A 扩展到表面与体积的并集 M=A∪V。路径贡献除表面 BSDF、几何项、可见性和发光外，还包含介质中的透射率、散射、吸收和体发射。像素 j 的测量贡献积分可写为：
 
-固定针孔相机的子像素方向后，沿主射线的积分既包含最近不透明表面的贡献，也包含从相机到该表面之间各个介质位置的吸收发光和入射散射。碰撞距离 z_1 决定首个体积或表面顶点 x_1。
+```math
+I_j=\sum_{D=1}^{\infty}\int_{M^{D+1}}W_e^{(j)}(x_1\to x_0)\,T(x_0\leftrightarrow x_1)\,\overline{G}(x_0\leftrightarrow x_1)
+\left[\prod_{r=1}^{D-1}\overline{f}_s(x_{r+1}\to x_r\to x_{r-1})\,\overline{G}(x_r\leftrightarrow x_{r+1})\,T(x_r\leftrightarrow x_{r+1})\right]\overline{L}_e(x_D\to x_{D-1})\,\mathrm{d}x_0\cdots\mathrm{d}x_D
+\tag{6.19}
+```
+
+其中 W_e^(j) 是像素 j 的响应函数（重要性函数与像素滤波器的乘积），x_0 是相机传感器或像平面上的一点。
+
+固定针孔相机的子像素方向后，沿主射线的积分既包含最近不透明表面的贡献，也包含从相机到该表面之间各个介质位置的吸收发光和入射散射：
+
+```math
+L(\omega_0\to x_0)=T(x_0\leftrightarrow x_1^s)\left[L_e(x_1^s\to x_0)+P(x_0,x_1^s)\right]
++\int_0^s T(x_0\leftrightarrow x_1)\left[\sigma_a(x_1)L_e^m(x_1\to x_0)+P(x_0,x_1)\right]\,\mathrm{d}z_1
+\tag{6.20}
+```
+
+其中碰撞距离 z_1 满足 x_1=x_0+z_1ω_0；x_1^s 是最近的不透明表面交点，s=‖x_1^s-x_0‖。式中的入射散射路径贡献 P 是下式的缩写：
+
+```math
+P(x_0,x_1)=\sum_{D=2}^{\infty}\int_{M^{D-1}}
+\left[\prod_{r=1}^{D-1}\overline{f}_s(x_{r+1}\to x_r\to x_{r-1})\,\overline{G}(x_r\leftrightarrow x_{r+1})\,T(x_r\leftrightarrow x_{r+1})\right]\overline{L}_e(x_D\to x_{D-1})\,\mathrm{d}x_2\cdots\mathrm{d}x_D
+\tag{6.21}
+```
 
 @@PAGE 42
 介质中的透射率为：
 
-```text
-T(x <-> y) = exp(- integral_0^z sigma_t(x + s omega) ds)    (6.22)
+```math
+T(x\leftrightarrow y)=\exp\!\left[-\int_0^z\sigma_t(x+s\omega)\,\mathrm{d}s\right],\quad \omega=\frac{y-x}{z},\quad z=\|y-x\|
+\tag{6.22}
 ```
 
 其中消光系数 sigma_t=sigma_s+sigma_a。一般非均匀介质中，这个积分没有廉价闭式表达式；Delta Tracking 能采碰撞距离，却可能没有可计算的结果 PDF。
@@ -967,9 +1131,9 @@ ReSTIR 本质上是一类通用采样技术，通常用“采样效率”综合�
 
 ## 7.1 采样器优化
 
-RIS/ReSTIR 可视为使用 MIS 组合多个估计器。每个被借用的像素，都是当前像素可以采样的一个不同估计器。人们常通过 BSDF sampling 和 light sampling 学习 MIS，但 MIS 几乎可以组合任何估计器，包括这些看似奇怪的“邻居 Reservoir 估计器”。
+RIS/ReSTIR 可视为使用 MIS 组合多个估计器。每个被借用的像素，都是当前像素可以采样的一个不同估计器。人们常通过 BSDF 采样与光源采样学习 MIS，但 MIS 几乎可以组合任何估计器，包括这些看似奇怪的“邻居 Reservoir 估计器”。
 
-重要但容易忽视的一点：MIS 组合估计器并不保证质量一定提高。BSDF 与 light sampling 的组合几乎总有帮助，容易让人误以为邻居复用也必然有益。实际上，邻居可能是当前像素极差的估计器。
+重要但容易忽视的一点：MIS 组合估计器并不保证质量一定提高。BSDF 采样与光源采样的组合几乎总有帮助，容易让人误以为邻居复用也必然有益。实际上，邻居可能是当前像素极差的估计器。
 
 图 7.1 的海葵具有细长结构，相邻像素的表面法线可能近乎相反，两者共有的高贡献路径集合接近空集。复用这类邻居往往增加而非降低噪声。
 
@@ -988,21 +1152,28 @@ Balance heuristic 的 O(M^2) 成本会快速增长。一种性能优化是使用
 
 GRIS 允许只对最终被选样本计算一个修正权重。设重采样用的权重为：
 
-```text
-w_i = m_i(T_i(X_i)) * pHat(T_i(X_i))
-      * W_i * |dT_i/dX_i|
+```math
+w_i=m_i(T_i(X_i))\,\widehat p(T_i(X_i))\,W_i\left|\frac{\partial T_i}{\partial X_i}\right|
 ```
 
-被选索引为 s，输出 Y=T_s(X_s)。只要 correction weight c_i(y) 在所有能覆盖 y 的输入间总和为 1，就可使用：
+被选索引为 s，输出 Y=T_s(X_s)。只要贡献修正权重 c_i(y) 在所有能覆盖 y 的输入间总和为 1，就可使用：
 
-```text
-W_Y = [c_s(Y)/m_s(Y)] * sum_j(w_j) / pHat(Y)               (7.1)
+```math
+W_Y=\frac{c_s(Y)}{m_s(Y)}\,\frac{1}{\widehat p(Y)}\sum_{j=1}^{M}w_j
+\tag{7.1}
 ```
 
-这样 m_i 可以选得很廉价，而只为最终选中样本支付更精确的 c_s 计算。
+其中贡献修正权重必须满足：
+
+```math
+\sum_{i:\,y\in T_i(\operatorname{supp}X_i)}^{M}c_i(y)=1
+\tag{7.2}
+```
+
+这样 m_i 可以选得很廉价，而只为最终选中样本支付更精确的 c_s 计算。如果 m_i 本身也满足式（7.2）的归一条件，那么 c_s 与 m_s 抵消，式（7.1）便退化为熟悉的无偏贡献权重公式。
 
 @@PAGE 46
-原始 ReSTIR DI 的一种做法是重采样阶段使用常量 m_i=1/M，最终使用广义 balance heuristic 计算 c_s。因为只需为一个选中样本求 correction，复杂度从 O(M^2) 降为 O(M)。
+原始 ReSTIR DI 的一种做法是重采样阶段使用常量 m_i=1/M，最终使用广义平衡启发式计算 c_s。因为只需为一个选中样本求贡献修正，复杂度从 O(M^2) 降为 O(M)。
 
 这种方法在直接光照中通常可用，但当积分域差异很大时，会给选中样本的最终贡献增加显著噪声；参与介质中尤其明显。此外，只有使用正确的重采样 MIS 权重 m_i，样本分布本身才会收敛到目标 PDF。
 
@@ -1010,27 +1181,69 @@ W_Y = [c_s(Y)/m_s(Y)] * sum_j(w_j) / pHat(Y)               (7.1)
 
 Pairwise MIS 假设 M 个技术中有一个 canonical 技术，它覆盖完整积分域且质量相对可靠。空间重采样中，canonical 技术就是当前像素，其他技术是邻居像素。
 
-核心思想是：每个非 canonical 技术只与 canonical 技术两两比较。若 canonical 索引为 c，基本形式把 p_i 与 p_c 放进二技术 balance heuristic，然后在所有配对间平均。
+核心思想是：每个非规范技术只与规范技术两两比较。若规范索引为 c，基本形式把 p_i 与 p_c 放进二技术平衡启发式，然后在所有配对间平均：
 
-朴素配对会让 canonical 样本权重过大；当所有技术完全相同时，canonical 权重会是其他技术的 M-1 倍。需要把 p_c 按 M-1 下调，使相同技术最终得到相同权重。
+```math
+m_i(x)=\frac{1}{M-1}\frac{p_i(x)}{p_i(x)+p_c(x)},\quad i\ne c
+m_c(x)=\frac{1}{M-1}\sum_{j\ne c}^{M}\frac{p_c(x)}{p_j(x)+p_c(x)}
+\tag{7.3}
+```
 
-## 7.1.3 的公式含义
+朴素配对会让规范样本权重过大；当所有技术完全相同时，规范权重会是其他技术的 M-1 倍。需要把 p_c 按 M-1 下调，使相同技术最终得到相同权重。
 
-对非 canonical 输入，权重只需比较“该邻居生成 y 的能力”与“当前像素生成 y 的能力”；对 canonical 输入，则把它与每个邻居的配对结果累加。这样把 O(M^2) 降到 O(M)。
+修正后的 Pairwise MIS 权重为：
+
+```math
+m_i(x)=\frac{1}{M-1}\frac{p_i(x)}{p_i(x)+p_c(x)/(M-1)},\quad i\ne c
+m_c(x)=\frac{1}{M-1}\sum_{j\ne c}^{M}\frac{p_c(x)/(M-1)}{p_j(x)+p_c(x)/(M-1)}
+\tag{7.4}
+```
+
+对非规范输入，权重只需比较“该邻居生成 y 的能力”与“当前像素生成 y 的能力”；对规范输入，则把它与每个邻居的配对结果累加。这样把 O(M^2) 降到 O(M)。
 
 @@PAGE 47
-真实 PDF 不可知时，使用 pHat 代理，就得到广义 Pairwise MIS。为防止近似 pHat 让差邻居获得过高权重，可给 canonical 样本一个固定的防御份额，形成 defensive pairwise MIS。
+真实 PDF 不可知时，使用目标函数作为代理，就得到广义 Pairwise MIS：
+
+```math
+m_i(x)=\frac{1}{M-1}\frac{\widehat p_i(x)}{\widehat p_i(x)+\widehat p_c(x)/(M-1)},\quad i\ne c
+m_c(x)=\frac{1}{M-1}\sum_{j\ne c}^{M}\frac{\widehat p_c(x)/(M-1)}{\widehat p_j(x)+\widehat p_c(x)/(M-1)}
+\tag{7.5}
+```
+
+由于目标函数只是 PDF 的代理，较差邻居仍可能获得过高权重，使规范样本权重过低。为抵御这种情况，可以在权重中给规范样本加入一个常量份额，形成防御式 Pairwise MIS：
+
+```math
+m_i(x)=\frac{1}{M}\frac{\widehat p_i(x)}{\widehat p_i(x)+\widehat p_c(x)/(M-1)},\quad i\ne c
+m_c(x)=\frac{1}{M}\left[1+\sum_{j\ne c}^{M}\frac{\widehat p_c(x)/(M-1)}{\widehat p_j(x)+\widehat p_c(x)/(M-1)}\right]
+\tag{7.6}
+```
 
 直观上，defensive 版本是在两种策略之间插值：
 
-- 一部分权重无条件留给当前像素 canonical sample，保证稳健性。
-- 剩余权重根据每个邻居与 canonical 的成对 PDF 比较进行分配。
+- 一部分权重无条件留给当前像素的规范样本，保证稳健性。
+- 剩余权重根据每个邻居与规范样本的成对 PDF 比较进行分配。
 
-置信度 c_i 也可以代替显式样本数 M。若所有 pHatFrom_i 都相同，非 defensive 形式退化为按置信度比例分配；defensive 形式则额外为 canonical 保留 c_c/sum(c) 的基础份额。
+置信权重 c_i 也可以代替显式样本数 M。加入置信权重与 shift mapping 后，非防御形式推广为：
 
-带 shift mapping 时，公式中的 pHat_i(y) 应替换成 pHatFrom_i(y)，即把 y 逆映到源域并乘逆 Jacobian 后的目标函数。
+```math
+m_i(y)=\frac{c_i\widehat p_{\leftarrow i}(y)}{\left(\sum_{k\ne c}^{M}c_k\right)\widehat p_{\leftarrow i}(y)+c_c\widehat p_c(y)},\quad i\ne c
+m_c(y)=\sum_{j\ne c}^{M}\frac{c_j}{\sum_{k\ne c}^{M}c_k}\frac{c_c\widehat p_c(y)}{\left(\sum_{k\ne c}^{M}c_k\right)\widehat p_{\leftarrow j}(y)+c_c\widehat p_c(y)}
+\tag{7.7}
+```
 
-ReSTIR PT 观察到，O(M) 的 Pairwise MIS 在收敛行为上可接近 O(M^2) balance heuristic，因此把 defensive 形式作为 GRIS 空间重采样的默认选择。
+防御形式则为：
+
+```math
+m_i(y)=\frac{\sum_{k\ne c}^{M}c_k}{\sum_{k=1}^{M}c_k}\frac{c_i\widehat p_{\leftarrow i}(y)}{\left(\sum_{k\ne c}^{M}c_k\right)\widehat p_{\leftarrow i}(y)+c_c\widehat p_c(y)},\quad i\ne c
+m_c(y)=\frac{c_c}{\sum_{k=1}^{M}c_k}+\sum_{j\ne c}^{M}\frac{c_j}{\sum_{k=1}^{M}c_k}\frac{c_c\widehat p_c(y)}{\left(\sum_{k\ne c}^{M}c_k\right)\widehat p_{\leftarrow j}(y)+c_c\widehat p_c(y)}
+\tag{7.8}
+```
+
+若所有来自各输入的目标密度都相同，非防御形式退化为按置信权重比例分配；防御形式则额外为规范样本保留 c_c/Σc_k 的基础份额。
+
+带 shift mapping 时，公式中的目标密度应使用“来自 i 的目标密度”，即把 y 逆映到源域并乘逆 Jacobian 后的目标函数。
+
+ReSTIR PT 观察到，O(M) 的 Pairwise MIS 在收敛行为上可接近 O(M^2) 的平衡启发式，因此把防御形式作为 GRIS 空间重采样的默认选择。
 
 @@PAGE 48
 ## 算法 7：广义 Defensive Pairwise MIS
@@ -1061,17 +1274,27 @@ m_i = (c_i/cTotal) * numerator/denominator
 
 ## 7.1.4 有偏 MIS 权重
 
-理解偏差来源后，可以为了效率有意识地近似 MIS。像素 i 与 j 复用时，balance heuristic 不仅需要 p_i(X_i)、p_j(X_j)，还需要在“并未生成该样本”的另一像素中评估 p_i(X_j) 或 p_j(X_i)。
+理解偏差来源后，可以为了效率有意识地近似 MIS。像素 i 与 j 复用时，平衡启发式必须根据最终选中的是哪个候选来使用下列权重之一：
+
+```math
+m_i(X_i)=\frac{p_i(X_i)}{p_i(X_i)+p_j(X_i)}
+\quad\operatorname{or}\quad
+m_j(X_j)=\frac{p_j(X_j)}{p_i(X_j)+p_j(X_j)}
+\tag{7.9}
+```
+
+其中 p_i(X_i) 与 p_j(X_j) 在重采样过程中已经算过；真正昂贵的是在“并未生成该样本”的另一个像素中重新评估 p_i(X_j) 或 p_j(X_i)。
 
 @@PAGE 49
-若样本是一条路径，在另一像素中重新评估它通常意味着新增光线追踪。Temporal Reuse 更麻烦：在上一帧像素 j 中评估当前帧样本 X_i，可能需要上一帧完整 BVH，这在工程上很不理想。
+若样本是一条路径，在另一像素中重新评估它通常意味着新增光线追踪。时间复用更麻烦：在上一帧像素 j 中评估当前帧样本 X_i，可能需要上一帧完整 BVH，这在工程上很不理想。
 
 可选近似包括：用当前帧 BVH 代替上一帧 BVH；假设 p_j(X_i)=0；使用上一帧材质数据但假定可见性未变化等。
 
-对二技术 balance heuristic：
+以式（7.9）左侧的二技术平衡启发式为例：
 
-```text
-m_i(X_i) = p_i(X_i) / [p_i(X_i) + p_j(X_i)]                (7.10)
+```math
+m_i(X_i)=\frac{p_i(X_i)}{p_i(X_i)+p_j(X_i)}
+\tag{7.10}
 ```
 
 若用近似 pTilde_j 替换真实 p_j：
@@ -1098,7 +1321,7 @@ m_i(X_i) = p_i(X_i) / [p_i(X_i) + p_j(X_i)]                (7.10)
 - 降低显存带宽。
 - 降低执行分歧，保持 warp/wave 中线程活跃。
 - 降低内存访问分歧，避免缓存抖动。
-- 直接降低帧时间。Temporal Reuse 依赖帧率，因此有时降低单帧质量、换取更快帧率和更多时间复用，最终质量反而更好。
+- 直接降低帧时间。时间复用依赖帧率，因此有时降低单帧质量、换取更快帧率和更多时间复用，最终质量反而更好。
 - 降低寄存器压力及其他传统 GPU 成本。
 
 部分优化无偏，部分天然有偏，还有一些只有借助更复杂数学才能无偏。应根据应用目标选择。
@@ -1253,7 +1476,7 @@ Hybrid shift 同时包含 random replay、路径追踪、可见性光线和 BSDF
 - **m_i(X)**：随机变量 X 的 MIS 权重。
 - **w_i**：从候选列表 X_1...X_M 中选择第 i 个候选时使用的重采样权重；实际选择概率为 w_i/sum(w)。
 - **T**：Shift Mapping，把一个积分域中的样本确定地映到另一个积分域。
-- **supp(X)、supp(f)**：随机变量 X 或函数 f 的支持集。
+- **supp(X)、supp(f)**：随机变量 X 或函数 f 的支撑集。
 - **pHat(x)**：x 处的未归一化目标函数。
 - **pBar(x)**：由 pHat 归一化得到的目标 PDF。
 - **W_X**：随机变量 X 的无偏贡献权重。已知 X 的 PDF p(X) 时，可以使用 1/p(X)。

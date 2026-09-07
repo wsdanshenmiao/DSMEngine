@@ -83,6 +83,9 @@ namespace DSM::RestirDI {
 
         void BuildEnvironmentAlias(EnvironmentData& environment)
         {
+            // 经纬度 texel 的 proposal 权重是 radiance * 立体角，而不是单纯
+            // 的亮度；这样 pole 附近较小的球面面积不会被过度采样。GPU 端
+            // EnvironmentDirection 用同一 texel solid angle 还原 q。
             std::vector<float> weights(environment.pixels.size());
             const float dPhi = 2.0f * std::numbers::pi_v<float> / environment.width;
             for (uint32_t y = 0; y < environment.height; ++y) {
@@ -105,6 +108,8 @@ namespace DSM::RestirDI {
         EnvironmentData& output,
         std::string& error)
     {
+        // 默认六面图先统一投影到线性空间的 lat-long；后续 HDR 与六面图共享
+        // 完全相同的 alias、旋转和 proposal-PDF 路径。
         std::array<CubeFace, 6> faces{};
         for (uint32_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
             const auto filename = assetsDirectory / "Textures" /
@@ -149,6 +154,8 @@ namespace DSM::RestirDI {
         EnvironmentData& output,
         std::string& error)
     {
+        // Radiance HDR 已经是线性辐射度，加载时只做有限值/非负裁剪；失败时
+        // 调用方保留旧环境并返回可恢复错误，不破坏当前 Reservoir 历史。
         int width = 0;
         int height = 0;
         int componentCount = 0;

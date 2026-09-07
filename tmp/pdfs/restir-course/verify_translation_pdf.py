@@ -22,7 +22,7 @@ def main() -> None:
     required_terms = [
         "无偏贡献权重",
         "加权 Reservoir 采样",
-        "广义 Balance Heuristic",
+        "广义平衡启发式",
         "Hybrid Shift",
         "Pairwise MIS",
         "Sample Tiling",

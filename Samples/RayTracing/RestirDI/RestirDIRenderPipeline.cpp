@@ -473,6 +473,10 @@ namespace DSM::RestirDI {
         uint32_t spatialPass,
         uint32_t sampleIndex) const
     {
+        // CPU 端把编辑器设置编码成 GPU 协议。这里最重要的三项是：
+        // 1) domainProbabilities 定义混合 proposal 的域概率；
+        // 2) algorithm 给 Initial/Temporal/Spatial 传候选数、M 上限和邻居数；
+        // 3) sampling 把 SPP 拆成独立 lane，VisibilityRayGen 最后做 1/N 平均。
         GpuFrameConstants constants{};
         const auto viewProjection = renderer.GetCamera().GetViewProjMatrix();
         constants.viewProjection = ToGpuMatrix(viewProjection);
@@ -535,6 +539,10 @@ namespace DSM::RestirDI {
 
     void RenderPipeline::Render(GraphicsRenderer& renderer, float deltaTime)
     {
+        // 一帧的独立管线（不经过 Forward/Deferred）如下：
+        // Primary DXR -> Initial RIS Compute -> Temporal/Spatial Compute ->
+        // Final Visibility DXR -> 全屏 Present。每个 SPP lane 都拥有自己的
+        // Reservoir 历史，只有最终 HDR Buffer 在 lane 间累加。
         auto& implementation = *m_Implementation;
         const uint32_t samplesPerPixel = std::clamp(m_Settings.samplesPerPixel, 1u, 8u);
         if (!implementation.initialized &&
@@ -587,6 +595,9 @@ namespace DSM::RestirDI {
             implementation.historyResetRequested = false;
         }
 
+        // surfaceHistory 与 reservoirHistoryIndices 只轮换句柄，不做整屏复制；
+        // historyResetRequested 仅让下一帧从空历史开始，避免把旧尺寸/旧分布
+        // 混入当前 proposal。
         const int32_t currentSurface = implementation.surfaceHistory >= 0
             ? 1 - implementation.surfaceHistory : 0;
         std::vector<int32_t> freeReservoirs{};
@@ -611,6 +622,8 @@ namespace DSM::RestirDI {
             commandList->WriteBuffer(implementation.frameConstants, &constants, sizeof(constants));
         };
         writeConstants(0, 0);
+        // 场景同步已经决定 BLAS/TLAS 是重建、refit 还是只上传变换；所有工作
+        // 都记录到 Graphics Queue，稳态帧不调用 WaitForIdle。
         implementation.scene.RecordBuildAndUpload(commandList);
         if (implementation.environmentDirty) {
             commandList->WriteBuffer(implementation.environmentPixels,
@@ -622,6 +635,8 @@ namespace DSM::RestirDI {
             implementation.environmentDirty = false;
         }
 
+        // Step 2：主 DXR 只写 surface buffer；AlphaAnyHit 在透明 texel 上
+        // IgnoreHit，ClosestHit 填充材质、motion 和 stable ObjectID。
         auto primarySet = implementation.CreateBindingSet(FrameBindings{
             .surfaceOutput = implementation.surfaces[currentSurface]});
         commandList->SetRayTracingState(RT::State{}
@@ -642,6 +657,7 @@ namespace DSM::RestirDI {
                 const int32_t oldHistory = implementation.reservoirHistoryIndices[sampleIndex];
 
                 writeConstants(0, sampleIndex);
+                // Step 3：Initial RIS（论文 Algorithm 3）。
                 auto initialSet = implementation.CreateBindingSet(FrameBindings{
                     .surfaceCurrent = implementation.surfaces[currentSurface],
                     .reservoirSampleOutput = implementation.reservoirSamples[workA],
@@ -658,6 +674,8 @@ namespace DSM::RestirDI {
                 if (m_Settings.renderMode == RenderMode::Restir &&
                     m_Settings.enableTemporalReuse && implementation.historyValid &&
                     implementation.surfaceHistory >= 0 && oldHistory >= 0) {
+                    // Step 4：按 motion 重投影上一帧 Reservoir，并执行论文
+                    // Algorithm 4 的多 Reservoir 合并。
                     auto temporalSet = implementation.CreateBindingSet(FrameBindings{
                         .surfaceCurrent = implementation.surfaces[currentSurface],
                         .surfacePrevious = implementation.surfaces[implementation.surfaceHistory],
@@ -684,6 +702,8 @@ namespace DSM::RestirDI {
                         const int32_t outputReservoir = currentReservoir == workA ? workB : workA;
                         const uint32_t outputAcceptance = 1u - currentAcceptance;
                         writeConstants(pass, sampleIndex);
+                        // Step 5：空间邻居 pass；currentReservoir/outputReservoir
+                        // 交替使用，保证同一 pass 不读写同一个 UAV。
                         auto spatialSet = implementation.CreateBindingSet(FrameBindings{
                             .surfaceCurrent = implementation.surfaces[currentSurface],
                             .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
@@ -703,6 +723,8 @@ namespace DSM::RestirDI {
                 }
 
                 writeConstants(0, sampleIndex);
+                // Step 6：只对最终被选候选追踪一条阴影射线，并把 contribution*W
+                // 写进 HDR StructuredBuffer；这正是 ReSTIR 的主要降噪收益来源。
                 auto visibilitySet = implementation.CreateBindingSet(FrameBindings{
                     .surfaceCurrent = implementation.surfaces[currentSurface],
                     .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
@@ -741,6 +763,8 @@ namespace DSM::RestirDI {
                 ? implementation.reservoirHistoryIndices[0] : 0;
         }
 
+        // Step 7：最后的全屏光栅 Pass 只负责曝光/ACES 和 Editor 颜色目标，
+        // 不参与候选生成、Reservoir 或可见性计算。
         auto presentSet = implementation.CreateBindingSet(FrameBindings{.hdrInput = implementation.hdr});
         commandList->SetGraphicsState(GraphicsState{}
             .SetPipeline(implementation.presentPipeline)

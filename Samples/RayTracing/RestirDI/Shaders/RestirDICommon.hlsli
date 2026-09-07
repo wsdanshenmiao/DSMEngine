@@ -6,6 +6,82 @@ static const float RESTIR_EPSILON = 1e-6f;
 static const uint RESTIR_INVALID_INDEX = 0xFFFFFFFFu;
 static const uint RESTIR_MAX_MATERIAL_TEXTURES = 256u;
 
+// 这些 enum 是 GPU 端协议的一部分，数值必须分别与
+// RestirDIShared.h / RestirDISettings.h 中的 C++ enum 对齐。
+// 只有具有封闭语义集合的标志和模式使用 enum；寄存器、线程组尺寸及数学常数
+// 仍保持原样，避免把资源布局伪装成算法状态。
+enum RestirSourceType
+{
+    InvalidSource = 0,
+    AnalyticSource = 1,
+    EmissiveTriangleSource = 2,
+    EnvironmentSource = 3
+};
+
+enum RestirRenderMode
+{
+    RestirMode = 0,
+    IndependentRISMode = 1,
+    ReferenceMode = 2
+};
+
+enum RestirDebugView
+{
+    FinalDebugView = 0,
+    SurfaceDebugView = 1,
+    NormalDebugView = 2,
+    AlbedoDebugView = 3,
+    SourceTypeDebugView = 4,
+    SourceIDDebugView = 5,
+    PHatDebugView = 6,
+    ReservoirMDebugView = 7,
+    ReservoirWDebugView = 8,
+    TemporalAcceptanceDebugView = 9,
+    SpatialAcceptanceDebugView = 10,
+    VisibilityDebugView = 11
+};
+
+// LightType 的数值来自引擎 Light 枚举；这里保留同一顺序，便于阅读解析灯的
+// 距离衰减和 Spot 锥角分支。
+enum RestirAnalyticLightType
+{
+    DirectionalLight = 0,
+    PointLight = 1,
+    SpotLight = 2
+};
+
+enum RestirInstanceMask
+{
+    PrimaryInstanceMask = 1,
+    ShadowInstanceMask = 2
+};
+
+enum RestirInstanceFlags
+{
+    ReceivesShadowInstance = 1
+};
+
+enum RestirMaterialFlags
+{
+    AlphaTestMaterial = 1,
+    DoubleSidedMaterial = 2
+};
+
+enum RestirSurfaceFlags
+{
+    ValidSurface = 1,
+    ReceivesShadowSurface = 2,
+    // 非命中表面没有 ValidSurface；复用同一位标记背景，使 VisibilityRayGen
+    // 能在不增加 Surface 字段的情况下把环境颜色保留下来。
+    BackgroundSurface = 2
+};
+
+enum RestirRayType
+{
+    PrimaryRay = 0,
+    VisibilityRay = 1
+};
+
 struct GpuMatrix { float4 row0; float4 row1; float4 row2; float4 row3; };
 struct GpuVertex { float4 position; float4 normal; float4 tangent; float4 uv; };
 struct GpuGeometry { uint4 data; };
@@ -129,11 +205,20 @@ float Luminance(float3 color)
     return max(dot(color, float3(0.2126f, 0.7152f, 0.0722f)), 0.0f);
 }
 
+float3 SafeNormalize(float3 value, float3 fallback)
+{
+    float squaredLength = dot(value, value);
+    return squaredLength > RESTIR_EPSILON * RESTIR_EPSILON
+        ? value * rsqrt(squaredLength) : fallback;
+}
+
 float3 EvaluateBRDF(GpuSurface surface, float3 lightDirection)
 {
-    float3 normal = normalize(surface.normalRoughness.xyz);
-    float3 viewDirection = normalize(g_Frame.cameraExposure.xyz - surface.positionDepth.xyz);
-    float3 halfDirection = normalize(lightDirection + viewDirection);
+    float3 normal = SafeNormalize(surface.normalRoughness.xyz, float3(0, 1, 0));
+    float3 viewDirection = SafeNormalize(
+        g_Frame.cameraExposure.xyz - surface.positionDepth.xyz, normal);
+    lightDirection = SafeNormalize(lightDirection, normal);
+    float3 halfDirection = SafeNormalize(lightDirection + viewDirection, normal);
     float NoV = max(dot(normal, viewDirection), 1e-4f);
     float NoL = saturate(dot(normal, lightDirection));
     float NoH = saturate(dot(normal, halfDirection));
@@ -216,25 +301,28 @@ float3 SampleEnvironment(float3 direction)
     return g_EnvironmentPixels[y * width + x].rgb * g_Frame.domainProbabilities.w;
 }
 
+// 论文第 5 节的候选生成：先按域功率选择一个 proposal domain，再在域内
+// 用 Walker Alias Table 选择离散对象。sampleSeed 保留域内连续采样的随机状态，
+// 使跨帧重投影后可以重新评价同一个稳定候选，而无需把三角形位置存进 Reservoir。
 GpuReservoirSample GenerateCandidate(inout uint randomState)
 {
-    GpuReservoirSample sample = {0u, RESTIR_INVALID_INDEX, RESTIR_INVALID_INDEX, randomState};
+    GpuReservoirSample sample = {InvalidSource, RESTIR_INVALID_INDEX, RESTIR_INVALID_INDEX, randomState};
     float selector = RandomFloat(randomState);
     float analyticEnd = g_Frame.domainProbabilities.x;
     float emissiveEnd = analyticEnd + g_Frame.domainProbabilities.y;
     float pmf = 0.0f;
     if (selector < analyticEnd && g_Frame.sourceCounts.x > 0u) {
-        sample.sourceType = 1u;
+        sample.sourceType = AnalyticSource;
         sample.itemIndex = ResolveAliasLight(RandomFloat(randomState), pmf);
         sample.stableID = g_Lights[sample.itemIndex].metadata.x;
     }
     else if (selector < emissiveEnd && g_Frame.sourceCounts.y > 0u) {
-        sample.sourceType = 2u;
+        sample.sourceType = EmissiveTriangleSource;
         sample.itemIndex = ResolveAliasEmissive(RandomFloat(randomState), pmf);
         sample.stableID = g_EmissiveTriangles[sample.itemIndex].data.w;
     }
     else if (g_Frame.sourceCounts.z > 0u && g_Frame.domainProbabilities.z > 0.0f) {
-        sample.sourceType = 3u;
+        sample.sourceType = EnvironmentSource;
         sample.itemIndex = ResolveAliasEnvironment(RandomFloat(randomState), pmf);
         sample.stableID = 0xE0000000u ^ sample.itemIndex;
     }
@@ -250,26 +338,35 @@ struct CandidateEvaluation
     float proposalPdf;
 };
 
+bool HasValidProposalPdf(CandidateEvaluation evaluation)
+{
+    return evaluation.proposalPdf > 0.0f && isfinite(evaluation.proposalPdf);
+}
+
+// 论文第 3.1 节的 target function 使用未遮挡直接光 pHat = luminance(rho Le G)。
+// 这里先计算 contribution 和 proposal PDF q，故初始 RIS 的权重就是 pHat / q；
+// 可见性留到最终 VisibilityRayGen 才追踪，这对应论文推荐的“只对幸存样本发阴影光线”。
 CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sample)
 {
     CandidateEvaluation result = (CandidateEvaluation)0;
     result.distance = g_Frame.rayEnvironment.y;
-    if ((surface.ids.w & 1u) == 0u) return result;
+    if ((surface.ids.w & ValidSurface) == 0u) return result;
 
-    if (sample.sourceType == 1u && sample.itemIndex < g_Frame.sourceCounts.x) {
+    if (sample.sourceType == AnalyticSource && sample.itemIndex < g_Frame.sourceCounts.x) {
         GpuAnalyticLight light = g_Lights[sample.itemIndex];
-        float3 lightDirection = normalize(light.directionType.xyz);
+        if (sample.stableID != light.metadata.x) return result;
+        float3 lightDirection = SafeNormalize(light.directionType.xyz, surface.normalRoughness.xyz);
         float attenuation = 1.0f;
-        if ((uint)light.directionType.w != 0u) {
+        if ((uint)light.directionType.w != DirectionalLight) {
             float3 toLight = light.positionInvRange.xyz - surface.positionDepth.xyz;
             float distanceSquared = max(dot(toLight, toLight), 1e-4f);
             float distanceToLight = sqrt(distanceSquared);
-            lightDirection = toLight / distanceToLight;
+            lightDirection = SafeNormalize(toLight, surface.normalRoughness.xyz);
             float rangeFactor = distanceSquared * light.positionInvRange.w * light.positionInvRange.w;
             float smoothFactor = max(1.0f - rangeFactor * rangeFactor, 0.0f);
             attenuation = smoothFactor * smoothFactor / distanceSquared;
             result.distance = max(distanceToLight - g_Frame.reuseThresholds.w, g_Frame.reuseThresholds.w);
-            if ((uint)light.directionType.w == 2u) {
+            if ((uint)light.directionType.w == SpotLight) {
                 float cosOuter = cos(light.anglesPower.y);
                 float scale = 1.0f / max(cos(light.anglesPower.x) - cosOuter, 1e-4f);
                 float spot = saturate(dot(light.directionType.xyz, lightDirection) * scale - cosOuter * scale);
@@ -280,8 +377,9 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         result.contribution = EvaluateBRDF(surface, lightDirection) * light.color.rgb * attenuation;
         result.proposalPdf = g_Frame.domainProbabilities.x * g_LightAlias[sample.itemIndex].pmf;
     }
-    else if (sample.sourceType == 2u && sample.itemIndex < g_Frame.sourceCounts.y) {
+    else if (sample.sourceType == EmissiveTriangleSource && sample.itemIndex < g_Frame.sourceCounts.y) {
         GpuEmissiveTriangle emissiveTriangle = g_EmissiveTriangles[sample.itemIndex];
+        if (sample.stableID != emissiveTriangle.data.w) return result;
         GpuInstance instance = g_Instances[emissiveTriangle.data.x];
         uint i0 = g_Indices[emissiveTriangle.data.y];
         uint i1 = g_Indices[emissiveTriangle.data.y + 1u];
@@ -311,11 +409,11 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         float3 toLight = lightPosition - surface.positionDepth.xyz;
         float distanceSquared = max(dot(toLight, toLight), 1e-6f);
         float distanceToLight = sqrt(distanceSquared);
-        float3 lightDirection = toLight / distanceToLight;
-        float3 lightNormal = normalize(cross(p1 - p0, p2 - p0));
+        float3 lightDirection = SafeNormalize(toLight, surface.normalRoughness.xyz);
+        float3 lightNormal = SafeNormalize(cross(p1 - p0, p2 - p0), -lightDirection);
         GpuMaterial material = g_Materials[emissiveTriangle.data.z];
         float cosineAtLight = dot(lightNormal, -lightDirection);
-        if ((material.texture1.z & 2u) != 0u) cosineAtLight = abs(cosineAtLight);
+        if ((material.texture1.z & DoubleSidedMaterial) != 0u) cosineAtLight = abs(cosineAtLight);
         else cosineAtLight = saturate(cosineAtLight);
         float2 uv = v0.uv.xy * b0 + v1.uv.xy * b1 + v2.uv.xy * b2;
         float3 emission = material.emissiveColor.rgb *
@@ -323,24 +421,36 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         result.direction = lightDirection;
         result.distance = max(distanceToLight - g_Frame.reuseThresholds.w, g_Frame.reuseThresholds.w);
         result.contribution = EvaluateBRDF(surface, lightDirection) * emission * cosineAtLight / distanceSquared;
-        result.proposalPdf = g_Frame.domainProbabilities.y *
-            g_EmissiveAlias[sample.itemIndex].pmf /
-            max(emissiveTriangle.areaPower.x, RESTIR_EPSILON);
+        const float triangleArea = emissiveTriangle.areaPower.x;
+        result.proposalPdf = triangleArea > 0.0f && isfinite(triangleArea)
+            ? g_Frame.domainProbabilities.y * g_EmissiveAlias[sample.itemIndex].pmf /
+                triangleArea
+            : 0.0f;
     }
-    else if (sample.sourceType == 3u && sample.itemIndex < g_Frame.sourceCounts.z) {
+    else if (sample.sourceType == EnvironmentSource && sample.itemIndex < g_Frame.sourceCounts.z) {
+        if (sample.stableID != (0xE0000000u ^ sample.itemIndex)) return result;
         float solidAngle = 0.0f;
         result.direction = EnvironmentDirection(sample.itemIndex, sample.sampleSeed, solidAngle);
         result.contribution = EvaluateBRDF(surface, result.direction) *
             g_EnvironmentPixels[sample.itemIndex].rgb * g_Frame.domainProbabilities.w;
-        result.proposalPdf = g_Frame.domainProbabilities.z *
-            g_EnvironmentAlias[sample.itemIndex].pmf / max(solidAngle, RESTIR_EPSILON);
+        result.proposalPdf = solidAngle > 0.0f && isfinite(solidAngle)
+            ? g_Frame.domainProbabilities.z * g_EnvironmentAlias[sample.itemIndex].pmf /
+                solidAngle
+            : 0.0f;
+    }
+    if (!all(isfinite(result.contribution)) || !all(isfinite(result.direction)) ||
+        !isfinite(result.distance)) {
+        result.contribution = 0.0f.xxx;
+        result.direction = 0.0f.xxx;
+        result.distance = 0.0f;
+        result.proposalPdf = 0.0f;
     }
     return result;
 }
 
 void ReservoirClear(out GpuReservoirSample sample, out GpuReservoirStats stats)
 {
-    sample.sourceType = 0u;
+    sample.sourceType = InvalidSource;
     sample.stableID = RESTIR_INVALID_INDEX;
     sample.itemIndex = RESTIR_INVALID_INDEX;
     sample.sampleSeed = 0u;
@@ -359,12 +469,19 @@ void ReservoirUpdate(
     float candidateM,
     inout uint randomState)
 {
+    // 论文 Algorithm 2：以 w_i / sum(w) 的概率替换当前样本，同时累计 M 和
+    // weightSum。candidateM 在时空合并时可以代表一个上游 Reservoir 的样本数。
+    const float acceptedM = isfinite(candidateM) ? max(candidateM, 0.0f) : 0.0f;
     if (!(candidateWeight > 0.0f) || !isfinite(candidateWeight) || !(candidatePHat > 0.0f)) {
-        reservoirStats.M += max(candidateM, 0.0f);
+        reservoirStats.M += acceptedM;
         return;
     }
     reservoirStats.weightSum += candidateWeight;
-    reservoirStats.M += max(candidateM, 0.0f);
+    reservoirStats.M += acceptedM;
+    if (!isfinite(reservoirStats.weightSum) || !(reservoirStats.weightSum > 0.0f)) {
+        ReservoirClear(reservoirSample, reservoirStats);
+        return;
+    }
     if (RandomFloat(randomState) * reservoirStats.weightSum < candidateWeight) {
         reservoirSample = candidate;
         reservoirStats.selectedPHat = candidatePHat;
@@ -374,18 +491,43 @@ void ReservoirUpdate(
 void ReservoirFinalize(inout GpuReservoirSample sample, inout GpuReservoirStats stats)
 {
     if (!(stats.weightSum > 0.0f) || !(stats.M > 0.0f) ||
-        !(stats.selectedPHat > RESTIR_EPSILON) || !isfinite(stats.weightSum)) {
+        !(stats.selectedPHat > 0.0f) || !isfinite(stats.weightSum) ||
+        !isfinite(stats.M) || !isfinite(stats.selectedPHat)) {
         ReservoirClear(sample, stats);
         return;
     }
-    stats.W = stats.weightSum / max(stats.M * stats.selectedPHat, RESTIR_EPSILON);
+    // 论文 Eq. (6) / Algorithm 3：W = (sum w / M) / pHat(y)。
+    // selectedPHat 是当前被选候选在“当前表面”上的 target 值。
+    stats.W = stats.weightSum / (stats.M * stats.selectedPHat);
     if (!isfinite(stats.W) || !(stats.W > 0.0f)) ReservoirClear(sample, stats);
+}
+
+void ReservoirApplyMCap(inout GpuReservoirStats stats, float cap)
+{
+    // 工程上的有偏置信度上限：论文第 5 节给出历史 M 的 20 倍上限；这里
+    // 在每次合并后都缩放 weightSum 与 M，保持 W 不因单纯的历史长度膨胀。
+    if (!(cap > 0.0f) || !isfinite(cap) || !(stats.M > cap) || !isfinite(stats.M)) return;
+    const float scale = cap / stats.M;
+    stats.weightSum *= scale;
+    stats.M = cap;
+    if (!(stats.weightSum > 0.0f) || !isfinite(stats.weightSum) ||
+        !(stats.selectedPHat > 0.0f) || !isfinite(stats.selectedPHat)) {
+        stats.W = 0.0f;
+        return;
+    }
+    stats.W = stats.weightSum / (stats.M * stats.selectedPHat);
+    if (!isfinite(stats.W) || !(stats.W > 0.0f)) stats.W = 0.0f;
 }
 
 bool SurfaceCompatible(GpuSurface current, GpuSurface history)
 {
-    if ((current.ids.w & 1u) == 0u || (history.ids.w & 1u) == 0u) return false;
-    float normalSimilarity = dot(normalize(current.normalRoughness.xyz), normalize(history.normalRoughness.xyz));
+    // 论文第 5 节的 biased reuse rejection：稳定实例/材质、法线夹角和相对
+    // 深度共同决定历史是否可在当前像素评价；它不是 Algorithm 4 的 PDF 修正。
+    if ((current.ids.w & ValidSurface) == 0u || (history.ids.w & ValidSurface) == 0u) return false;
+    if (current.ids.x != history.ids.x || current.ids.z != history.ids.z) return false;
+    float normalSimilarity = dot(
+        SafeNormalize(current.normalRoughness.xyz, float3(0, 1, 0)),
+        SafeNormalize(history.normalRoughness.xyz, float3(0, 1, 0)));
     float relativeDepth = abs(history.motion.z - current.motion.w) /
         max(abs(current.motion.w), 1e-3f);
     return normalSimilarity >= g_Frame.reuseThresholds.x &&

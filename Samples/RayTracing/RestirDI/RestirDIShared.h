@@ -7,17 +7,27 @@
 
 namespace DSM::RestirDI {
 
+    // 必须与 Shaders/RestirDICommon.hlsli 中的 RestirInstanceMask 保持数值一致。
+    // 主射线看到所有可见实例；阴影射线只看到允许投射阴影的实例。
     inline constexpr uint32_t kPrimaryInstanceMask = 1u;
     inline constexpr uint32_t kShadowInstanceMask = 2u;
     inline constexpr uint32_t kInvalidIndex = 0xFFFFFFFFu;
 
     enum class SourceType : uint32_t
     {
-        Invalid,
-        Analytic,
-        EmissiveTriangle,
-        Environment
+        Invalid = 0u,
+        Analytic = 1u,
+        EmissiveTriangle = 2u,
+        Environment = 3u
     };
+
+    // 这些值写入 GpuReservoirSample.sourceType，并在 HLSL 中用于选择 q 域。
+    // 论文第 3.1 节的单一候选分布在本项目中扩展为三域混合分布：解析灯、
+    // 自发光三角形和环境贴图；Invalid 表示空 Reservoir。
+    static_assert(static_cast<uint32_t>(SourceType::Invalid) == 0u);
+    static_assert(static_cast<uint32_t>(SourceType::Analytic) == 1u);
+    static_assert(static_cast<uint32_t>(SourceType::EmissiveTriangle) == 2u);
+    static_assert(static_cast<uint32_t>(SourceType::Environment) == 3u);
 
     struct alignas(16) GpuFloat4
     {
@@ -114,7 +124,9 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuReservoirSample
     {
-        uint32_t sourceType = 0;
+        // y、M、W 的索引/权重分开存储：sample 只描述被选候选，stats 保存
+        // Algorithm 2 的 sum(w)、M，以及 Eq. (6) 需要的 W 和 pHat(y)。
+        uint32_t sourceType = static_cast<uint32_t>(SourceType::Invalid);
         uint32_t stableID = kInvalidIndex;
         uint32_t itemIndex = kInvalidIndex;
         uint32_t sampleSeed = 0;
@@ -122,6 +134,8 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuReservoirStats
     {
+        // weightSum = Σw_i，M = 代表的候选数，W = weightSum/(M*pHat(y))。
+        // selectedPHat 让 Temporal/Spatial 重新评价 y 后仍能重建稳定的 W。
         float weightSum = 0.0f;
         float M = 0.0f;
         float W = 0.0f;
@@ -145,7 +159,8 @@ namespace DSM::RestirDI {
         GpuFloat4 cameraExposure{};
         // normalCos、relativeDepth、spatialRadius、normalBias。
         GpuFloat4 reuseThresholds{};
-        // 解析灯、自发光、环境域概率与环境强度。
+        // 解析灯、自发光、环境域概率与环境强度。前三项是混合 proposal 的
+        // domain PDF；候选域内的 Alias PMF 会在 EvaluateCandidate 中相乘。
         GpuFloat4 domainProbabilities{};
         // 环境旋转、最大光线距离、Alpha Cutoff、历史是否有效。
         GpuFloat4 rayEnvironment{};
@@ -154,6 +169,7 @@ namespace DSM::RestirDI {
         // lightCount、emissiveCount、environmentCount、instanceCount。
         GpuUint4 sourceCounts{};
         // initialCandidates、historyMCap、spatialNeighbors、spatialPassIndex。
+        // historyMCap 是工程上的置信度上限，不是论文无偏估计式的一部分。
         GpuUint4 algorithm{};
         // renderMode、debugView、temporalEnabled、spatialEnabled。
         GpuUint4 modes{};

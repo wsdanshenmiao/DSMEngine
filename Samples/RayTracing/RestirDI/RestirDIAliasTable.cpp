@@ -8,6 +8,9 @@ namespace DSM::RestirDI {
 
     AliasTable BuildAliasTable(std::span<const float> weights)
     {
+        // Walker Alias Table 把任意离散权重 O(N) 预处理成 O(1) 抽样：
+        // pmf 是真实候选 PDF，probability/alias 只负责完成一次等概率列选择。
+        // 这对应论文第 5 节对灯光、发光三角形和环境 texel 的功率采样。
         AliasTable result{};
         if (weights.empty()) {
             return result;
@@ -21,6 +24,8 @@ namespace DSM::RestirDI {
         result.totalWeight = std::accumulate(sanitized.begin(), sanitized.end(), 0.0f);
 
         if (!(result.totalWeight > 0.0f)) {
+            // 全零分布没有可定义的 proposal；退化为均匀分布，保证 q>0，
+            // 避免 RIS 的 pHat/q 出现除零，同时保留候选域可恢复运行。
             std::fill(sanitized.begin(), sanitized.end(), 1.0f);
             result.totalWeight = static_cast<float>(sanitized.size());
         }
