@@ -70,6 +70,7 @@ namespace DSM::RestirDI {
 
         void GatherScene(const Settings& settings);
         void GatherLights();
+        // 根据当前世界空间几何和材质发光强度重建自发光候选及其 Alias Table。
         void RefreshEmissiveDistribution();
         void RecreateSceneResources(IDevice* device);
         void RecreateDistributionResources(IDevice* device);

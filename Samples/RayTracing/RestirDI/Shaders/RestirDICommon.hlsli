@@ -105,6 +105,8 @@ struct GpuAnalyticLight
     float4 anglesPower;
     uint4 metadata;
 };
+// probability 是 Alias 列内的条件阈值，pmf 才是候选最终的离散概率；两者不能混用。
+// 该布局必须与 C++ GpuAliasEntry 保持一致。
 struct GpuAliasEntry { float probability; uint alias; float pmf; uint padding; };
 struct GpuEmissiveTriangle { uint4 data; float4 areaPower; };
 struct GpuSurface
@@ -244,10 +246,12 @@ float3 EvaluateBRDF(GpuSurface surface, float3 lightDirection)
 uint ResolveAliasLight(float randomValue, out float pmf)
 {
     uint count = g_Frame.sourceCounts.x;
+    // Alias Table 的每一列等概率被访问；整数部分定位列，分数部分选择列本身或 alias。
     float scaled = saturate(randomValue) * count;
     uint column = min((uint)scaled, count - 1u);
     GpuAliasEntry entry = g_LightAlias[column];
     uint selected = frac(scaled) < entry.probability ? column : entry.alias;
+    // 返回真实 PMF，供两级 proposal q = 域概率 * 域内 PMF 使用。
     pmf = g_LightAlias[selected].pmf;
     return selected;
 }
@@ -255,10 +259,12 @@ uint ResolveAliasLight(float randomValue, out float pmf)
 uint ResolveAliasEmissive(float randomValue, out float pmf)
 {
     uint count = g_Frame.sourceCounts.y;
+    // 整数部分等概率选择一列，分数部分决定返回本列还是它的 alias。
     float scaled = saturate(randomValue) * count;
     uint column = min((uint)scaled, count - 1u);
     GpuAliasEntry entry = g_EmissiveAlias[column];
     uint selected = frac(scaled) < entry.probability ? column : entry.alias;
+    // proposal PDF 使用最终候选的真实 PMF，而不是上面的条件阈值 probability。
     pmf = g_EmissiveAlias[selected].pmf;
     return selected;
 }
@@ -266,10 +272,12 @@ uint ResolveAliasEmissive(float randomValue, out float pmf)
 uint ResolveAliasEnvironment(float randomValue, out float pmf)
 {
     uint count = g_Frame.sourceCounts.z;
+    // 环境像素与解析灯、自发光三角形使用完全相同的 Alias 抽样协议。
     float scaled = saturate(randomValue) * count;
     uint column = min((uint)scaled, count - 1u);
     GpuAliasEntry entry = g_EnvironmentAlias[column];
     uint selected = frac(scaled) < entry.probability ? column : entry.alias;
+    // pmf 不包含环境像素的连续立体角密度；后者在 EvaluateCandidate 中单独计算。
     pmf = g_EnvironmentAlias[selected].pmf;
     return selected;
 }
@@ -407,6 +415,7 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         float3 p0 = TransformPoint(v0.position.xyz, instance.currentLocalToWorld);
         float3 p1 = TransformPoint(v1.position.xyz, instance.currentLocalToWorld);
         float3 p2 = TransformPoint(v2.position.xyz, instance.currentLocalToWorld);
+        // sqrt 变换产生三角形内的均匀面积采样，其条件面积 PDF 为 1 / triangleArea。
         float3 lightPosition = p0 * b0 + p1 * b1 + p2 * b2;
         float3 toLight = lightPosition - surface.positionDepth.xyz;
         float distanceSquared = max(dot(toLight, toLight), 1e-6f);
@@ -424,6 +433,8 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         result.distance = max(distanceToLight - g_Frame.reuseThresholds.w, g_Frame.reuseThresholds.w);
         result.contribution = EvaluateBRDF(surface, lightDirection) * emission * cosineAtLight / distanceSquared;
         const float triangleArea = emissiveTriangle.areaPower.x;
+        // 完整 proposal 是两级离散选择再乘连续面积密度：
+        // q_A(x) = P(自发光域) * PMF(三角形) * 1 / triangleArea。
         result.proposalPdf = triangleArea > 0.0f && isfinite(triangleArea)
             ? g_Frame.domainProbabilities.y * g_EmissiveAlias[sample.itemIndex].pmf /
                 triangleArea

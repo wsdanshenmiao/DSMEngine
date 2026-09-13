@@ -433,6 +433,8 @@ namespace DSM::RestirDI {
 
     void SceneAdapter::RefreshEmissiveDistribution()
     {
+        // 该函数只重建“如何生成自发光候选”的分布，不执行最终光照，也不操作 Reservoir。
+        // 输出包含一份自发光三角形列表和与它一一对应的 Walker Alias Table。
         // 自发光候选的离散 proposal 权重 = 三角形世界面积 * 发光亮度，
         // 与论文第 5 节的 power sampling 一致；实际点位置在 HLSL 中按面积
         // 均匀采样，EvaluateCandidate 再乘面积 PDF 的倒数。
@@ -444,13 +446,17 @@ namespace DSM::RestirDI {
                 const auto& geometry = m_Geometries[instance.data.y + localGeometry];
                 const auto& material = m_Materials[geometry.data.w];
                 const float emissiveLuminance = Luminance(material.emissiveColor);
-                if (!(emissiveLuminance > 1e-6f)) continue;
+                if (!(emissiveLuminance > 1e-6f))
+                    continue;
+
                 for (uint32_t triangle = 0; triangle + 2 < geometry.data.z; triangle += 3) {
                     const uint32_t indexOffset = geometry.data.y + triangle;
                     const uint32_t i0 = geometry.data.x + m_Indices[indexOffset];
                     const uint32_t i1 = geometry.data.x + m_Indices[indexOffset + 1];
                     const uint32_t i2 = geometry.data.x + m_Indices[indexOffset + 2];
-                    if (i0 >= m_Vertices.size() || i1 >= m_Vertices.size() || i2 >= m_Vertices.size()) continue;
+                    if (i0 >= m_Vertices.size() || i1 >= m_Vertices.size() || i2 >= m_Vertices.size())
+                        continue;
+
                     const auto toVector = [](const GpuFloat4& value) {
                         return Math::Vector3{value.x, value.y, value.z};
                     };
@@ -458,8 +464,13 @@ namespace DSM::RestirDI {
                     const auto p1 = TransformPoint(toVector(m_Vertices[i1].position), m_CurrentTransforms[instanceIndex]);
                     const auto p2 = TransformPoint(toVector(m_Vertices[i2].position), m_CurrentTransforms[instanceIndex]);
                     const float area = 0.5f * float(Math::Vector3::Cross(p1 - p0, p2 - p0).Magnitude());
-                    if (!(area > 1e-8f)) continue;
+                    if (!(area > 1e-8f))
+                        continue;
+
+                    // 使用世界空间面积，因此实例缩放会改变该三角形被抽中的概率。
+                    // 这里只以材质常量的发光亮度构造近似功率；发光纹理在 GPU 评价采样点时读取。
                     const float power = area * emissiveLuminance;
+                    // stableID 不依赖当前数组下标，用于时空复用时确认历史样本仍指向同一三角形。
                     const uint32_t stableID = (instance.data.x * 16777619u) ^ (indexOffset + 0x9E3779B9u);
                     m_EmissiveTriangles.push_back({
                         {instanceIndex, indexOffset, geometry.data.w, stableID},
@@ -468,6 +479,7 @@ namespace DSM::RestirDI {
                 }
             }
         }
+        // entries[i].pmf = weights[i] / sum(weights)，GPU 可据此 O(1) 选择一个三角形。
         m_EmissiveAlias = BuildAliasTable(weights);
         m_EmissiveCount = static_cast<uint32_t>(m_EmissiveTriangles.size());
         m_EmissiveDistributionHash = CalculateEmissiveDistributionHash();

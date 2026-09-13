@@ -482,6 +482,8 @@ namespace DSM::RestirDI {
                 std::max(settings.environmentIntensity, 0.0f) : 0.0f;
         const float totalWeight = analyticWeight + emissiveWeight + environmentWeight;
         if (totalWeight > 0.0f) {
+            // 候选生成是两级分布：先按域功率选择光源域，再用该域 Alias Table
+            // 选择具体对象。Shader 会把这两个概率相乘得到完整 proposal q。
             constants.domainProbabilities = {
                 analyticWeight / totalWeight, emissiveWeight / totalWeight,
                 environmentWeight / totalWeight, settings.environmentIntensity};

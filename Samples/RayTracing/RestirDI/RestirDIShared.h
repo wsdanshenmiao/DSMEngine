@@ -99,9 +99,13 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuAliasEntry
     {
+        // Alias 列内选择当前列的条件概率；它不是候选最终的离散概率。
         float probability = 1.0f;
+        // 未选择当前列时改为选择的候选索引。
         uint32_t alias = 0;
+        // 此候选真正的离散 PMF。计算 ReSTIR proposal PDF q 时必须使用该值。
         float pmf = 1.0f;
+        // 保证 C++ 与 HLSL StructuredBuffer 元素均为 16 字节。
         uint32_t padding = 0;
     };
 
@@ -109,7 +113,8 @@ namespace DSM::RestirDI {
     {
         // instanceIndex、indexOffset、materialIndex、stableID。
         GpuUint4 data{};
-        // worldArea、功率、保留。
+        // worldArea、近似功率（worldArea * emissiveLuminance）、保留。
+        // worldArea 用于把三角形离散 PMF 转换为面积测度 PDF；功率用于 CPU 构建 Alias Table。
         GpuFloat4 areaPower{};
     };
 
