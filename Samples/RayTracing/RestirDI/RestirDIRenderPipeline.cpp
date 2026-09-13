@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -93,14 +92,11 @@ namespace DSM::RestirDI {
         {
             return lhs.renderMode != rhs.renderMode ||
                 lhs.initialCandidateCount != rhs.initialCandidateCount ||
-                lhs.samplesPerPixel != rhs.samplesPerPixel ||
-                lhs.referenceSamplesPerPixel != rhs.referenceSamplesPerPixel ||
-                lhs.historyMCapMultiplier != rhs.historyMCapMultiplier ||
-                lhs.spatialPassCount != rhs.spatialPassCount ||
+                lhs.temporalHistoryMCapMultiplier != rhs.temporalHistoryMCapMultiplier ||
                 lhs.spatialNeighborCount != rhs.spatialNeighborCount ||
                 lhs.spatialRadius != rhs.spatialRadius ||
-                lhs.normalThresholdDegrees != rhs.normalThresholdDegrees ||
-                lhs.relativeDepthThreshold != rhs.relativeDepthThreshold ||
+                lhs.temporalNormalThresholdDegrees != rhs.temporalNormalThresholdDegrees ||
+                lhs.temporalRelativeDepthThreshold != rhs.temporalRelativeDepthThreshold ||
                 lhs.enableTemporalReuse != rhs.enableTemporalReuse ||
                 lhs.enableSpatialReuse != rhs.enableSpatialReuse ||
                 lhs.enableAnalyticLights != rhs.enableAnalyticLights ||
@@ -148,10 +144,10 @@ namespace DSM::RestirDI {
         BufferHandle dummyUavBuffer{};
         BufferHandle validationCounters{};
         std::array<BufferHandle, 2> surfaces{};
-        std::vector<BufferHandle> reservoirSamples{};
-        std::vector<BufferHandle> reservoirStats{};
+        std::array<BufferHandle, 3> reservoirSamples{};
+        std::array<BufferHandle, 3> reservoirStats{};
         std::array<BufferHandle, 2> acceptance{};
-        BufferHandle acceptanceAggregate{};
+        BufferHandle finalAcceptance{};
         BufferHandle hdr{};
         std::filesystem::path shaderDirectory{};
         std::filesystem::path assetsDirectory{};
@@ -165,8 +161,7 @@ namespace DSM::RestirDI {
         uint32_t width = 1;
         uint32_t height = 1;
         int32_t surfaceHistory = -1;
-        std::vector<int32_t> reservoirHistoryIndices{};
-        uint32_t reservoirLaneCount = 1;
+        int32_t reservoirHistory = -1;
         int32_t lastSurface = 0;
         int32_t lastReservoir = 0;
         bool initialized = false;
@@ -176,21 +171,18 @@ namespace DSM::RestirDI {
         bool environmentDirty = true;
         bool settingsInitialized = false;
 
-        bool Initialize(GraphicsRenderer& renderer, uint32_t samplesPerPixel);
+        bool Initialize(GraphicsRenderer& renderer);
         bool CreatePipelines(GraphicsRenderer& renderer);
-        void CreateResolutionResources(
-            GraphicsRenderer& renderer, uint32_t newWidth, uint32_t newHeight, uint32_t samplesPerPixel);
+        void CreateResolutionResources(GraphicsRenderer& renderer, uint32_t newWidth, uint32_t newHeight);
         void EnsureEnvironmentBuffers();
         bool EnsureTextureTable();
         BindingSetHandle CreateBindingSet(const FrameBindings& bindings);
         GpuFrameConstants BuildFrameConstants(
-            GraphicsRenderer& renderer, const Settings& settings, uint64_t frameIndex,
-            uint32_t spatialPass, uint32_t sampleIndex) const;
+            GraphicsRenderer& renderer, const Settings& settings, uint64_t frameIndex) const;
         bool Capture(GraphicsRenderer& renderer, ValidationSnapshot& snapshot, std::string& captureError);
     };
 
-    bool RenderPipeline::Implementation::Initialize(
-        GraphicsRenderer& renderer, uint32_t samplesPerPixel)
+    bool RenderPipeline::Implementation::Initialize(GraphicsRenderer& renderer)
     {
         device = renderer.GetDevice();
         if (device == nullptr) {
@@ -253,8 +245,7 @@ namespace DSM::RestirDI {
         const auto& viewport = renderer.GetCamera().GetViewPort();
         CreateResolutionResources(renderer,
             std::max(static_cast<uint32_t>(viewport.Width()), 1u),
-            std::max(static_cast<uint32_t>(viewport.Height()), 1u),
-            samplesPerPixel);
+            std::max(static_cast<uint32_t>(viewport.Height()), 1u));
         if (!CreatePipelines(renderer)) return false;
         initialized = true;
         error.clear();
@@ -351,20 +342,16 @@ namespace DSM::RestirDI {
     void RenderPipeline::Implementation::CreateResolutionResources(
         GraphicsRenderer& renderer,
         uint32_t newWidth,
-        uint32_t newHeight,
-        uint32_t samplesPerPixel)
+        uint32_t newHeight)
     {
         bindingSetCache.clear();
         width = std::max(newWidth, 1u);
         height = std::max(newHeight, 1u);
-        reservoirLaneCount = std::clamp(samplesPerPixel, 1u, 8u);
         const size_t pixelCount = size_t(width) * height;
         for (uint32_t index = 0; index < surfaces.size(); ++index) {
             surfaces[index] = CreateGpuBuffer(device, pixelCount, sizeof(GpuSurface),
                 "ReSTIR DI Surface " + std::to_string(index));
         }
-        reservoirSamples.resize(reservoirLaneCount + 2u);
-        reservoirStats.resize(reservoirLaneCount + 2u);
         for (uint32_t index = 0; index < reservoirSamples.size(); ++index) {
             reservoirSamples[index] = CreateGpuBuffer(device, pixelCount, sizeof(GpuReservoirSample),
                 "ReSTIR DI Reservoir Sample " + std::to_string(index));
@@ -375,12 +362,12 @@ namespace DSM::RestirDI {
             acceptance[index] = CreateGpuBuffer(device, pixelCount, sizeof(GpuAcceptance),
                 "ReSTIR DI Acceptance " + std::to_string(index));
         }
-        acceptanceAggregate = CreateGpuBuffer(
-            device, pixelCount, sizeof(GpuAcceptance), "ReSTIR DI Acceptance Aggregate");
+        finalAcceptance = CreateGpuBuffer(
+            device, pixelCount, sizeof(GpuAcceptance), "ReSTIR DI Final Acceptance");
         hdr = CreateGpuBuffer(device, pixelCount, sizeof(GpuFloat4), "ReSTIR DI HDR");
         framebuffer = device->CreateFramebuffer(FramebufferDesc{}.AddColorAttachment(renderer.GetColorTexture()));
         surfaceHistory = -1;
-        reservoirHistoryIndices.assign(reservoirLaneCount, -1);
+        reservoirHistory = -1;
         lastSurface = 0;
         lastReservoir = 0;
         historyValid = false;
@@ -469,14 +456,12 @@ namespace DSM::RestirDI {
     GpuFrameConstants RenderPipeline::Implementation::BuildFrameConstants(
         GraphicsRenderer& renderer,
         const Settings& settings,
-        uint64_t frameIndex,
-        uint32_t spatialPass,
-        uint32_t sampleIndex) const
+        uint64_t frameIndex) const
     {
         // CPU 端把编辑器设置编码成 GPU 协议。这里最重要的三项是：
         // 1) domainProbabilities 定义混合 proposal 的域概率；
-        // 2) algorithm 给 Initial/Temporal/Spatial 传候选数、M 上限和邻居数；
-        // 3) sampling 把 SPP 拆成独立 lane，VisibilityRayGen 最后做 1/N 平均。
+        // 2) algorithm 给 Initial/Temporal/Spatial 传候选数、历史 M 倍率和邻居数；
+        // 3) 正常渲染固定每像素一个 Reservoir 和一条最终可见性射线。
         GpuFrameConstants constants{};
         const auto viewProjection = renderer.GetCamera().GetViewProjMatrix();
         constants.viewProjection = ToGpuMatrix(viewProjection);
@@ -485,8 +470,8 @@ namespace DSM::RestirDI {
             ? previousViewProjection : viewProjection);
         constants.cameraExposure = ToGpuFloat4(renderer.GetCamera().GetPosition(), settings.exposure);
         constants.reuseThresholds = {
-            std::cos(settings.normalThresholdDegrees * std::numbers::pi_v<float> / 180.0f),
-            settings.relativeDepthThreshold, settings.spatialRadius, settings.normalBias};
+            std::cos(settings.temporalNormalThresholdDegrees * std::numbers::pi_v<float> / 180.0f),
+            settings.temporalRelativeDepthThreshold, settings.spatialRadius, settings.normalBias};
 
         const float analyticWeight = settings.enableAnalyticLights
             ? scene.GetAnalyticPower() * std::max(settings.analyticDomainWeight, 0.0f) : 0.0f;
@@ -513,8 +498,9 @@ namespace DSM::RestirDI {
             static_cast<uint32_t>(environment.pixels.size()), scene.GetLogicalInstanceCount()};
         constants.algorithm = {
             std::max(settings.initialCandidateCount, 1u),
-            std::max(settings.initialCandidateCount * settings.historyMCapMultiplier, 1u),
-            settings.spatialNeighborCount, spatialPass};
+            std::max(settings.temporalHistoryMCapMultiplier, 1u),
+            settings.spatialNeighborCount,
+            kReferenceSamplesPerPixel};
         constants.modes = {
             static_cast<uint32_t>(settings.renderMode), static_cast<uint32_t>(settings.debugView),
             settings.enableTemporalReuse ? 1u : 0u, settings.enableSpatialReuse ? 1u : 0u};
@@ -523,9 +509,6 @@ namespace DSM::RestirDI {
             (settings.enableAnalyticLights ? 1u : 0u) |
                 (settings.enableEmissiveTriangles ? 2u : 0u) |
                 (settings.enableEnvironment ? 4u : 0u), 0u};
-        constants.sampling = {
-            std::clamp(settings.samplesPerPixel, 1u, 8u),
-            std::clamp(settings.referenceSamplesPerPixel, 1u, 512u), sampleIndex, 0u};
         return constants;
     }
 
@@ -540,13 +523,11 @@ namespace DSM::RestirDI {
     void RenderPipeline::Render(GraphicsRenderer& renderer, float deltaTime)
     {
         // 一帧的独立管线（不经过 Forward/Deferred）如下：
-        // Primary DXR -> Initial RIS Compute -> Temporal/Spatial Compute ->
-        // Final Visibility DXR -> 全屏 Present。每个 SPP lane 都拥有自己的
-        // Reservoir 历史，只有最终 HDR Buffer 在 lane 间累加。
+        // Primary DXR -> Initial RIS Compute -> Unbiased Temporal/Spatial Compute ->
+        // Final Visibility DXR -> 全屏 Present。正常渲染固定为论文的 1 spp：
+        // 每像素维护一个 Reservoir，最终只追踪一条可见性射线。
         auto& implementation = *m_Implementation;
-        const uint32_t samplesPerPixel = std::clamp(m_Settings.samplesPerPixel, 1u, 8u);
-        if (!implementation.initialized &&
-            !implementation.Initialize(renderer, samplesPerPixel)) return;
+        if (!implementation.initialized && !implementation.Initialize(renderer)) return;
 
         if (m_EnableUI && m_Settings.enableCameraControl && ImGui::GetCurrentContext() != nullptr) {
             if (implementation.cameraController == nullptr) {
@@ -560,11 +541,6 @@ namespace DSM::RestirDI {
         }
         else if (!m_Settings.enableCameraControl) {
             implementation.cameraController.reset();
-        }
-
-        if (implementation.reservoirLaneCount != samplesPerPixel) {
-            implementation.CreateResolutionResources(
-                renderer, implementation.width, implementation.height, samplesPerPixel);
         }
 
         if (implementation.settingsInitialized &&
@@ -590,25 +566,15 @@ namespace DSM::RestirDI {
         if (implementation.historyResetRequested) {
             implementation.historyValid = false;
             implementation.surfaceHistory = -1;
-            std::fill(implementation.reservoirHistoryIndices.begin(),
-                implementation.reservoirHistoryIndices.end(), -1);
+            implementation.reservoirHistory = -1;
             implementation.historyResetRequested = false;
         }
 
-        // surfaceHistory 与 reservoirHistoryIndices 只轮换句柄，不做整屏复制；
+        // Surface 与 Reservoir 历史只轮换句柄，不做整屏复制；
         // historyResetRequested 仅让下一帧从空历史开始，避免把旧尺寸/旧分布
         // 混入当前 proposal。
         const int32_t currentSurface = implementation.surfaceHistory >= 0
             ? 1 - implementation.surfaceHistory : 0;
-        std::vector<int32_t> freeReservoirs{};
-        freeReservoirs.reserve(implementation.reservoirSamples.size());
-        for (int32_t index = 0;
-            index < static_cast<int32_t>(implementation.reservoirSamples.size()); ++index) {
-            if (std::ranges::find(implementation.reservoirHistoryIndices, index) ==
-                implementation.reservoirHistoryIndices.end()) {
-                freeReservoirs.push_back(index);
-            }
-        }
         const uint32_t groupCountX = (implementation.width + 7u) / 8u;
         const uint32_t groupCountY = (implementation.height + 7u) / 8u;
 
@@ -616,12 +582,9 @@ namespace DSM::RestirDI {
             .SetQueueType(CommandQueueType::Graphics)
             .SetDebugName("ReSTIR DI Frame"));
         commandList->Open();
-        auto writeConstants = [&](uint32_t spatialPass, uint32_t sampleIndex) {
-            const auto constants = implementation.BuildFrameConstants(
-                renderer, m_Settings, m_RenderedFrameCount, spatialPass, sampleIndex);
-            commandList->WriteBuffer(implementation.frameConstants, &constants, sizeof(constants));
-        };
-        writeConstants(0, 0);
+        const auto constants = implementation.BuildFrameConstants(
+            renderer, m_Settings, m_RenderedFrameCount);
+        commandList->WriteBuffer(implementation.frameConstants, &constants, sizeof(constants));
         // 场景同步已经决定 BLAS/TLAS 是重建、refit 还是只上传变换；所有工作
         // 都记录到 Graphics Queue，稳态帧不调用 WaitForIdle。
         implementation.scene.RecordBuildAndUpload(commandList);
@@ -647,120 +610,100 @@ namespace DSM::RestirDI {
 
         int32_t finalReservoir = 0;
         if (m_Settings.renderMode != RenderMode::Reference) {
-            for (uint32_t sampleIndex = 0;
-                sampleIndex < implementation.reservoirLaneCount; ++sampleIndex) {
-                assert(freeReservoirs.size() >= 2u);
-                const int32_t workA = freeReservoirs.back();
-                freeReservoirs.pop_back();
-                const int32_t workB = freeReservoirs.back();
-                freeReservoirs.pop_back();
-                const int32_t oldHistory = implementation.reservoirHistoryIndices[sampleIndex];
+            const int32_t oldHistory = implementation.reservoirHistory;
+            const int32_t workA = oldHistory >= 0 ? (oldHistory + 1) % 3 : 0;
+            const int32_t workB = oldHistory >= 0 ? (oldHistory + 2) % 3 : 1;
 
-                writeConstants(0, sampleIndex);
-                // Step 3：Initial RIS（论文 Algorithm 3）。
-                auto initialSet = implementation.CreateBindingSet(FrameBindings{
+            // Step 3：Initial RIS（论文 Algorithm 3）。
+            auto initialSet = implementation.CreateBindingSet(FrameBindings{
+                .surfaceCurrent = implementation.surfaces[currentSurface],
+                .reservoirSampleOutput = implementation.reservoirSamples[workA],
+                .reservoirStatsOutput = implementation.reservoirStats[workA],
+                .acceptanceOutput = implementation.acceptance[0]});
+            commandList->SetComputeState(ComputeState{}
+                .SetPipeline(implementation.initialPipeline)
+                .AddBindingSet(initialSet)
+                .AddBindingSet(implementation.textureSet));
+            commandList->Dispatch(groupCountX, groupCountY, 1);
+
+            int32_t currentReservoir = workA;
+            uint32_t currentAcceptance = 0;
+            if (m_Settings.enableTemporalReuse && implementation.historyValid &&
+                implementation.surfaceHistory >= 0 && oldHistory >= 0) {
+                // Step 4：按 motion 重投影上一帧 Reservoir，并执行论文
+                // Algorithm 6 的 uniform MIS 无偏合并。
+                auto temporalSet = implementation.CreateBindingSet(FrameBindings{
                     .surfaceCurrent = implementation.surfaces[currentSurface],
-                    .reservoirSampleOutput = implementation.reservoirSamples[workA],
-                    .reservoirStatsOutput = implementation.reservoirStats[workA],
-                    .acceptanceOutput = implementation.acceptance[0]});
+                    .surfacePrevious = implementation.surfaces[implementation.surfaceHistory],
+                    .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
+                    .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
+                    .reservoirHistorySample = implementation.reservoirSamples[oldHistory],
+                    .reservoirHistoryStats = implementation.reservoirStats[oldHistory],
+                    .acceptanceInput = implementation.acceptance[currentAcceptance],
+                    .reservoirSampleOutput = implementation.reservoirSamples[workB],
+                    .reservoirStatsOutput = implementation.reservoirStats[workB],
+                    .acceptanceOutput = implementation.acceptance[1]});
                 commandList->SetComputeState(ComputeState{}
-                    .SetPipeline(implementation.initialPipeline)
-                    .AddBindingSet(initialSet)
+                    .SetPipeline(implementation.temporalPipeline)
+                    .AddBindingSet(temporalSet)
                     .AddBindingSet(implementation.textureSet));
                 commandList->Dispatch(groupCountX, groupCountY, 1);
+                currentReservoir = workB;
+                currentAcceptance = 1;
+            }
 
-                int32_t currentReservoir = workA;
-                uint32_t currentAcceptance = 0;
-                if (m_Settings.renderMode == RenderMode::Restir &&
-                    m_Settings.enableTemporalReuse && implementation.historyValid &&
-                    implementation.surfaceHistory >= 0 && oldHistory >= 0) {
-                    // Step 4：按 motion 重投影上一帧 Reservoir，并执行论文
-                    // Algorithm 4 的多 Reservoir 合并。
-                    auto temporalSet = implementation.CreateBindingSet(FrameBindings{
-                        .surfaceCurrent = implementation.surfaces[currentSurface],
-                        .surfacePrevious = implementation.surfaces[implementation.surfaceHistory],
-                        .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
-                        .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
-                        .reservoirHistorySample = implementation.reservoirSamples[oldHistory],
-                        .reservoirHistoryStats = implementation.reservoirStats[oldHistory],
-                        .acceptanceInput = implementation.acceptance[currentAcceptance],
-                        .reservoirSampleOutput = implementation.reservoirSamples[workB],
-                        .reservoirStatsOutput = implementation.reservoirStats[workB],
-                        .acceptanceOutput = implementation.acceptance[1]});
-                    commandList->SetComputeState(ComputeState{}
-                        .SetPipeline(implementation.temporalPipeline)
-                        .AddBindingSet(temporalSet)
-                        .AddBindingSet(implementation.textureSet));
-                    commandList->Dispatch(groupCountX, groupCountY, 1);
-                    currentReservoir = workB;
-                    currentAcceptance = 1;
-                }
-
-                if (m_Settings.renderMode == RenderMode::Restir && m_Settings.enableSpatialReuse) {
-                    const uint32_t passCount = std::min(m_Settings.spatialPassCount, 2u);
-                    for (uint32_t pass = 0; pass < passCount; ++pass) {
-                        const int32_t outputReservoir = currentReservoir == workA ? workB : workA;
-                        const uint32_t outputAcceptance = 1u - currentAcceptance;
-                        writeConstants(pass, sampleIndex);
-                        // Step 5：空间邻居 pass；currentReservoir/outputReservoir
-                        // 交替使用，保证同一 pass 不读写同一个 UAV。
-                        auto spatialSet = implementation.CreateBindingSet(FrameBindings{
-                            .surfaceCurrent = implementation.surfaces[currentSurface],
-                            .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
-                            .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
-                            .acceptanceInput = implementation.acceptance[currentAcceptance],
-                            .reservoirSampleOutput = implementation.reservoirSamples[outputReservoir],
-                            .reservoirStatsOutput = implementation.reservoirStats[outputReservoir],
-                            .acceptanceOutput = implementation.acceptance[outputAcceptance]});
-                        commandList->SetComputeState(ComputeState{}
-                            .SetPipeline(implementation.spatialPipeline)
-                            .AddBindingSet(spatialSet)
-                            .AddBindingSet(implementation.textureSet));
-                        commandList->Dispatch(groupCountX, groupCountY, 1);
-                        currentReservoir = outputReservoir;
-                        currentAcceptance = outputAcceptance;
-                    }
-                }
-
-                writeConstants(0, sampleIndex);
-                // Step 6：只对最终被选候选追踪一条阴影射线，并把 contribution*W
-                // 写进 HDR StructuredBuffer；这正是 ReSTIR 的主要降噪收益来源。
-                auto visibilitySet = implementation.CreateBindingSet(FrameBindings{
+            if (m_Settings.enableSpatialReuse) {
+                const int32_t outputReservoir = currentReservoir == workA ? workB : workA;
+                const uint32_t outputAcceptance = 1u - currentAcceptance;
+                // Step 5：论文无偏配置固定一次空间 pass。Shader 第一遍选择
+                // 代表样本，第二遍重放同一邻居集合并求支持质量 Z。
+                auto spatialSet = implementation.CreateBindingSet(FrameBindings{
                     .surfaceCurrent = implementation.surfaces[currentSurface],
                     .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
                     .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
                     .acceptanceInput = implementation.acceptance[currentAcceptance],
-                    .acceptanceOutput = implementation.acceptanceAggregate,
-                    .hdrOutput = implementation.hdr});
-                commandList->SetBufferState(implementation.hdr, ResourceStates::UnorderedAccess);
-                commandList->SetBufferState(
-                    implementation.acceptanceAggregate, ResourceStates::UnorderedAccess);
-                commandList->SetRayTracingState(RT::State{}
-                    .SetShaderTable(implementation.visibilityTable)
-                    .AddBindingSet(visibilitySet)
+                    .reservoirSampleOutput = implementation.reservoirSamples[outputReservoir],
+                    .reservoirStatsOutput = implementation.reservoirStats[outputReservoir],
+                    .acceptanceOutput = implementation.acceptance[outputAcceptance]});
+                commandList->SetComputeState(ComputeState{}
+                    .SetPipeline(implementation.spatialPipeline)
+                    .AddBindingSet(spatialSet)
                     .AddBindingSet(implementation.textureSet));
-                commandList->DispatchRays({implementation.width, implementation.height, 1});
-
-                if (sampleIndex == 0u) finalReservoir = currentReservoir;
-                implementation.reservoirHistoryIndices[sampleIndex] = currentReservoir;
-                freeReservoirs.push_back(currentReservoir == workA ? workB : workA);
-                if (oldHistory >= 0) freeReservoirs.push_back(oldHistory);
+                commandList->Dispatch(groupCountX, groupCountY, 1);
+                currentReservoir = outputReservoir;
+                currentAcceptance = outputAcceptance;
             }
+
+            // Step 6：1 spp 路径只对最终候选追踪一条可见性射线。
+            auto visibilitySet = implementation.CreateBindingSet(FrameBindings{
+                .surfaceCurrent = implementation.surfaces[currentSurface],
+                .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
+                .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
+                .acceptanceInput = implementation.acceptance[currentAcceptance],
+                .acceptanceOutput = implementation.finalAcceptance,
+                .hdrOutput = implementation.hdr});
+            commandList->SetBufferState(implementation.hdr, ResourceStates::UnorderedAccess);
+            commandList->SetBufferState(implementation.finalAcceptance, ResourceStates::UnorderedAccess);
+            commandList->SetRayTracingState(RT::State{}
+                .SetShaderTable(implementation.visibilityTable)
+                .AddBindingSet(visibilitySet)
+                .AddBindingSet(implementation.textureSet));
+            commandList->DispatchRays({implementation.width, implementation.height, 1});
+
+            finalReservoir = currentReservoir;
+            implementation.reservoirHistory = currentReservoir;
         }
         else {
-            writeConstants(0, 0);
             auto referenceSet = implementation.CreateBindingSet(FrameBindings{
                 .surfaceCurrent = implementation.surfaces[currentSurface],
-                .acceptanceOutput = implementation.acceptanceAggregate,
+                .acceptanceOutput = implementation.finalAcceptance,
                 .hdrOutput = implementation.hdr});
             commandList->SetRayTracingState(RT::State{}
                 .SetShaderTable(implementation.referenceTable)
                 .AddBindingSet(referenceSet)
                 .AddBindingSet(implementation.textureSet));
             commandList->DispatchRays({implementation.width, implementation.height, 1});
-            finalReservoir = !implementation.reservoirHistoryIndices.empty() &&
-                implementation.reservoirHistoryIndices[0] >= 0
-                ? implementation.reservoirHistoryIndices[0] : 0;
+            finalReservoir = std::max(implementation.reservoirHistory, 0);
         }
 
         // Step 7：最后的全屏光栅 Pass 只负责曝光/ACES 和 Editor 颜色目标，
@@ -802,36 +745,14 @@ namespace DSM::RestirDI {
             ImGui::TextWrapped("Error: %s", implementation.error.c_str());
         }
 
-        static constexpr const char* renderModes[] = {"ReSTIR", "Independent RIS", "Reference"};
-        int renderMode = static_cast<int>(m_Settings.renderMode);
-        if (ImGui::Combo("Render Mode", &renderMode, renderModes, std::size(renderModes))) {
-            m_Settings.renderMode = static_cast<RenderMode>(renderMode);
-        }
+        ImGui::TextUnformatted("Mode: Unbiased ReSTIR DI (fixed 1 spp)");
         static constexpr const char* debugViews[] = {
             "Final", "Surface", "Normal", "Albedo", "Source Type", "Source ID",
-            "pHat", "Reservoir M", "Reservoir W", "Temporal Accept", "Spatial Accept", "Visibility"};
+            "pHat", "Reservoir M", "Support ratio Z/M", "Reservoir W",
+            "Temporal Accept", "Spatial Accept", "Visibility"};
         int debugView = static_cast<int>(m_Settings.debugView);
         if (ImGui::Combo("Debug View", &debugView, debugViews, std::size(debugViews))) {
             m_Settings.debugView = static_cast<DebugView>(debugView);
-        }
-
-        if (ImGui::CollapsingHeader("Sampling", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (m_Settings.renderMode == RenderMode::Reference) {
-                int referenceSPP = static_cast<int>(m_Settings.referenceSamplesPerPixel);
-                if (ImGui::SliderInt("Reference SPP", &referenceSPP, 1, 512)) {
-                    m_Settings.referenceSamplesPerPixel = static_cast<uint32_t>(referenceSPP);
-                }
-                ImGui::TextWrapped("Each Reference SPP traces one visibility ray.");
-            }
-            else {
-                int samplesPerPixel = static_cast<int>(m_Settings.samplesPerPixel);
-                if (ImGui::SliderInt("Samples per pixel", &samplesPerPixel, 1, 8)) {
-                    m_Settings.samplesPerPixel = static_cast<uint32_t>(samplesPerPixel);
-                }
-                ImGui::TextWrapped(
-                    "Each SPP owns an independent Reservoir history and runs the full reuse chain "
-                    "plus one visibility ray.");
-            }
         }
 
         if (ImGui::CollapsingHeader("Candidate domains", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -851,15 +772,19 @@ namespace DSM::RestirDI {
         }
 
         if (ImGui::CollapsingHeader("Temporal and spatial reuse", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::TextWrapped(
+                "Algorithm 6 uniform MIS: W = weightSum / (Z * pHat). "
+                "Spatial reuse uses one pass, matching the paper's unbiased configuration.");
             ImGui::Checkbox("Temporal reuse", &m_Settings.enableTemporalReuse);
             ImGui::SliderInt("History M cap multiplier",
-                reinterpret_cast<int*>(&m_Settings.historyMCapMultiplier), 1, 64);
+                reinterpret_cast<int*>(&m_Settings.temporalHistoryMCapMultiplier), 1, 64);
             ImGui::Checkbox("Spatial reuse", &m_Settings.enableSpatialReuse);
-            ImGui::SliderInt("Spatial passes", reinterpret_cast<int*>(&m_Settings.spatialPassCount), 0, 2);
-            ImGui::SliderInt("Neighbors per pass", reinterpret_cast<int*>(&m_Settings.spatialNeighborCount), 1, 16);
+            ImGui::SliderInt("Spatial neighbors", reinterpret_cast<int*>(&m_Settings.spatialNeighborCount), 1, 16);
             ImGui::SliderFloat("Radius (px)", &m_Settings.spatialRadius, 1.0f, 100.0f);
-            ImGui::SliderFloat("Normal threshold (deg)", &m_Settings.normalThresholdDegrees, 0.0f, 90.0f);
-            ImGui::SliderFloat("Relative depth threshold", &m_Settings.relativeDepthThreshold, 0.001f, 1.0f);
+            ImGui::SliderFloat("Temporal normal threshold (deg)",
+                &m_Settings.temporalNormalThresholdDegrees, 0.0f, 90.0f);
+            ImGui::SliderFloat("Temporal relative depth threshold",
+                &m_Settings.temporalRelativeDepthThreshold, 0.001f, 1.0f);
         }
 
         if (ImGui::CollapsingHeader("Camera control", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -930,8 +855,7 @@ namespace DSM::RestirDI {
         GraphicsRenderer& renderer, uint32_t newWidth, uint32_t newHeight)
     {
         if (m_Implementation->device != nullptr) {
-            m_Implementation->CreateResolutionResources(
-                renderer, newWidth, newHeight, m_Settings.samplesPerPixel);
+            m_Implementation->CreateResolutionResources(renderer, newWidth, newHeight);
         }
     }
 
@@ -1021,7 +945,7 @@ namespace DSM::RestirDI {
             pixelCount * sizeof(GpuReservoirSample));
         commandList->CopyBuffer(statsReadback, 0, reservoirStats[lastReservoir], 0,
             pixelCount * sizeof(GpuReservoirStats));
-        commandList->CopyBuffer(acceptanceReadback, 0, acceptanceAggregate, 0,
+        commandList->CopyBuffer(acceptanceReadback, 0, finalAcceptance, 0,
             pixelCount * sizeof(GpuAcceptance));
         commandList->Close();
         device->ExecuteCommandList(commandList);
@@ -1039,7 +963,8 @@ namespace DSM::RestirDI {
         snapshot.acceptance.resize(pixelCount);
         auto read = [this](IBuffer* buffer, void* destination, size_t byteSize) {
             const void* source = device->MapBuffer(buffer, CpuAccessMode::Read);
-            if (source == nullptr) return false;
+            if (source == nullptr)
+                return false;
             std::memcpy(destination, source, byteSize);
             device->UnmapBuffer(buffer);
             return true;

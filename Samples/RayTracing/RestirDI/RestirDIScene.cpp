@@ -89,6 +89,8 @@ namespace DSM::RestirDI {
                     entities.push_back(id);
                 }
             }
+
+            // 按照 ID 进行稳定排序，以确保在不同帧之间的顺序一致
             std::ranges::sort(entities, {}, StableID);
             return entities;
         }
@@ -111,13 +113,15 @@ namespace DSM::RestirDI {
 
         std::span<const uint32_t> GetMeshIndices(const Mesh& mesh)
         {
-            if (mesh.indexFormat != Format::R32_UINT || mesh.indices.empty()) return {};
+            if (mesh.indexFormat != Format::R32_UINT || mesh.indices.empty())
+                return {};
             return {reinterpret_cast<const uint32_t*>(mesh.indices.data()), mesh.indices.size() / sizeof(uint32_t)};
         }
 
         std::span<const uint16_t> GetMeshIndices16(const Mesh& mesh)
         {
-            if (mesh.indexFormat != Format::R16_UINT || mesh.indices.empty()) return {};
+            if (mesh.indexFormat != Format::R16_UINT || mesh.indices.empty())
+                return {};
             return {reinterpret_cast<const uint16_t*>(mesh.indices.data()), mesh.indices.size() / sizeof(uint16_t)};
         }
     }
@@ -283,6 +287,7 @@ namespace DSM::RestirDI {
             auto& renderer = view.get<MeshRenderer>(id);
             const auto& transform = view.get<TransformComponent>(id);
             const auto mesh = renderer.GetMesh();
+
             uint32_t blasIndex = 0;
             if (const auto meshIt = meshIndices.find(mesh.get()); meshIt != meshIndices.end()) {
                 blasIndex = meshIt->second;
@@ -388,11 +393,10 @@ namespace DSM::RestirDI {
             m_StableInstanceIDs.push_back(stableID);
             m_InstanceMeshes.push_back(mesh);
             m_CurrentTransforms.push_back(world);
-            m_InstanceMasks.push_back(kPrimaryInstanceMask |
-                (renderer.CastShadow() ? kShadowInstanceMask : 0u));
-            RT::InstanceFlags flags = allOpaque
-                ? RT::InstanceFlags::ForceOpaque : RT::InstanceFlags::ForceNonOpaque;
-            if (anyTwoSided) flags |= RT::InstanceFlags::TriangleCullDisable;
+            m_InstanceMasks.push_back(kPrimaryInstanceMask | (renderer.CastShadow() ? kShadowInstanceMask : 0u));
+            RT::InstanceFlags flags = allOpaque ? RT::InstanceFlags::ForceOpaque : RT::InstanceFlags::ForceNonOpaque;
+            if (anyTwoSided)
+                flags |= RT::InstanceFlags::TriangleCullDisable;
             m_InstanceFlags.push_back(flags);
         }
 
@@ -550,7 +554,6 @@ namespace DSM::RestirDI {
             record.indexBuffers.clear();
             RT::AccelStructDesc description{};
             description.SetIsTopLevel(false)
-                .SetIsVirtual(true)
                 .SetBuildFlags(RT::AccelStructBuildFlags::PreferFastTrace)
                 .SetDebugName("ReSTIR DI BLAS " + std::to_string(blasIndex));
             for (const auto& range : record.buildRanges) {
@@ -576,27 +579,14 @@ namespace DSM::RestirDI {
                 description.AddBottomLevelGeometry(geometry);
             }
             record.accelerationStructure = device->CreateAccelStruct(description);
-            const auto requirements = device->GetAccelStructMemoryRequirements(record.accelerationStructure);
-            record.heap = device->CreateHeap(HeapDesc{}
-                .SetCapacity(requirements.size)
-                .SetType(HeapType::Default)
-                .SetDebugName("ReSTIR DI BLAS Heap " + std::to_string(blasIndex)));
-            device->BindAccelStructMemory(record.accelerationStructure, record.heap, 0);
         }
 
         RT::AccelStructDesc tlasDescription{};
         tlasDescription.SetIsTopLevel(true)
             .SetTopLevelMaxInstances(std::max<size_t>(m_Instances.size(), 1))
-            .SetIsVirtual(true)
             .SetBuildFlags(RT::AccelStructBuildFlags::AllowUpdate | RT::AccelStructBuildFlags::PreferFastTrace)
             .SetDebugName("ReSTIR DI TLAS");
         m_TLAS = device->CreateAccelStruct(tlasDescription);
-        const auto tlasRequirements = device->GetAccelStructMemoryRequirements(m_TLAS);
-        m_TLASHeap = device->CreateHeap(HeapDesc{}
-            .SetCapacity(tlasRequirements.size)
-            .SetType(HeapType::Default)
-            .SetDebugName("ReSTIR DI TLAS Heap"));
-        device->BindAccelStructMemory(m_TLAS, m_TLASHeap, 0);
         BuildTLASInstances();
         m_NeedsFullBuild = true;
     }
@@ -784,7 +774,6 @@ namespace DSM::RestirDI {
         m_EmissiveBuffer = nullptr;
         m_EmissiveAliasBuffer = nullptr;
         m_TLAS = nullptr;
-        m_TLASHeap = nullptr;
         m_TopologyHash = m_TransformHash = m_LightHash = m_LightDistributionHash = 0;
         m_EmissiveDistributionHash = 0;
         m_LogicalInstanceCount = m_LightCount = m_EmissiveCount = 0;

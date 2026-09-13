@@ -4,11 +4,12 @@
 
 namespace DSM::RestirDI {
 
+    inline constexpr uint32_t kReferenceSamplesPerPixel = 512u;
+
     enum class RenderMode : uint32_t
     {
-        Restir = 0u,
-        IndependentRIS = 1u,
-        Reference = 2u
+        UnbiasedRestir = 0u,
+        Reference = 1u
     };
 
     enum class DebugView : uint32_t
@@ -21,10 +22,11 @@ namespace DSM::RestirDI {
         SourceID = 5u,
         PHat = 6u,
         ReservoirM = 7u,
-        ReservoirW = 8u,
-        TemporalAcceptance = 9u,
-        SpatialAcceptance = 10u,
-        Visibility = 11u
+        SupportRatio = 8u,
+        ReservoirW = 9u,
+        TemporalAcceptance = 10u,
+        SpatialAcceptance = 11u,
+        Visibility = 12u
     };
 
     enum class EnvironmentSource : uint32_t
@@ -35,33 +37,25 @@ namespace DSM::RestirDI {
 
     // HLSL 端 RestirRenderMode/RestirDebugView 使用同一序号写入 GpuFrameConstants。
     // 显式断言可在调整菜单顺序时立刻暴露协议破坏，而不是等到 GPU 显示错误模式。
-    static_assert(static_cast<uint32_t>(RenderMode::Restir) == 0u);
-    static_assert(static_cast<uint32_t>(RenderMode::IndependentRIS) == 1u);
-    static_assert(static_cast<uint32_t>(RenderMode::Reference) == 2u);
+    static_assert(static_cast<uint32_t>(RenderMode::UnbiasedRestir) == 0u);
+    static_assert(static_cast<uint32_t>(RenderMode::Reference) == 1u);
     static_assert(static_cast<uint32_t>(DebugView::Final) == 0u);
-    static_assert(static_cast<uint32_t>(DebugView::Visibility) == 11u);
+    static_assert(static_cast<uint32_t>(DebugView::Visibility) == 12u);
 
     struct Settings
     {
-        RenderMode renderMode = RenderMode::Restir;
+        RenderMode renderMode = RenderMode::UnbiasedRestir;
         DebugView debugView = DebugView::Final;
 
         uint32_t initialCandidateCount = 32;
-        uint32_t samplesPerPixel = 1;
-        uint32_t referenceSamplesPerPixel = 256;
-        uint32_t historyMCapMultiplier = 20;
-        uint32_t spatialPassCount = 2;
-        uint32_t spatialNeighborCount = 5;
+        uint32_t temporalHistoryMCapMultiplier = 20;
+        uint32_t spatialNeighborCount = 3;
         float spatialRadius = 30.0f;
-        float normalThresholdDegrees = 25.0f;
-        float relativeDepthThreshold = 0.1f;
+        float temporalNormalThresholdDegrees = 25.0f;
+        float temporalRelativeDepthThreshold = 0.1f;
 
         bool enableTemporalReuse = true;
         bool enableSpatialReuse = true;
-        // 原论文 Algorithm 5 可在初始 RIS 前复用上一帧可见性；当前实现只对
-        // 最终 Reservoir 样本追踪一次 DXR 阴影射线，因此该开关作为保留字段，
-        // 不应被误认为已经启用了“初始可见性复用”。
-        bool enableVisibilityReuse = false;
         bool enableAnalyticLights = true;
         bool enableEmissiveTriangles = true;
         bool enableEnvironment = true;

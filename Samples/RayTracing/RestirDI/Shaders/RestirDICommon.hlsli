@@ -20,9 +20,8 @@ enum RestirSourceType
 
 enum RestirRenderMode
 {
-    RestirMode = 0,
-    IndependentRISMode = 1,
-    ReferenceMode = 2
+    UnbiasedRestirMode = 0,
+    ReferenceMode = 1
 };
 
 enum RestirDebugView
@@ -35,10 +34,11 @@ enum RestirDebugView
     SourceIDDebugView = 5,
     PHatDebugView = 6,
     ReservoirMDebugView = 7,
-    ReservoirWDebugView = 8,
-    TemporalAcceptanceDebugView = 9,
-    SpatialAcceptanceDebugView = 10,
-    VisibilityDebugView = 11
+    SupportRatioDebugView = 8,
+    ReservoirWDebugView = 9,
+    TemporalAcceptanceDebugView = 10,
+    SpatialAcceptanceDebugView = 11,
+    VisibilityDebugView = 12
 };
 
 // LightType 的数值来自引擎 Light 枚举；这里保留同一顺序，便于阅读解析灯的
@@ -82,6 +82,9 @@ enum RestirRayType
     VisibilityRay = 1
 };
 
+// HLSL 有 float4x4；这里显式存四行是跨 C++/HLSL ABI 选择，不是功能限制。
+// 它固定 StructuredBuffer 布局，并让 MulRow 明确表达 DSMEngine 的行向量语义，
+// 避免默认 column_major 或 mul 参数顺序引入不可见的转置。
 struct GpuMatrix { float4 row0; float4 row1; float4 row2; float4 row3; };
 struct GpuVertex { float4 position; float4 normal; float4 tangent; float4 uv; };
 struct GpuGeometry { uint4 data; };
@@ -114,7 +117,7 @@ struct GpuSurface
     uint4 ids;
 };
 struct GpuReservoirSample { uint sourceType; uint stableID; uint itemIndex; uint sampleSeed; };
-struct GpuReservoirStats { float weightSum; float M; float W; float selectedPHat; };
+struct GpuReservoirStats { float weightSum; float M; float W; float normalizationM; };
 struct GpuAcceptance { uint temporalAccepted; uint spatialAccepted; uint spatialRejected; uint visibility; };
 struct GpuFrameConstants
 {
@@ -130,7 +133,6 @@ struct GpuFrameConstants
     uint4 algorithm;
     uint4 modes;
     uint4 environmentInfo;
-    uint4 sampling;
 };
 
 ConstantBuffer<GpuFrameConstants> g_Frame : register(b0);
@@ -457,14 +459,39 @@ void ReservoirClear(out GpuReservoirSample sample, out GpuReservoirStats stats)
     stats.weightSum = 0.0f;
     stats.M = 0.0f;
     stats.W = 0.0f;
-    stats.selectedPHat = 0.0f;
+    stats.normalizationM = 0.0f;
+}
+
+void ReservoirInvalidateSample(
+    inout GpuReservoirSample sample,
+    inout GpuReservoirStats stats)
+{
+    // 空代表样本不等于空输入流。保留 M，后续 Algorithm 6 在判断最终样本
+    // 是否位于本来源支持域内时仍需计入这批候选。
+    sample.sourceType = InvalidSource;
+    sample.stableID = RESTIR_INVALID_INDEX;
+    sample.itemIndex = RESTIR_INVALID_INDEX;
+    sample.sampleSeed = 0u;
+    stats.weightSum = 0.0f;
+    stats.W = 0.0f;
+    stats.normalizationM = 0.0f;
+}
+
+float EvaluateTargetPHat(GpuSurface surface, GpuReservoirSample sample)
+{
+    CandidateEvaluation evaluation = EvaluateCandidate(surface, sample);
+    // Algorithm 6 的支持判定必须同时满足 target 与 proposal 支持。
+    // 例如退化三角形/零立体角候选可能暂时算出非零贡献，但 q=0 时
+    // 不能参与 merge，也不能计入 Z。
+    if (!HasValidProposalPdf(evaluation)) return 0.0f;
+    float pHat = Luminance(evaluation.contribution);
+    return pHat > 0.0f && isfinite(pHat) ? pHat : 0.0f;
 }
 
 void ReservoirUpdate(
     inout GpuReservoirSample reservoirSample,
     inout GpuReservoirStats reservoirStats,
     GpuReservoirSample candidate,
-    float candidatePHat,
     float candidateWeight,
     float candidateM,
     inout uint randomState)
@@ -472,57 +499,75 @@ void ReservoirUpdate(
     // 论文 Algorithm 2：以 w_i / sum(w) 的概率替换当前样本，同时累计 M 和
     // weightSum。candidateM 在时空合并时可以代表一个上游 Reservoir 的样本数。
     const float acceptedM = isfinite(candidateM) ? max(candidateM, 0.0f) : 0.0f;
-    if (!(candidateWeight > 0.0f) || !isfinite(candidateWeight) || !(candidatePHat > 0.0f)) {
-        reservoirStats.M += acceptedM;
+    reservoirStats.M += acceptedM;
+    if (!isfinite(reservoirStats.M)) {
+        ReservoirClear(reservoirSample, reservoirStats);
         return;
     }
+    if (!(candidateWeight > 0.0f) || !isfinite(candidateWeight) ||
+        candidate.sourceType == InvalidSource) return;
     reservoirStats.weightSum += candidateWeight;
-    reservoirStats.M += acceptedM;
     if (!isfinite(reservoirStats.weightSum) || !(reservoirStats.weightSum > 0.0f)) {
         ReservoirClear(reservoirSample, reservoirStats);
         return;
     }
     if (RandomFloat(randomState) * reservoirStats.weightSum < candidateWeight) {
         reservoirSample = candidate;
-        reservoirStats.selectedPHat = candidatePHat;
     }
 }
 
-void ReservoirFinalize(inout GpuReservoirSample sample, inout GpuReservoirStats stats)
+void ReservoirMergeSource(
+    GpuSurface destinationSurface,
+    GpuReservoirSample sourceSample,
+    GpuReservoirStats sourceStats,
+    float sourceM,
+    inout GpuReservoirSample outputSample,
+    inout GpuReservoirStats outputStats,
+    inout uint randomState)
 {
+    const float acceptedM = isfinite(sourceM) ? max(sourceM, 0.0f) : 0.0f;
+    const float destinationPHat = EvaluateTargetPHat(destinationSurface, sourceSample);
+    const float mergeWeight = destinationPHat * sourceStats.W * acceptedM;
+    // 论文 Algorithm 6 第 4 行。每个来源 Reservoir 必须作为原子输入重新
+    // 合并；无偏 W 下不能直接复制来源的 raw weightSum。
+    ReservoirUpdate(outputSample, outputStats, sourceSample,
+        mergeWeight, acceptedM, randomState);
+}
+
+float ReservoirSupportM(
+    GpuSurface originSurface,
+    GpuReservoirSample selectedSample,
+    float sourceM)
+{
+    if (!(sourceM > 0.0f) || !isfinite(sourceM)) return 0.0f;
+    // Algorithm 6 第 7–9 行：uniform MIS 只计入其 target 支持最终样本的来源。
+    return EvaluateTargetPHat(originSurface, selectedSample) > 0.0f ? sourceM : 0.0f;
+}
+
+void ReservoirFinalize(
+    GpuSurface destinationSurface,
+    inout GpuReservoirSample sample,
+    inout GpuReservoirStats stats,
+    float normalizationM)
+{
+    stats.normalizationM = isfinite(normalizationM) ? max(normalizationM, 0.0f) : 0.0f;
+    const float destinationPHat = EvaluateTargetPHat(destinationSurface, sample);
     if (!(stats.weightSum > 0.0f) || !(stats.M > 0.0f) ||
-        !(stats.selectedPHat > 0.0f) || !isfinite(stats.weightSum) ||
-        !isfinite(stats.M) || !isfinite(stats.selectedPHat)) {
-        ReservoirClear(sample, stats);
+        !(stats.normalizationM > 0.0f) || !(destinationPHat > 0.0f) ||
+        !isfinite(stats.weightSum) || !isfinite(stats.M)) {
+        ReservoirInvalidateSample(sample, stats);
         return;
     }
-    // 论文 Eq. (6) / Algorithm 3：W = (sum w / M) / pHat(y)。
-    // selectedPHat 是当前被选候选在“当前表面”上的 target 值。
-    stats.W = stats.weightSum / (stats.M * stats.selectedPHat);
-    if (!isfinite(stats.W) || !(stats.W > 0.0f)) ReservoirClear(sample, stats);
+    // 初始 RIS 对应 Eq. (6)，其 Z=M；复用对应 Eq. (20)/Algorithm 6，
+    // Z 只包含支持最终样本的输入流，消除不同半球支持域造成的暗偏。
+    stats.W = stats.weightSum / (stats.normalizationM * destinationPHat);
+    if (!isfinite(stats.W) || !(stats.W > 0.0f)) ReservoirInvalidateSample(sample, stats);
 }
 
-void ReservoirApplyMCap(inout GpuReservoirStats stats, float cap)
+bool TemporalSurfaceCompatible(GpuSurface current, GpuSurface history)
 {
-    // 工程上的有偏置信度上限：论文第 5 节给出历史 M 的 20 倍上限；这里
-    // 在每次合并后都缩放 weightSum 与 M，保持 W 不因单纯的历史长度膨胀。
-    if (!(cap > 0.0f) || !isfinite(cap) || !(stats.M > cap) || !isfinite(stats.M)) return;
-    const float scale = cap / stats.M;
-    stats.weightSum *= scale;
-    stats.M = cap;
-    if (!(stats.weightSum > 0.0f) || !isfinite(stats.weightSum) ||
-        !(stats.selectedPHat > 0.0f) || !isfinite(stats.selectedPHat)) {
-        stats.W = 0.0f;
-        return;
-    }
-    stats.W = stats.weightSum / (stats.M * stats.selectedPHat);
-    if (!isfinite(stats.W) || !(stats.W > 0.0f)) stats.W = 0.0f;
-}
-
-bool SurfaceCompatible(GpuSurface current, GpuSurface history)
-{
-    // 论文第 5 节的 biased reuse rejection：稳定实例/材质、法线夹角和相对
-    // 深度共同决定历史是否可在当前像素评价；它不是 Algorithm 4 的 PDF 修正。
+    // 这里只验证 motion reprojection 是否仍指向同一表面。无偏支持域修正由
+    // Algorithm 6 的 Z 完成，不能用该测试代替。
     if ((current.ids.w & ValidSurface) == 0u || (history.ids.w & ValidSurface) == 0u) return false;
     if (current.ids.x != history.ids.x || current.ids.z != history.ids.z) return false;
     float normalSimilarity = dot(

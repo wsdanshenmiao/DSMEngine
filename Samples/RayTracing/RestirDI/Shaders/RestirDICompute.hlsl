@@ -20,8 +20,7 @@ void InitialRISCS(uint3 dispatchThreadID : SV_DispatchThreadID)
 
     if ((surface.ids.w & ValidSurface) != 0u) {
         uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^
-            Hash(g_Frame.resolutionFrame.z + 0x68bc21ebu) ^
-            Hash(g_Frame.sampling.z + 0x02e5be93u));
+            Hash(g_Frame.resolutionFrame.z + 0x68bc21ebu));
         uint candidateCount = max(g_Frame.algorithm.x, 1u);
         [loop] for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
             GpuReservoirSample candidate = GenerateCandidate(randomState);
@@ -32,9 +31,10 @@ void InitialRISCS(uint3 dispatchThreadID : SV_DispatchThreadID)
                 ? pHat / evaluation.proposalPdf : 0.0f;
             // 论文 Algorithm 3：每个候选贡献一个 M=1 的 RIS 样本，
             // ReservoirUpdate 内部执行 w=pHat/q 的加权替换。
-            ReservoirUpdate(reservoirSample, reservoirStats, candidate, pHat, weight, 1.0f, randomState);
+            ReservoirUpdate(reservoirSample, reservoirStats, candidate, weight, 1.0f, randomState);
         }
-        ReservoirFinalize(reservoirSample, reservoirStats);
+        // 单一初始流对自身全部候选都有相同来源，因此 Algorithm 6 的 Z=M。
+        ReservoirFinalize(surface, reservoirSample, reservoirStats, reservoirStats.M);
     }
 
     g_ReservoirSampleOutput[index] = reservoirSample;
@@ -51,55 +51,98 @@ void TemporalReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     uint height = g_Frame.resolutionFrame.y;
     uint index = pixel.y * width + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
-    GpuReservoirSample outputSample = g_ReservoirCurrentSample[index];
-    GpuReservoirStats outputStats = g_ReservoirCurrentStats[index];
+    GpuReservoirSample currentSample = g_ReservoirCurrentSample[index];
+    GpuReservoirStats currentStats = g_ReservoirCurrentStats[index];
+    GpuReservoirSample outputSample;
+    GpuReservoirStats outputStats;
+    ReservoirClear(outputSample, outputStats);
     GpuAcceptance acceptance = g_AcceptanceInput[index];
+    uint selectionState = Hash(index ^ g_Frame.resolutionFrame.w ^
+        g_Frame.resolutionFrame.z ^ 0x967a889bu);
 
-    // 论文 Algorithm 5 的 temporal reuse；当前项目把上一帧 Reservoir 当作
-    // 一个拥有 historyStats.M 个候选的输入 Reservoir，再按 Algorithm 4 合并。
-    if (g_Frame.rayEnvironment.w > 0.5f && (surface.ids.w & ValidSurface) != 0u) {
+    if ((surface.ids.w & ValidSurface) == 0u) {
+        g_ReservoirSampleOutput[index] = outputSample;
+        g_ReservoirStatsOutput[index] = outputStats;
+        g_AcceptanceOutput[index] = acceptance;
+        return;
+    }
+
+    // 当前 RIS 也必须作为原子来源插入空 Reservoir。直接继承它的 weightSum
+    // 只适用于以总 M 归一化的有偏 Algorithm 4。
+    const float currentM = isfinite(currentStats.M) ? max(currentStats.M, 0.0f) : 0.0f;
+    ReservoirMergeSource(surface, currentSample, currentStats, currentM,
+        outputSample, outputStats, selectionState);
+
+    bool historyIncluded = false;
+    GpuSurface historySurface = (GpuSurface)0;
+    GpuReservoirSample historySample = (GpuReservoirSample)0;
+    GpuReservoirStats historyStats = (GpuReservoirStats)0;
+    float historyM = 0.0f;
+
+    if (g_Frame.rayEnvironment.w > 0.5f) {
         float2 previousPixelPosition = surface.motion.xy * float2(width, height) - 0.5f;
         int2 previousPixel = int2(round(previousPixelPosition));
         if (all(previousPixel >= 0) && previousPixel.x < (int)width && previousPixel.y < (int)height) {
             uint previousIndex = previousPixel.y * width + previousPixel.x;
-            GpuSurface previousSurface = g_SurfacePrevious[previousIndex];
-            GpuReservoirSample historySample = g_ReservoirHistorySample[previousIndex];
-            GpuReservoirStats historyStats = g_ReservoirHistoryStats[previousIndex];
-            if (SurfaceCompatible(surface, previousSurface) && historySample.sourceType != InvalidSource && historyStats.W > 0.0f) {
-                CandidateEvaluation evaluation = EvaluateCandidate(surface, historySample);
-                if (HasValidProposalPdf(evaluation)) {
-                    float currentPHat = Luminance(evaluation.contribution);
-                    float sourceM = min(historyStats.M, (float)g_Frame.algorithm.y);
-                    // Algorithm 4 的合并权重：pHat_q(y) * W_source * M_source。
-                    // 重新评价历史样本是必要的；直接沿用历史 pHat 会在表面或
-                    // proposal 改变后产生错误的 selection probability。
-                    float mergeWeight = currentPHat * historyStats.W * sourceM;
-                    uint randomState = Hash(index ^ historySample.sampleSeed ^
-                        g_Frame.resolutionFrame.z ^ Hash(g_Frame.sampling.z + 0x967a889bu));
-                    ReservoirUpdate(outputSample, outputStats, historySample,
-                        currentPHat, mergeWeight, sourceM, randomState);
-                    ReservoirFinalize(outputSample, outputStats);
-                    ReservoirApplyMCap(outputStats, (float)g_Frame.algorithm.y);
-                    acceptance.temporalAccepted = sourceM > 0.0f ? 1u : 0u;
-                }
+            historySurface = g_SurfacePrevious[previousIndex];
+            historySample = g_ReservoirHistorySample[previousIndex];
+            historyStats = g_ReservoirHistoryStats[previousIndex];
+            if (TemporalSurfaceCompatible(surface, historySurface) &&
+                historyStats.M > 0.0f && isfinite(historyStats.M)) {
+                // 论文第 5 节：只限制上一帧来源 M，不在 spatial pass 后全局裁剪。
+                const float historyCap = currentM * max((float)g_Frame.algorithm.y, 1.0f);
+                historyM = min(historyStats.M, historyCap);
+                ReservoirMergeSource(surface, historySample, historyStats, historyM,
+                    outputSample, outputStats, selectionState);
+                historyIncluded = historyM > 0.0f;
+                acceptance.temporalAccepted = historyIncluded ? 1u : 0u;
             }
         }
     }
+
+    // Algorithm 6 第 6–10 行：对最终选中的同一个 y，在每个来源表面重新
+    // 评价 target 支持域。未启用 visibility reuse，故这里不需要额外阴影射线。
+    float normalizationM = ReservoirSupportM(surface, outputSample, currentM);
+    if (historyIncluded) {
+        normalizationM += ReservoirSupportM(historySurface, outputSample, historyM);
+    }
+    ReservoirFinalize(surface, outputSample, outputStats, normalizationM);
 
     g_ReservoirSampleOutput[index] = outputSample;
     g_ReservoirStatsOutput[index] = outputStats;
     g_AcceptanceOutput[index] = acceptance;
 }
 
-bool SpatialSurfaceCompatible(GpuSurface center, GpuSurface neighbor)
+int2 SampleSpatialOffset(inout uint neighborState)
 {
-    if ((center.ids.w & ValidSurface) == 0u || (neighbor.ids.w & ValidSurface) == 0u) return false;
-    if (center.ids.z != neighbor.ids.z) return false;
-    float normalSimilarity = dot(
-        SafeNormalize(center.normalRoughness.xyz, float3(0, 1, 0)),
-        SafeNormalize(neighbor.normalRoughness.xyz, float3(0, 1, 0)));
-    float relativeDepth = abs(center.motion.z - neighbor.motion.z) / max(abs(center.motion.z), 1e-3f);
-    return normalSimilarity >= g_Frame.reuseThresholds.x && relativeDepth <= g_Frame.reuseThresholds.y;
+    const float angle = RandomFloat(neighborState) * (2.0f * RESTIR_PI);
+    const float radius = sqrt(RandomFloat(neighborState)) * g_Frame.reuseThresholds.z;
+    return int2(round(float2(cos(angle), sin(angle)) * radius));
+}
+
+bool ResolveSpatialSource(
+    uint2 centerPixel,
+    uint width,
+    uint height,
+    int2 offset,
+    out uint sourceIndex,
+    out GpuSurface sourceSurface,
+    out GpuReservoirSample sourceSample,
+    out GpuReservoirStats sourceStats)
+{
+    sourceIndex = 0u;
+    sourceSurface = (GpuSurface)0;
+    sourceSample = (GpuReservoirSample)0;
+    sourceStats = (GpuReservoirStats)0;
+    const int2 sourcePixel = int2(centerPixel) + offset;
+    if (all(offset == 0) || any(sourcePixel < 0) ||
+        sourcePixel.x >= (int)width || sourcePixel.y >= (int)height) return false;
+    sourceIndex = sourcePixel.y * width + sourcePixel.x;
+    sourceSurface = g_SurfaceCurrent[sourceIndex];
+    sourceSample = g_ReservoirCurrentSample[sourceIndex];
+    sourceStats = g_ReservoirCurrentStats[sourceIndex];
+    return (sourceSurface.ids.w & ValidSurface) != 0u &&
+        sourceStats.M > 0.0f && isfinite(sourceStats.M);
 }
 
 [numthreads(8, 8, 1)]
@@ -111,52 +154,60 @@ void SpatialReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     uint height = g_Frame.resolutionFrame.y;
     uint index = pixel.y * width + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
-    GpuReservoirSample outputSample = g_ReservoirCurrentSample[index];
-    GpuReservoirStats outputStats = g_ReservoirCurrentStats[index];
+    GpuReservoirSample centerSample = g_ReservoirCurrentSample[index];
+    GpuReservoirStats centerStats = g_ReservoirCurrentStats[index];
+    GpuReservoirSample outputSample;
+    GpuReservoirStats outputStats;
+    ReservoirClear(outputSample, outputStats);
     GpuAcceptance acceptance = g_AcceptanceInput[index];
-    uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^
-        Hash(g_Frame.algorithm.w + g_Frame.resolutionFrame.z * 17u) ^
-        Hash(g_Frame.sampling.z + 0x368cc8b7u));
-    uint neighborCount = g_Frame.algorithm.z;
+    if ((surface.ids.w & ValidSurface) == 0u) {
+        g_ReservoirSampleOutput[index] = outputSample;
+        g_ReservoirStatsOutput[index] = outputStats;
+        g_AcceptanceOutput[index] = acceptance;
+        return;
+    }
+
+    const uint neighborSeed = Hash(index ^ g_Frame.resolutionFrame.w ^
+        Hash(g_Frame.resolutionFrame.z * 17u) ^ 0x368cc8b7u);
+    uint neighborState = neighborSeed;
+    uint selectionState = Hash(neighborSeed ^ 0xa511e9b3u);
+    const uint neighborCount = g_Frame.algorithm.z;
+    const float centerM = isfinite(centerStats.M) ? max(centerStats.M, 0.0f) : 0.0f;
+
+    // Algorithm 6 第一遍：中心与随机邻居均作为原子来源，从空 Reservoir 合并。
+    ReservoirMergeSource(surface, centerSample, centerStats, centerM,
+        outputSample, outputStats, selectionState);
 
     [loop] for (uint neighborIndex = 0u; neighborIndex < neighborCount; ++neighborIndex) {
-        float angle = RandomFloat(randomState) * (2.0f * RESTIR_PI);
-        float radius = sqrt(RandomFloat(randomState)) * g_Frame.reuseThresholds.z;
-        int2 offset = int2(round(float2(cos(angle), sin(angle)) * radius));
-        int2 neighborPixel = int2(pixel) + offset;
-        if (all(offset == 0) || any(neighborPixel < 0) ||
-            neighborPixel.x >= (int)width || neighborPixel.y >= (int)height) {
+        const int2 offset = SampleSpatialOffset(neighborState);
+        uint sourceIndex;
+        GpuSurface sourceSurface;
+        GpuReservoirSample sourceSample;
+        GpuReservoirStats sourceStats;
+        if (!ResolveSpatialSource(pixel, width, height, offset,
+            sourceIndex, sourceSurface, sourceSample, sourceStats)) {
             acceptance.spatialRejected++;
             continue;
         }
-        uint sourceIndex = neighborPixel.y * width + neighborPixel.x;
-        GpuSurface neighborSurface = g_SurfaceCurrent[sourceIndex];
-        GpuReservoirSample neighborSample = g_ReservoirCurrentSample[sourceIndex];
-        GpuReservoirStats neighborStats = g_ReservoirCurrentStats[sourceIndex];
-        // 论文 Algorithm 5 的空间 pass；每次只把邻域 Reservoir 的“代表样本”
-        // 重新评价到中心表面，并用 pHat_current * W_neighbor * M_neighbor 合并。
-        if (!SpatialSurfaceCompatible(surface, neighborSurface) ||
-            neighborSample.sourceType == InvalidSource || !(neighborStats.W > 0.0f)) {
-            acceptance.spatialRejected++;
-            continue;
-        }
-        CandidateEvaluation evaluation = EvaluateCandidate(surface, neighborSample);
-        if (HasValidProposalPdf(evaluation)) {
-            float currentPHat = Luminance(evaluation.contribution);
-            float sourceM = min(neighborStats.M, (float)g_Frame.algorithm.y);
-            // 与 temporal 合并相同，邻居 Reservoir 的 W/M 先还原其代表的
-            // 候选质量，再以中心表面的 currentPHat 作为目标函数。
-            float mergeWeight = currentPHat * neighborStats.W * sourceM;
-            ReservoirUpdate(outputSample, outputStats, neighborSample,
-                currentPHat, mergeWeight, sourceM, randomState);
-            acceptance.spatialAccepted += sourceM > 0.0f ? 1u : 0u;
-        }
-        else {
-            acceptance.spatialRejected++;
-        }
+        ReservoirMergeSource(surface, sourceSample, sourceStats, sourceStats.M,
+            outputSample, outputStats, selectionState);
+        acceptance.spatialAccepted++;
     }
-    ReservoirFinalize(outputSample, outputStats);
-    ReservoirApplyMCap(outputStats, (float)g_Frame.algorithm.y);
+
+    // Algorithm 6 第二遍：重放完全相同的邻居序列，对最终 y 求支持质量 Z。
+    float normalizationM = ReservoirSupportM(surface, outputSample, centerM);
+    neighborState = neighborSeed;
+    [loop] for (uint supportIndex = 0u; supportIndex < neighborCount; ++supportIndex) {
+        const int2 offset = SampleSpatialOffset(neighborState);
+        uint sourceIndex;
+        GpuSurface sourceSurface;
+        GpuReservoirSample sourceSample;
+        GpuReservoirStats sourceStats;
+        if (!ResolveSpatialSource(pixel, width, height, offset,
+            sourceIndex, sourceSurface, sourceSample, sourceStats)) continue;
+        normalizationM += ReservoirSupportM(sourceSurface, outputSample, sourceStats.M);
+    }
+    ReservoirFinalize(surface, outputSample, outputStats, normalizationM);
     g_ReservoirSampleOutput[index] = outputSample;
     g_ReservoirStatsOutput[index] = outputStats;
     g_AcceptanceOutput[index] = acceptance;

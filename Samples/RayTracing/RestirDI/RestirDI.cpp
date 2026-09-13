@@ -13,11 +13,24 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <windows.h>
 
 namespace DSM::RestirDI {
+namespace {
+
+std::filesystem::path ExecutableDirectory()
+{
+    std::wstring path(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    path.resize(length);
+    return std::filesystem::path(path).parent_path();
+}
+
+} // namespace
 
 int Run(int argc, char** argv)
 {
+    const auto launchDirectory = std::filesystem::current_path();
     bool validateRender = false;
     bool validateEditor = false;
     ValidationOptions validationOptions{};
@@ -39,11 +52,20 @@ int Run(int argc, char** argv)
         }
     }
 
+    if (!validationOptions.outputDirectory.empty() &&
+        validationOptions.outputDirectory.is_relative()) {
+        validationOptions.outputDirectory = std::filesystem::absolute(
+            launchDirectory / validationOptions.outputDirectory);
+    }
+    // Editor 的字体等资源沿用项目相对路径；统一以部署目录作为运行目录，
+    // 保证直接从仓库根调用 exe 与 xmake run 的行为一致。
+    std::filesystem::current_path(ExecutableDirectory());
+
     if (validateRender || validateEditor) {
         if (validationOptions.outputDirectory.empty()) {
             const auto timestamp = std::chrono::floor<std::chrono::seconds>(
                 std::chrono::system_clock::now()).time_since_epoch().count();
-            validationOptions.outputDirectory = std::filesystem::current_path() /
+            validationOptions.outputDirectory = launchDirectory /
                 "build" / "verification" / "restir-di" /
                 std::format("{}", timestamp) / "attempt-1";
         }

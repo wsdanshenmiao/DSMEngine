@@ -229,13 +229,16 @@ namespace DSM::RestirDI {
             return 0.2126f * color.x + 0.7152f * color.y + 0.0722f * color.z;
         }
 
-        Json CalculateMetrics(const ValidationSnapshot& snapshot, uint32_t samplesPerPixel = 1u)
+        Json CalculateMetrics(const ValidationSnapshot& snapshot)
         {
             // 读回 HDR/Surface/Reservoir 后在 CPU 端检查论文估计器的基本不变量：
             // 有限值、命中表面的有效样本、三类 sourceType 覆盖以及接受率。
             uint64_t finitePixels = 0;
             uint64_t hitPixels = 0;
             uint64_t validReservoirs = 0;
+            uint64_t reservoirsWithSamples = 0;
+            uint64_t normalizationValidReservoirs = 0;
+            uint64_t supportCorrectedReservoirs = 0;
             uint64_t temporalAccepted = 0;
             uint64_t temporalAcceptedSamples = 0;
             uint64_t spatialAccepted = 0;
@@ -245,19 +248,42 @@ namespace DSM::RestirDI {
             std::array<uint64_t, 4> sourceCounts{};
             double totalLuminance = 0.0;
             uint64_t overexposedPixels = 0;
+            float maximumLuminance = 0.0f;
+            float maximumReservoirW = 0.0f;
+            float minimumSupportRatio = 1.0f;
+            size_t maximumLuminanceIndex = 0;
             for (size_t index = 0; index < snapshot.hdr.size(); ++index) {
                 const auto& color = snapshot.hdr[index];
                 const bool finite = std::isfinite(color.x) && std::isfinite(color.y) &&
                     std::isfinite(color.z) && std::isfinite(color.w);
                 finitePixels += finite;
-                if (finite) totalLuminance += std::max(PixelLuminance(color), 0.0f);
+                const float luminance = finite ? std::max(PixelLuminance(color), 0.0f) : 0.0f;
+                if (finite) totalLuminance += luminance;
+                if (luminance > maximumLuminance) {
+                    maximumLuminance = luminance;
+                    maximumLuminanceIndex = index;
+                }
                 overexposedPixels += ACES(std::max({color.x, color.y, color.z, 0.0f})) >= 0.999f;
                 const bool hit = (snapshot.surfaces[index].ids.w & 1u) != 0u;
                 hitPixels += hit;
                 const auto& sample = snapshot.reservoirSamples[index];
                 const auto& stats = snapshot.reservoirStats[index];
-                const bool valid = sample.sourceType > 0u && sample.sourceType < sourceCounts.size() &&
-                    stats.M > 0.0f && stats.W > 0.0f && std::isfinite(stats.W);
+                const bool hasSample = sample.sourceType > 0u &&
+                    sample.sourceType < sourceCounts.size() && stats.M > 0.0f &&
+                    stats.W > 0.0f && std::isfinite(stats.M) && std::isfinite(stats.W);
+                const bool normalizationValid = hasSample && stats.normalizationM > 0.0f &&
+                    stats.normalizationM <= stats.M * (1.0f + 1e-5f) &&
+                    std::isfinite(stats.normalizationM) && std::isfinite(stats.weightSum);
+                const bool valid = hasSample && normalizationValid;
+                if (normalizationValid) {
+                    minimumSupportRatio = std::min(
+                        minimumSupportRatio, stats.normalizationM / stats.M);
+                    maximumReservoirW = std::max(maximumReservoirW, stats.W);
+                }
+                reservoirsWithSamples += hit && hasSample;
+                normalizationValidReservoirs += hit && normalizationValid;
+                supportCorrectedReservoirs += hit && normalizationValid &&
+                    stats.normalizationM < stats.M * (1.0f - 1e-5f);
                 validReservoirs += hit && valid;
                 if (valid) sourceCounts[sample.sourceType]++;
                 temporalAccepted += hit && snapshot.acceptance[index].temporalAccepted != 0u;
@@ -269,13 +295,17 @@ namespace DSM::RestirDI {
                     maxVisibilitySamples, snapshot.acceptance[index].visibility);
             }
             const double pixelCount = std::max<size_t>(snapshot.hdr.size(), 1);
-            const uint64_t temporalEligibleSamples = hitPixels *
-                std::max<uint32_t>(samplesPerPixel, 1u);
+            const uint64_t temporalEligibleSamples = hitPixels;
             return {
                 {"width", snapshot.width}, {"height", snapshot.height},
                 {"finite_ratio", finitePixels / pixelCount},
                 {"hit_pixels", hitPixels},
                 {"valid_reservoir_ratio", hitPixels > 0 ? double(validReservoirs) / hitPixels : 1.0},
+                {"normalization_valid_ratio", reservoirsWithSamples > 0
+                    ? double(normalizationValidReservoirs) / reservoirsWithSamples : 1.0},
+                {"support_corrected_reservoirs", supportCorrectedReservoirs},
+                {"support_correction_ratio", normalizationValidReservoirs > 0
+                    ? double(supportCorrectedReservoirs) / normalizationValidReservoirs : 0.0},
                 {"temporal_eligible_samples", temporalEligibleSamples},
                 {"temporal_accepted_samples", temporalAcceptedSamples},
                 {"temporal_accept_ratio", temporalEligibleSamples > 0
@@ -288,6 +318,12 @@ namespace DSM::RestirDI {
                 {"analytic_samples", sourceCounts[1]}, {"emissive_samples", sourceCounts[2]},
                 {"environment_samples", sourceCounts[3]},
                 {"mean_luminance", totalLuminance / pixelCount},
+                {"maximum_luminance", maximumLuminance},
+                {"maximum_luminance_pixel", {
+                    maximumLuminanceIndex % std::max<uint32_t>(snapshot.width, 1u),
+                    maximumLuminanceIndex / std::max<uint32_t>(snapshot.width, 1u)}},
+                {"maximum_reservoir_w", maximumReservoirW},
+                {"minimum_support_ratio", minimumSupportRatio},
                 {"overexposed_ratio", overexposedPixels / pixelCount}};
         }
 
@@ -518,6 +554,8 @@ namespace DSM::RestirDI {
         {
             return metrics["finite_ratio"].get<double>() == 1.0 &&
                 metrics["valid_reservoir_ratio"].get<double>() >= 0.90 &&
+                metrics["normalization_valid_ratio"].get<double>() == 1.0 &&
+                metrics["support_corrected_reservoirs"].get<uint64_t>() > 0 &&
                 metrics["temporal_accept_ratio"].get<double>() >= 0.50 &&
                 metrics["spatial_accepted"].get<uint64_t>() > 0 &&
                 metrics["spatial_rejected"].get<uint64_t>() > 0 &&
@@ -605,13 +643,10 @@ namespace DSM::RestirDI {
         ValidationSnapshot analytic{};
         ValidationSnapshot emissive{};
         ValidationSnapshot environment{};
-        ValidationSnapshot sppOne{};
-        ValidationSnapshot sppTwo{};
-        ValidationSnapshot sppFour{};
-        ValidationSnapshot sppEight{};
         ValidationSnapshot restir{};
         ValidationSnapshot reference{};
         ValidationSnapshot sourceDebug{};
+        ValidationSnapshot supportDebug{};
         ValidationSnapshot motion{};
         ValidationSnapshot noShadow{};
         auto& settings = pipelinePtr->GetSettings();
@@ -643,33 +678,10 @@ namespace DSM::RestirDI {
         settings.enableAnalyticLights = true;
         settings.enableEmissiveTriangles = true;
         settings.enableEnvironment = true;
-        settings.renderMode = RenderMode::Restir;
+        settings.renderMode = RenderMode::UnbiasedRestir;
         settings.debugView = DebugView::Final;
-
-        settings.samplesPerPixel = 8;
         pipelinePtr->ResetHistory();
-        RunFrames(engine, 32);
-        artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
-            options.outputDirectory / "spp-8.bmp", sppEight, captureError);
-
-        settings.samplesPerPixel = 4;
-        pipelinePtr->ResetHistory();
-        RunFrames(engine, 32);
-        artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
-            options.outputDirectory / "spp-4.bmp", sppFour, captureError);
-
-        settings.samplesPerPixel = 2;
-        pipelinePtr->ResetHistory();
-        RunFrames(engine, 32);
-        artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
-            options.outputDirectory / "spp-2.bmp", sppTwo, captureError);
-
-        settings.samplesPerPixel = 1;
-        pipelinePtr->ResetHistory();
-        RunFrames(engine, 32);
-        artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
-            options.outputDirectory / "spp-1.bmp", sppOne, captureError);
-        RunFrames(engine, 32);
+        RunFrames(engine, 64);
         artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
             options.outputDirectory / "restir.bmp", restir, captureError);
         artifactsOk &= WriteBmp(options.outputDirectory / "alpha.bmp", restir, settings.exposure);
@@ -678,10 +690,13 @@ namespace DSM::RestirDI {
         RunFrames(engine, 1);
         artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
             options.outputDirectory / "source-debug.bmp", sourceDebug, captureError);
+        settings.debugView = DebugView::SupportRatio;
+        RunFrames(engine, 1);
+        artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
+            options.outputDirectory / "support-ratio.bmp", supportDebug, captureError);
         settings.debugView = DebugView::Final;
 
         settings.renderMode = RenderMode::Reference;
-        settings.referenceSamplesPerPixel = 512;
         constexpr uint32_t referenceFrameCount = 8u;
         bool referenceCaptured = true;
         for (uint32_t referenceFrameIndex = 0;
@@ -716,7 +731,7 @@ namespace DSM::RestirDI {
         }
         artifactsOk &= referenceCaptured;
 
-        settings.renderMode = RenderMode::Restir;
+        settings.renderMode = RenderMode::UnbiasedRestir;
         pipelinePtr->ResetHistory();
         RunFrames(engine, 16);
         if (const auto moving = validationScene.scene->GetObjectByID(validationScene.movingObject).lock()) {
@@ -741,7 +756,9 @@ namespace DSM::RestirDI {
         settings.enableAnalyticLights = true;
         settings.enableEmissiveTriangles = false;
         settings.enableEnvironment = false;
-        settings.renderMode = RenderMode::IndependentRIS;
+        settings.renderMode = RenderMode::UnbiasedRestir;
+        settings.enableTemporalReuse = false;
+        settings.enableSpatialReuse = false;
         pipelinePtr->ResetHistory();
         RunFrames(engine, 8);
         artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
@@ -760,24 +777,12 @@ namespace DSM::RestirDI {
         metrics["analytic_mode"] = CalculateMetrics(analytic);
         metrics["emissive_mode"] = CalculateMetrics(emissive);
         metrics["environment_mode"] = CalculateMetrics(environment);
-        metrics["spp_1"] = CalculateMetrics(sppOne, 1u);
-        metrics["spp_1"]["requested_samples_per_pixel"] = 1;
-        metrics["spp_2"] = CalculateMetrics(sppTwo, 2u);
-        metrics["spp_2"]["requested_samples_per_pixel"] = 2;
-        metrics["spp_4"] = CalculateMetrics(sppFour, 4u);
-        metrics["spp_4"]["requested_samples_per_pixel"] = 4;
-        metrics["spp_8"] = CalculateMetrics(sppEight, 8u);
-        metrics["spp_8"]["requested_samples_per_pixel"] = 8;
+        metrics["production_samples_per_pixel"] = 1;
         metrics["motion"] = CalculateMetrics(motion);
         metrics["reference_comparison"] = CompareWithReference(restir, reference);
         metrics["reference_frame_count"] = referenceFrameCount;
         metrics["reference_effective_samples_per_pixel"] =
-            referenceFrameCount * settings.referenceSamplesPerPixel;
-        metrics["spp_quality"] = {
-            {"spp_1", CompareWithReference(sppOne, reference)},
-            {"spp_2", CompareWithReference(sppTwo, reference)},
-            {"spp_4", CompareWithReference(sppFour, reference)},
-            {"spp_8", CompareWithReference(sppEight, reference)}};
+            referenceFrameCount * kReferenceSamplesPerPixel;
         metrics["resize_up_valid"] = resizedUp.width == 480u && resizedUp.height == 270u;
         metrics["resize_down_valid"] = resizedDown.width == 320u && resizedDown.height == 180u;
         metrics["valid_hdr_loaded"] = validHdrLoaded;
@@ -828,43 +833,13 @@ namespace DSM::RestirDI {
         const bool motionPassed =
             metrics["motion"]["temporal_accept_ratio"].get<double>() > 0.0 &&
             metrics["motion"]["spatial_rejected"].get<uint64_t>() > 0;
-        const bool sppPassed =
-            metrics["spp_1"]["finite_ratio"].get<double>() == 1.0 &&
-            metrics["spp_2"]["finite_ratio"].get<double>() == 1.0 &&
-            metrics["spp_4"]["finite_ratio"].get<double>() == 1.0 &&
-            metrics["spp_8"]["finite_ratio"].get<double>() == 1.0 &&
-            metrics["spp_1"]["max_visibility_samples"].get<uint32_t>() >= 1u &&
-            metrics["spp_2"]["max_visibility_samples"].get<uint32_t>() >= 2u &&
-            metrics["spp_4"]["max_visibility_samples"].get<uint32_t>() >= 4u &&
-            metrics["spp_8"]["max_visibility_samples"].get<uint32_t>() >= 8u;
-        const double sppOneError = metrics["spp_quality"]["spp_1"]["tonemapped_rmse"].get<double>();
-        const double sppTwoError = metrics["spp_quality"]["spp_2"]["tonemapped_rmse"].get<double>();
-        const double sppFourError = metrics["spp_quality"]["spp_4"]["tonemapped_rmse"].get<double>();
-        const double sppEightError = metrics["spp_quality"]["spp_8"]["tonemapped_rmse"].get<double>();
-        const double sppOnePixelError = metrics["spp_quality"]["spp_1"]["pixel_nrmse"].get<double>();
-        const double sppTwoPixelError = metrics["spp_quality"]["spp_2"]["pixel_nrmse"].get<double>();
-        const double sppFourPixelError = metrics["spp_quality"]["spp_4"]["pixel_nrmse"].get<double>();
-        const double sppEightPixelError = metrics["spp_quality"]["spp_8"]["pixel_nrmse"].get<double>();
-        const double sppOneBlockError = metrics["spp_quality"]["spp_1"]["block_nrmse"].get<double>();
-        const double sppEightBlockError = metrics["spp_quality"]["spp_8"]["block_nrmse"].get<double>();
-        static constexpr std::array<const char*, 4> sppMetricNames = {
-            "spp_1", "spp_2", "spp_4", "spp_8"};
-        const bool sppEnergyPassed = std::ranges::all_of(
-            sppMetricNames, [&](const char* name) {
-                return metrics["spp_quality"][name]["mean_relative_error"].get<double>() <= 0.10;
-            });
-        // 单次随机估计的中间 SPP 允许波动；要求高 SPP 总体改善，并限制中间结果不能严重退化。
-        const bool sppQualityPassed =
-            sppTwoError <= sppOneError * 1.10 &&
-            sppFourError <= sppOneError * 0.95 &&
-            sppEightError <= sppOneError * 0.85 &&
-            sppTwoPixelError <= sppOnePixelError * 1.10 &&
-            sppFourPixelError <= sppOnePixelError * 1.25 &&
-            sppEightPixelError <= sppOnePixelError * 0.90 &&
-            sppEightBlockError <= sppOneBlockError * 0.95 && sppEnergyPassed;
+        const bool fixedOneSppPassed =
+            metrics["finite_ratio"].get<double>() == 1.0 &&
+            metrics["visibility_samples"].get<uint64_t>() > 0u &&
+            metrics["max_visibility_samples"].get<uint32_t>() <= 1u;
         const bool numericPassed = MetricsPassed(metrics) && sourceModesPassed &&
             comparisonPassed && resizePassed && motionPassed && environmentLoadPassed &&
-            alphaPassed && shadowMaskPassed && sppPassed && sppQualityPassed;
+            alphaPassed && shadowMaskPassed && fixedOneSppPassed;
 
         bool nativeWarnings = false;
         const Json nativeMessages = debugQueues.Collect(nativeWarnings);
@@ -879,8 +854,7 @@ namespace DSM::RestirDI {
         status = {
             {"mode", "render"}, {"passed", exitCode == 0}, {"exit_code", exitCode},
             {"artifacts_ok", artifactsOk}, {"numeric_passed", numericPassed},
-            {"spp_passed", sppPassed},
-            {"spp_quality_passed", sppQualityPassed},
+            {"fixed_one_spp_passed", fixedOneSppPassed},
             {"debug_layer_passed", debugPassed}, {"capture_error", captureError}};
         WriteJson(options.outputDirectory / "status.raw.json", status);
         engine.ShutDownEngine();
@@ -943,6 +917,9 @@ namespace DSM::RestirDI {
         debugQueues.Collect(warningBeforeEditor);
         DSMEditor editor{};
         editor.StartEditor(&engine);
+        // 自动验证只需要主窗口中的完整 DockSpace/Viewport/Present 路径。
+        // 关闭平台多窗口，避免 ImGui DX12 后端首次创建辅助交换链时等待 fence 0。
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
         // 验证使用独立布局，避免用户的多视口窗口位置污染自动化结果。
         const auto editorIniFile = options.outputDirectory / "validation-imgui.ini";
         {

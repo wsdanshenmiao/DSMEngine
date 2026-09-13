@@ -59,7 +59,6 @@ namespace DSM::RestirDI {
         {
             std::shared_ptr<Mesh> mesh{};
             RT::AccelStructHandle accelerationStructure{};
-            HeapHandle heap{};
             // RHI 当前不应用 GeometryTriangles 的 vertex/index offset，
             // 因此每个 Geometry 使用从零开始的专属 AS 构建缓冲。
             std::vector<BufferHandle> vertexBuffers{};
@@ -113,7 +112,6 @@ namespace DSM::RestirDI {
         BufferHandle m_EmissiveBuffer{};
         BufferHandle m_EmissiveAliasBuffer{};
         RT::AccelStructHandle m_TLAS{};
-        HeapHandle m_TLASHeap{};
 
         std::unordered_map<uint32_t, GpuMatrix> m_PreviousTransforms{};
         uint64_t m_TopologyHash = 0;

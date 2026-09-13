@@ -126,8 +126,8 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     ProjectUV(worldPosition, g_Frame.viewProjection, currentDepth);
     float2 previousUV = ProjectUV(previousWorldPosition, g_Frame.previousViewProjection, previousDepth);
 
-    // 命中记录对应论文 Algorithm 5 的“当前表面 q/target 评价上下文”，不存
-    // 光源样本本身；这样同一 surface 可以被多个 SPP lane 独立采样。
+    // 命中记录对应论文 Algorithm 5 的“当前表面 q/target 评价上下文”，
+    // 光源样本及其统计量由后续唯一的 Reservoir 保存。
     GpuSurface surface;
     surface.positionDepth = float4(worldPosition, RayTCurrent());
     surface.normalRoughness = float4(worldNormal, clamp(material.factors.z * roughnessSample, 0.045f, 1.0f));
@@ -164,15 +164,18 @@ float3 DebugColor(
         uint value = Hash(sample.stableID);
         return float3(value & 255u, (value >> 8) & 255u, (value >> 16) & 255u) / 255.0f;
     }
-    if (view == PHatDebugView) return log2(1.0f + stats.selectedPHat).xxx * 0.2f;
-    if (view == ReservoirMDebugView) return saturate(stats.M / max((float)g_Frame.algorithm.y, 1.0f)).xxx;
+    if (view == PHatDebugView) return log2(1.0f + EvaluateTargetPHat(surface, sample)).xxx * 0.2f;
+    if (view == ReservoirMDebugView) return saturate(log2(1.0f + stats.M) / 12.0f).xxx;
+    if (view == SupportRatioDebugView) {
+        const float ratio = stats.M > 0.0f ? saturate(stats.normalizationM / stats.M) : 0.0f;
+        return float3(1.0f - ratio, ratio, 0.0f);
+    }
     if (view == ReservoirWDebugView) return log2(1.0f + stats.W).xxx * 0.2f;
     if (view == TemporalAcceptanceDebugView) return acceptance.temporalAccepted != 0u ? float3(0, 1, 0) : float3(1, 0, 0);
     if (view == SpatialAcceptanceDebugView) return acceptance.spatialAccepted != 0u ? float3(0, 1, 0) : float3(1, 0, 0);
     if (view == VisibilityDebugView) {
         float sampleCount = g_Frame.modes.x == ReferenceMode
-            ? max((float)g_Frame.sampling.y, 1.0f)
-            : max((float)g_Frame.sampling.x, 1.0f);
+            ? max((float)g_Frame.algorithm.w, 1.0f) : 1.0f;
         return saturate(acceptance.visibility / sampleCount).xxx;
     }
     return finalColor;
@@ -199,26 +202,21 @@ uint TraceVisibility(GpuSurface surface, CandidateEvaluation evaluation)
 void VisibilityRayGen()
 {
     // 论文 Algorithm 5 的最终 shade：Reservoir 给出 candidate * W，只有此处
-    // 追加一次 DXR 可见性测试。samplesPerPixel 是独立的完整 Reservoir lane，
-    // 各 lane 的结果在线程内累加后除以 N，不是把同一个 Reservoir 重复放大。
+    // 对唯一代表样本追加一次 DXR 可见性测试，正式路径固定为 1 SPP。
     uint2 pixel = DispatchRaysIndex().xy;
     uint index = pixel.y * g_Frame.resolutionFrame.x + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
     GpuReservoirSample sample = g_ReservoirCurrentSample[index];
     GpuReservoirStats stats = g_ReservoirCurrentStats[index];
-    GpuAcceptance laneAcceptance = g_AcceptanceInput[index];
-    uint sampleIndex = g_Frame.sampling.z;
-    uint sampleCount = max(g_Frame.sampling.x, 1u);
-    bool firstSample = sampleIndex == 0u;
-    bool lastSample = sampleIndex + 1u >= sampleCount;
-    float3 color = firstSample ? surface.emissive.rgb : g_HdrOutput[index].rgb;
+    GpuAcceptance acceptance = g_AcceptanceInput[index];
+    float3 color = surface.emissive.rgb;
     uint visibility = 0u;
     if ((surface.ids.w & ValidSurface) != 0u) {
         if (sample.sourceType != InvalidSource && stats.W > 0.0f) {
             CandidateEvaluation evaluation = EvaluateCandidate(surface, sample);
             if (HasValidProposalPdf(evaluation)) {
                 visibility = TraceVisibility(surface, evaluation);
-                color += evaluation.contribution * stats.W * visibility / sampleCount;
+                color += evaluation.contribution * stats.W * visibility;
             }
         }
     }
@@ -226,17 +224,9 @@ void VisibilityRayGen()
         visibility = 1u;
     }
 
-    GpuAcceptance acceptance = (GpuAcceptance)0;
-    if (!firstSample) acceptance = g_AcceptanceOutput[index];
-    acceptance.temporalAccepted += laneAcceptance.temporalAccepted;
-    acceptance.spatialAccepted += laneAcceptance.spatialAccepted;
-    acceptance.spatialRejected += laneAcceptance.spatialRejected;
-    acceptance.visibility += visibility;
+    acceptance.visibility = visibility;
     g_AcceptanceOutput[index] = acceptance;
-    float3 outputColor = lastSample
-        ? DebugColor(surface, sample, stats, acceptance, color)
-        : color;
-    g_HdrOutput[index] = float4(outputColor, 1.0f);
+    g_HdrOutput[index] = float4(DebugColor(surface, sample, stats, acceptance, color), 1.0f);
 }
 
 [shader("raygeneration")]
@@ -253,7 +243,7 @@ void ReferenceRayGen()
         uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^
             Hash(g_Frame.resolutionFrame.z + 0x51ed270bu));
         float3 direct = 0.0f.xxx;
-        uint candidateCount = max(g_Frame.sampling.y, 1u);
+        uint candidateCount = max(g_Frame.algorithm.w, 1u);
         [loop] for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
             GpuReservoirSample sample = GenerateCandidate(randomState);
             CandidateEvaluation evaluation = EvaluateCandidate(surface, sample);

@@ -41,6 +41,9 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuMatrix
     {
+        // 不直接跨 ABI 传 Math::Matrix4/float4x4：DSMEngine 使用行向量语义，
+        // 显式四行可固定 StructuredBuffer 的 64 字节布局并避免 HLSL 默认
+        // column_major 与隐式转置。HLSL 的 MulRow 与此上传顺序成对使用。
         GpuFloat4 row0{};
         GpuFloat4 row1{};
         GpuFloat4 row2{};
@@ -124,8 +127,7 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuReservoirSample
     {
-        // y、M、W 的索引/权重分开存储：sample 只描述被选候选，stats 保存
-        // Algorithm 2 的 sum(w)、M，以及 Eq. (6) 需要的 W 和 pHat(y)。
+        // sample 只描述 Algorithm 2 选出的候选 y；统计量单独存储。
         uint32_t sourceType = static_cast<uint32_t>(SourceType::Invalid);
         uint32_t stableID = kInvalidIndex;
         uint32_t itemIndex = kInvalidIndex;
@@ -134,12 +136,13 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuReservoirStats
     {
-        // weightSum = Σw_i，M = 代表的候选数，W = weightSum/(M*pHat(y))。
-        // selectedPHat 让 Temporal/Spatial 重新评价 y 后仍能重建稳定的 W。
+        // weightSum = Σw_i，M = 输入流包含的候选数。
+        // normalizationM 是 Algorithm 6 的支持质量 Z；初始 RIS 中 Z=M，
+        // 无偏时空合并中只累计对最终样本 y 满足 pHat_qi(y)>0 的来源 M。
         float weightSum = 0.0f;
         float M = 0.0f;
         float W = 0.0f;
-        float selectedPHat = 0.0f;
+        float normalizationM = 0.0f;
     };
 
     struct alignas(16) GpuAcceptance
@@ -168,15 +171,13 @@ namespace DSM::RestirDI {
         GpuUint4 resolutionFrame{};
         // lightCount、emissiveCount、environmentCount、instanceCount。
         GpuUint4 sourceCounts{};
-        // initialCandidates、historyMCap、spatialNeighbors、spatialPassIndex。
-        // historyMCap 是工程上的置信度上限，不是论文无偏估计式的一部分。
+        // initialCandidates、temporalHistoryMCapMultiplier、spatialNeighbors、Reference SPP。
+        // 上一帧 M 最多取当前 M 的 multiplier 倍，与论文第 5 节一致。
         GpuUint4 algorithm{};
         // renderMode、debugView、temporalEnabled、spatialEnabled。
         GpuUint4 modes{};
         // environmentWidth、environmentHeight、候选域启用掩码、保留。
         GpuUint4 environmentInfo{};
-        // ReSTIR/Independent RIS SPP、Reference SPP、当前样本 lane、保留。
-        GpuUint4 sampling{};
     };
 
     [[nodiscard]] inline GpuFloat4 ToGpuFloat4(const Math::Vector4& value) noexcept
@@ -215,10 +216,10 @@ namespace DSM::RestirDI {
     static_assert(sizeof(GpuReservoirSample) == 16);
     static_assert(sizeof(GpuReservoirStats) == 16);
     static_assert(sizeof(GpuAcceptance) == 16);
-    static_assert(sizeof(GpuFrameConstants) == 352);
+    static_assert(sizeof(GpuFrameConstants) == 336);
     static_assert(offsetof(GpuReservoirStats, W) == 8);
+    static_assert(offsetof(GpuReservoirStats, normalizationM) == 12);
     static_assert(offsetof(GpuFrameConstants, resolutionFrame) == 256);
     static_assert(offsetof(GpuFrameConstants, environmentInfo) == 320);
-    static_assert(offsetof(GpuFrameConstants, sampling) == 336);
 
 }
