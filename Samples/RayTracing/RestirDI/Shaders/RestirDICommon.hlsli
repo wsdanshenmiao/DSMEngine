@@ -107,8 +107,23 @@ struct GpuAnalyticLight
 };
 // probability 是 Alias 列内的条件阈值，pmf 才是候选最终的离散概率；两者不能混用。
 // 该布局必须与 C++ GpuAliasEntry 保持一致。
-struct GpuAliasEntry { float probability; uint alias; float pmf; uint padding; };
-struct GpuEmissiveTriangle { uint4 data; float4 areaPower; };
+struct GpuAliasEntry
+{
+    float probability;
+    uint alias;
+    float pmf;
+    uint padding;
+};
+struct GpuEmissiveTriangle
+{
+    uint instanceIndex = kInvalidIndex;
+    uint indexOffset = 0;
+    uint materialIndex = 0;
+    uint stableID = kInvalidIndex;
+    float worldArea = 0.0f;
+    float power = 0.0f
+    float2 padding;
+};
 struct GpuSurface
 {
     float4 positionDepth;

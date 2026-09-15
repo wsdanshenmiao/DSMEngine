@@ -230,14 +230,17 @@ namespace DSM::RestirDI {
     uint64_t SceneAdapter::CalculateEmissiveDistributionHash() const
     {
         uint64_t hash = kFnvOffset;
-        HashValue(hash, m_EmissiveAlias.totalWeight);
+        hash = Utility::HashCombine(hash, m_EmissiveAlias.totalWeight);
         for (const auto& triangle : m_EmissiveTriangles) {
-            HashValue(hash, triangle.data);
-            HashValue(hash, triangle.areaPower.x);
-            HashValue(hash, triangle.areaPower.y);
+            hash = Utility::HashCombine(hash, triangle.instanceIndex);
+            hash = Utility::HashCombine(hash, triangle.indexOffset);
+            hash = Utility::HashCombine(hash, triangle.materialIndex);
+            hash = Utility::HashCombine(hash, triangle.stableID);
+            hash = Utility::HashCombine(hash, triangle.worldArea);
+            hash = Utility::HashCombine(hash, triangle.power);
         }
         for (const auto& entry : m_EmissiveAlias.entries) {
-            HashValue(hash, entry.pmf);
+            hash = Utility::HashCombine(hash, entry.pmf);
         }
         return hash;
     }
@@ -473,8 +476,8 @@ namespace DSM::RestirDI {
                     // stableID 不依赖当前数组下标，用于时空复用时确认历史样本仍指向同一三角形。
                     const uint32_t stableID = (instance.data.x * 16777619u) ^ (indexOffset + 0x9E3779B9u);
                     m_EmissiveTriangles.push_back({
-                        {instanceIndex, indexOffset, geometry.data.w, stableID},
-                        {area, power, 0, 0}});
+                        instanceIndex, indexOffset, geometry.data.w, stableID,
+                        area, power, 0, 0});
                     weights.push_back(power);
                 }
             }

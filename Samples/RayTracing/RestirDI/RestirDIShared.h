@@ -111,11 +111,16 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuEmissiveTriangle
     {
-        // instanceIndex、indexOffset、materialIndex、stableID。
-        GpuUint4 data{};
+        uint32_t instanceIndex = kInvalidIndex;
+        uint32_t indexOffset = 0;
+        uint32_t materialIndex = 0;
+        uint32_t stableID = kInvalidIndex;
         // worldArea、近似功率（worldArea * emissiveLuminance）、保留。
         // worldArea 用于把三角形离散 PMF 转换为面积测度 PDF；功率用于 CPU 构建 Alias Table。
-        GpuFloat4 areaPower{};
+        float worldArea = 0.0f;
+        float power = 0.0f;
+        float padding0;
+        float padding1;
     };
 
     struct alignas(16) GpuSurface
