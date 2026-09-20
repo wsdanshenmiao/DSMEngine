@@ -19,10 +19,10 @@ void InitialRISCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     GpuAcceptance acceptance = (GpuAcceptance)0;
 
     if ((surface.ids.w & ValidSurface) != 0u) {
-        uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^
-            Hash(g_Frame.resolutionFrame.z + 0x68bc21ebu));
+        uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^ Hash(g_Frame.resolutionFrame.z + 0x68bc21ebu));
         uint candidateCount = max(g_Frame.algorithm.x, 1u);
-        [loop] for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
+        [loop]
+    for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
             GpuReservoirSample candidate = GenerateCandidate(randomState);
             CandidateEvaluation evaluation = EvaluateCandidate(surface, candidate);
             const bool validProposal = HasValidProposalPdf(evaluation);
@@ -149,7 +149,8 @@ bool ResolveSpatialSource(
 void SpatialReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
     uint2 pixel = dispatchThreadID.xy;
-    if (!PixelInBounds(pixel)) return;
+    if (!PixelInBounds(pixel))
+        return;
     uint width = g_Frame.resolutionFrame.x;
     uint height = g_Frame.resolutionFrame.y;
     uint index = pixel.y * width + pixel.x;
@@ -178,7 +179,8 @@ void SpatialReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     ReservoirMergeSource(surface, centerSample, centerStats, centerM,
         outputSample, outputStats, selectionState);
 
-    [loop] for (uint neighborIndex = 0u; neighborIndex < neighborCount; ++neighborIndex) {
+    [loop]
+    for (uint neighborIndex = 0u; neighborIndex < neighborCount; ++neighborIndex) {
         const int2 offset = SampleSpatialOffset(neighborState);
         uint sourceIndex;
         GpuSurface sourceSurface;
@@ -197,7 +199,8 @@ void SpatialReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     // Algorithm 6 第二遍：重放完全相同的邻居序列，对最终 y 求支持质量 Z。
     float normalizationM = ReservoirSupportM(surface, outputSample, centerM);
     neighborState = neighborSeed;
-    [loop] for (uint supportIndex = 0u; supportIndex < neighborCount; ++supportIndex) {
+    [loop]
+    for (uint supportIndex = 0u; supportIndex < neighborCount; ++supportIndex) {
         const int2 offset = SampleSpatialOffset(neighborState);
         uint sourceIndex;
         GpuSurface sourceSurface;

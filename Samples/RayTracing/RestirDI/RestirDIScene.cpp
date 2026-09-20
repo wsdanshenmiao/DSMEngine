@@ -378,7 +378,7 @@ namespace DSM::RestirDI {
                     m_Materials.push_back(gpuMaterial);
                 }
                 const auto& range = record.buildRanges[submeshIndex];
-                m_Geometries.push_back({{range.x, range.y, range.z, gpuMaterialIndex}});
+                m_Geometries.push_back({range.x, range.y, range.z, gpuMaterialIndex});
                 allOpaque &= material == nullptr || !material->IsTransparent();
                 anyTwoSided |= material != nullptr && material->IsBothSide();
             }
@@ -390,8 +390,8 @@ namespace DSM::RestirDI {
             const GpuMatrix previousGpu = previousIt != m_PreviousTransforms.end()
                 ? previousIt->second : currentGpu;
             m_Instances.push_back({currentGpu, previousGpu,
-                {stableID, geometryBase, static_cast<uint32_t>(mesh->GetSubMeshCount()),
-                    renderer.ReceiveShadow() ? 1u : 0u}});
+                stableID, geometryBase, static_cast<uint32_t>(mesh->GetSubMeshCount()),
+                renderer.ReceiveShadow() ? 1u : 0u});
             m_InstanceBLASIndices.push_back(blasIndex);
             m_StableInstanceIDs.push_back(stableID);
             m_InstanceMeshes.push_back(mesh);
@@ -419,11 +419,11 @@ namespace DSM::RestirDI {
                 material.texture1 = {2, 0, 0, 0};
                 m_Materials.push_back(material);
             }
-            m_Geometries.push_back({{vertexBase, indexOffset, 3, 0}});
+            m_Geometries.push_back({vertexBase, indexOffset, 3, 0});
             BlasRecord dummy{};
             dummy.buildRanges.push_back({vertexBase, indexOffset, 3, 3});
             m_BLASRecords.push_back(std::move(dummy));
-            m_Instances.push_back({GpuMatrix{}, GpuMatrix{}, {kInvalidIndex, 0, 1, 0}});
+            m_Instances.push_back({GpuMatrix{}, GpuMatrix{}, kInvalidIndex, 0, 1, 0});
             m_InstanceBLASIndices.push_back(0);
             m_StableInstanceIDs.push_back(kInvalidIndex);
             m_InstanceMeshes.push_back(nullptr);
@@ -445,18 +445,18 @@ namespace DSM::RestirDI {
         std::vector<float> weights{};
         for (uint32_t instanceIndex = 0; instanceIndex < m_LogicalInstanceCount; ++instanceIndex) {
             const auto& instance = m_Instances[instanceIndex];
-            for (uint32_t localGeometry = 0; localGeometry < instance.data.z; ++localGeometry) {
-                const auto& geometry = m_Geometries[instance.data.y + localGeometry];
-                const auto& material = m_Materials[geometry.data.w];
+            for (uint32_t localGeometry = 0; localGeometry < instance.geometryCount; ++localGeometry) {
+                const auto& geometry = m_Geometries[instance.geometryBase + localGeometry];
+                const auto& material = m_Materials[geometry.materialIndex];
                 const float emissiveLuminance = Luminance(material.emissiveColor);
                 if (!(emissiveLuminance > 1e-6f))
                     continue;
 
-                for (uint32_t triangle = 0; triangle + 2 < geometry.data.z; triangle += 3) {
-                    const uint32_t indexOffset = geometry.data.y + triangle;
-                    const uint32_t i0 = geometry.data.x + m_Indices[indexOffset];
-                    const uint32_t i1 = geometry.data.x + m_Indices[indexOffset + 1];
-                    const uint32_t i2 = geometry.data.x + m_Indices[indexOffset + 2];
+                for (uint32_t triangle = 0; triangle + 2 < geometry.indexCount; triangle += 3) {
+                    const uint32_t indexOffset = geometry.indexOffset + triangle;
+                    const uint32_t i0 = geometry.vertexBase + m_Indices[indexOffset];
+                    const uint32_t i1 = geometry.vertexBase + m_Indices[indexOffset + 1];
+                    const uint32_t i2 = geometry.vertexBase + m_Indices[indexOffset + 2];
                     if (i0 >= m_Vertices.size() || i1 >= m_Vertices.size() || i2 >= m_Vertices.size())
                         continue;
 
@@ -474,9 +474,9 @@ namespace DSM::RestirDI {
                     // 这里只以材质常量的发光亮度构造近似功率；发光纹理在 GPU 评价采样点时读取。
                     const float power = area * emissiveLuminance;
                     // stableID 不依赖当前数组下标，用于时空复用时确认历史样本仍指向同一三角形。
-                    const uint32_t stableID = (instance.data.x * 16777619u) ^ (indexOffset + 0x9E3779B9u);
+                    const uint32_t stableID = (instance.stableID * 16777619u) ^ (indexOffset + 0x9E3779B9u);
                     m_EmissiveTriangles.push_back({
-                        instanceIndex, indexOffset, geometry.data.w, stableID,
+                        instanceIndex, indexOffset, geometry.materialIndex, stableID,
                         area, power, 0, 0});
                     weights.push_back(power);
                 }
@@ -506,7 +506,8 @@ namespace DSM::RestirDI {
         std::ranges::sort(ids, {}, StableID);
         for (ObjectID id : ids) {
             const auto object = scene->GetObjectByID(id).lock();
-            if (object == nullptr || !object->IsEnabled()) continue;
+            if (object == nullptr || !object->IsEnabled())
+                continue;
             const auto& light = view.get<Light>(id);
             const auto color = ToGpuFloat4(light.GetColor());
             const float range = std::max(light.GetRange(), 1e-4f);
@@ -624,13 +625,16 @@ namespace DSM::RestirDI {
     void SceneAdapter::UpdateTransforms()
     {
         const auto scene = DSMEngine::sm_GlobalContext.scene;
-        if (scene == nullptr) return;
+        if (scene == nullptr)
+            return;
         for (uint32_t index = 0; index < m_LogicalInstanceCount; ++index) {
             const uint32_t stableID = m_StableInstanceIDs[index];
             const auto object = scene->GetObjectByID(static_cast<ObjectID>(stableID)).lock();
-            if (object == nullptr) continue;
+            if (object == nullptr)
+                continue;
             const auto transform = object->GetComponent<TransformComponent>();
-            if (transform == nullptr) continue;
+            if (transform == nullptr)
+                continue;
             const auto current = transform->GetLocalToWorld();
             const auto currentGpu = ToGpuMatrix(current);
             const auto previousIt = m_PreviousTransforms.find(stableID);
@@ -707,7 +711,8 @@ namespace DSM::RestirDI {
 
     void SceneAdapter::RecordBuildAndUpload(ICommandList* commandList)
     {
-        if (commandList == nullptr) return;
+        if (commandList == nullptr)
+            return;
         auto write = [commandList]<typename T>(IBuffer* buffer, const std::vector<T>& data) {
             if (buffer != nullptr && !data.empty()) {
                 commandList->WriteBuffer(buffer, data.data(), data.size() * sizeof(T));
@@ -750,7 +755,8 @@ namespace DSM::RestirDI {
 
         if (m_NeedsFullBuild || m_NeedsTLASUpdate) {
             auto flags = RT::AccelStructBuildFlags::AllowUpdate | RT::AccelStructBuildFlags::PreferFastTrace;
-            if (!m_NeedsFullBuild) flags |= RT::AccelStructBuildFlags::PerformUpdate;
+            if (!m_NeedsFullBuild)
+                flags |= RT::AccelStructBuildFlags::PerformUpdate;
             commandList->BuildTopLevelAccelStruct(m_TLAS, m_TLASInstances, flags);
         }
         m_NeedsFullBuild = false;

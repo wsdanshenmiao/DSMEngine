@@ -131,6 +131,31 @@ namespace DSM::RestirDI {
         candidate.source = EnvironmentSource::DaylightCube;
         candidate.width = 512;
         candidate.height = 256;
+        candidate.cubeWidth = static_cast<uint32_t>(faces.front().width);
+        candidate.cubeHeight = static_cast<uint32_t>(faces.front().height);
+        candidate.cubePixels.resize(
+            size_t(candidate.cubeWidth) * candidate.cubeHeight * faces.size());
+        for (uint32_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
+            const auto& face = faces[faceIndex];
+            if (face.width != static_cast<int>(candidate.cubeWidth) ||
+                face.height != static_cast<int>(candidate.cubeHeight)) {
+                error = "默认环境六个面尺寸不一致。";
+                return false;
+            }
+            for (uint32_t y = 0; y < candidate.cubeHeight; ++y) {
+                for (uint32_t x = 0; x < candidate.cubeWidth; ++x) {
+                    const size_t sourceIndex = (size_t(y) * candidate.cubeWidth + x) * 4;
+                    const size_t targetIndex =
+                        (size_t(faceIndex) * candidate.cubeWidth * candidate.cubeHeight +
+                            size_t(y) * candidate.cubeWidth + x);
+                    candidate.cubePixels[targetIndex] = {
+                        SrgbToLinear(face.pixels[sourceIndex] / 255.0f),
+                        SrgbToLinear(face.pixels[sourceIndex + 1] / 255.0f),
+                        SrgbToLinear(face.pixels[sourceIndex + 2] / 255.0f),
+                        face.pixels[sourceIndex + 3] / 255.0f};
+                }
+            }
+        }
         candidate.sourcePath = assetsDirectory;
         candidate.pixels.resize(size_t(candidate.width) * candidate.height);
         for (uint32_t y = 0; y < candidate.height; ++y) {

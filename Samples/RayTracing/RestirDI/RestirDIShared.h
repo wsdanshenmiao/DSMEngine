@@ -60,16 +60,20 @@ namespace DSM::RestirDI {
 
     struct alignas(16) GpuGeometry
     {
-        // vertexBase、indexOffset、indexCount、materialIndex
-        GpuUint4 data{};
+        std::uint32_t vertexBase;
+        std::uint32_t indexOffset;
+        std::uint32_t indexCount;
+        std::uint32_t materialIndex;
     };
 
     struct alignas(16) GpuInstance
     {
         GpuMatrix currentLocalToWorld{};
         GpuMatrix previousLocalToWorld{};
-        // stableID、geometryBase、geometryCount、flags
-        GpuUint4 data{};
+        std::uint32_t stableID;
+        std::uint32_t geometryBase;
+        std::uint32_t geometryCount;
+        std::uint32_t flags;
     };
 
     struct alignas(16) GpuMaterial

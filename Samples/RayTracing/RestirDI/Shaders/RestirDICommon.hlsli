@@ -87,8 +87,22 @@ enum RestirRayType
 // 避免默认 column_major 或 mul 参数顺序引入不可见的转置。
 struct GpuMatrix { float4 row0; float4 row1; float4 row2; float4 row3; };
 struct GpuVertex { float4 position; float4 normal; float4 tangent; float4 uv; };
-struct GpuGeometry { uint4 data; };
-struct GpuInstance { GpuMatrix currentLocalToWorld; GpuMatrix previousLocalToWorld; uint4 data; };
+struct GpuGeometry
+{
+    uint vertexBase;
+    uint indexOffset;
+    uint indexCount;
+    uint materialIndex;
+};
+struct GpuInstance
+{
+    GpuMatrix currentLocalToWorld;
+    GpuMatrix previousLocalToWorld;
+    uint stableID;
+    uint geometryBase;
+    uint geometryCount;
+    uint flags;
+};
 struct GpuMaterial
 {
     float4 baseColor;
@@ -116,12 +130,12 @@ struct GpuAliasEntry
 };
 struct GpuEmissiveTriangle
 {
-    uint instanceIndex = kInvalidIndex;
-    uint indexOffset = 0;
-    uint materialIndex = 0;
-    uint stableID = kInvalidIndex;
-    float worldArea = 0.0f;
-    float power = 0.0f
+    uint instanceIndex;
+    uint indexOffset;
+    uint materialIndex;
+    uint stableID;
+    float worldArea;
+    float power;
     float2 padding;
 };
 struct GpuSurface
@@ -162,16 +176,17 @@ StructuredBuffer<GpuAnalyticLight> g_Lights : register(t6);
 StructuredBuffer<GpuAliasEntry> g_LightAlias : register(t7);
 StructuredBuffer<GpuEmissiveTriangle> g_EmissiveTriangles : register(t8);
 StructuredBuffer<GpuAliasEntry> g_EmissiveAlias : register(t9);
-StructuredBuffer<float4> g_EnvironmentPixels : register(t10);
-StructuredBuffer<GpuAliasEntry> g_EnvironmentAlias : register(t11);
-StructuredBuffer<GpuSurface> g_SurfaceCurrent : register(t12);
-StructuredBuffer<GpuSurface> g_SurfacePrevious : register(t13);
-StructuredBuffer<GpuReservoirSample> g_ReservoirCurrentSample : register(t14);
-StructuredBuffer<GpuReservoirStats> g_ReservoirCurrentStats : register(t15);
-StructuredBuffer<GpuReservoirSample> g_ReservoirHistorySample : register(t16);
-StructuredBuffer<GpuReservoirStats> g_ReservoirHistoryStats : register(t17);
-StructuredBuffer<float4> g_HdrInput : register(t18);
-StructuredBuffer<GpuAcceptance> g_AcceptanceInput : register(t19);
+TextureCube<float4> g_EnvironmentCube : register(t10);
+Texture2D<float4> g_EnvironmentLatLong : register(t11);
+StructuredBuffer<GpuAliasEntry> g_EnvironmentAlias : register(t12);
+StructuredBuffer<GpuSurface> g_SurfaceCurrent : register(t13);
+StructuredBuffer<GpuSurface> g_SurfacePrevious : register(t14);
+StructuredBuffer<GpuReservoirSample> g_ReservoirCurrentSample : register(t15);
+StructuredBuffer<GpuReservoirStats> g_ReservoirCurrentStats : register(t16);
+StructuredBuffer<GpuReservoirSample> g_ReservoirHistorySample : register(t17);
+StructuredBuffer<GpuReservoirStats> g_ReservoirHistoryStats : register(t18);
+StructuredBuffer<float4> g_HdrInput : register(t19);
+StructuredBuffer<GpuAcceptance> g_AcceptanceInput : register(t20);
 
 RWStructuredBuffer<GpuSurface> g_SurfaceOutput : register(u0);
 RWStructuredBuffer<GpuReservoirSample> g_ReservoirSampleOutput : register(u1);
@@ -181,6 +196,7 @@ RWStructuredBuffer<float4> g_HdrOutput : register(u4);
 RWStructuredBuffer<uint4> g_ValidationCounters : register(u5);
 
 SamplerState g_LinearSampler : register(s0);
+SamplerState g_EnvironmentSampler : register(s1);
 Texture2D<float4> g_Textures[RESTIR_MAX_MATERIAL_TEXTURES] : register(t0, space1);
 
 float4 MulRow(float4 value, GpuMatrix matrix)
@@ -314,16 +330,33 @@ float3 EnvironmentDirection(uint itemIndex, uint seed, out float solidAngle)
     return float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
 }
 
+float3 RotateEnvironmentDirection(float3 direction)
+{
+    float angle = g_Frame.rayEnvironment.x;
+    float sine = sin(angle);
+    float cosine = cos(angle);
+    return float3(
+        cosine * direction.x + sine * direction.z,
+        direction.y,
+        -sine * direction.x + cosine * direction.z);
+}
+
 float3 SampleEnvironment(float3 direction)
 {
-    uint width = max(g_Frame.environmentInfo.x, 1u);
-    uint height = max(g_Frame.environmentInfo.y, 1u);
-    float phi = atan2(direction.z, direction.x) - g_Frame.rayEnvironment.x;
-    float u = frac(phi / (2.0f * RESTIR_PI) + 0.5f);
-    float v = acos(clamp(direction.y, -1.0f, 1.0f)) / RESTIR_PI;
-    uint x = min((uint)(u * width), width - 1u);
-    uint y = min((uint)(v * height), height - 1u);
-    return g_EnvironmentPixels[y * width + x].rgb * g_Frame.domainProbabilities.w;
+    float3 environmentDirection = RotateEnvironmentDirection(direction);
+    float3 radiance;
+    if (g_Frame.environmentInfo.w == 0u) {
+        radiance = g_EnvironmentCube.SampleLevel(
+            g_EnvironmentSampler, environmentDirection, 0.0f).rgb;
+    }
+    else {
+        float phi = atan2(environmentDirection.z, environmentDirection.x);
+        float u = frac(phi / (2.0f * RESTIR_PI) + 0.5f);
+        float v = acos(clamp(environmentDirection.y, -1.0f, 1.0f)) / RESTIR_PI;
+        radiance = g_EnvironmentLatLong.SampleLevel(
+            g_EnvironmentSampler, float2(u, v), 0.0f).rgb;
+    }
+    return radiance * g_Frame.domainProbabilities.w;
 }
 
 // 论文第 5 节的候选生成：先按域功率选择一个 proposal domain，再在域内
@@ -344,7 +377,7 @@ GpuReservoirSample GenerateCandidate(inout uint randomState)
     else if (selector < emissiveEnd && g_Frame.sourceCounts.y > 0u) {
         sample.sourceType = EmissiveTriangleSource;
         sample.itemIndex = ResolveAliasEmissive(RandomFloat(randomState), pmf);
-        sample.stableID = g_EmissiveTriangles[sample.itemIndex].data.w;
+        sample.stableID = g_EmissiveTriangles[sample.itemIndex].stableID;
     }
     else if (g_Frame.sourceCounts.z > 0u && g_Frame.domainProbabilities.z > 0.0f) {
         sample.sourceType = EnvironmentSource;
@@ -375,11 +408,13 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
 {
     CandidateEvaluation result = (CandidateEvaluation)0;
     result.distance = g_Frame.rayEnvironment.y;
-    if ((surface.ids.w & ValidSurface) == 0u) return result;
+    if ((surface.ids.w & ValidSurface) == 0u)
+        return result;
 
     if (sample.sourceType == AnalyticSource && sample.itemIndex < g_Frame.sourceCounts.x) {
         GpuAnalyticLight light = g_Lights[sample.itemIndex];
-        if (sample.stableID != light.metadata.x) return result;
+        if (sample.stableID != light.metadata.x)
+            return result;
         float3 lightDirection = SafeNormalize(light.directionType.xyz, surface.normalRoughness.xyz);
         float attenuation = 1.0f;
         if ((uint)light.directionType.w != DirectionalLight) {
@@ -404,18 +439,20 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
     }
     else if (sample.sourceType == EmissiveTriangleSource && sample.itemIndex < g_Frame.sourceCounts.y) {
         GpuEmissiveTriangle emissiveTriangle = g_EmissiveTriangles[sample.itemIndex];
-        if (sample.stableID != emissiveTriangle.data.w) return result;
-        GpuInstance instance = g_Instances[emissiveTriangle.data.x];
-        uint i0 = g_Indices[emissiveTriangle.data.y];
-        uint i1 = g_Indices[emissiveTriangle.data.y + 1u];
-        uint i2 = g_Indices[emissiveTriangle.data.y + 2u];
-        uint geometryBase = instance.data.y;
+        if (sample.stableID != emissiveTriangle.stableID)
+            return result;
+        GpuInstance instance = g_Instances[emissiveTriangle.instanceIndex];
+        uint i0 = g_Indices[emissiveTriangle.indexOffset];
+        uint i1 = g_Indices[emissiveTriangle.indexOffset + 1u];
+        uint i2 = g_Indices[emissiveTriangle.indexOffset + 2u];
+        uint geometryBase = instance.geometryBase;
         uint vertexBase = 0u;
-        [loop] for (uint geometryIndex = 0u; geometryIndex < instance.data.z; ++geometryIndex) {
+        [loop]
+        for (uint geometryIndex = 0u; geometryIndex < instance.geometryCount; ++geometryIndex) {
             GpuGeometry geometry = g_Geometries[geometryBase + geometryIndex];
-            if (emissiveTriangle.data.y >= geometry.data.y &&
-                emissiveTriangle.data.y < geometry.data.y + geometry.data.z) {
-                vertexBase = geometry.data.x;
+            if (emissiveTriangle.indexOffset >= geometry.indexOffset &&
+                emissiveTriangle.indexOffset < geometry.indexOffset + geometry.indexCount) {
+                vertexBase = geometry.vertexBase;
                 break;
             }
         }
@@ -437,17 +474,19 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         float distanceToLight = sqrt(distanceSquared);
         float3 lightDirection = SafeNormalize(toLight, surface.normalRoughness.xyz);
         float3 lightNormal = SafeNormalize(cross(p1 - p0, p2 - p0), -lightDirection);
-        GpuMaterial material = g_Materials[emissiveTriangle.data.z];
+        GpuMaterial material = g_Materials[emissiveTriangle.materialIndex];
         float cosineAtLight = dot(lightNormal, -lightDirection);
-        if ((material.texture1.z & DoubleSidedMaterial) != 0u) cosineAtLight = abs(cosineAtLight);
-        else cosineAtLight = saturate(cosineAtLight);
+        if ((material.texture1.z & DoubleSidedMaterial) != 0u)
+            cosineAtLight = abs(cosineAtLight);
+        else
+            cosineAtLight = saturate(cosineAtLight);
         float2 uv = v0.uv.xy * b0 + v1.uv.xy * b1 + v2.uv.xy * b2;
         float3 emission = material.emissiveColor.rgb *
             g_Textures[NonUniformResourceIndex(material.texture1.x)].SampleLevel(g_LinearSampler, uv, 0.0f).rgb;
         result.direction = lightDirection;
         result.distance = max(distanceToLight - g_Frame.reuseThresholds.w, g_Frame.reuseThresholds.w);
         result.contribution = EvaluateBRDF(surface, lightDirection) * emission * cosineAtLight / distanceSquared;
-        const float triangleArea = emissiveTriangle.areaPower.x;
+        const float triangleArea = emissiveTriangle.worldArea;
         // 完整 proposal 是两级离散选择再乘连续面积密度：
         // q_A(x) = P(自发光域) * PMF(三角形) * 1 / triangleArea。
         result.proposalPdf = triangleArea > 0.0f && isfinite(triangleArea)
@@ -456,11 +495,12 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
             : 0.0f;
     }
     else if (sample.sourceType == EnvironmentSource && sample.itemIndex < g_Frame.sourceCounts.z) {
-        if (sample.stableID != (0xE0000000u ^ sample.itemIndex)) return result;
+        if (sample.stableID != (0xE0000000u ^ sample.itemIndex))
+            return result;
         float solidAngle = 0.0f;
         result.direction = EnvironmentDirection(sample.itemIndex, sample.sampleSeed, solidAngle);
         result.contribution = EvaluateBRDF(surface, result.direction) *
-            g_EnvironmentPixels[sample.itemIndex].rgb * g_Frame.domainProbabilities.w;
+            SampleEnvironment(result.direction);
         result.proposalPdf = solidAngle > 0.0f && isfinite(solidAngle)
             ? g_Frame.domainProbabilities.z * g_EnvironmentAlias[sample.itemIndex].pmf /
                 solidAngle
@@ -509,7 +549,8 @@ float EvaluateTargetPHat(GpuSurface surface, GpuReservoirSample sample)
     // Algorithm 6 的支持判定必须同时满足 target 与 proposal 支持。
     // 例如退化三角形/零立体角候选可能暂时算出非零贡献，但 q=0 时
     // 不能参与 merge，也不能计入 Z。
-    if (!HasValidProposalPdf(evaluation)) return 0.0f;
+    if (!HasValidProposalPdf(evaluation))
+        return 0.0f;
     float pHat = Luminance(evaluation.contribution);
     return pHat > 0.0f && isfinite(pHat) ? pHat : 0.0f;
 }
@@ -565,7 +606,8 @@ float ReservoirSupportM(
     GpuReservoirSample selectedSample,
     float sourceM)
 {
-    if (!(sourceM > 0.0f) || !isfinite(sourceM)) return 0.0f;
+    if (!(sourceM > 0.0f) || !isfinite(sourceM))
+        return 0.0f;
     // Algorithm 6 第 7–9 行：uniform MIS 只计入其 target 支持最终样本的来源。
     return EvaluateTargetPHat(originSurface, selectedSample) > 0.0f ? sourceM : 0.0f;
 }
@@ -587,7 +629,8 @@ void ReservoirFinalize(
     // 初始 RIS 对应 Eq. (6)，其 Z=M；复用对应 Eq. (20)/Algorithm 6，
     // Z 只包含支持最终样本的输入流，消除不同半球支持域造成的暗偏。
     stats.W = stats.weightSum / (stats.normalizationM * destinationPHat);
-    if (!isfinite(stats.W) || !(stats.W > 0.0f)) ReservoirInvalidateSample(sample, stats);
+    if (!isfinite(stats.W) || !(stats.W > 0.0f))
+        ReservoirInvalidateSample(sample, stats);
 }
 
 bool TemporalSurfaceCompatible(GpuSurface current, GpuSurface history)

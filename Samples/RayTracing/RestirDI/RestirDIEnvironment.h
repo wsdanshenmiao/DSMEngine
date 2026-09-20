@@ -15,6 +15,9 @@ namespace DSM::RestirDI {
         uint32_t width = 0;
         uint32_t height = 0;
         std::vector<GpuFloat4> pixels{};
+        uint32_t cubeWidth = 0;
+        uint32_t cubeHeight = 0;
+        std::vector<GpuFloat4> cubePixels{};
         AliasTable aliasTable{};
         std::filesystem::path sourcePath{};
     };

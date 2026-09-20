@@ -19,7 +19,7 @@ namespace DSM::RestirDI {
         result.entries.resize(weights.size());
         std::vector<float> sanitized(weights.size());
         // 将权重限制在 [0, +inf) 范围，避免负数或 NaN 破坏 Alias Table 构建。
-        std::transform(weights.begin(), weights.end(), sanitized.begin(), [](float weight) {
+        std::ranges::transform(weights, sanitized.begin(), [](float weight) {
             return std::isfinite(weight) ? std::max(weight, 0.0f) : 0.0f;
         });
         result.totalWeight = std::accumulate(sanitized.begin(), sanitized.end(), 0.0f);
@@ -33,7 +33,9 @@ namespace DSM::RestirDI {
 
         const float entryCount = static_cast<float>(sanitized.size());
         std::vector<float> scaled(sanitized.size());
+        // 自身的概率列不足以填满一列
         std::vector<uint32_t> smallEntries{};
+        // 自身概率至少能填满一列，可将剩余容量分配给小概率列
         std::vector<uint32_t> largeEntries{};
         smallEntries.reserve(sanitized.size());
         largeEntries.reserve(sanitized.size());

@@ -59,8 +59,7 @@ namespace DSM::RestirDI {
             return {};
         }
 
-        BufferHandle CreateGpuBuffer(
-            IDevice* device, size_t count, size_t stride, const std::string& name, bool uav = true)
+        BufferHandle CreateGpuBuffer(IDevice* device, size_t count, size_t stride, const std::string& name, bool uav = true)
         {
             return device->CreateBuffer(BufferDesc{}
                 .SetByteSize(std::max<size_t>(count, 1) * stride)
@@ -81,7 +80,8 @@ namespace DSM::RestirDI {
                 .SetMode(ShaderMode::SM_6_6)
                 .SetFilename(filename.string())
                 .SetEnterPoint(entry));
-            if (!byteCode.IsValid()) return nullptr;
+            if (!byteCode.IsValid())
+                return nullptr;
             return device->CreateShader(ShaderDesc{}
                 .SetShaderType(type)
                 .SetEntryName(entry)
@@ -125,6 +125,7 @@ namespace DSM::RestirDI {
         BindingLayoutHandle textureLayout{};
         BindingSetHandle textureSet{};
         SamplerHandle sampler{};
+        SamplerHandle environmentSampler{};
         ShaderLibraryHandle rayTracingLibrary{};
         RT::PipelineHandle rayTracingPipeline{};
         RT::ShaderTableHandle primaryTable{};
@@ -138,10 +139,13 @@ namespace DSM::RestirDI {
         ShaderHandle presentPixelShader{};
         FramebufferHandle framebuffer{};
         BufferHandle frameConstants{};
-        BufferHandle environmentPixels{};
+        TextureHandle environmentCube{};
+        TextureHandle environmentLatLong{};
         BufferHandle environmentAlias{};
         BufferHandle dummySrvBuffer{};
         BufferHandle dummyUavBuffer{};
+        TextureHandle dummyEnvironmentCube{};
+        TextureHandle dummyEnvironmentLatLong{};
         BufferHandle validationCounters{};
         std::array<BufferHandle, 2> surfaces{};
         std::array<BufferHandle, 3> reservoirSamples{};
@@ -215,13 +219,19 @@ namespace DSM::RestirDI {
         commonDescription.SetVisibility(ShaderType::All)
             .AddItem(BindingLayoutItem::VolatileConstantBuffer(0))
             .AddItem(BindingLayoutItem::RayTracingAccelStruct(0));
-        for (uint32_t slot = 1; slot <= 19; ++slot) {
+        for (uint32_t slot = 1; slot <= 9; ++slot) {
+            commonDescription.AddItem(BindingLayoutItem::StructuredBuffer_SRV(slot));
+        }
+        commonDescription.AddItem(BindingLayoutItem::Texture_SRV(10));
+        commonDescription.AddItem(BindingLayoutItem::Texture_SRV(11));
+        for (uint32_t slot = 12; slot <= 20; ++slot) {
             commonDescription.AddItem(BindingLayoutItem::StructuredBuffer_SRV(slot));
         }
         for (uint32_t slot = 0; slot <= 5; ++slot) {
             commonDescription.AddItem(BindingLayoutItem::StructuredBuffer_UAV(slot));
         }
         commonDescription.AddItem(BindingLayoutItem::Sampler(0));
+        commonDescription.AddItem(BindingLayoutItem::Sampler(1));
         commonLayout = device->CreateBindingLayout(commonDescription);
 
         textureLayout = device->CreateBindingLayout(BindingLayoutDesc{}
@@ -232,6 +242,11 @@ namespace DSM::RestirDI {
             .SetAllFilters(true)
             .SetAllAddressModes(SamplerAddressMode::Wrap)
             .SetMaxAnisotropy(8.0f));
+        environmentSampler = device->CreateSampler(SamplerDesc{}
+            .SetAllFilters(true)
+            .SetAddressU(SamplerAddressMode::Wrap)
+            .SetAddressV(SamplerAddressMode::Clamp)
+            .SetAddressW(SamplerAddressMode::Clamp));
         frameConstants = device->CreateBuffer(BufferDesc{}
             .SetByteSize(sizeof(GpuFrameConstants))
             .SetIsConstantBuffer(true)
@@ -239,6 +254,34 @@ namespace DSM::RestirDI {
             .SetDebugName("ReSTIR DI Frame Constants"));
         dummySrvBuffer = CreateGpuBuffer(device, 32, sizeof(GpuFloat4), "ReSTIR DI Dummy SRV", false);
         dummyUavBuffer = CreateGpuBuffer(device, 32, sizeof(GpuFloat4), "ReSTIR DI Dummy UAV");
+        dummyEnvironmentLatLong = device->CreateTexture(TextureDesc{}
+            .SetWidth(1).SetHeight(1).SetFormat(Format::RGBA32_FLOAT)
+            .SetInitialState(ResourceStates::CopyDest)
+            .SetDebugName("ReSTIR DI Dummy Environment LatLong"));
+        dummyEnvironmentCube = device->CreateTexture(TextureDesc{}
+            .SetWidth(1).SetHeight(1).SetArraySize(6)
+            .SetDimension(TextureDimension::TextureCube)
+            .SetFormat(Format::RGBA32_FLOAT)
+            .SetInitialState(ResourceStates::CopyDest)
+            .SetDebugName("ReSTIR DI Dummy Environment Cube"));
+        if (dummyEnvironmentLatLong == nullptr || dummyEnvironmentCube == nullptr) {
+            error = "创建 ReSTIR DI 环境纹理占位资源失败。";
+            return false;
+        }
+        {
+            const GpuFloat4 black{};
+            auto upload = device->CreateCommandList(CommandListParameters{}
+                .SetDebugName("Upload ReSTIR DI Environment Texture Dummies"));
+            upload->Open();
+            upload->WriteTexture(dummyEnvironmentLatLong, 0, 0, &black, sizeof(black), sizeof(black));
+            upload->SetTextureState(dummyEnvironmentLatLong, AllSubresources, ResourceStates::ShaderResource);
+            for (uint32_t face = 0; face < 6; ++face) {
+                upload->WriteTexture(dummyEnvironmentCube, face, 0, &black, sizeof(black), sizeof(black));
+            }
+            upload->SetTextureState(dummyEnvironmentCube, AllSubresources, ResourceStates::ShaderResource);
+            upload->Close();
+            device->ExecuteCommandList(upload);
+        }
         validationCounters = CreateGpuBuffer(device, 16, sizeof(GpuUint4), "ReSTIR DI Validation Counters");
         EnsureEnvironmentBuffers();
 
@@ -263,8 +306,7 @@ namespace DSM::RestirDI {
             error = "ReSTIR DI DXR Shader Library 编译失败。";
             return false;
         }
-        rayTracingLibrary = device->CreateShaderLibrary(
-            libraryByteCode.GetByteCode(), libraryByteCode.GetByteCodeSize());
+        rayTracingLibrary = device->CreateShaderLibrary(libraryByteCode.GetByteCode(), libraryByteCode.GetByteCodeSize());
         const auto primary = rayTracingLibrary->GetShader("PrimaryRayGen", ShaderType::RayGeneration);
         const auto visibility = rayTracingLibrary->GetShader("VisibilityRayGen", ShaderType::RayGeneration);
         const auto reference = rayTracingLibrary->GetShader("ReferenceRayGen", ShaderType::RayGeneration);
@@ -377,10 +419,33 @@ namespace DSM::RestirDI {
     void RenderPipeline::Implementation::EnsureEnvironmentBuffers()
     {
         bindingSetCache.clear();
-        environmentPixels = CreateGpuBuffer(device,
-            environment.pixels.size(), sizeof(GpuFloat4), "ReSTIR DI Environment", false);
+        environmentCube = nullptr;
+        environmentLatLong = nullptr;
+        if (environment.source == EnvironmentSource::DaylightCube) {
+            environmentCube = device->CreateTexture(TextureDesc{}
+                .SetWidth(std::max(environment.cubeWidth, 1u))
+                .SetHeight(std::max(environment.cubeHeight, 1u))
+                .SetArraySize(6)
+                .SetDimension(TextureDimension::TextureCube)
+                .SetFormat(Format::RGBA32_FLOAT)
+                .SetInitialState(ResourceStates::CopyDest)
+                .SetDebugName("ReSTIR DI Daylight Environment Cube"));
+        }
+        else {
+            environmentLatLong = device->CreateTexture(TextureDesc{}
+                .SetWidth(std::max(environment.width, 1u))
+                .SetHeight(std::max(environment.height, 1u))
+                .SetFormat(Format::RGBA32_FLOAT)
+                .SetInitialState(ResourceStates::CopyDest)
+                .SetDebugName("ReSTIR DI HDR Environment LatLong"));
+        }
         environmentAlias = CreateGpuBuffer(device,
             environment.aliasTable.entries.size(), sizeof(GpuAliasEntry), "ReSTIR DI Environment Alias", false);
+        if ((environment.source == EnvironmentSource::DaylightCube && environmentCube == nullptr) ||
+            (environment.source == EnvironmentSource::RadianceHDR && environmentLatLong == nullptr) ||
+            environmentAlias == nullptr) {
+            error = "创建 ReSTIR DI 环境资源失败。";
+        }
         environmentDirty = true;
     }
 
@@ -389,8 +454,10 @@ namespace DSM::RestirDI {
         const auto& textures = scene.GetTextures();
         std::vector<ITexture*> current{};
         current.reserve(textures.size());
-        for (const auto& texture : textures) current.push_back(texture.Get());
-        if (current == boundTextures && textureSet != nullptr) return true;
+        for (const auto& texture : textures)
+            current.push_back(texture.Get());
+        if (current == boundTextures && textureSet != nullptr)
+            return true;
         if (current.empty() || current.size() > kMaxMaterialTextures) {
             error = std::format("ReSTIR DI 材质纹理数 {} 超出固定描述符表容量 {}。",
                 current.size(), kMaxMaterialTextures);
@@ -417,7 +484,12 @@ namespace DSM::RestirDI {
         }
         auto srv = [this](IBuffer* buffer) { return buffer != nullptr ? buffer : dummySrvBuffer.Get(); };
         auto uav = [this](IBuffer* buffer) { return buffer != nullptr ? buffer : dummyUavBuffer.Get(); };
-        if (scene.GetTLAS() == nullptr) return nullptr;
+        ITexture* environmentCubeTexture = environmentCube != nullptr
+            ? environmentCube.Get() : dummyEnvironmentCube.Get();
+        ITexture* environmentLatLongTexture = environmentLatLong != nullptr
+            ? environmentLatLong.Get() : dummyEnvironmentLatLong.Get();
+        if (scene.GetTLAS() == nullptr)
+            return nullptr;
         BindingSetDesc description{};
         description
             .AddItem(BindingSetItem::ConstantBuffer(0, frameConstants))
@@ -431,25 +503,28 @@ namespace DSM::RestirDI {
             .AddItem(BindingSetItem::StructuredBuffer_SRV(7, srv(scene.GetLightAliasBuffer())))
             .AddItem(BindingSetItem::StructuredBuffer_SRV(8, srv(scene.GetEmissiveBuffer())))
             .AddItem(BindingSetItem::StructuredBuffer_SRV(9, srv(scene.GetEmissiveAliasBuffer())))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(10, srv(environmentPixels)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(11, srv(environmentAlias)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(12, srv(input.surfaceCurrent)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(13, srv(input.surfacePrevious)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(14, srv(input.reservoirCurrentSample)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(15, srv(input.reservoirCurrentStats)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(16, srv(input.reservoirHistorySample)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(17, srv(input.reservoirHistoryStats)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(18, srv(input.hdrInput)))
-            .AddItem(BindingSetItem::StructuredBuffer_SRV(19, srv(input.acceptanceInput)))
+            .AddItem(BindingSetItem::Texture_SRV(10, environmentCubeTexture))
+            .AddItem(BindingSetItem::Texture_SRV(11, environmentLatLongTexture))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(12, srv(environmentAlias)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(13, srv(input.surfaceCurrent)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(14, srv(input.surfacePrevious)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(15, srv(input.reservoirCurrentSample)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(16, srv(input.reservoirCurrentStats)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(17, srv(input.reservoirHistorySample)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(18, srv(input.reservoirHistoryStats)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(19, srv(input.hdrInput)))
+            .AddItem(BindingSetItem::StructuredBuffer_SRV(20, srv(input.acceptanceInput)))
             .AddItem(BindingSetItem::StructuredBuffer_UAV(0, uav(input.surfaceOutput)))
             .AddItem(BindingSetItem::StructuredBuffer_UAV(1, uav(input.reservoirSampleOutput)))
             .AddItem(BindingSetItem::StructuredBuffer_UAV(2, uav(input.reservoirStatsOutput)))
             .AddItem(BindingSetItem::StructuredBuffer_UAV(3, uav(input.acceptanceOutput)))
             .AddItem(BindingSetItem::StructuredBuffer_UAV(4, uav(input.hdrOutput)))
             .AddItem(BindingSetItem::StructuredBuffer_UAV(5, validationCounters))
-            .AddItem(BindingSetItem::Sampler(0, sampler));
+            .AddItem(BindingSetItem::Sampler(0, sampler))
+            .AddItem(BindingSetItem::Sampler(1, environmentSampler));
         auto bindingSet = device->CreateBindingSet(description, commonLayout);
-        if (bindingSet) bindingSetCache.emplace_back(input, bindingSet);
+        if (bindingSet)
+            bindingSetCache.emplace_back(input, bindingSet);
         return bindingSet;
     }
 
@@ -510,7 +585,8 @@ namespace DSM::RestirDI {
             environment.width, environment.height,
             (settings.enableAnalyticLights ? 1u : 0u) |
                 (settings.enableEmissiveTriangles ? 2u : 0u) |
-                (settings.enableEnvironment ? 4u : 0u), 0u};
+                (settings.enableEnvironment ? 4u : 0u),
+            static_cast<uint32_t>(environment.source)};
         return constants;
     }
 
@@ -529,7 +605,8 @@ namespace DSM::RestirDI {
         // Final Visibility DXR -> 全屏 Present。正常渲染固定为论文的 1 spp：
         // 每像素维护一个 Reservoir，最终只追踪一条可见性射线。
         auto& implementation = *m_Implementation;
-        if (!implementation.initialized && !implementation.Initialize(renderer)) return;
+        if (!implementation.initialized && !implementation.Initialize(renderer))
+            return;
 
         if (m_EnableUI && m_Settings.enableCameraControl && ImGui::GetCurrentContext() != nullptr) {
             if (implementation.cameraController == nullptr) {
@@ -591,9 +668,24 @@ namespace DSM::RestirDI {
         // 都记录到 Graphics Queue，稳态帧不调用 WaitForIdle。
         implementation.scene.RecordBuildAndUpload(commandList);
         if (implementation.environmentDirty) {
-            commandList->WriteBuffer(implementation.environmentPixels,
-                implementation.environment.pixels.data(),
-                implementation.environment.pixels.size() * sizeof(GpuFloat4));
+            if (implementation.environment.source == EnvironmentSource::DaylightCube) {
+                const size_t rowPitch = size_t(implementation.environment.cubeWidth) * sizeof(GpuFloat4);
+                const size_t slicePitch = rowPitch * implementation.environment.cubeHeight;
+                for (uint32_t face = 0; face < 6; ++face) {
+                    const auto* pixels = implementation.environment.cubePixels.data() +
+                        size_t(face) * implementation.environment.cubeWidth * implementation.environment.cubeHeight;
+                    commandList->WriteTexture(implementation.environmentCube, face, 0,
+                        pixels, rowPitch, slicePitch);
+                }
+                commandList->SetTextureState(implementation.environmentCube, AllSubresources, ResourceStates::ShaderResource);
+            }
+            else {
+                const size_t rowPitch = size_t(implementation.environment.width) * sizeof(GpuFloat4);
+                const size_t slicePitch = rowPitch * implementation.environment.height;
+                commandList->WriteTexture(implementation.environmentLatLong, 0, 0,
+                    implementation.environment.pixels.data(), rowPitch, slicePitch);
+                commandList->SetTextureState(implementation.environmentLatLong, AllSubresources, ResourceStates::ShaderResource);
+            }
             commandList->WriteBuffer(implementation.environmentAlias,
                 implementation.environment.aliasTable.entries.data(),
                 implementation.environment.aliasTable.entries.size() * sizeof(GpuAliasEntry));
@@ -602,8 +694,7 @@ namespace DSM::RestirDI {
 
         // Step 2：主 DXR 只写 surface buffer；AlphaAnyHit 在透明 texel 上
         // IgnoreHit，ClosestHit 填充材质、motion 和 stable ObjectID。
-        auto primarySet = implementation.CreateBindingSet(FrameBindings{
-            .surfaceOutput = implementation.surfaces[currentSurface]});
+        auto primarySet = implementation.CreateBindingSet(FrameBindings{.surfaceOutput = implementation.surfaces[currentSurface]});
         commandList->SetRayTracingState(RT::State{}
             .SetShaderTable(implementation.primaryTable)
             .AddBindingSet(primarySet)

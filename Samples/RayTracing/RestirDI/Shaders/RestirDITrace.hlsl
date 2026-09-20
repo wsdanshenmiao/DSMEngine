@@ -40,7 +40,8 @@ void PrimaryRayGen()
         BackgroundSurface);
     g_SurfaceOutput[index] = surface;
 
-    if (g_Frame.sourceCounts.w == 0u) return;
+    if (g_Frame.sourceCounts.w == 0u)
+        return;
     RayDesc ray;
     ray.Origin = g_Frame.cameraExposure.xyz;
     ray.Direction = rayDirection;
@@ -53,7 +54,8 @@ void PrimaryRayGen()
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-    if (payload.rayType == PrimaryRay) payload.value = 0u;
+    if (payload.rayType == PrimaryRay)
+        payload.value = 0u;
 }
 
 [shader("anyhit")]
@@ -62,24 +64,27 @@ void AlphaAnyHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
     // 透明材质只在 AlphaTestMaterial 标志存在时采样基础色 alpha；透明 texel
     // IgnoreHit 后继续寻找后面的三角形，满足独立于 Forward/Deferred 的裁剪语义。
     GpuInstance instance = g_Instances[InstanceID()];
-    GpuGeometry geometry = g_Geometries[instance.data.y + GeometryIndex()];
-    GpuMaterial material = g_Materials[geometry.data.w];
-    if ((material.texture1.z & AlphaTestMaterial) == 0u) return;
-    uint triangleOffset = geometry.data.y + PrimitiveIndex() * 3u;
-    GpuVertex v0 = g_Vertices[geometry.data.x + g_Indices[triangleOffset]];
-    GpuVertex v1 = g_Vertices[geometry.data.x + g_Indices[triangleOffset + 1u]];
-    GpuVertex v2 = g_Vertices[geometry.data.x + g_Indices[triangleOffset + 2u]];
+    GpuGeometry geometry = g_Geometries[instance.geometryBase + GeometryIndex()];
+    GpuMaterial material = g_Materials[geometry.materialIndex];
+    if ((material.texture1.z & AlphaTestMaterial) == 0u)
+        return;
+    uint triangleOffset = geometry.indexOffset + PrimitiveIndex() * 3u;
+    GpuVertex v0 = g_Vertices[geometry.vertexBase + g_Indices[triangleOffset]];
+    GpuVertex v1 = g_Vertices[geometry.vertexBase + g_Indices[triangleOffset + 1u]];
+    GpuVertex v2 = g_Vertices[geometry.vertexBase + g_Indices[triangleOffset + 2u]];
     float3 bary = float3(1.0f - attributes.barycentrics.x - attributes.barycentrics.y,
         attributes.barycentrics.x, attributes.barycentrics.y);
     float2 uv = v0.uv.xy * bary.x + v1.uv.xy * bary.y + v2.uv.xy * bary.z;
-    float alpha = material.baseColor.a *
-        g_Textures[NonUniformResourceIndex(material.texture0.x)].SampleLevel(g_LinearSampler, uv, 0.0f).a;
-    if (alpha < material.factors.w) IgnoreHit();
+    float texAlpha = g_Textures[NonUniformResourceIndex(material.texture0.x)].SampleLevel(g_LinearSampler, uv, 0.0f).a;
+    float alpha = material.baseColor.a * texAlpha;
+    if (alpha < material.factors.w)
+        IgnoreHit();
 }
 
 [shader("closesthit")]
 void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attributes)
 {
+    [branch]
     if (payload.rayType != PrimaryRay) {
         payload.value = 0u;
         return;
@@ -87,12 +92,12 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
 
     uint instanceIndex = InstanceID();
     GpuInstance instance = g_Instances[instanceIndex];
-    GpuGeometry geometry = g_Geometries[instance.data.y + GeometryIndex()];
-    GpuMaterial material = g_Materials[geometry.data.w];
-    uint triangleOffset = geometry.data.y + PrimitiveIndex() * 3u;
-    GpuVertex v0 = g_Vertices[geometry.data.x + g_Indices[triangleOffset]];
-    GpuVertex v1 = g_Vertices[geometry.data.x + g_Indices[triangleOffset + 1u]];
-    GpuVertex v2 = g_Vertices[geometry.data.x + g_Indices[triangleOffset + 2u]];
+    GpuGeometry geometry = g_Geometries[instance.geometryBase + GeometryIndex()];
+    GpuMaterial material = g_Materials[geometry.materialIndex];
+    uint triangleOffset = geometry.indexOffset + PrimitiveIndex() * 3u;
+    GpuVertex v0 = g_Vertices[geometry.vertexBase + g_Indices[triangleOffset]];
+    GpuVertex v1 = g_Vertices[geometry.vertexBase + g_Indices[triangleOffset + 1u]];
+    GpuVertex v2 = g_Vertices[geometry.vertexBase + g_Indices[triangleOffset + 2u]];
     float3 bary = float3(1.0f - attributes.barycentrics.x - attributes.barycentrics.y,
         attributes.barycentrics.x, attributes.barycentrics.y);
     float3 localPosition = v0.position.xyz * bary.x + v1.position.xyz * bary.y + v2.position.xyz * bary.z;
@@ -103,14 +108,13 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     float3 worldNormal = SafeNormalize(mul(localNormal, (float3x3)WorldToObject3x4()), float3(0, 1, 0));
     float3 worldTangent = SafeNormalize(mul((float3x3)ObjectToWorld3x4(), localTangent.xyz), float3(1, 0, 0));
     worldTangent = SafeNormalize(worldTangent - worldNormal * dot(worldNormal, worldTangent), float3(1, 0, 0));
-    float3 worldBitangent = SafeNormalize(cross(worldNormal, worldTangent), float3(0, 0, 1)) *
-        (localTangent.w < 0.0f ? -1.0f : 1.0f);
-    float3 tangentNormal = g_Textures[NonUniformResourceIndex(material.texture0.w)]
-        .SampleLevel(g_LinearSampler, uv, 0.0f).xyz * 2.0f - 1.0f;
+    float3 worldBitangent = SafeNormalize(cross(worldNormal, worldTangent), float3(0, 0, 1)) * (localTangent.w < 0.0f ? -1.0f : 1.0f);
+    float3 tangentNormal = g_Textures[NonUniformResourceIndex(material.texture0.w)].SampleLevel(g_LinearSampler, uv, 0.0f).xyz * 2.0f - 1.0f;
     tangentNormal.xy *= material.factors.x;
     worldNormal = SafeNormalize(worldTangent * tangentNormal.x +
         worldBitangent * tangentNormal.y + worldNormal * tangentNormal.z, worldNormal);
-    if (HitKind() == HIT_KIND_TRIANGLE_BACK_FACE) worldNormal = -worldNormal;
+    if (HitKind() == HIT_KIND_TRIANGLE_BACK_FACE)
+        worldNormal = -worldNormal;
 
     float4 baseSample = g_Textures[NonUniformResourceIndex(material.texture0.x)]
         .SampleLevel(g_LinearSampler, uv, 0.0f);
@@ -131,12 +135,11 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     GpuSurface surface;
     surface.positionDepth = float4(worldPosition, RayTCurrent());
     surface.normalRoughness = float4(worldNormal, clamp(material.factors.z * roughnessSample, 0.045f, 1.0f));
-    surface.albedoMetallic = float4(material.baseColor.rgb * baseSample.rgb,
-        saturate(material.factors.y * metallicSample));
+    surface.albedoMetallic = float4(material.baseColor.rgb * baseSample.rgb, saturate(material.factors.y * metallicSample));
     surface.emissive = float4(material.emissiveColor.rgb * emissiveSample, 1.0f);
     surface.motion = float4(previousUV, currentDepth, previousDepth);
-    surface.ids = uint4(instance.data.x, instanceIndex, geometry.data.w,
-        ValidSurface | ((instance.data.w & ReceivesShadowInstance) << 1u));
+    surface.ids = uint4(instance.stableID, instanceIndex, geometry.materialIndex,
+        ValidSurface | ((instance.flags & ReceivesShadowInstance) << 1u));
     uint2 pixel = DispatchRaysIndex().xy;
     g_SurfaceOutput[pixel.y * g_Frame.resolutionFrame.x + pixel.x] = surface;
     payload.value = 1u;
@@ -244,10 +247,12 @@ void ReferenceRayGen()
             Hash(g_Frame.resolutionFrame.z + 0x51ed270bu));
         float3 direct = 0.0f.xxx;
         uint candidateCount = max(g_Frame.algorithm.w, 1u);
-        [loop] for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
+        [loop]
+        for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
             GpuReservoirSample sample = GenerateCandidate(randomState);
             CandidateEvaluation evaluation = EvaluateCandidate(surface, sample);
-            if (!HasValidProposalPdf(evaluation)) continue;
+            if (!HasValidProposalPdf(evaluation))
+                continue;
             uint visibility = TraceVisibility(surface, evaluation);
             visibleCount += visibility;
             direct += evaluation.contribution * visibility / evaluation.proposalPdf;

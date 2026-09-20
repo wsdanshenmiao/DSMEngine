@@ -7,7 +7,7 @@ target(targetName)
     add_files("**.cpp")
     add_headerfiles("**.h")
 
-    add_rules("Imguiini", {source = "RestirDI/imgui.ini"})
+    add_rules("Imguiini")
     add_rules("ShaderCopy", {source = "RestirDI/Shaders"})
     add_rules("EngineShaderCopy")
     add_rules("AssetsCopy")
