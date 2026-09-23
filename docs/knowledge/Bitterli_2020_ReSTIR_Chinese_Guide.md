@@ -8,7 +8,7 @@
 
 这是一份依据论文内容重新组织、独立表述的中文精读，不是逐句替换文字的完整译本。它覆盖论文的研究问题、核心公式、算法步骤、实验结论、图表阅读方法、局限与工程含义，但不复制论文段落或原图。这样既能满足技术学习需要，也避免超出原文所载个人/课堂复制和“带署名摘要”许可的范围。
 
-配套原文请使用 [NVIDIA Research 官方论文页面](https://research.nvidia.com/publication/2020-07_spatiotemporal-reservoir-resampling-real-time-ray-tracing-dynamic-direct) 或其页面提供的 PDF 下载。仓库只保留本中文精读与公式讲解，不复制公开发布的完整论文文件。
+配套原文：`Bitterli_2020_ReSTIR_Original.pdf`。
 
 正式引用：Bitterli, B.; Wyman, C.; Pharr, M.; Shirley, P.; Lefohn, A.; Jarosz, W. “Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting.” ACM Transactions on Graphics 39(4), Article 148, 2020. DOI: 10.1145/3386569.3392481.
 
@@ -337,4 +337,4 @@ f(y) * W -> 直接光照
 - DOI：`10.1145/3386569.3392481`。
 - 后续论文：Ouyang 等，*ReSTIR GI: Path Resampling for Real-Time Path Tracing*, 2021。该工作把思想扩展到间接路径，并引入路径复用所需的几何 Jacobian。
 
-本译述用于帮助理解论文结构与公式；需要逐字引用、核验实验数值或查看原始图表时，应以 NVIDIA Research 官方页面提供的英文原 PDF 为准。
+本译述用于帮助理解论文结构与公式；需要逐字引用、核验实验数值或查看原始图表时，应以随附的英文原 PDF 为准。

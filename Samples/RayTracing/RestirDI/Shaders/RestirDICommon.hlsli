@@ -41,8 +41,6 @@ enum RestirDebugView
     VisibilityDebugView = 12
 };
 
-// LightType 的数值来自引擎 Light 枚举；这里保留同一顺序，便于阅读解析灯的
-// 距离衰减和 Spot 锥角分支。
 enum RestirAnalyticLightType
 {
     DirectionalLight = 0,
@@ -490,8 +488,7 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         // 完整 proposal 是两级离散选择再乘连续面积密度：
         // q_A(x) = P(自发光域) * PMF(三角形) * 1 / triangleArea。
         result.proposalPdf = triangleArea > 0.0f && isfinite(triangleArea)
-            ? g_Frame.domainProbabilities.y * g_EmissiveAlias[sample.itemIndex].pmf /
-                triangleArea
+            ? g_Frame.domainProbabilities.y * g_EmissiveAlias[sample.itemIndex].pmf / triangleArea
             : 0.0f;
     }
     else if (sample.sourceType == EnvironmentSource && sample.itemIndex < g_Frame.sourceCounts.z) {
@@ -502,14 +499,12 @@ CandidateEvaluation EvaluateCandidate(GpuSurface surface, GpuReservoirSample sam
         result.contribution = EvaluateBRDF(surface, result.direction) *
             SampleEnvironment(result.direction);
         result.proposalPdf = solidAngle > 0.0f && isfinite(solidAngle)
-            ? g_Frame.domainProbabilities.z * g_EnvironmentAlias[sample.itemIndex].pmf /
-                solidAngle
+            ? g_Frame.domainProbabilities.z * g_EnvironmentAlias[sample.itemIndex].pmf / solidAngle
             : 0.0f;
     }
-    if (!all(isfinite(result.contribution)) || !all(isfinite(result.direction)) ||
-        !isfinite(result.distance)) {
-        result.contribution = 0.0f.xxx;
-        result.direction = 0.0f.xxx;
+    if (!all(isfinite(result.contribution)) || !all(isfinite(result.direction)) || !isfinite(result.distance)) {
+        result.contribution = 0;
+        result.direction = 0.;
         result.distance = 0.0f;
         result.proposalPdf = 0.0f;
     }
@@ -571,8 +566,8 @@ void ReservoirUpdate(
         ReservoirClear(reservoirSample, reservoirStats);
         return;
     }
-    if (!(candidateWeight > 0.0f) || !isfinite(candidateWeight) ||
-        candidate.sourceType == InvalidSource) return;
+    if (!(candidateWeight > 0.0f) || !isfinite(candidateWeight) || candidate.sourceType == InvalidSource)
+        return;
     reservoirStats.weightSum += candidateWeight;
     if (!isfinite(reservoirStats.weightSum) || !(reservoirStats.weightSum > 0.0f)) {
         ReservoirClear(reservoirSample, reservoirStats);

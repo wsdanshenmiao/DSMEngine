@@ -22,7 +22,7 @@ void InitialRISCS(uint3 dispatchThreadID : SV_DispatchThreadID)
         uint randomState = Hash(index ^ g_Frame.resolutionFrame.w ^ Hash(g_Frame.resolutionFrame.z + 0x68bc21ebu));
         uint candidateCount = max(g_Frame.algorithm.x, 1u);
         [loop]
-    for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
+        for (uint candidateIndex = 0u; candidateIndex < candidateCount; ++candidateIndex) {
             GpuReservoirSample candidate = GenerateCandidate(randomState);
             CandidateEvaluation evaluation = EvaluateCandidate(surface, candidate);
             const bool validProposal = HasValidProposalPdf(evaluation);
@@ -207,7 +207,9 @@ void SpatialReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
         GpuReservoirSample sourceSample;
         GpuReservoirStats sourceStats;
         if (!ResolveSpatialSource(pixel, width, height, offset,
-            sourceIndex, sourceSurface, sourceSample, sourceStats)) continue;
+            sourceIndex, sourceSurface, sourceSample, sourceStats)){
+            continue;
+        }
         normalizationM += ReservoirSupportM(sourceSurface, outputSample, sourceStats.M);
     }
     ReservoirFinalize(surface, outputSample, outputStats, normalizationM);
