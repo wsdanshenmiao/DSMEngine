@@ -35,7 +35,7 @@ namespace DSM {
     private:
         EditorUI* m_EditorUI;
         SceneState m_SceneState = SceneState::Edit;
-        bool m_IsDeferred = true;
+        bool m_IsDeferred = false;
 
         TextureHandle m_PlayIcon;
         TextureHandle m_StopIcon;

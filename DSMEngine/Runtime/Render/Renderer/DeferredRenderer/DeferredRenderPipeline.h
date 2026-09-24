@@ -30,8 +30,8 @@ namespace DSM {
                 "Renderer must be initialized before creating DeferredRenderPipeline");
             auto& renderer = *DSMEngine::sm_GlobalContext.renderer;
             RenderResource::Create(renderer.GetDevice());
-            auto& backBufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
-            RenderResource::GetInstance().OnResize(renderer, backBufferDesc.width, backBufferDesc.height);
+            const auto& colorTextureDesc = renderer.GetColorTexture()->GetDesc();
+            RenderResource::GetInstance().OnResize(renderer, colorTextureDesc.width, colorTextureDesc.height);
 
             // Deferred-specific passes
             m_RenderPasses.push_back(std::make_unique<GBufferPass>(renderer));

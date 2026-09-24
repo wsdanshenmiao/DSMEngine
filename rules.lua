@@ -43,42 +43,9 @@ rule("AssetsCopy")
     after_build(
         function(target)
             local assetsFiles = path.join(os.projectdir(), "Samples", "Assets")
-            local destination = path.join(target:targetdir(), "Assets")
-            if os.exists(assetsFiles) and not os.isdir(destination) then
-                os.cp(assetsFiles, target:targetdir())
+            if os.isdir(assetsFiles) then
+                -- 目标目录可能已经存在；按文件同步变更，避免构建后继续使用旧资产。
+                os.cp(assetsFiles, target:targetdir(), {copy_if_different = true})
             end
-        end)
-rule_end()
-
--- 将 ShaderCompiler 运行所需的 DXC DLL 放到可执行文件旁边。
-rule("DXCRuntimeCopy")
-    after_build(
-        function(target)
-            local programFilesX86 = os.getenv("ProgramFiles(x86)")
-            local dxcRuntimeDir = nil
-            if programFilesX86 then
-                local sdkRoot = path.join(programFilesX86, "Windows Kits", "10")
-                local sdkBinaryDirs = os.dirs(path.join(sdkRoot, "bin", "*", "x64"))
-                table.sort(sdkBinaryDirs)
-                for index = #sdkBinaryDirs, 1, -1 do
-                    local candidate = sdkBinaryDirs[index]
-                    if os.isfile(path.join(candidate, "dxcompiler.dll")) and
-                       os.isfile(path.join(candidate, "dxil.dll")) then
-                        dxcRuntimeDir = candidate
-                        break
-                    end
-                end
-                if not dxcRuntimeDir then
-                    local candidate = path.join(sdkRoot, "Redist", "D3D", "x64")
-                    if os.isfile(path.join(candidate, "dxcompiler.dll")) and
-                       os.isfile(path.join(candidate, "dxil.dll")) then
-                        dxcRuntimeDir = candidate
-                    end
-                end
-            end
-
-            assert(dxcRuntimeDir, target:name() .. " 需要 Windows SDK 中的 dxcompiler.dll 和 dxil.dll")
-            os.cp(path.join(dxcRuntimeDir, "dxcompiler.dll"), target:targetdir())
-            os.cp(path.join(dxcRuntimeDir, "dxil.dll"), target:targetdir())
         end)
 rule_end()

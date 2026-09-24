@@ -1,3 +1,28 @@
+-- 使用仓库内 Assimp 子模块；源码由 Assimp 自带的 CMakeLists.txt 构建。
+package("assimp")
+    add_deps("cmake")
+    set_sourcedir(path.join(os.projectdir(), "ThirdParty", "assimp"))
+
+    on_install(function(package)
+        local configs = {
+            "-DBUILD_SHARED_LIBS=OFF",
+            "-DASSIMP_BUILD_ASSIMP_TOOLS=OFF",
+            "-DASSIMP_BUILD_SAMPLES=OFF",
+            "-DASSIMP_BUILD_TESTS=OFF",
+            "-DASSIMP_BUILD_DOCS=OFF",
+            "-DASSIMP_BUILD_FRAMEWORK=OFF",
+            "-DASSIMP_BUILD_ZLIB=ON",
+            "-DASSIMP_NO_EXPORT=ON",
+            "-DASSIMP_INSTALL=ON",
+            "-DASSIMP_WARNINGS_AS_ERRORS=OFF",
+            "-DASSIMP_INJECT_DEBUG_POSTFIX=OFF",
+            "-DCMAKE_BUILD_TYPE=" .. (package:debug() and "Debug" or "Release")
+        }
+        import("package.tools.cmake").install(package, configs)
+    end)
+package_end()
+
+add_requires("assimp")
 thirdPartyDir = path.join(os.projectdir(), "ThirdParty")
 
 target("ThirdParty")

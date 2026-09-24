@@ -101,7 +101,6 @@ namespace DSM {
 
             cmdList->Open();
 
-            static bool preEnable = sm_Settings.enable;
             if(sm_Settings.enable){
                 ShaderResource::SSAOConstants ssaoConstants{};
                 ssaoConstants.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
@@ -123,10 +122,10 @@ namespace DSM {
 
                 BlurSSAO(renderer, cmdList);
             }
-            else if(preEnable){
+            else if(m_PreEnable){
                 cmdList->ClearTextureFloat(m_SSAOTex, AllSubresources, Color{1,1,1,1});
             }
-            preEnable = sm_Settings.enable;
+            m_PreEnable = sm_Settings.enable;
 
             cmdList->Close();
             renderer.GetDevice()->QueueWaitForCommandList(
@@ -188,12 +187,11 @@ namespace DSM {
             if(sm_Settings.blurRadius < 1) 
                 return;
 
-            static uint32_t preBlurRadius = 0;
-            if(sm_Settings.blurRadius != preBlurRadius){
+            if(sm_Settings.blurRadius != m_PreBlurRadius){
                 sm_Settings.blurRadius = std::min(sm_Settings.blurRadius, sm_MaxBlurRadius);
                 std::vector<float> weights = CalculGaussWeights(sm_Settings.blurRadius);
                 cmdList->WriteBuffer(m_BlurWeights, weights.data(), sizeof(float) * weights.size());
-                preBlurRadius = sm_Settings.blurRadius;
+                m_PreBlurRadius = sm_Settings.blurRadius;
             }
 
             ShaderResource::SSAOBlurConstants blurConstants{};
@@ -274,6 +272,9 @@ namespace DSM {
 
         ComputePipelineHandle m_SSAOPipeline;
         ComputePipelineHandle m_BlurPipeline;
+
+        bool m_PreEnable = true;
+        uint32_t m_PreBlurRadius = 0;
     };
 
 } // namespace DSM

@@ -30,8 +30,8 @@ namespace DSM {
             DSM_CORE_ASSERT(DSMEngine::sm_GlobalContext.renderer != nullptr, "Renderer must be initialized before creating ForwardRenderPipeline");
             auto& renderer = *DSMEngine::sm_GlobalContext.renderer;
             RenderResource::Create(renderer.GetDevice());
-            auto& backBufferDesc = renderer.GetCurrentBackBuffer()->GetDesc();
-            RenderResource::GetInstance().OnResize(renderer, backBufferDesc.width, backBufferDesc.height);
+            const auto& colorTextureDesc = renderer.GetColorTexture()->GetDesc();
+            RenderResource::GetInstance().OnResize(renderer, colorTextureDesc.width, colorTextureDesc.height);
 
             m_RenderPasses.push_back(std::make_unique<GeometryPass>(renderer));
             m_RenderPasses.push_back(std::make_unique<MotionVectorPass>(renderer));

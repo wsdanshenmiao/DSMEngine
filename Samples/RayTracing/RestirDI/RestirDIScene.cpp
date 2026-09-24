@@ -501,6 +501,7 @@ namespace DSM::RestirDI {
             m_LightCount = 0;
             return;
         }
+
         auto view = scene->GetObjectsWithComponents<Light>();
         std::vector<ObjectID> ids(view.begin(), view.end());
         std::ranges::sort(ids, {}, StableID);
