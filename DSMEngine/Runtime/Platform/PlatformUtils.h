@@ -35,7 +35,7 @@ namespace DSM::Utility {
             const std::vector<FilterOption>& filters, 
             const std::string& title = "Save File");
 
-        static std::vector<std::string> ParseMultiSelectFiles(const char* buffer);
+        static std::vector<std::string> ParseMultiSelectFiles(const wchar_t* buffer);
     };
 }
 

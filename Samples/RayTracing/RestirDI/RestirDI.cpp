@@ -78,7 +78,9 @@ int Run(int argc, char** argv)
     DSMEngine engine;
     EngineParameters parameters{};
     parameters.enableDebugLayer = false;
-    engine.StartEngine(parameters);
+    if (!engine.StartEngine(parameters)) {
+        return 1;
+    }
     engine.SetRenderPipeline(std::make_unique<RenderPipeline>());
 
     DSMEditor editor;

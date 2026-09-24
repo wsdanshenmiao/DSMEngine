@@ -576,7 +576,12 @@ namespace DSM::RestirDI {
         parameters.graphicsMessageCallback = &callback;
         status["stage"] = "engine-starting";
         WriteJson(options.outputDirectory / "status.raw.json", status);
-        engine.StartEngine(parameters);
+        if (!engine.StartEngine(parameters)) {
+            status["stage"] = "engine-start-failed";
+            status["reason"] = "DSMEngine startup failed";
+            WriteJson(options.outputDirectory / "status.raw.json", status);
+            return 3;
+        }
         status["stage"] = "engine-started";
         WriteJson(options.outputDirectory / "status.raw.json", status);
         auto renderer = DSMEngine::sm_GlobalContext.renderer;
@@ -870,7 +875,12 @@ namespace DSM::RestirDI {
         EngineParameters parameters{};
         parameters.enableDebugLayer = true;
         parameters.graphicsMessageCallback = &callback;
-        engine.StartEngine(parameters);
+        if (!engine.StartEngine(parameters)) {
+            status["stage"] = "engine-start-failed";
+            status["reason"] = "DSMEngine startup failed";
+            WriteJson(options.outputDirectory / "status.raw.json", status);
+            return 6;
+        }
         auto renderer = DSMEngine::sm_GlobalContext.renderer;
         if (renderer == nullptr || renderer->GetDevice() == nullptr) {
             WriteJson(options.outputDirectory / "status.raw.json", status);

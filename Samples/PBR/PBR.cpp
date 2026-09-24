@@ -1,4 +1,4 @@
-﻿#include "Editor/DSMEditor.h"
+#include "Editor/DSMEditor.h"
 #include "Runtime/DSMEngine.h"
 #include "Runtime/Render/Renderer/GraphicsRenderer.h"
 #include "Runtime/Render/Geometry.h"
@@ -21,7 +21,9 @@ int main()
     DSM::DSMEngine engine;
     DSM::EngineParameters params{};
     params.enableDebugLayer = false;
-    engine.StartEngine(params);
+    if (!engine.StartEngine(params)) {
+        return 1;
+    }
     engine.SetRenderPipeline(std::make_unique<ForwardRenderPipeline>());
 
     DSM::DSMEditor editor{};

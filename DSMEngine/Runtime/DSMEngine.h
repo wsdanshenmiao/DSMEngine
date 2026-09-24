@@ -33,7 +33,7 @@ namespace DSM {
     class DSMEngine
     {
     public:
-        void StartEngine(const EngineParameters& params);
+        bool StartEngine(const EngineParameters& params);
         void ShutDownEngine();
 
         void Run();

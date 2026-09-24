@@ -6,6 +6,7 @@
 #include <functional>
 #include <vector>
 #include <filesystem>
+#include <cstdint>
 
 struct GLFWwindow;
 
@@ -46,7 +47,7 @@ namespace DSM{
         bool IsFullScreen() const;
 
     private:
-        GLFWwindow* m_Window;
+        GLFWwindow* m_Window = nullptr;
         struct WindowData
         {
             uint32_t width, height;
