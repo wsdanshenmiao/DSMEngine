@@ -1,0 +1,8 @@
+    target("VirtualFileSystemTests")
+        set_kind("binary")
+        set_targetdir(path.join(os.projectdir(), "build", "verification", "virtual-path-2026-09-28"))
+        add_deps("DSMEngine")
+        add_includedirs(path.join(os.projectdir(), "Engine", "Source"), {public = true})
+        add_includedirs(path.join(os.projectdir(), "Engine"), {public = true})
+        add_files("VirtualFileSystem/VirtualFileSystemTests.cpp")
+    target_end()

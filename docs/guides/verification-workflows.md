@@ -34,9 +34,9 @@
 
 适用范围：
 
-- `DSMEngine/Runtime/`
-- `DSMEngine/Editor/`
-- `Samples/PBR/`
+- `Engine/Source/Runtime/`
+- `Engine/Source/Editor/`
+- `Projects/PBR/`
 - 影响编译的头文件、源文件或构建规则。
 
 默认工作目录：仓库根目录。
@@ -75,7 +75,7 @@ xmake build PBR
 
 ```powershell
 xmake build PBR
-xmake run PBR
+tools\\dsm.ps1 run Projects\\PBR\\PBR.dsmproj
 ```
 
 记录内容：

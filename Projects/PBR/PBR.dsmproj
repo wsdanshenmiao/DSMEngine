@@ -1,0 +1,16 @@
+{
+    "engine": "DSMEngine",
+    "modules": [
+        "PBR"
+    ],
+    "name": "PBR",
+    "plugins": [],
+    "schemaVersion": 2,
+    "startupScene": "/Game/Scenes/Sponza.dsmscene",
+    "startupTarget": "PBR",
+    "targets": [
+        "PBRGame",
+        "PBREditor",
+        "PBRValidation"
+    ]
+}

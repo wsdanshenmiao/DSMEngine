@@ -1,0 +1,7 @@
+{
+    "schemaVersion": 1,
+    "name": "DSMEngine",
+    "contentRoot": "Content",
+    "shaderRoot": "Shaders",
+    "pluginsRoot": "Plugins"
+}

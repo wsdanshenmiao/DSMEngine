@@ -1,0 +1,16 @@
+{
+    "engine": "DSMEngine",
+    "modules": [
+        "RayTracing"
+    ],
+    "name": "RayTracing",
+    "plugins": [],
+    "schemaVersion": 2,
+    "startupScene": "/Game/Scenes/Untitled.dsmscene",
+    "startupTarget": "RayTracing",
+    "targets": [
+        "RayTracingGame",
+        "RayTracingEditor",
+        "RayTracingValidation"
+    ]
+}

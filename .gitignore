@@ -11,31 +11,28 @@
 *.gch
 *.pch
 
-# Compiled Dynamic libraries
+# Libraries and executables
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
 *.lib
-
-# Executables
 *.exe
 *.out
 *.app
+*.mod
+*.smod
 
-# Xmake cache
+# Generated artifacts
 .xmake/
 build/
 bin/
-
+Projects/*/Binaries/
+Projects/*/Intermediate/
+Projects/*/Saved/
+Projects/*/Library/
 .git/
 .idea/
 .vs/
@@ -45,6 +42,5 @@ vsxmake2022/
 vsxmake2026/
 .tmp/
 tmp/
-
 *.claude
 *.cache

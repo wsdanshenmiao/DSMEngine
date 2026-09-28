@@ -2,14 +2,14 @@
 
 DSMEngine 是基于 Xmake 和 MSVC 的 Windows C++23 / Direct3D 12 引擎。
 
-- 第一方引擎代码：`DSMEngine/`
-- 运行时系统：`DSMEngine/Runtime/`
-- 编辑器代码：`DSMEngine/Editor/`
-- HLSL 着色器：`DSMEngine/Shaders/`
-- 示例程序：`Samples/PBR`
+- 引擎代码：`Engine/Source/`
+- 运行时系统：`Engine/Source/Runtime/`
+- 编辑器代码：`Engine/Source/Editor/`
+- HLSL 着色器：`Engine/Shaders/`
+- 项目程序：`Projects/PBR/`、`Projects/RayTracing/`
 - 工程与场景数据：`Projects/`
-- 第三方依赖：`ThirdParty/`
-- 生成产物：`bin/`、`build/`、`.xmake/`、`vsxmake2022/`
+- 第三方依赖：`Engine/ThirdParty/`
+- 生成产物：`bin/`、`build/`、`.xmake/`、`Projects/*/Binaries/`、`Projects/*/Intermediate/`
 
 运行时模块包括 `Core`、`Framework`、`Graphics`、`Render`、`Math`、`Platform`、`Event` 和 `Utils`。
 
@@ -53,6 +53,8 @@ DSMEngine 是基于 Xmake 和 MSVC 的 Windows C++23 / Direct3D 12 引擎。
 - `xmake run PBR`：运行示例，做手动渲染/编辑器验证。
 - `xmake f -m release && xmake`：性能或 release-only 行为相关任务使用 release 构建。
 - `xmake project -k vsxmake2022`：构建图变化后重新生成 Visual Studio 工程。
+- `cmake --preset pbr` / `cmake --preset raytracing`：使用 CMake 配置项目构建。
+- `tools\\dsm.ps1 check Projects\\PBR\\PBR.dsmproj`：校验项目锚点和资源根。
 
 ## 工程约定
 

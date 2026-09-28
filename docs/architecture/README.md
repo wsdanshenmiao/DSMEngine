@@ -16,13 +16,13 @@
 
 ## 系统地图
 
-- `DSMEngine/Runtime/Core/`：窗口、输入、日志、计时和性能采样。
-- `DSMEngine/Runtime/Framework/`：Scene、GameObject、组件和 ECS 集成。
-- `DSMEngine/Runtime/Graphics/`：图形 API 抽象和 D3D12 后端。
-- `DSMEngine/Runtime/Render/`：渲染管线、pass、渲染资源和模型加载。
-- `DSMEngine/Runtime/Math/`：数学基础类型和空间查询。
-- `DSMEngine/Editor/`：编辑器外壳和 ImGui 集成。
-- `DSMEngine/Shaders/`：HLSL 着色器代码。
+- `Engine/Source/Runtime/Core/`：窗口、输入、日志、计时和性能采样。
+- `Engine/Source/Runtime/Framework/`：Scene、GameObject、组件和 ECS 集成。
+- `Engine/Source/Runtime/Graphics/`：图形 API 抽象和 D3D12 后端。
+- `Engine/Source/Runtime/Render/`：渲染管线、pass、渲染资源和模型加载。
+- `Engine/Source/Runtime/Math/`：数学基础类型和空间查询。
+- `Engine/Source/Editor/`：编辑器外壳和 ImGui 集成。
+- `Engine/Shaders/`：HLSL 着色器代码。
 
 ## 记录原则
 

@@ -12,6 +12,8 @@
 - C++ 源码或头文件改动：先运行 `xmake` 或 `xmake build PBR`。
 - 渲染、着色器、资源生命周期、场景或编辑器行为改动：先运行 `xmake build PBR`，再运行 `xmake run PBR` 做人工观察。
 - 构建图、目标或工程生成规则变化：运行 `xmake`；需要刷新 Visual Studio 工程时，再运行 `xmake project -k vsxmake2022`。
+- CMake 构建入口或第三方接入变化：运行 `cmake --preset engine` 与对应项目 preset，再运行 `cmake --build <build-dir> --config Debug --target <target>`。
+- 项目锚点或资源路径变化：运行 `tools\\dsm.ps1 check <project.dsmproj>`，再从仓库根目录和项目目录分别验证同一项目描述。
 - release、性能、优化或配置敏感变更：运行 `xmake f -m release && xmake`，必要时再切回 debug 配置。
 - 多阶段、跨模块或需要多条验证路径的任务：在 `docs/exec-plans/active/` 的 ExecPlan 中写明验证矩阵。
 

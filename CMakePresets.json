@@ -1,0 +1,45 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/cmake/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+      }
+    },
+    {
+      "name": "engine",
+      "inherits": "base",
+      "cacheVariables": {
+        "DSM_BUILD_PROJECTS": "OFF",
+        "DSM_BUILD_EDITOR": "OFF"
+      }
+    },
+    {
+      "name": "pbr",
+      "inherits": "base",
+      "cacheVariables": {
+        "DSM_PROJECT_FILE": "${sourceDir}/Projects/PBR/PBR.dsmproj"
+      }
+    },
+    {
+      "name": "raytracing",
+      "inherits": "base",
+      "cacheVariables": {
+        "DSM_PROJECT_FILE": "${sourceDir}/Projects/RayTracing/RayTracing.dsmproj"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "engine-debug", "configurePreset": "engine", "configuration": "Debug", "targets": ["DSMEngine"] },
+    { "name": "engine-release", "configurePreset": "engine", "configuration": "Release", "targets": ["DSMEngine"] },
+    { "name": "pbr-debug", "configurePreset": "pbr", "configuration": "Debug", "targets": ["PBR"] },
+    { "name": "pbr-release", "configurePreset": "pbr", "configuration": "Release", "targets": ["PBR"] },
+    { "name": "raytracing-debug", "configurePreset": "raytracing", "configuration": "Debug", "targets": ["RayTracing"] },
+    { "name": "raytracing-release", "configurePreset": "raytracing", "configuration": "Release", "targets": ["RayTracing"] }
+  ]
+}
