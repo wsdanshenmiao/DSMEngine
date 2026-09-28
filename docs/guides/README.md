@@ -8,13 +8,13 @@
 
 1. 阅读直接受影响文件和附近已有写法。
 2. 做最小范围修改。
-3. 按 `docs/verification.md` 运行最小验证。
+3. 按 `Docs/Verification.md` 运行最小验证。
 4. 汇报修改文件和验证结果。
 
 ### 复杂变更
 
 1. 阅读 `PLANS.md`。
-2. 在 `docs/exec-plans/active/` 创建 Exec-Plan。
+2. 在 `Docs/ExecPlans/Active/` 创建 Exec-Plan。
 3. 调查并把发现写回计划。
 4. 以小步循环实现。
 5. 验证、记录证据，并归档计划。

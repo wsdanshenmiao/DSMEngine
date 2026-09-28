@@ -4,12 +4,12 @@
 
 ## 目录地图
 
-- `architecture/`：架构说明和既有模块分析入口。
-- `exec-plans/`：复杂任务的进行中计划和完成归档。
-- `guides/`：可复用工作流和操作指南。
-- `knowledge/`：高频复用的活知识。
-- `reviews/`：Review 记录、验证证据和变更后检查。
-- `verification.md`：权威验证入口。
+- `Architecture/`：架构说明和既有模块分析入口。
+- `ExecPlans/`：复杂任务的进行中计划和完成归档。
+- `Guides/`：可复用工作流和操作指南。
+- `Knowledge/`：高频复用的活知识。
+- `Reviews/`：Review 记录、验证证据和变更后检查。
+- `Verification.md`：权威验证入口。
 
 ## 维护规则
 

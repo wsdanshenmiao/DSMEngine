@@ -2,7 +2,7 @@
 
 本文定义仓库级验证协议：如何找到稳定验证入口、验证产物应如何组织、失败时按什么路线排查。
 
-具体测试用例、fixture、场景、阈值和命令参数不在本文维护；这些内容放在 `docs/guides/verification-workflows.md`、对应 workflow 文档或未来的 `tests/*/README.md` 中。
+具体测试用例、fixture、场景、阈值和命令参数不在本文维护；这些内容放在 `Docs/Guides/VerificationWorkflows.md`、对应 workflow 文档或未来的 `tests/*/README.md` 中。
 
 ## 稳定入口
 
@@ -13,9 +13,9 @@
 - 渲染、着色器、资源生命周期、场景或编辑器行为改动：先运行 `xmake build PBR`，再运行 `xmake run PBR` 做人工观察。
 - 构建图、目标或工程生成规则变化：运行 `xmake`；需要刷新 Visual Studio 工程时，再运行 `xmake project -k vsxmake2022`。
 - CMake 构建入口或第三方接入变化：运行 `cmake --preset engine` 与对应项目 preset，再运行 `cmake --build <build-dir> --config Debug --target <target>`。
-- 项目锚点或资源路径变化：运行 `tools\\dsm.ps1 check <project.dsmproj>`，再从仓库根目录和项目目录分别验证同一项目描述。
+- 项目锚点或资源路径变化：运行 `Tools\\dsm.ps1 check <project.dsmproj>`，再从仓库根目录和项目目录分别验证同一项目描述。
 - release、性能、优化或配置敏感变更：运行 `xmake f -m release && xmake`，必要时再切回 debug 配置。
-- 多阶段、跨模块或需要多条验证路径的任务：在 `docs/exec-plans/active/` 的 ExecPlan 中写明验证矩阵。
+- 多阶段、跨模块或需要多条验证路径的任务：在 `Docs/ExecPlans/Active/` 的 ExecPlan 中写明验证矩阵。
 
 新增或改造 gate 时，必须同时明确：
 
@@ -32,9 +32,9 @@
 
 - 临时产物放在生成目录或任务专属输出目录中，例如 `build/verification/<task-slug>/`。
 - 持久记录写入当前 ExecPlan 的 `验证 (Validation)`、`进展 (Progress)` 或 `结果与复盘 (Outcomes & Retrospective)` 章节。
-- 没有 active ExecPlan 的轻量任务，可以把独立验证记录放入 `docs/reviews/`。
-- 不要把大型日志、截图、trace 或二进制产物直接放进 `docs/`。
-- 如果验证产物必须长期保留，只在 `docs/` 中保存摘要、路径、命令和结论。
+- 没有 active ExecPlan 的轻量任务，可以把独立验证记录放入 `Docs/Reviews/`。
+- 不要把大型日志、截图、trace 或二进制产物直接放进 `Docs/`。
+- 如果验证产物必须长期保留，只在 `Docs/` 中保存摘要、路径、命令和结论。
 
 推荐的 `status.raw.json` 字段：
 
@@ -69,13 +69,13 @@
 3. 再读主日志和辅助证据，按时间线确认失败发生在配置、编译、链接、启动、加载、流程推进、采样、阈值判定还是收口阶段。
 4. 将失败归类为输入错误、环境错误、资源缺失、流程未到达、阈值回归、运行期崩溃、超时或疑似 flaky。
 5. 只在能增加信息量时重跑；重跑时保留新旧输出目录，避免覆盖失败证据。
-6. 可复用的排查经验写入 `docs/knowledge/`；暂不处理的问题写入 `docs/exec-plans/tech-debt-tracker.md`；复杂修复写入 `docs/exec-plans/active/`。
+6. 可复用的排查经验写入 `Docs/Knowledge/`；暂不处理的问题写入 `Docs/ExecPlans/TechDebtTracker.md`；复杂修复写入 `Docs/ExecPlans/Active/`。
 
 ## 文档分工
 
-- `docs/verification.md`：只维护仓库级验证协议、产物规则和失败排查路线。
-- `docs/guides/verification-workflows.md`：维护 DSMEngine 常用验证 workflow。
-- `docs/exec-plans/active/`：维护复杂任务的验证矩阵和实时证据。
-- `docs/reviews/`：保存独立 review 和轻量验证记录。
-- `docs/knowledge/`：保存可复用排查经验。
-- `docs/exec-plans/tech-debt-tracker.md`：保存延期处理的问题。
+- `Docs/Verification.md`：只维护仓库级验证协议、产物规则和失败排查路线。
+- `Docs/Guides/VerificationWorkflows.md`：维护 DSMEngine 常用验证 workflow。
+- `Docs/ExecPlans/Active/`：维护复杂任务的验证矩阵和实时证据。
+- `Docs/Reviews/`：保存独立 review 和轻量验证记录。
+- `Docs/Knowledge/`：保存可复用排查经验。
+- `Docs/ExecPlans/TechDebtTracker.md`：保存延期处理的问题。

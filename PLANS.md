@@ -33,13 +33,13 @@ ExecPlan 也必须是活文档。开始实施后，要持续维护，而不是�
 
 ## 文件放置
 
-- 活跃计划放在 `docs/exec-plans/active/`。
-- 已完成计划放在 `docs/exec-plans/completed/`。
-- 技术债、清理项和暂不处理的问题记录在 `docs/exec-plans/tech-debt-tracker.md`。
-- 文件名建议使用日期前缀，例如 `2026-04-28-enable-harness-entrypoints.md`。
+- 活跃计划放在 `Docs/ExecPlans/Active/`。
+- 已完成计划放在 `Docs/ExecPlans/Completed/`。
+- 技术债、清理项和暂不处理的问题记录在 `Docs/ExecPlans/TechDebtTracker.md`。
+- 文件名建议使用日期前缀，例如 `2026-04-28-EnableHarnessEntrypoints.md`。
 - `PLANS.md` 只定义协议，不维护任务列表。
 
-本仓库采用 ExecPlan 目录规范，根目录为 `docs/exec-plans/`。
+本仓库采用 ExecPlan 目录规范，根目录为 `Docs/ExecPlans/`。
 
 ## 状态与关闭标准
 
