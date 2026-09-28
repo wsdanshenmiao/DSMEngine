@@ -187,35 +187,37 @@ xmake project -k vsxmake2022
 
 CMake preset 位于 [CMakePresets.json](CMakePresets.json)。当前 preset 使用 Visual Studio generator；如果本机 Visual Studio 版本不同，需要调整 preset 中的 `generator`。
 
+本文示例使用 --parallel 12。可根据 CPU、内存和磁盘速度调整；也可以通过 CMAKE_BUILD_PARALLEL_LEVEL 设置默认并行度。
+
 ### 只构建 Engine Runtime
 
 该 preset 构建 `DSMEngine` 静态库和验证目标，不构建 PBR/RayTracing 项目，也不构建 Editor：
 
 ```powershell
 cmake --preset engine
-cmake --build build\cmake\engine --config Debug --target DSMEngine
-cmake --build build\cmake\engine --config Debug --target VirtualFileSystemTests
+cmake --build build\cmake\engine --config Debug --target DSMEngine --parallel 12
+cmake --build build\cmake\engine --config Debug --target VirtualFileSystemTests --parallel 12
 ```
 
 ### 构建 PBR
 
 ```powershell
 cmake --preset pbr
-cmake --build build\cmake\pbr --config Debug --target PBR
+cmake --build build\cmake\pbr --config Debug --target PBR --parallel 12
 ```
 
 ### 构建 RayTracing
 
 ```powershell
 cmake --preset raytracing
-cmake --build build\cmake\raytracing --config Debug --target RayTracing
+cmake --build build\cmake\raytracing --config Debug --target RayTracing --parallel 12
 ```
 
 ### CMake Release 构建
 
 ```powershell
-cmake --build build\cmake\pbr --config Release --target PBR
-cmake --build build\cmake\raytracing --config Release --target RayTracing
+cmake --build build\cmake\pbr --config Release --target PBR --parallel 12
+cmake --build build\cmake\raytracing --config Release --target RayTracing --parallel 12
 ```
 
 如果 `cmake` 不在 `PATH`，可以使用 Visual Studio 自带的 CMake，例如：
@@ -223,7 +225,7 @@ cmake --build build\cmake\raytracing --config Release --target RayTracing
 ```powershell
 $cmake = "C:\Program Files\Microsoft Visual Studio\18\Professional\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 & $cmake --preset pbr
-& $cmake --build build\cmake\pbr --config Debug --target PBR
+& $cmake --build build\cmake\pbr --config Debug --target PBR --parallel 12
 ```
 
 ## 项目检查、构建和运行
