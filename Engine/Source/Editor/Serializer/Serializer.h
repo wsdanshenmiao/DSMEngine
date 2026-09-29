@@ -18,6 +18,9 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <queue>
+#include <cstdint>
+#include <cstring>
+#include <limits>
 #include <system_error>
 #include <stdexcept>
 #ifdef _WIN32
@@ -141,6 +144,16 @@ namespace nlohmann {
     };
 
     template<>
+    struct adl_serializer<DSM::Math::Vector2> {
+        static void to_json(json& j, const DSM::Math::Vector2& vec) {
+            j = json::array({vec.Get(0), vec.Get(1)});
+        }
+        static void from_json(const json& j, DSM::Math::Vector2& vec) {
+            vec = DSM::Math::Vector2{j.at(0).get<float>(), j.at(1).get<float>()};
+        }
+    };
+
+    template<>
     struct adl_serializer<DSM::Math::Vector3> {
         static void to_json(json& j, const DSM::Math::Vector3& vec) {
             j = json::array({vec.Get(0), vec.Get(1), vec.Get(2)});
@@ -260,9 +273,238 @@ namespace nlohmann {
         }
     };
 
+} // namespace nlohmann
+
+namespace DSM::SerializationDetail {
+    using json = nlohmann::json;
+
+        inline json SerializeBounds(const DSM::Math::AxisAlignedBox& bounds)
+        {
+            if (!bounds.IsValid()) {
+                return nullptr;
+            }
+            return {
+                {"min", bounds.GetMin()},
+                {"max", bounds.GetMax()}};
+        }
+
+        inline bool DeserializeBounds(const json& value, DSM::Math::AxisAlignedBox& bounds)
+        {
+            if (!value.is_object() || !value.contains("min") || !value.contains("max")) {
+                return false;
+            }
+            bounds = DSM::Math::AxisAlignedBox{
+                value.at("min").get<DSM::Math::Vector3>(),
+                value.at("max").get<DSM::Math::Vector3>()};
+            return bounds.IsValid();
+        }
+
+        inline json SerializeMesh(const DSM::Mesh& mesh)
+        {
+            json value = {
+                {"name", mesh.name},
+                {"indexFormat", static_cast<std::uint32_t>(mesh.indexFormat)},
+                {"vertices", json::array()},
+                {"normals", json::array()},
+                {"tangents", json::array()},
+                {"uv", json::array()},
+                {"subMeshes", json::array()},
+                {"bounds", SerializeBounds(mesh.bounds)}};
+
+            for (const auto& vertex : mesh.vertices) {
+                value["vertices"].push_back(vertex);
+            }
+            for (const auto& normal : mesh.normals) {
+                value["normals"].push_back(normal);
+            }
+            for (const auto& tangent : mesh.tangents) {
+                value["tangents"].push_back(tangent);
+            }
+            for (const auto& uv : mesh.uv) {
+                value["uv"].push_back(uv);
+            }
+
+            for (size_t subMeshIndex = 0; subMeshIndex < mesh.GetSubMeshCount(); ++subMeshIndex) {
+                const auto subMesh = mesh.GetSubMesh(subMeshIndex);
+                json subMeshValue = {
+                    {"primitiveType", static_cast<std::uint32_t>(subMesh.primitiveType)},
+                    {"vertexOffset", subMesh.vertexOffset},
+                    {"bounds", SerializeBounds(subMesh.bounds)},
+                    {"indices", json::array()}};
+                const size_t indexStride = mesh.indexFormat == DSM::Format::R16_UINT
+                    ? sizeof(std::uint16_t)
+                    : mesh.indexFormat == DSM::Format::R32_UINT ? sizeof(std::uint32_t) : 0;
+                if (indexStride > 0 &&
+                    subMesh.indexOffset + subMesh.indexCount <= mesh.indices.size() / indexStride) {
+                    for (size_t index = 0; index < subMesh.indexCount; ++index) {
+                        std::uint64_t value{};
+                        std::memcpy(
+                            &value,
+                            mesh.indices.data() + (subMesh.indexOffset + index) * indexStride,
+                            indexStride);
+                        subMeshValue["indices"].push_back(value);
+                    }
+                }
+                value["subMeshes"].push_back(std::move(subMeshValue));
+            }
+            return value;
+        }
+
+        inline std::shared_ptr<DSM::Mesh> DeserializeMesh(const json& value)
+        {
+            if (!value.is_object() || !value.contains("vertices") ||
+                !value.at("vertices").is_array() || value.at("vertices").empty() ||
+                !value.contains("subMeshes") || !value.at("subMeshes").is_array()) {
+                return nullptr;
+            }
+
+            const auto indexFormatValue = value.value(
+                "indexFormat", static_cast<std::uint32_t>(DSM::Format::R32_UINT));
+            if (indexFormatValue != static_cast<std::uint32_t>(DSM::Format::R16_UINT) &&
+                indexFormatValue != static_cast<std::uint32_t>(DSM::Format::R32_UINT)) {
+                return nullptr;
+            }
+
+            auto mesh = std::make_shared<DSM::Mesh>();
+            mesh->SetName(value.value("name", std::string{}))
+                .SetIndexFormat(static_cast<DSM::Format>(indexFormatValue));
+
+            auto readVectorArray = [&value](const char* name, auto convert) {
+                using Element = std::invoke_result_t<decltype(convert), const json&>;
+                std::vector<Element> result{};
+                if (!value.contains(name) || !value.at(name).is_array()) {
+                    return result;
+                }
+                result.reserve(value.at(name).size());
+                for (const auto& element : value.at(name)) {
+                    result.push_back(convert(element));
+                }
+                return result;
+            };
+            mesh->SetVertices(readVectorArray("vertices", [](const json& element) {
+                return element.get<DSM::Math::Vector3>();
+            }));
+            mesh->SetNormals(readVectorArray("normals", [](const json& element) {
+                return element.get<DSM::Math::Vector3>();
+            }));
+            mesh->SetTangents(readVectorArray("tangents", [](const json& element) {
+                return element.get<DSM::Math::Vector4>();
+            }));
+            mesh->SetUVs(readVectorArray("uv", [](const json& element) {
+                return element.get<DSM::Math::Vector2>();
+            }));
+
+            const auto primitiveTypeMax = static_cast<std::uint32_t>(DSM::PrimitiveType::PatchList);
+            const auto indexMax = indexFormatValue == static_cast<std::uint32_t>(DSM::Format::R16_UINT)
+                ? static_cast<std::uint64_t>(std::numeric_limits<std::uint16_t>::max())
+                : static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max());
+            const auto isValidVertexIndex = [vertexCount = mesh->vertices.size()](
+                std::uint64_t index, size_t vertexOffset) {
+                return vertexOffset <= vertexCount && index < vertexCount - vertexOffset;
+            };
+            for (const auto& subMeshValue : value.at("subMeshes")) {
+                if (!subMeshValue.is_object() || !subMeshValue.contains("indices") ||
+                    !subMeshValue.at("indices").is_array()) {
+                    return nullptr;
+                }
+                const auto primitiveTypeValue = subMeshValue.value("primitiveType", 0u);
+                if (primitiveTypeValue > primitiveTypeMax) {
+                    return nullptr;
+                }
+                const auto vertexOffset = subMeshValue.value("vertexOffset", size_t{});
+                const auto bounds = subMeshValue.contains("bounds")
+                    ? [&]() {
+                        DSM::Math::AxisAlignedBox result{};
+                        DeserializeBounds(subMeshValue.at("bounds"), result);
+                        return result;
+                    }()
+                    : DSM::Math::AxisAlignedBox{};
+                if (indexFormatValue == static_cast<std::uint32_t>(DSM::Format::R16_UINT)) {
+                    std::vector<std::uint16_t> indices{};
+                    for (const auto& indexValue : subMeshValue.at("indices")) {
+                        const auto index = indexValue.get<std::uint64_t>();
+                        if (index > indexMax || !isValidVertexIndex(index, vertexOffset)) {
+                            return nullptr;
+                        }
+                        indices.push_back(static_cast<std::uint16_t>(index));
+                    }
+                    if (indices.empty()) {
+                        return nullptr;
+                    }
+                    mesh->SetIndices<std::uint16_t>(
+                        std::span<const std::uint16_t>(indices.data(), indices.size()),
+                        static_cast<DSM::PrimitiveType>(primitiveTypeValue),
+                        mesh->GetSubMeshCount(), bounds, vertexOffset);
+                }
+                else {
+                    std::vector<std::uint32_t> indices{};
+                    for (const auto& indexValue : subMeshValue.at("indices")) {
+                        const auto index = indexValue.get<std::uint64_t>();
+                        if (index > indexMax || !isValidVertexIndex(index, vertexOffset)) {
+                            return nullptr;
+                        }
+                        indices.push_back(static_cast<std::uint32_t>(index));
+                    }
+                    if (indices.empty()) {
+                        return nullptr;
+                    }
+                    mesh->SetIndices<std::uint32_t>(
+                        std::span<const std::uint32_t>(indices.data(), indices.size()),
+                        static_cast<DSM::PrimitiveType>(primitiveTypeValue),
+                        mesh->GetSubMeshCount(), bounds, vertexOffset);
+                }
+            }
+
+            if (value.contains("bounds")) {
+                DeserializeBounds(value.at("bounds"), mesh->bounds);
+            }
+            mesh->UploadBuffer();
+            return mesh;
+        }
+
+        inline json SerializeMaterial(const DSM::Material& material)
+        {
+            return {
+                {"baseColor", material.GetBaseColor()},
+                {"emissiveColor", material.GetEmissiveColor()},
+                {"normalTexScale", material.GetNormalTexScale()},
+                {"metallicFactor", material.GetMetallicFactor()},
+                {"roughnessFactor", material.GetRoughnessFactor()},
+                {"bothSide", material.IsBothSide()},
+                {"transparent", material.IsTransparent()}};
+        }
+
+        inline std::shared_ptr<DSM::Material> DeserializeMaterial(const json& value)
+        {
+            if (!value.is_object()) {
+                return nullptr;
+            }
+            auto material = std::make_shared<DSM::Material>(
+                DSM::Shader::Find("/EngineShaders/ForwardShader/Passes/LitPass.hlsl"));
+            if (value.contains("baseColor")) material->SetBaseColor(value.at("baseColor").get<DSM::Math::Vector4>());
+            if (value.contains("emissiveColor")) material->SetEmissiveColor(value.at("emissiveColor").get<DSM::Math::Vector4>());
+            material->SetNormalTexScale(value.value("normalTexScale", 1.0f));
+            material->SetMetallicFactor(value.value("metallicFactor", 0.0f));
+            material->SetRoughnessFactor(value.value("roughnessFactor", 1.0f));
+            material->SetBothSide(value.value("bothSide", false));
+            material->SetTransparent(value.value("transparent", false));
+            return material;
+        }
+}
+
+namespace nlohmann {
+
     template<>
     struct adl_serializer<DSM::MeshRenderer> {
         static void to_json(json& j, const DSM::MeshRenderer& renderer) {
+            j = json::object();
+            j["renderLayer"] = renderer.GetRenderLayer();
+            j["castShadow"] = renderer.CastShadow();
+            j["receiveShadow"] = renderer.ReceiveShadow();
+            j["enabled"] = renderer.IsEnabled();
+            j["bounds"] = DSM::SerializationDetail::SerializeBounds(renderer.GetBounds());
+            j["localBounds"] = DSM::SerializationDetail::SerializeBounds(renderer.GetLocalBounds());
+
             if(auto model = renderer.GetModel(); model != nullptr){
                 j["assetPath"] = model->filePath;
                 size_t index = 0;
@@ -273,42 +515,90 @@ namespace nlohmann {
                     }
                 }
             }
+            else if (auto mesh = renderer.GetMesh(); mesh != nullptr) {
+                j["mesh"] = DSM::SerializationDetail::SerializeMesh(*mesh);
+                j["materialIndices"] = json::array();
+                for (size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex) {
+                    j["materialIndices"].push_back(renderer.GetMaterialIndexOrDefault(subMeshIndex));
+                }
+                j["materials"] = json::array();
+                for (const auto& material : renderer.GetMaterials()) {
+                    j["materials"].push_back(
+                        material != nullptr ? DSM::SerializationDetail::SerializeMaterial(*material) : json(nullptr));
+                }
+            }
         }
         static void from_json(const json& j, DSM::MeshRenderer& renderer) {
-            if(j.contains("assetPath")){
+            if (!j.is_object()) {
+                return;
+            }
+
+            if (j.contains("assetPath")) {
                 const std::string assetPath = j.at("assetPath").get<std::string>();
                 auto model = DSM::Model::LoadModel(assetPath);
                 if(model == nullptr){
                     DSM_CORE_ERROR("Failed to load model from virtual path: {}", assetPath);
-                    return;
                 }
+                else {
+                    size_t meshIndex = j.value("meshIndex", size_t(-1));
+                    if(meshIndex < model->meshes.size()){
+                        renderer.SetMesh(model->meshes[meshIndex]);
+                        auto modelMats = model->materials;
+                        std::map<std::shared_ptr<DSM::Material>, size_t> materials{};
+                        std::vector<std::shared_ptr<DSM::Material>> meshMaterials{};
+                        if (meshIndex < model->meshMaterialIndices.size()) {
+                            for(const auto& [i, matIndex] : model->meshMaterialIndices[meshIndex] | std::views::enumerate){
+                                if(matIndex >= model->materials.size()){
+                                    continue;
+                                }
+                                size_t index = 0;
+                                if(materials.contains(modelMats[matIndex])){
+                                    index = materials[modelMats[matIndex]];
+                                }
+                                else{
+                                    index = materials.size();
+                                    materials[modelMats[matIndex]] = index;
+                                    meshMaterials.push_back(modelMats[matIndex]);
+                                }
+                                renderer.SetMaterialIndex(i, index);
+                            }
+                        }
+                        renderer.SetMaterials(std::move(meshMaterials));
+                        renderer.SetModel(model);
+                    }
+                }
+            }
+            else if (j.contains("mesh")) {
+                if (auto mesh = DSM::SerializationDetail::DeserializeMesh(j.at("mesh")); mesh != nullptr) {
+                    renderer.SetMesh(mesh);
+                    renderer.SetModel(nullptr);
+                    if (j.contains("materials") && j.at("materials").is_array()) {
+                        std::vector<std::shared_ptr<DSM::Material>> materials{};
+                        materials.reserve(j.at("materials").size());
+                        for (const auto& materialValue : j.at("materials")) {
+                            materials.push_back(DSM::SerializationDetail::DeserializeMaterial(materialValue));
+                        }
+                        renderer.SetMaterials(std::move(materials));
+                    }
+                    if (j.contains("materialIndices") && j.at("materialIndices").is_array()) {
+                        for (size_t index = 0; index < j.at("materialIndices").size(); ++index) {
+                            renderer.SetMaterialIndex(index, j.at("materialIndices").at(index).get<size_t>());
+                        }
+                    }
+                }
+            }
 
-                size_t meshIndex = j.value("meshIndex", size_t(-1));
-                if(meshIndex >= model->meshes.size()){
-                    return;
-                }
-
-                renderer.SetMesh(model->meshes[meshIndex]);
-                auto modelMats = model->materials;
-                std::map<std::shared_ptr<DSM::Material>, size_t> materials{};
-                std::vector<std::shared_ptr<DSM::Material>> meshMaterials{};
-                for(const auto& [i, matIndex] : model->meshMaterialIndices[meshIndex] | std::views::enumerate){
-                    if(matIndex >= model->materials.size()){
-                        continue;
-                    }
-                    size_t index = 0;
-                    if(materials.contains(modelMats[matIndex])){
-                        index = materials[modelMats[matIndex]];
-                    }
-                    else{
-                        index = materials.size();
-                        materials[modelMats[matIndex]] = index;
-                        meshMaterials.push_back(modelMats[matIndex]);
-                    }
-                    renderer.SetMaterialIndex(i, index);
-                }
-                renderer.SetMaterials(std::move(meshMaterials));
-                renderer.SetModel(model);
+            if (j.contains("renderLayer")) renderer.SetRenderLayer(j.at("renderLayer").get<std::uint32_t>());
+            if (j.contains("castShadow")) renderer.SetCastShadow(j.at("castShadow").get<bool>());
+            if (j.contains("receiveShadow")) renderer.SetReceiveShadow(j.at("receiveShadow").get<bool>());
+            if (j.contains("enabled")) renderer.SetEnabled(j.at("enabled").get<bool>());
+            if (j.contains("localBounds")) {
+                DSM::Math::AxisAlignedBox bounds{};
+                if (DSM::SerializationDetail::DeserializeBounds(j.at("localBounds"), bounds)) renderer.SetLocalBounds(bounds);
+            }
+            if (j.contains("bounds")) {
+                DSM::Math::AxisAlignedBox bounds{};
+                if (DSM::SerializationDetail::DeserializeBounds(j.at("bounds"), bounds)) renderer.SetBounds(bounds);
             }
         }
     };

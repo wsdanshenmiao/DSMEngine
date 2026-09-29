@@ -632,8 +632,10 @@ bool TemporalSurfaceCompatible(GpuSurface current, GpuSurface history)
 {
     // 这里只验证 motion reprojection 是否仍指向同一表面。无偏支持域修正由
     // Algorithm 6 的 Z 完成，不能用该测试代替。
-    if ((current.ids.w & ValidSurface) == 0u || (history.ids.w & ValidSurface) == 0u) return false;
-    if (current.ids.x != history.ids.x || current.ids.z != history.ids.z) return false;
+    if ((current.ids.w & ValidSurface) == 0u || (history.ids.w & ValidSurface) == 0u)
+        return false;
+    if (current.ids.x != history.ids.x || current.ids.z != history.ids.z)
+        return false;
     float normalSimilarity = dot(
         SafeNormalize(current.normalRoughness.xyz, float3(0, 1, 0)),
         SafeNormalize(history.normalRoughness.xyz, float3(0, 1, 0)));

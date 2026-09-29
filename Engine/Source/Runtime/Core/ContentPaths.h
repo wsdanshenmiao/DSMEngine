@@ -23,11 +23,11 @@ namespace DSM::ContentPaths
     VirtualFileSystem& GetFileSystem() noexcept;
 
     std::expected<std::filesystem::path, PathError>
-    ResolveVirtualForRead(std::string_view virtualPath);
+        ResolveVirtualForRead(std::string_view virtualPath);
     std::expected<std::filesystem::path, PathError>
-    ResolveVirtualForWrite(std::string_view virtualPath);
+        ResolveVirtualForWrite(std::string_view virtualPath);
     std::expected<VirtualPath, PathError>
-    ToVirtualPath(const std::filesystem::path& physicalPath);
+        ToVirtualPath(const std::filesystem::path& physicalPath);
 
     // 仅用于内部加载流程：虚拟路径走 VFS，绝对物理路径用于解析模型内部相对依赖。
     std::filesystem::path ResolveContent(const std::filesystem::path& path);

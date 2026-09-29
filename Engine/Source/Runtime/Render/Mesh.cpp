@@ -195,7 +195,7 @@ namespace DSM {
 
     void Mesh::UploadBuffer()
     {
-		if(indexFormat == Format::R16_FLOAT){
+		if(indexFormat == Format::R16_UINT){
 			SetIndexBufferData<uint16_t>(std::span<const uint16_t>((uint16_t*)indices.data(), indices.size() / sizeof(uint16_t)), 0);
 		}
 		else{

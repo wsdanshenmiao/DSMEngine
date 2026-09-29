@@ -192,8 +192,7 @@ namespace DSM::ContentPaths
         return g_FileSystem;
     }
 
-    std::expected<std::filesystem::path, PathError>
-    ResolveVirtualForRead(std::string_view virtualPath)
+    std::expected<std::filesystem::path, PathError> ResolveVirtualForRead(std::string_view virtualPath)
     {
         auto parsed = VirtualPath::Parse(virtualPath);
         if (!parsed) {
@@ -202,8 +201,7 @@ namespace DSM::ContentPaths
         return g_FileSystem.ResolveForRead(*parsed);
     }
 
-    std::expected<std::filesystem::path, PathError>
-    ResolveVirtualForWrite(std::string_view virtualPath)
+    std::expected<std::filesystem::path, PathError> ResolveVirtualForWrite(std::string_view virtualPath)
     {
         auto parsed = VirtualPath::Parse(virtualPath);
         if (!parsed) {
