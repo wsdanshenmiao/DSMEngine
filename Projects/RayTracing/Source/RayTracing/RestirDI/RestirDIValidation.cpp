@@ -238,6 +238,9 @@ namespace DSM::RestirDI {
             uint64_t hitPixels = 0;
             uint64_t validReservoirs = 0;
             uint64_t reservoirsWithSamples = 0;
+            uint64_t positiveMReservoirs = 0;
+            uint64_t zRangeEligibleReservoirs = 0;
+            uint64_t zRangeValidReservoirs = 0;
             uint64_t normalizationValidReservoirs = 0;
             uint64_t supportCorrectedReservoirs = 0;
             uint64_t temporalAccepted = 0;
@@ -253,7 +256,10 @@ namespace DSM::RestirDI {
             float maximumReservoirW = 0.0f;
             float minimumSupportRatio = 1.0f;
             size_t maximumLuminanceIndex = 0;
-            for (size_t index = 0; index < snapshot.hdr.size(); ++index) {
+            const size_t capturedPixelCount = std::min({
+                snapshot.hdr.size(), snapshot.surfaces.size(), snapshot.reservoirSamples.size(),
+                snapshot.reservoirStats.size(), snapshot.acceptance.size()});
+            for (size_t index = 0; index < capturedPixelCount; ++index) {
                 const auto& color = snapshot.hdr[index];
                 const bool finite = std::isfinite(color.x) && std::isfinite(color.y) &&
                     std::isfinite(color.z) && std::isfinite(color.w);
@@ -272,9 +278,12 @@ namespace DSM::RestirDI {
                 const bool hasSample = sample.sourceType > 0u &&
                     sample.sourceType < sourceCounts.size() && stats.M > 0.0f &&
                     stats.W > 0.0f && std::isfinite(stats.M) && std::isfinite(stats.W);
-                const bool normalizationValid = hasSample && stats.normalizationM > 0.0f &&
+                const bool positiveM = stats.M > 0.0f && std::isfinite(stats.M);
+                const bool zInRange = hasSample && stats.normalizationM > 0.0f &&
                     stats.normalizationM <= stats.M * (1.0f + 1e-5f) &&
-                    std::isfinite(stats.normalizationM) && std::isfinite(stats.weightSum);
+                    std::isfinite(stats.normalizationM);
+                const bool normalizationValid = hasSample && zInRange &&
+                    std::isfinite(stats.weightSum);
                 const bool valid = hasSample && normalizationValid;
                 if (normalizationValid) {
                     minimumSupportRatio = std::min(
@@ -282,6 +291,9 @@ namespace DSM::RestirDI {
                     maximumReservoirW = std::max(maximumReservoirW, stats.W);
                 }
                 reservoirsWithSamples += hit && hasSample;
+                positiveMReservoirs += hit && positiveM;
+                zRangeEligibleReservoirs += hit && hasSample;
+                zRangeValidReservoirs += hit && zInRange;
                 normalizationValidReservoirs += hit && normalizationValid;
                 supportCorrectedReservoirs += hit && normalizationValid &&
                     stats.normalizationM < stats.M * (1.0f - 1e-5f);
@@ -295,13 +307,18 @@ namespace DSM::RestirDI {
                 maxVisibilitySamples = std::max(
                     maxVisibilitySamples, snapshot.acceptance[index].visibility);
             }
-            const double pixelCount = std::max<size_t>(snapshot.hdr.size(), 1);
+            const double pixelCount = std::max<size_t>(capturedPixelCount, 1);
             const uint64_t temporalEligibleSamples = hitPixels;
             return {
                 {"width", snapshot.width}, {"height", snapshot.height},
                 {"finite_ratio", finitePixels / pixelCount},
                 {"hit_pixels", hitPixels},
                 {"valid_reservoir_ratio", hitPixels > 0 ? double(validReservoirs) / hitPixels : 1.0},
+                {"positive_m_ratio", hitPixels > 0 ? double(positiveMReservoirs) / hitPixels : 1.0},
+                {"z_range_eligible", zRangeEligibleReservoirs},
+                {"z_range_valid", zRangeValidReservoirs},
+                {"z_range_ratio", zRangeEligibleReservoirs > 0
+                    ? double(zRangeValidReservoirs) / zRangeEligibleReservoirs : 1.0},
                 {"normalization_valid_ratio", reservoirsWithSamples > 0
                     ? double(normalizationValidReservoirs) / reservoirsWithSamples : 1.0},
                 {"support_corrected_reservoirs", supportCorrectedReservoirs},
@@ -551,16 +568,25 @@ namespace DSM::RestirDI {
             return output;
         }
 
-        bool MetricsPassed(const Json& metrics)
+        bool ReservoirFramePassed(const Json& metrics)
         {
             return metrics["finite_ratio"].get<double>() == 1.0 &&
                 metrics["valid_reservoir_ratio"].get<double>() >= 0.90 &&
+                metrics["positive_m_ratio"].get<double>() >= 0.90 &&
+                metrics["z_range_ratio"].get<double>() == 1.0 &&
                 metrics["normalization_valid_ratio"].get<double>() == 1.0 &&
+                metrics["visibility_samples"].get<uint64_t>() > 0 &&
+                metrics["max_visibility_samples"].get<uint32_t>() <= 1 &&
+                metrics["overexposed_ratio"].get<double>() <= 0.05;
+        }
+
+        bool MetricsPassed(const Json& metrics)
+        {
+            return ReservoirFramePassed(metrics) &&
                 metrics["support_corrected_reservoirs"].get<uint64_t>() > 0 &&
                 metrics["temporal_accept_ratio"].get<double>() >= 0.50 &&
                 metrics["spatial_accepted"].get<uint64_t>() > 0 &&
-                metrics["spatial_rejected"].get<uint64_t>() > 0 &&
-                metrics["overexposed_ratio"].get<double>() <= 0.05;
+                metrics["spatial_rejected"].get<uint64_t>() > 0;
         }
     }
 
@@ -656,13 +682,119 @@ namespace DSM::RestirDI {
         ValidationSnapshot motion{};
         ValidationSnapshot noShadow{};
         auto& settings = pipelinePtr->GetSettings();
+        bool artifactsOk = true;
+        auto validateReuseCombination = [&](const char* name, bool temporal, bool spatial) {
+            settings.enableTemporalReuse = temporal;
+            settings.enableSpatialReuse = spatial;
+            settings.renderMode = RenderMode::UnbiasedRestir;
+            settings.debugView = DebugView::Final;
+            pipelinePtr->ResetHistory();
+
+            RunFrames(engine, 1);
+            ValidationSnapshot firstFrame{};
+            const bool firstCaptured = CaptureImage(*pipelinePtr, *renderer,
+                options.outputDirectory / (std::string(name) + "-first.bmp"),
+                firstFrame, captureError);
+
+            constexpr uint32_t followupFrameCount = 3u;
+            const Json firstMetrics = CalculateMetrics(firstFrame);
+            const bool firstFramePassed = firstCaptured && ReservoirFramePassed(firstMetrics);
+            const bool temporalFirstPassed =
+                firstMetrics["temporal_accepted_samples"].get<uint64_t>() == 0;
+            const bool spatialFirstPassed = spatial
+                ? firstMetrics["spatial_accepted"].get<uint64_t>() > 0
+                : firstMetrics["spatial_accepted"].get<uint64_t>() == 0;
+            Json followupFrames = Json::array();
+            Json followupMetrics = Json::object();
+            bool followupCaptured = true;
+            bool followupFramePassed = true;
+            bool temporalFollowupPassed = true;
+            bool spatialFollowupPassed = true;
+            bool spatialRejectedPassed = spatial
+                ? firstMetrics["spatial_rejected"].get<uint64_t>() > 0
+                : firstMetrics["spatial_rejected"].get<uint64_t>() == 0;
+            for (uint32_t followupIndex = 0; followupIndex < followupFrameCount; ++followupIndex) {
+                RunFrames(engine, 1);
+                ValidationSnapshot followupFrame{};
+                std::string followupFilename = std::string(name) + "-followup-" +
+                    std::to_string(followupIndex + 1u) + ".bmp";
+                if (followupIndex + 1u == followupFrameCount)
+                    followupFilename = std::string(name) + "-followup.bmp";
+                const bool captured = CaptureImage(*pipelinePtr, *renderer,
+                    options.outputDirectory / followupFilename, followupFrame, captureError);
+                const Json frameMetrics = CalculateMetrics(followupFrame);
+                followupCaptured &= captured;
+                followupFramePassed &= captured && ReservoirFramePassed(frameMetrics);
+                temporalFollowupPassed &= temporal
+                    ? frameMetrics["temporal_accepted_samples"].get<uint64_t>() > 0
+                    : frameMetrics["temporal_accepted_samples"].get<uint64_t>() == 0;
+                spatialFollowupPassed &= spatial
+                    ? frameMetrics["spatial_accepted"].get<uint64_t>() > 0
+                    : frameMetrics["spatial_accepted"].get<uint64_t>() == 0;
+                spatialRejectedPassed &= spatial
+                    ? frameMetrics["spatial_rejected"].get<uint64_t>() > 0
+                    : frameMetrics["spatial_rejected"].get<uint64_t>() == 0;
+                followupMetrics = frameMetrics;
+                followupFrames.push_back(frameMetrics);
+            }
+            const bool passed = firstFramePassed && followupFramePassed &&
+                temporalFirstPassed && temporalFollowupPassed && spatialFirstPassed &&
+                spatialFollowupPassed && spatialRejectedPassed;
+            return Json{
+                {"name", name}, {"temporal_enabled", temporal}, {"spatial_enabled", spatial},
+                {"followup_frame_count", followupFrameCount},
+                {"first_frame_captured", firstCaptured},
+                {"followup_frame_captured", followupCaptured},
+                {"first_frame", firstMetrics}, {"followup_frame", followupMetrics},
+                {"followup_frames", followupFrames},
+                {"expected", {
+                    {"first_temporal_acceptance", 0},
+                    {"followup_temporal_acceptance", temporal ? "positive" : "zero"},
+                    {"first_spatial_acceptance", spatial ? "positive" : "zero"},
+                    {"followup_spatial_acceptance", spatial ? "positive" : "zero"},
+                    {"spatial_rejection", spatial ? "positive" : "zero"}}},
+                {"checks", {
+                    {"first_frame_invariants", firstFramePassed},
+                    {"followup_frame_invariants", followupFramePassed},
+                    {"temporal_first_frame", temporalFirstPassed},
+                    {"temporal_followup", temporalFollowupPassed},
+                    {"spatial_first_frame", spatialFirstPassed},
+                    {"spatial_followup", spatialFollowupPassed},
+                    {"spatial_rejected", spatialRejectedPassed}}},
+                {"artifacts_ok", firstCaptured && followupCaptured},
+                {"passed", passed}};
+        };
+
+        Json reuseCombinations = Json::array();
+        bool reuseCombinationsPassed = true;
+        struct ReuseCombination
+        {
+            const char* name;
+            bool temporal;
+            bool spatial;
+        };
+        const ReuseCombination combinations[] = {
+            {"temporal-spatial", true, true},
+            {"temporal-only", true, false},
+            {"spatial-only", false, true},
+            {"initial-only", false, false}};
+        for (const auto& combination : combinations) {
+            Json result = validateReuseCombination(
+                combination.name, combination.temporal, combination.spatial);
+            reuseCombinationsPassed &= result["passed"].get<bool>();
+            artifactsOk &= result["artifacts_ok"].get<bool>();
+            reuseCombinations.push_back(std::move(result));
+        }
+        WriteJson(options.outputDirectory / "reuse-combinations.json", reuseCombinations);
+        settings.enableTemporalReuse = true;
+        settings.enableSpatialReuse = true;
 
         settings.enableAnalyticLights = true;
         settings.enableEmissiveTriangles = false;
         settings.enableEnvironment = false;
         pipelinePtr->ResetHistory();
         RunFrames(engine, 8);
-        bool artifactsOk = CaptureImage(*pipelinePtr, *renderer,
+        artifactsOk &= CaptureImage(*pipelinePtr, *renderer,
             options.outputDirectory / "analytic.bmp", analytic, captureError);
 
         settings.enableAnalyticLights = false;
@@ -795,6 +927,8 @@ namespace DSM::RestirDI {
         metrics["invalid_hdr_rejected"] = invalidHdrRejected;
         metrics["daylight_restored"] = daylightRestored;
         metrics["scene_surfaces"] = SceneSurfaceMetrics(*validationScene.scene, restir);
+        metrics["reuse_combinations"] = reuseCombinations;
+        metrics["reuse_combinations_passed"] = reuseCombinationsPassed;
 
         const uint32_t alphaStableID = static_cast<uint32_t>(entt::to_integral(validationScene.alphaObject));
         const auto opaquePixel = ProjectPixel(*renderer, {-1.575f, 1.9125f, 0.5f}, restir.width, restir.height);
@@ -843,7 +977,7 @@ namespace DSM::RestirDI {
             metrics["finite_ratio"].get<double>() == 1.0 &&
             metrics["visibility_samples"].get<uint64_t>() > 0u &&
             metrics["max_visibility_samples"].get<uint32_t>() <= 1u;
-        const bool numericPassed = MetricsPassed(metrics) && sourceModesPassed &&
+        const bool numericPassed = MetricsPassed(metrics) && reuseCombinationsPassed && sourceModesPassed &&
             comparisonPassed && resizePassed && motionPassed && environmentLoadPassed &&
             alphaPassed && shadowMaskPassed && fixedOneSppPassed;
 

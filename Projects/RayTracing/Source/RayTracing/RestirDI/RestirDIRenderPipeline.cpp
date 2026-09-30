@@ -132,8 +132,8 @@ namespace DSM::RestirDI {
         TextureHandle dummyEnvironmentLatLong{};
         BufferHandle validationCounters{};
         std::array<BufferHandle, 2> surfaces{};
-        std::array<BufferHandle, 3> reservoirSamples{};
-        std::array<BufferHandle, 3> reservoirStats{};
+        std::array<BufferHandle, 2> reservoirSamples{};
+        std::array<BufferHandle, 2> reservoirStats{};
         std::array<BufferHandle, 2> acceptance{};
         BufferHandle finalAcceptance{};
         BufferHandle hdr{};
@@ -682,14 +682,13 @@ namespace DSM::RestirDI {
         int32_t finalReservoir = 0;
         if (m_Settings.renderMode != RenderMode::Reference) {
             const int32_t oldHistory = implementation.reservoirHistory;
-            const int32_t workA = oldHistory >= 0 ? (oldHistory + 1) % 3 : 0;
-            const int32_t workB = oldHistory >= 0 ? (oldHistory + 2) % 3 : 1;
+            const int32_t work = oldHistory >= 0 ? 1 - oldHistory : 0;
 
-            // Step 3：Initial RIS（论文 Algorithm 3）。
+            // Step 3：Initial RIS（论文 Algorithm 3）写入当前帧工作槽。
             auto initialSet = implementation.CreateBindingSet(FrameBindings{
                 .surfaceCurrent = implementation.surfaces[currentSurface],
-                .reservoirSampleOutput = implementation.reservoirSamples[workA],
-                .reservoirStatsOutput = implementation.reservoirStats[workA],
+                .reservoirSampleOutput = implementation.reservoirSamples[work],
+                .reservoirStatsOutput = implementation.reservoirStats[work],
                 .acceptanceOutput = implementation.acceptance[0]});
             commandList->SetComputeState(ComputeState{}
                 .SetPipeline(implementation.initialPipeline)
@@ -697,41 +696,39 @@ namespace DSM::RestirDI {
                 .AddBindingSet(implementation.textureSet));
             commandList->Dispatch(groupCountX, groupCountY, 1);
 
-            int32_t currentReservoir = workA;
+            int32_t currentReservoir = work;
             uint32_t currentAcceptance = 0;
             if (m_Settings.enableTemporalReuse && implementation.historyValid &&
                 implementation.surfaceHistory >= 0 && oldHistory >= 0) {
                 // Step 4：按 motion 重投影上一帧 Reservoir，并执行论文
-                // Algorithm 6 的 uniform MIS 无偏合并。
+                // Algorithm 6 的 uniform MIS 无偏合并。Temporal 原地更新 work：
+                // Shader 通过输出 UAV 读取当前值，避免同一物理 Buffer 同时绑定 SRV/UAV。
                 auto temporalSet = implementation.CreateBindingSet(FrameBindings{
                     .surfaceCurrent = implementation.surfaces[currentSurface],
                     .surfacePrevious = implementation.surfaces[implementation.surfaceHistory],
-                    .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
-                    .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
                     .reservoirHistorySample = implementation.reservoirSamples[oldHistory],
                     .reservoirHistoryStats = implementation.reservoirStats[oldHistory],
                     .acceptanceInput = implementation.acceptance[currentAcceptance],
-                    .reservoirSampleOutput = implementation.reservoirSamples[workB],
-                    .reservoirStatsOutput = implementation.reservoirStats[workB],
+                    .reservoirSampleOutput = implementation.reservoirSamples[work],
+                    .reservoirStatsOutput = implementation.reservoirStats[work],
                     .acceptanceOutput = implementation.acceptance[1]});
                 commandList->SetComputeState(ComputeState{}
                     .SetPipeline(implementation.temporalPipeline)
                     .AddBindingSet(temporalSet)
                     .AddBindingSet(implementation.textureSet));
                 commandList->Dispatch(groupCountX, groupCountY, 1);
-                currentReservoir = workB;
                 currentAcceptance = 1;
             }
 
             if (m_Settings.enableSpatialReuse) {
-                const int32_t outputReservoir = currentReservoir == workA ? workB : workA;
+                const int32_t outputReservoir = 1 - work;
                 const uint32_t outputAcceptance = 1u - currentAcceptance;
                 // Step 5：论文无偏配置固定一次空间 pass。Shader 第一遍选择
                 // 代表样本，第二遍重放同一邻居集合并求支持质量 Z。
                 auto spatialSet = implementation.CreateBindingSet(FrameBindings{
                     .surfaceCurrent = implementation.surfaces[currentSurface],
-                    .reservoirCurrentSample = implementation.reservoirSamples[currentReservoir],
-                    .reservoirCurrentStats = implementation.reservoirStats[currentReservoir],
+                    .reservoirCurrentSample = implementation.reservoirSamples[work],
+                    .reservoirCurrentStats = implementation.reservoirStats[work],
                     .acceptanceInput = implementation.acceptance[currentAcceptance],
                     .reservoirSampleOutput = implementation.reservoirSamples[outputReservoir],
                     .reservoirStatsOutput = implementation.reservoirStats[outputReservoir],

@@ -51,8 +51,10 @@ void TemporalReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
     uint height = g_Frame.resolutionFrame.y;
     uint index = pixel.y * width + pixel.x;
     GpuSurface surface = g_SurfaceCurrent[index];
-    GpuReservoirSample currentSample = g_ReservoirCurrentSample[index];
-    GpuReservoirStats currentStats = g_ReservoirCurrentStats[index];
+    // Temporal 在 Initial RIS 的同一工作槽上原地更新。每个像素先把 UAV
+    // 中的当前值读入局部变量，再写回同一索引；C++ 不为该槽绑定 current SRV。
+    GpuReservoirSample currentSample = g_ReservoirSampleOutput[index];
+    GpuReservoirStats currentStats = g_ReservoirStatsOutput[index];
     GpuReservoirSample outputSample;
     GpuReservoirStats outputStats;
     ReservoirClear(outputSample, outputStats);

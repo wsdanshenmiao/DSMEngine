@@ -6,7 +6,7 @@
     "name": "RayTracing",
     "plugins": [],
     "schemaVersion": 2,
-    "startupScene": "/Game/Scenes/Untitled.dsmscene",
+    "startupScene": "/Game/Scenes/Sponza.dsmscene",
     "startupTarget": "RayTracing",
     "targets": [
         "RayTracingGame",
