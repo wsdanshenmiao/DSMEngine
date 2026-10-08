@@ -4,6 +4,8 @@ target("DSMEngine")
 
     add_deps("EngineThirdParty")
     add_packages("assimp")
+    -- 提供 <dxcapi.h>、dxcompiler.lib，并让 dxcompiler.dll / dxil.dll 进入运行环境。
+    add_packages("directxshadercompiler")
     add_links("dxcompiler")
 
     add_includedirs(path.join(os.projectdir(), "Engine", "Source"), {public = true})

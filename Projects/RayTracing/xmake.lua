@@ -9,5 +9,4 @@ target("RayTracing")
     add_headerfiles("Source/RayTracing/**.h")
 
     add_rules("Imguiini")
-    add_rules("DXCRuntimeCopy")
 target_end()

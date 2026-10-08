@@ -44,3 +44,4 @@ vsxmake2026/
 tmp/
 *.claude
 *.cache
+.workbuddy/

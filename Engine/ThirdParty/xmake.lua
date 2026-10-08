@@ -28,6 +28,12 @@ package_end()
 
 add_requires("assimp", {system = false})
 
+-- DXC（dxcompiler.dll / dxil.dll / dxcompiler.lib / dxcapi.h）改用 xmake-repo 的官方包，
+-- 直接使用微软发布的 dxc dev kit，版本锁定为 1.8.2405。
+-- 这样构建不再依赖本机 Windows SDK 的目录布局（SDK 各版本 bin 目录并不保证携带 dxil.dll），
+-- 同时替代了原先 after_build 里手动复制 DXC 运行库的规则。
+add_requires("directxshadercompiler")
+
 target("EngineThirdParty")
     set_kind("static")
     set_targetdir(thirdPartyBinDir)
@@ -54,9 +60,6 @@ target("EngineThirdParty")
         path.join(thirdPartyDir, "imgui/backends/imgui_impl_glfw.cpp"),
         path.join(thirdPartyDir, "imgui/backends/imgui_impl_win32.cpp"))
     add_includedirs(path.join(thirdPartyDir, "imgui"), {public = true})
-
-    add_linkdirs(path.join(thirdPartyDir, "dxc/lib"))
-    add_includedirs(path.join(thirdPartyDir, "dxc/include"), {public = true})
 
     add_headerfiles(path.join(thirdPartyDir, "stb_image/**.h"))
     add_includedirs(path.join(thirdPartyDir, "stb_image"), {public = true})

@@ -9,5 +9,4 @@ target("PBR")
     add_headerfiles("Source/PBR/**.h")
 
     add_rules("Imguiini")
-    add_rules("DXCRuntimeCopy")
 target_end()

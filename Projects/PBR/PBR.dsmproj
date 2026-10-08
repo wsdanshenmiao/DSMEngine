@@ -3,10 +3,10 @@
     "modules": [
         "PBR"
     ],
-    "name": "PBR",
+    "name": "",
     "plugins": [],
     "schemaVersion": 2,
-    "startupScene": "/Game/Scenes/Sponza.dsmscene",
+    "startupScene": "/Game/Scenes/Untitled.dsmscene",
     "startupTarget": "PBR",
     "targets": [
         "PBRGame",
