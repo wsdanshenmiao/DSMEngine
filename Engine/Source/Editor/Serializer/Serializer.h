@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <cmath>
+#include <algorithm>
 #include <system_error>
 #include <stdexcept>
 #ifdef _WIN32
@@ -490,6 +492,52 @@ namespace DSM::SerializationDetail {
             material->SetTransparent(value.value("transparent", false));
             return material;
         }
+
+        inline size_t ResolveLegacyMeshIndex(const json& value, const DSM::Model& model, std::string_view objectName)
+        {
+            std::vector<size_t> candidates{};
+            for (size_t i = 0; i < model.meshes.size(); ++i) {
+                if (model.meshes[i] != nullptr && model.meshes[i]->GetName() == objectName)
+                    candidates.push_back(i);
+            }
+            DSM::Math::AxisAlignedBox savedBounds{};
+            const bool hasBounds = value.contains("localBounds") &&
+                DeserializeBounds(value.at("localBounds"), savedBounds);
+            auto matchesBounds = [&](size_t index) {
+                const auto& meshBounds = model.meshes[index]->bounds;
+                if (!meshBounds.IsValid()) return false;
+                for (size_t axis = 0; axis < 3; ++axis) {
+                    const float minA = savedBounds.GetMin().Get(axis);
+                    const float minB = meshBounds.GetMin().Get(axis);
+                    const float maxA = savedBounds.GetMax().Get(axis);
+                    const float maxB = meshBounds.GetMax().Get(axis);
+                    const auto boundsClose = [](float a, float b) {
+                        return std::isfinite(a) && std::isfinite(b) &&
+                            std::abs(a - b) <= 0.0002f + 0.000001f * std::max(std::abs(a), std::abs(b));
+                    };
+                    if (!boundsClose(minA, minB) || !boundsClose(maxA, maxB)) return false;
+                }
+                return true;
+            };
+            if (candidates.size() == 1 && hasBounds && !matchesBounds(candidates.front())) {
+                // 名称与另一块几何的盒冲突时，不能将用户改名误判为手工修改局部盒。
+                for (size_t i = 0; i < model.meshes.size(); ++i) {
+                    if (i != candidates.front() && model.meshes[i] != nullptr && matchesBounds(i))
+                        throw std::runtime_error("对象名称与局部包围盒指向不同网格");
+                }
+            }
+            if (candidates.size() > 1 && hasBounds) {
+                std::erase_if(candidates, [&](size_t index) { return !matchesBounds(index); });
+            }
+            if (candidates.empty() && hasBounds) {
+                for (size_t i = 0; i < model.meshes.size(); ++i) {
+                    if (model.meshes[i] != nullptr && matchesBounds(i)) candidates.push_back(i);
+                }
+            }
+            if (candidates.size() != 1)
+                throw std::runtime_error("旧场景无法凭唯一名称或局部包围盒确认网格身份");
+            return candidates.front();
+        }
 }
 
 namespace nlohmann {
@@ -502,18 +550,18 @@ namespace nlohmann {
             j["castShadow"] = renderer.CastShadow();
             j["receiveShadow"] = renderer.ReceiveShadow();
             j["enabled"] = renderer.IsEnabled();
-            j["bounds"] = DSM::SerializationDetail::SerializeBounds(renderer.GetBounds());
             j["localBounds"] = DSM::SerializationDetail::SerializeBounds(renderer.GetLocalBounds());
 
             if(auto model = renderer.GetModel(); model != nullptr){
-                j["assetPath"] = model->filePath;
-                size_t index = 0;
-                for(; index < model->meshes.size(); ++index){
-                    if(model->meshes[index] == renderer.GetMesh()){
-                        j["meshIndex"] = index;
-                        break;
-                    }
+                const auto it = std::ranges::find(model->meshes, renderer.GetMesh());
+                const auto index = static_cast<size_t>(std::distance(model->meshes.begin(), it));
+                if (it == model->meshes.end() || index >= model->meshNodeKeys.size()) {
+                    if (DSM::DSMEngine::sm_GlobalContext.loggerSystem != nullptr)
+                        DSM_CORE_ERROR("场景保存失败：模型 {} 中找不到渲染器网格的稳定键", model->filePath);
+                    throw std::runtime_error("模型网格缺少稳定标识");
                 }
+                j["assetPath"] = model->filePath;
+                j["meshKey"] = model->meshNodeKeys[index];
             }
             else if (auto mesh = renderer.GetMesh(); mesh != nullptr) {
                 j["mesh"] = DSM::SerializationDetail::SerializeMesh(*mesh);
@@ -536,37 +584,53 @@ namespace nlohmann {
             if (j.contains("assetPath")) {
                 const std::string assetPath = j.at("assetPath").get<std::string>();
                 auto model = DSM::Model::LoadModel(assetPath);
-                if(model == nullptr){
-                    DSM_CORE_ERROR("Failed to load model from virtual path: {}", assetPath);
+                const auto object = renderer.GetGameObject();
+                const std::string objectName = object != nullptr ? object->GetName() : "<unknown>";
+                auto fail = [&](const std::string& reason) -> void {
+                    if (DSM::DSMEngine::sm_GlobalContext.loggerSystem != nullptr)
+                        DSM_CORE_ERROR("场景网格恢复失败：对象 {}，模型 {}，旧索引 {}：{}",
+                            objectName, assetPath, j.value("meshIndex", size_t(-1)), reason);
+                    throw std::runtime_error("场景网格恢复失败：" + objectName + " / " + assetPath + " / " + reason);
+                };
+                if (model == nullptr) fail("模型资源不存在或加载失败");
+                if (model->meshNodeKeys.size() != model->meshes.size() ||
+                    model->meshMaterialIndices.size() != model->meshes.size()) {
+                    fail("模型网格标识或材质数组不完整");
+                }
+                std::vector<size_t> candidates{};
+                if (j.contains("meshKey")) {
+                    const auto key = j.at("meshKey").get<std::string>();
+                    for (size_t i = 0; i < model->meshes.size(); ++i) {
+                        if (model->meshNodeKeys[i] == key) candidates.push_back(i);
+                    }
+                    if (candidates.size() != 1) fail("meshKey 不存在或不唯一：" + key);
                 }
                 else {
-                    size_t meshIndex = j.value("meshIndex", size_t(-1));
-                    if(meshIndex < model->meshes.size()){
-                        renderer.SetMesh(model->meshes[meshIndex]);
-                        auto modelMats = model->materials;
-                        std::map<std::shared_ptr<DSM::Material>, size_t> materials{};
-                        std::vector<std::shared_ptr<DSM::Material>> meshMaterials{};
-                        if (meshIndex < model->meshMaterialIndices.size()) {
-                            for(const auto& [i, matIndex] : model->meshMaterialIndices[meshIndex] | std::views::enumerate){
-                                if(matIndex >= model->materials.size()){
-                                    continue;
-                                }
-                                size_t index = 0;
-                                if(materials.contains(modelMats[matIndex])){
-                                    index = materials[modelMats[matIndex]];
-                                }
-                                else{
-                                    index = materials.size();
-                                    materials[modelMats[matIndex]] = index;
-                                    meshMaterials.push_back(modelMats[matIndex]);
-                                }
-                                renderer.SetMaterialIndex(i, index);
-                            }
-                        }
-                        renderer.SetMaterials(std::move(meshMaterials));
-                        renderer.SetModel(model);
+                    // 旧格式的 meshIndex 由异步完成顺序决定，不能再用作网格身份。
+                    try {
+                        candidates.push_back(DSM::SerializationDetail::ResolveLegacyMeshIndex(j, *model, objectName));
+                    }
+                    catch (const std::runtime_error& error) {
+                        fail(error.what());
                     }
                 }
+                const size_t meshIndex = candidates.front();
+                renderer.SetMesh(model->meshes[meshIndex]);
+                std::map<std::shared_ptr<DSM::Material>, size_t> materials{};
+                std::vector<std::shared_ptr<DSM::Material>> meshMaterials{};
+                for (const auto& [i, matIndex] : model->meshMaterialIndices[meshIndex] | std::views::enumerate) {
+                    if (matIndex >= model->materials.size()) fail("子网格材质索引越界");
+                    size_t index = 0;
+                    if (auto it = materials.find(model->materials[matIndex]); it != materials.end()) index = it->second;
+                    else {
+                        index = materials.size();
+                        materials[model->materials[matIndex]] = index;
+                        meshMaterials.push_back(model->materials[matIndex]);
+                    }
+                    renderer.SetMaterialIndex(i, index);
+                }
+                renderer.SetMaterials(std::move(meshMaterials));
+                renderer.SetModel(model);
             }
             else if (j.contains("mesh")) {
                 if (auto mesh = DSM::SerializationDetail::DeserializeMesh(j.at("mesh")); mesh != nullptr) {
@@ -594,11 +658,9 @@ namespace nlohmann {
             if (j.contains("enabled")) renderer.SetEnabled(j.at("enabled").get<bool>());
             if (j.contains("localBounds")) {
                 DSM::Math::AxisAlignedBox bounds{};
-                if (DSM::SerializationDetail::DeserializeBounds(j.at("localBounds"), bounds)) renderer.SetLocalBounds(bounds);
-            }
-            if (j.contains("bounds")) {
-                DSM::Math::AxisAlignedBox bounds{};
-                if (DSM::SerializationDetail::DeserializeBounds(j.at("bounds"), bounds)) renderer.SetBounds(bounds);
+                if (j.at("localBounds").is_null()) renderer.SetLocalBounds(bounds);
+                else if (DSM::SerializationDetail::DeserializeBounds(j.at("localBounds"), bounds)) renderer.SetLocalBounds(bounds);
+                else throw std::runtime_error("无效的局部包围盒数据");
             }
         }
     };

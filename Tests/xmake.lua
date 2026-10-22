@@ -6,3 +6,13 @@
         add_includedirs(path.join(os.projectdir(), "Engine"), {public = true})
         add_files("VirtualFileSystem/VirtualFileSystemTests.cpp")
     target_end()
+
+    target("SceneBoundsTests")
+        set_kind("binary")
+        set_targetdir(path.join(os.projectdir(), "build", "verification", "scene-bounds"))
+        set_objectdir(path.join(os.projectdir(), "build", "verification", "scene-bounds", "obj"))
+        add_deps("DSMEngine")
+        add_includedirs(path.join(os.projectdir(), "Engine", "Source"))
+        add_includedirs(path.join(os.projectdir(), "Engine"))
+        add_files("SceneBounds/SceneBoundsTests.cpp")
+    target_end()

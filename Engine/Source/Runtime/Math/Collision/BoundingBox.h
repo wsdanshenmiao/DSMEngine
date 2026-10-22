@@ -106,11 +106,11 @@ namespace DSM::Math {
             return a;
         }
 
-        AxisAlignedBox& operator*=(const Transform& transform) noexcept
+        AxisAlignedBox& operator*=(const Matrix4& world) noexcept
         {
+            if (!IsValid()) return *this;
             auto center = GetCenter();
             auto extents = GetSize() * 0.5f;
-            Matrix4 world = transform.GetLocalToWorld();
             Matrix3 absWorld{
                 Vector3::Abs(Vector3{world.Get(0)}),
                 Vector3::Abs(Vector3{world.Get(1)}),
@@ -121,6 +121,10 @@ namespace DSM::Math {
             m_Min = center - extents;
             m_Max = center + extents;
             return *this;
+        }
+        AxisAlignedBox& operator*=(const Transform& transform) noexcept
+        {
+            return *this *= transform.GetLocalToWorld();
         }
 
     private:
@@ -140,6 +144,7 @@ namespace DSM::Math {
     };
 
     inline AxisAlignedBox operator*(AxisAlignedBox box, const Transform& transform) noexcept { return box *= transform; }
+    inline AxisAlignedBox operator*(AxisAlignedBox box, const Matrix4& world) noexcept { return box *= world; }
 
 
     class OrientedBox

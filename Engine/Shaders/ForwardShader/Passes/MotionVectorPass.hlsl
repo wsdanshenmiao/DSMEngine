@@ -48,7 +48,9 @@ float2 MotionVectorFullScreenPS(VaryingsFullScreen input) : SV_TARGET0
     float depth = gDepthTex.Sample(gPointClampSampler, input.uv);
     float clearDepth = (gObjIndexOrReverseZFlag != 0) ? 0.0f : 1.0f;
     const float eps = 1e-4f;
-    clip(abs(depth - clearDepth) - eps);
+    if(abs(depth - clearDepth) < eps)
+        return 0;
+
     float4 posWS = GetWorldPosition(input.uv, gCurrMatrix, depth);
 
     // 将当前世界位置变换到上一帧的裁剪空间

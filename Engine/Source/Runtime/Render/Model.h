@@ -24,6 +24,7 @@ namespace DSM {
         std::string filePath{};
         std::vector<std::shared_ptr<Mesh>> meshes{};
         std::vector<std::vector<uint32_t>> meshMaterialIndices{};
+        std::vector<std::string> meshNodeKeys{};
         std::vector<std::shared_ptr<Material>> materials{};
         Math::AxisAlignedBox boundingBox{};
 

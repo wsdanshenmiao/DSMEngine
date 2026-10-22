@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <list>
 #include <map>
 #include <thread>
 #include <future>
@@ -147,35 +148,27 @@ namespace DSM {
     void Model::ProcessNode(Model &model, const aiScene *scene)
     {
 		using MeshResult = std::pair<std::shared_ptr<Mesh>, std::vector<uint32_t>>;
-
-		auto consumeMeshFunc = [&model](MeshResult&& meshResult) {
-			auto [mesh, materialIndices] = std::move(meshResult);
-			if(mesh != nullptr) {
-				model.meshMaterialIndices.emplace_back(std::move(materialIndices));
-				Math::AxisAlignedBox::Union(model.boundingBox, mesh->bounds);
-				model.meshes.emplace_back(std::move(mesh));
-			}
-		};
-
 		const size_t maxThreadCount = std::max(std::thread::hardware_concurrency(), 1u);
-		std::list<std::future<MeshResult>> meshFutures{};
+		std::list<std::pair<size_t, std::future<MeshResult>>> meshFutures{};
+		std::vector<MeshResult> meshResults{};
+		std::vector<std::string> meshKeys{};
 
-		std::stack<const aiNode*> nodeStack{};
-		nodeStack.push(scene->mRootNode);
+		std::stack<std::pair<const aiNode*, std::string>> nodeStack{};
+		nodeStack.emplace(scene->mRootNode, "/");
 		while (!nodeStack.empty()) {
-			const auto* node = nodeStack.top();
+			auto [node, meshKey] = std::move(nodeStack.top());
 			nodeStack.pop();
 			if (node == nullptr) {
 				continue;
 			}
 
 			if(node->mNumMeshes > 0) {
-				// 回收已经完成的任务
+				// 按节点遍历的提交顺序占位，完成顺序不影响模型数据顺序
 				if(meshFutures.size() >= maxThreadCount) {
 					bool collected = false;
 					for(auto it = meshFutures.begin(); it != meshFutures.end();) {
-						if(it->wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-							consumeMeshFunc(it->get());
+						if(it->second.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+							meshResults[it->first] = it->second.get();
 							it = meshFutures.erase(it);
 							collected = true;
 						}
@@ -183,21 +176,36 @@ namespace DSM {
 							++it;
 						}
 					}
-					// 如果没有任务完成，则等待最早的一个任务完成
-					if(!collected){
-						consumeMeshFunc(meshFutures.front().get());
+					if(!collected) {
+						auto& [index, future] = meshFutures.front();
+						meshResults[index] = future.get();
 						meshFutures.pop_front();
 					}
 				}
-				meshFutures.emplace_back(std::async(GetMeshFromNode, node, scene));
+				const auto index = meshResults.size();
+				meshResults.emplace_back();
+				meshKeys.emplace_back(meshKey);
+				meshFutures.emplace_back(index, std::async(std::launch::async, GetMeshFromNode, node, scene));
 			}
 
-			nodeStack.push_range(std::span(node->mChildren, node->mNumChildren));
+			// 逆序压栈，保证兄弟节点按子索引从小到大遍历
+			for (size_t i = node->mNumChildren; i > 0; --i) {
+				nodeStack.emplace(node->mChildren[i - 1], meshKey + (meshKey == "/" ? "" : "/") + std::to_string(i - 1));
+			}
 		}
 
-		// 等待剩余的任务完成
-		for (auto& meshFuture : meshFutures) {
-			consumeMeshFunc(meshFuture.get());
+		// 所有任务结束后才离开 ProcessNode，确保 importer 管理的 scene 仍然有效
+		for (auto& [index, future] : meshFutures) {
+			meshResults[index] = future.get();
+		}
+		for (size_t i = 0; i < meshResults.size(); ++i) {
+			auto& [mesh, materialIndices] = meshResults[i];
+			if(mesh != nullptr) {
+				model.boundingBox = Math::AxisAlignedBox::Union(model.boundingBox, mesh->bounds);
+				model.meshes.emplace_back(std::move(mesh));
+				model.meshMaterialIndices.emplace_back(std::move(materialIndices));
+				model.meshNodeKeys.emplace_back(std::move(meshKeys[i]));
+			}
 		}
     }
 

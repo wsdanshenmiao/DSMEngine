@@ -41,6 +41,7 @@ namespace DSM{
         renderRes.m_OpaqueObjects.clear();
         renderRes.m_TransparentObjects.clear();
         renderRes.m_ObjInFrustum.clear();
+        renderRes.m_NoBoundsObjects.clear();
         renderRes.m_ObjectIndex.clear();
         renderRes.m_LastFrameObjectIndex.clear();
         renderRes.m_ObjectMaterialIndex.clear();
@@ -70,8 +71,13 @@ namespace DSM{
         m_NoBoundsObjects.clear();
 
         auto scene = DSMEngine::sm_GlobalContext.scene;
+        if (scene == nullptr) {
+            m_BVH = {};
+            return;
+        }
         auto objView = scene->GetObjectsWithComponents<MeshRenderer, TransformComponent>();
-        if(objView.size_hint() == 0){
+        if (objView.size_hint() == 0) {
+            m_BVH = {};
             return;
         }
 
@@ -90,14 +96,14 @@ namespace DSM{
 
             auto objIndex = std::size(m_OpaqueObjects) + std::size(m_TransparentObjects);
 
-            // 更新 BVH 树
-            if(meshRenderer.GetBounds().IsValid()){
-                // 有包围盒，检测是否在 BVH 中
-                if(auto it = objShouldBeErase.find(obj); it != std::end(objShouldBeErase)){
+            // 仅有效世界盒进入 BVH，其余对象由无包围盒路径处理
+            auto bounds = meshRenderer.GetBounds();
+            if (bounds.IsValid()) {
+                if (auto it = objShouldBeErase.find(obj); it != objShouldBeErase.end()) {
                     m_BVH.UpdateNode(it->second);
-                    objShouldBeErase.erase(obj);
+                    objShouldBeErase.erase(it);
                 }
-                else{
+                else {
                     m_BVH.InsertNode(obj);
                 }
             }
@@ -113,8 +119,9 @@ namespace DSM{
 
             bool isTransparent = false;
             for(size_t subMeshIndex = 0; subMeshIndex < mesh->GetSubMeshCount(); ++subMeshIndex){
-                size_t matIndex = meshRenderer.GetMaterialIndex(subMeshIndex);
-                auto material = meshRenderer.GetMaterial(matIndex);
+                size_t matIndex = meshRenderer.GetMaterialIndexOrDefault(subMeshIndex);
+                auto material = matIndex < meshRenderer.GetMaterials().size()
+                    ? meshRenderer.GetMaterial(matIndex) : nullptr;
                 if(material == nullptr){
                     material = std::make_shared<Material>(Shader::Find("/EngineShaders/ForwardShader/Passes/LitPass.hlsl"));
                     meshRenderer.SetMaterial(matIndex, material);
@@ -185,7 +192,7 @@ namespace DSM{
 
         // 为所有的物体生成 MeshBuffer 和 MaterialBuffer
         auto resizeBuffer = [this] <typename T> (BufferHandle& buffer, const std::vector<T>& dataArr) {
-            auto bufferSize = sizeof(T) * dataArr.size();
+            auto bufferSize = sizeof(T) * std::max(dataArr.size(), size_t{1});
             bool isNull = buffer == nullptr;
             if(isNull || bufferSize > buffer->GetDesc().byteSize){
                 buffer = m_Device->CreateBuffer(BufferDesc()
@@ -208,10 +215,13 @@ namespace DSM{
                     .SetStructStride(sizeof(ShaderResource::MeshData))
                     .SetDebugName("Last Frame Mesh Buffer"));
             }
-            cmdList->CopyBuffer(m_LastFrameMeshBuffer, 0, m_MeshBuffer, 0, meshBufferSize);
+            if (!meshDataArr.empty())
+                cmdList->CopyBuffer(m_LastFrameMeshBuffer, 0, m_MeshBuffer, 0, meshBufferSize);
         }
-        cmdList->WriteBuffer(m_MeshBuffer, meshDataArr.data(), meshDataArr.size() * sizeof(ShaderResource::MeshData));
-        cmdList->WriteBuffer(m_MaterialBuffer, matDataArr.data(), matDataArr.size() * sizeof(ShaderResource::MaterialData));
+        if (!meshDataArr.empty())
+            cmdList->WriteBuffer(m_MeshBuffer, meshDataArr.data(), meshDataArr.size() * sizeof(ShaderResource::MeshData));
+        if (!matDataArr.empty())
+            cmdList->WriteBuffer(m_MaterialBuffer, matDataArr.data(), matDataArr.size() * sizeof(ShaderResource::MaterialData));
         cmdList->Close();
         m_Device->ExecuteCommandList(cmdList);
     }

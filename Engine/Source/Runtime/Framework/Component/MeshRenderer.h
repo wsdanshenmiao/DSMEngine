@@ -17,17 +17,21 @@ namespace DSM {
         virtual ~MeshRenderer() = default;
 
         const std::shared_ptr<Mesh>& GetMesh() const noexcept { return m_Mesh; }
+        Math::AxisAlignedBox GetBounds() const noexcept
+        {
+            if (!m_LocalBounds.IsValid()) return {};
+            auto obj = m_GameObject.lock();
+            auto transform = obj != nullptr ? obj->GetComponent<TransformComponent>() : nullptr;
+            return transform != nullptr ? m_LocalBounds * transform->GetLocalToWorld() : Math::AxisAlignedBox{};
+        }
+        void SetLocalBounds(const Math::AxisAlignedBox& bounds) noexcept
+        {
+            Renderer::SetLocalBounds(bounds);
+        }
         void SetMesh(const std::shared_ptr<Mesh>& mesh) noexcept
-        { 
+        {
             m_Mesh = mesh;
-            SetLocalBounds(mesh->bounds);
-            if(auto obj = m_GameObject.lock(); obj != nullptr){
-                auto transform = obj->GetComponent<TransformComponent>();
-                if(transform != nullptr){
-                    auto worldBounds = mesh->bounds * *transform;
-                    SetBounds(worldBounds);
-                }
-			}
+            SetLocalBounds(mesh != nullptr ? mesh->bounds : Math::AxisAlignedBox{});
             m_IsDirty = true;
         }
 
@@ -36,11 +40,7 @@ namespace DSM {
         
         size_t GetMaterialIndex(size_t subMeshIndex) const noexcept
         {
-            if(subMeshIndex >= m_SubMeshMaterialIndices.size()) {
-                DSM_CORE_ASSERT(subMeshIndex < m_SubMeshMaterialIndices.size(), "subMeshIndex out of range");
-                return 0;
-            }
-            return m_SubMeshMaterialIndices[subMeshIndex];
+            return GetMaterialIndexOrDefault(subMeshIndex);
         }
         size_t GetMaterialIndexOrDefault(size_t subMeshIndex) const noexcept
         {

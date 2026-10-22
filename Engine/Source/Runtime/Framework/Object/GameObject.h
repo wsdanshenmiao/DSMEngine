@@ -28,6 +28,7 @@ namespace DSM {
 
         bool IsEnabled() const noexcept { return m_Enabled; }
         void SetEnabled(bool enabled) noexcept { m_Enabled = enabled; }
+        void MarkSceneDirty() noexcept { m_World->SetDirty(true); }
 
         template <typename... Args>
         bool HasComponent() const noexcept { return m_World->m_Registry.all_of<Args...>(m_Handle); }

@@ -13,7 +13,7 @@ set_toolchains("msvc")
 set_encodings("utf-8")
 
 local configName = is_mode("debug") and "Debug" or "Release"
-binDir = path.join(os.projectdir(), "bin", string.lower(configName))/
+binDir = path.join(os.projectdir(), "bin", string.lower(configName))
 engineBinDir = path.join(os.projectdir(), "build", "engine", configName)
 thirdPartyBinDir = path.join(os.projectdir(), "build", "thirdparty", configName)
 

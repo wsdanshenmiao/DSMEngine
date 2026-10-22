@@ -212,9 +212,12 @@ namespace DSM {
             dstRenderer->SetMaterials(meshRenderer.GetMaterials());
             if (auto mesh = meshRenderer.GetMesh(); mesh != nullptr) {
                 dstRenderer->SetMesh(mesh);
+                for (size_t i = 0; i < mesh->GetSubMeshCount(); ++i) {
+                    dstRenderer->SetMaterialIndex(i, meshRenderer.GetMaterialIndexOrDefault(i));
+                }
             }
+            dstRenderer->SetModel(meshRenderer.GetModel());
             dstRenderer->SetLocalBounds(meshRenderer.GetLocalBounds());
-            dstRenderer->SetBounds(meshRenderer.GetBounds());
         });
 
         src.GetObjectsWithComponents<NativeScript>().each([&](entt::entity entity, const NativeScript& script) {

@@ -108,14 +108,26 @@ namespace DSM {
                 ImGui::PopID();
             };
 
-            drawBoundsEditor("Bounds", meshRenderer.GetBounds(), [&meshRenderer](const Math::AxisAlignedBox& bounds) {
-                meshRenderer.SetBounds(bounds);
-            });
-            drawBoundsEditor("Local Bounds", meshRenderer.GetLocalBounds(), [&meshRenderer](const Math::AxisAlignedBox& bounds) {
+            const auto worldBounds = meshRenderer.GetBounds();
+            ImGui::Separator();
+            ImGui::TextUnformatted("World Bounds (read only)");
+            if (worldBounds.IsValid()) {
+                const auto& min = worldBounds.GetMin();
+                const auto& max = worldBounds.GetMax();
+                ImGui::Text("Min: %.3f, %.3f, %.3f", float(min.Get(0)), float(min.Get(1)), float(min.Get(2)));
+                ImGui::Text("Max: %.3f, %.3f, %.3f", float(max.Get(0)), float(max.Get(1)), float(max.Get(2)));
+            }
+            else ImGui::TextUnformatted("Invalid bounds");
+            const auto editableLocalBounds = meshRenderer.GetLocalBounds().IsValid()
+                ? meshRenderer.GetLocalBounds()
+                : Math::AxisAlignedBox{Math::Vector3{0, 0, 0}, Math::Vector3{1, 1, 1}};
+            drawBoundsEditor("Local Bounds", editableLocalBounds, [&meshRenderer, &object](const Math::AxisAlignedBox& bounds) {
                 meshRenderer.SetLocalBounds(bounds);
+                object->MarkSceneDirty();
             });
 
-            DrawMaterialUI(meshRenderer.GetMaterial(0));
+            if (auto material = meshRenderer.GetMaterial(0)) DrawMaterialUI(material);
+            else ImGui::TextUnformatted("Material: None");
             ImGui::PopItemWidth();
         }
 

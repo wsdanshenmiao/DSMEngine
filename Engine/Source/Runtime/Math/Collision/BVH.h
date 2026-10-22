@@ -18,28 +18,16 @@ namespace DSM::Math {
             std::shared_ptr<BVHNode> left;
             std::shared_ptr<BVHNode> right;
             std::weak_ptr<BVHNode> parent;
-            int height;
+            int height = 0;
 
-            void UpdateBounds()
+            void Refit()
             {
-                for(BVHNode* node = this; node != nullptr; node = node->parent.lock().get()) {
-                    if(node->left != nullptr && node->right != nullptr) {
-                        node->bounds = AxisAlignedBox::Union(node->left->bounds, node->right->bounds);
-                    }
+                if (left != nullptr && right != nullptr) {
+                    bounds = AxisAlignedBox::Union(left->bounds, right->bounds);
+                    height = std::max(left->height, right->height) + 1;
                 }
-            }
-            
-            void UpdateHeight()
-            {
-                auto getHeight = [](BVHNode* node){
-                    return node != nullptr && node->left != nullptr && node->right != nullptr ?
-                        std::max(node->left->height, node->right->height) + 1 : 0;
-                };
-                int preHeight = height = getHeight(this);
-                for (BVHNode* node = parent.lock().get(); 
-                    node != nullptr && preHeight != (node->height - 1); 
-                    node = node->parent.lock().get()) {
-                    preHeight = node->height = getHeight(node);
+                else {
+                    height = 0;
                 }
             }
 
@@ -55,10 +43,8 @@ namespace DSM::Math {
             if (objs.empty())
                 return;
 
-            for (const auto& obj : objs) {
-                if(obj->GetComponent<MeshRenderer>() != nullptr)
-                    InsertNode(obj);
-            }
+            for (const auto& obj : objs)
+                InsertNode(obj);
         }
 
         inline std::shared_ptr<BVHNode> GetRoot() { return m_Root; }
@@ -94,14 +80,19 @@ namespace DSM::Math {
         {
             if (object == nullptr)
                 return nullptr;
-            auto [transform, renderer] = object->GetComponent<TransformComponent, MeshRenderer>();
-            if(transform == nullptr || renderer == nullptr)
-                return nullptr;
-            
-            auto& objBounds = renderer->GetBounds();
+            if (auto it = m_LeafNodes.find(object); it != m_LeafNodes.end()) {
+                UpdateNode(it->second);
+                it = m_LeafNodes.find(object);
+                return it != m_LeafNodes.end() ? it->second : nullptr;
+            }
 
-            // 变换到世界空间的包围盒
-            auto bounds = objBounds * *transform;
+            auto [transform, renderer] = object->GetComponent<TransformComponent, MeshRenderer>();
+            if (transform == nullptr || renderer == nullptr)
+                return nullptr;
+
+            auto bounds = renderer->GetBounds();
+            if (!bounds.IsValid())
+                return nullptr;
 
             // 搜索合适的插入位置
             std::shared_ptr<BVHNode> sibling = FindBestNode(bounds);
@@ -138,32 +129,30 @@ namespace DSM::Math {
             sibling->parent = newParent;
             newNode->parent = newParent;
 
-            // 更新插入节点的祖先节点
-            newNode->UpdateBounds();
-            newNode->UpdateHeight();
-
-            // 将叶子节点插入到链表中
             m_LeafNodes[object] = newNode;
-
             Balance(newParent);
             return newNode;
         }
 
         void RemoveNode(std::shared_ptr<BVHNode> node)
         {
-            if(node == nullptr)
+            if (node == nullptr || node->object == nullptr)
+                return;
+            auto it = m_LeafNodes.find(node->object);
+            if (it == m_LeafNodes.end() || it->second != node)
                 return;
 
             auto nodeParent = node->parent.lock();
             if (nodeParent == nullptr) {
                 m_Root = nullptr;
+                m_LeafNodes.erase(it);
                 return;
             }
 
-            auto otherChild = nodeParent->left == node ?
-                nodeParent->right : nodeParent->left;
-            otherChild->parent = nodeParent->parent;
-            if (auto parent = nodeParent->parent.lock(); parent != nullptr) {
+            auto otherChild = nodeParent->left == node ? nodeParent->right : nodeParent->left;
+            auto parent = nodeParent->parent.lock();
+            otherChild->parent = parent;
+            if (parent != nullptr) {
                 if (parent->left == nodeParent)
                     parent->left = otherChild;
                 else
@@ -172,13 +161,12 @@ namespace DSM::Math {
             else {
                 m_Root = otherChild;
             }
-            otherChild->UpdateBounds();
-            otherChild->UpdateHeight();
 
-            // 从链表中移除叶子节点
-            m_LeafNodes.erase(node->object);
-
-            Balance(nodeParent);
+            node->parent.reset();
+            nodeParent->left.reset();
+            nodeParent->right.reset();
+            m_LeafNodes.erase(it);
+            Balance(parent != nullptr ? parent : otherChild);
         }
 
         void RemoveNode(std::shared_ptr<GameObject> object)
@@ -199,24 +187,36 @@ namespace DSM::Math {
 
         void UpdateNode(std::shared_ptr<BVHNode> node)
         {
-            auto object = node == nullptr ? nullptr : node->object;
-            if(node->object == nullptr)
+            if (node == nullptr || node->object == nullptr)
                 return;
-            
-            auto renderer = object->GetComponent<MeshRenderer>();
-            auto transform = object->GetComponent<TransformComponent>();
-            if(renderer == nullptr || transform == nullptr)
+            auto object = node->object;
+            auto it = m_LeafNodes.find(object);
+            if (it == m_LeafNodes.end() || it->second != node)
                 return;
 
-            auto bounds = renderer->GetBounds() * transform->GetLocalToWorld();
-            // 仅在包围盒不再被父节点包含时才需要调整树结构
-            if(auto checkNode = node->parent.expired() ? node : node->parent.lock();
-                checkNode != nullptr && checkNode->bounds.Contains(bounds)){
+            auto [transform, renderer] = object->GetComponent<TransformComponent, MeshRenderer>();
+            if (transform == nullptr || renderer == nullptr) {
+                RemoveNode(node);
+                return;
+            }
+
+            auto bounds = renderer->GetBounds();
+            if (!bounds.IsValid()) {
+                RemoveNode(node);
+                return;
+            }
+
+            auto parent = node->parent.lock();
+            if (parent == nullptr) {
                 node->bounds = bounds;
             }
-            else{
+            else if (parent->bounds.Contains(bounds)) {
+                node->bounds = bounds;
+                Balance(parent);
+            }
+            else {
                 RemoveNode(node);
-                InsertNode(node->object);
+                InsertNode(object);
             }
         }
 
@@ -296,10 +296,11 @@ namespace DSM::Math {
                 node->right = moveNode;
             }
             node->parent = newRoot;
-            moveNode->parent = node;
+            if (moveNode != nullptr)
+                moveNode->parent = node;
 
-            node->UpdateHeight();
-            node->UpdateBounds();
+            node->Refit();
+            newRoot->Refit();
             return newRoot;
         }
 
@@ -321,24 +322,21 @@ namespace DSM::Math {
 
         void Balance(std::shared_ptr<BVHNode> node)
         {
-            if (node == nullptr) 
-                return;
-            int factor = node->BalanceFactor();
-            std::shared_ptr<BVHNode> newRoot = node;
-            // 左重
-            if (factor > 1) {
-                if (node->left != nullptr && node->left->BalanceFactor() < 0)
-                    node->left = RotateLeft(node->left);  // LR
-                newRoot = RotateRight(node);
+            while (node != nullptr) {
+                node->Refit();
+                int factor = node->BalanceFactor();
+                if (factor > 1) {
+                    if (node->left->BalanceFactor() < 0)
+                        RotateLeft(node->left);
+                    node = RotateRight(node);
+                }
+                else if (factor < -1) {
+                    if (node->right->BalanceFactor() > 0)
+                        RotateRight(node->right);
+                    node = RotateLeft(node);
+                }
+                node = node->parent.lock();
             }
-            else if (factor < -1) {   // 右重
-                if (node->right != nullptr && node->right->BalanceFactor() > 0)
-                    node->right = RotateRight(node->right);    // RL
-                newRoot = RotateLeft(node);
-            }
-
-            if (auto parent = newRoot->parent.lock(); parent != nullptr)
-                Balance(parent);
         }
 
 
