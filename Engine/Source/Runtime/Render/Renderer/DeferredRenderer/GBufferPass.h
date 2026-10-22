@@ -88,10 +88,7 @@ namespace DSM {
                 cmdList->ClearTextureFloat(fbDesc.colorAttachments[i].texture, AllSubresources, {});
             }
 
-            auto proj = renderer.GetCamera().GetProjMatrix();
-            auto offset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{width, height};
-            proj.Set(2, 0, proj.Get(2, 0) + offset.Get(0) * 2.f);
-            proj.Set(2, 1, proj.Get(2, 1) + offset.Get(1) * 2.f);
+            auto proj = TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex());
 
             ShaderResource::PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());

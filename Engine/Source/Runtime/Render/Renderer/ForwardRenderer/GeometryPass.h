@@ -70,17 +70,12 @@ namespace DSM {
             cmdList->Open();
 
             auto& fbDesc = m_Framebuffer->GetDesc();
-            float width = renderer.GetCamera().GetViewPort().Width();
-            float height = renderer.GetCamera().GetViewPort().Height();
             float depth = float(!renderer.GetCamera().IsReversedZ());
             cmdList->ClearDepthStencilTexture(fbDesc.depthAttachment.texture, AllSubresources, true, depth, false, 0);
             cmdList->ClearTextureFloat(fbDesc.colorAttachments[0].texture, AllSubresources, {});
 
             auto view = renderer.GetCamera().GetViewMatrix();
-            auto proj = renderer.GetCamera().GetProjMatrix();
-            auto offset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{width, height};
-            proj.Set(2, 0, proj.Get(2, 0) + offset.Get(0) * 2.f);
-            proj.Set(2, 1, proj.Get(2, 1) + offset.Get(1) * 2.f);
+            auto proj = TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex());
             std::array<Math::Matrix4, 2> viewProj = {Math::Matrix4::Transpose(view), Math::Matrix4::Transpose(proj)};
             cmdList->WriteBuffer(m_PassCB, viewProj.data(), sizeof(viewProj));
 

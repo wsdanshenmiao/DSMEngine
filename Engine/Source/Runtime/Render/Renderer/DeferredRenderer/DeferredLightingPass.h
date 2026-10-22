@@ -6,6 +6,7 @@
 #include "Runtime/Render/Renderer/CommonPass/LightingPass.h"
 #include "Runtime/Render/Renderer/CommonPass/Shadows.h"
 #include "Runtime/Render/ShaderCompiler.h"
+#include "Runtime/Render/Renderer/CommonPass/TaaPass.h"
 
 namespace DSM {
     class DeferredLightingPass : public IRenderPass
@@ -83,11 +84,8 @@ namespace DSM {
             ShaderResource::PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());
             passCB.viewInv = Math::Matrix4::Inverse(passCB.view);
-            // Apply TAA jitter to projection matrix (must match GBuffer pass)
-            auto jitterProj = renderer.GetCamera().GetProjMatrix();
-            auto jitterOffset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{width, height};
-            jitterProj.Set(2, 0, jitterProj.Get(2, 0) + jitterOffset.Get(0) * 2.f);
-            jitterProj.Set(2, 1, jitterProj.Get(2, 1) + jitterOffset.Get(1) * 2.f);
+            // 与 GBuffer 使用相同的抖动投影重建位置。
+            auto jitterProj = TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex());
             passCB.proj = Math::Matrix4::Transpose(jitterProj);
             passCB.projInv = Math::Matrix4::Inverse(passCB.proj);
             passCB.cameraPos = renderer.GetCamera().GetPosition();

@@ -3,6 +3,7 @@
 #define __SSAOPASS_H__
 
 #include "RenderResource.h"
+#include "TaaPass.h"
 
 namespace DSM {
     struct SSAOSettings
@@ -103,7 +104,8 @@ namespace DSM {
 
             if(sm_Settings.enable){
                 ShaderResource::SSAOConstants ssaoConstants{};
-                ssaoConstants.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
+                ssaoConstants.proj = Math::Matrix4::Transpose(
+                    TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex()));
                 ssaoConstants.projInv = Math::Matrix4::Inverse(ssaoConstants.proj);
                 ssaoConstants.sampleCount = std::min(sm_Settings.sampleCount, 14u);
                 ssaoConstants.occlusionRadius = sm_Settings.occlusionRadius;
@@ -195,7 +197,8 @@ namespace DSM {
             }
 
             ShaderResource::SSAOBlurConstants blurConstants{};
-            blurConstants.proj = Math::Matrix4::Transpose(renderer.GetCamera().GetProjMatrix());
+            blurConstants.proj = Math::Matrix4::Transpose(
+                TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex()));
             blurConstants.blurRadius = sm_Settings.blurRadius;
             for(int i = 0; i < sm_Settings.blurCount; ++i){
                 blurConstants.isHorizontal = true;

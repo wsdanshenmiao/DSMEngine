@@ -4,6 +4,7 @@
 
 #include "RenderResource.h"
 #include "Shadows.h"
+#include "TaaPass.h"
 #include "Runtime/Math/MathCommon.h"
 #include "Shaders/Common/ResourceData.h"
 
@@ -175,7 +176,8 @@ namespace DSM {
             
             ShaderResource::TileBasedLightingConstants tileBasedLightCBData{};
             tileBasedLightCBData.lightCount = lightData.otherLightCount;
-            tileBasedLightCBData.proj = Math::Matrix4::Transpose(camera.GetProjMatrix());
+            tileBasedLightCBData.proj = Math::Matrix4::Transpose(
+                TaaPass::GetJitteredProjection(camera, renderer.GetFrameIndex()));
             tileBasedLightCBData.screenSizeAndCameraNearFar = Math::Vector4{width, height, camera.GetNearZ(), camera.GetFarZ()};
             cmdList->WriteBuffer(m_TileBasedLightCB, &tileBasedLightCBData, sizeof(tileBasedLightCBData));
             cmdList->WriteBuffer(m_LightBoundsBuffer, lightBounds.data(), lightData.otherLightCount * sizeof(Math::AxisAlignedBox));

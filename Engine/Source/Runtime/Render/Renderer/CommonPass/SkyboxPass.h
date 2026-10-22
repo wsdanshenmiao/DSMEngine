@@ -4,6 +4,7 @@
 
 #include "Runtime/Render/TextureManager.h"
 #include "Runtime/Render/ShaderCompiler.h"
+#include "TaaPass.h"
 
 namespace DSM {
     class SkyboxPass : public IRenderPass {
@@ -94,7 +95,9 @@ namespace DSM {
             ShaderResource::SkyboxConstants skyboxConstants{};
             skyboxConstants.isReversedZ = renderer.GetCamera().IsReversedZ();
             skyboxConstants.cameraPos = float4(renderer.GetCamera().GetPosition(), 1.0f);
-            skyboxConstants.invViewProj = Math::Matrix4::InverseTranspose(renderer.GetCamera().GetViewProjMatrix());
+            const auto jitteredProj = TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex());
+            skyboxConstants.invViewProj = Math::Matrix4::InverseTranspose(
+                renderer.GetCamera().GetViewMatrix() * jitteredProj);
             cmdList->WriteBuffer(m_SkyboxCB, &skyboxConstants, sizeof(ShaderResource::SkyboxConstants));
 
             GraphicsState graphicsState = GraphicsState()

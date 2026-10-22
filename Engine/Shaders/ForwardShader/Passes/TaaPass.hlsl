@@ -16,6 +16,8 @@ cbuffer gTaaConstants : register(b0)
 	float gHistoryWeight;
 	float gVarianceClip;
     float2 gTexelSize;
+    float2 gJitterUV;
+    float2 gJitterDeltaUV;
 }
 
 Texture2D<float4> gCurrColor : register(t0);
@@ -102,7 +104,8 @@ float3 ClipColor(float3 color, float3 historyCol, float2 uv)
 
     float3 rayOrigin = historyCol;
     float3 rayDir = color - historyCol;
-    float3 invDir = rcp(rayDir);
+    // 常量颜色/不变通道的方向为零，避免 rcp(0) 后出现 0 * Inf。
+    float3 invDir = sign(rayDir) * rcp(max(abs(rayDir), 1e-6f));
 
     // 计算历史颜色到当前颜色的包围盒与射线的交点，将历史颜色限制在当前颜色的范围内
     float3 tMin = (colorMin - rayOrigin) * invDir;
@@ -148,22 +151,29 @@ Varyings TaaPassVS(uint vertexID : SV_VertexID)
 
 float4 TaaPassPS(Varyings input) : SV_TARGET
 {
-    float4 currCol = SampleColor(gCurrColor, input.uv);
+    // 输出与历史始终使用固定网格；当前输入则来自抖动光栅化网格。
+    float2 rasterUV = input.uv + gJitterUV;
+    float4 currCol = SampleColor(gCurrColor, rasterUV);
+    if(gHistoryWeight <= 0.0f)
+        return ResolveColor(currCol);
 
 #if defined(USE_CLOSEST_FRAGMENT)
-    float2 uv = FindClosestFragment3x3(input.uv);
+    float2 uv = FindClosestFragment3x3(rasterUV);
 #else
-    float2 uv = input.uv;
+    float2 uv = rasterUV;
 #endif
-    float2 motionVec = gMotionVec.Sample(gPointClampSampler, uv);
+    // 输入速度含当前/上一帧的 jitter 差；稳定历史不能把采样偏移当成真实运动。
+    float2 motionVec = gMotionVec.Sample(gPointClampSampler, uv) - gJitterDeltaUV;
     float2 prevUV = input.uv - motionVec;
+    if(any(prevUV < 0.5f * gTexelSize) || any(prevUV > 1.0f - 0.5f * gTexelSize))
+        return ResolveColor(currCol);
 
     // 从历史帧中采样颜色，并进行颜色限制
     float4 histCol = SampleColor(gHistoryColor, prevUV);
 #if defined(USE_COLOR_CLIP)
-    histCol.rgb = ClipColor(currCol.rgb, histCol.rgb, input.uv);
+    histCol.rgb = ClipColor(currCol.rgb, histCol.rgb, rasterUV);
 #else
-    histCol.rgb = ClampColor(currCol.rgb, histCol.rgb, input.uv);
+    histCol.rgb = ClampColor(currCol.rgb, histCol.rgb, rasterUV);
 #endif    
 
     // 根据运动矢量的长度计算拒绝率

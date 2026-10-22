@@ -83,12 +83,8 @@ namespace DSM {
 
             auto cmdList = device->CreateCommandList(CommandListParameters().SetDebugName("TAA Command List"));
             cmdList->Open();
-            if(m_ResetHistory){
-                cmdList->CopyTexture(m_HistoryColorTex, {}, colorTex, {});
-            }
-            else{
-                ExecuteTaaPass(renderer, cmdList, colorTex);
-            }
+            // 首帧也要重建到固定像素网格，不能直接保存带 jitter 的原始颜色。
+            ExecuteTaaPass(renderer, cmdList, colorTex);
             cmdList->Close();
 
             m_ResetHistory = false;
@@ -159,6 +155,24 @@ namespace DSM {
             return Math::Vector2{jitterX, jitterY};
         }
 
+        static Math::Matrix4 GetJitteredProjection(const Camera& camera, uint32_t frameIndex)
+        {
+            auto proj = camera.GetProjMatrix();
+            const auto& viewport = camera.GetViewPort();
+            const auto jitter = GetJitterOffset(frameIndex);
+            proj.Set(2, 0, proj.Get(2, 0) + float(jitter.Get(0)) * 2.f / viewport.Width());
+            proj.Set(2, 1, proj.Get(2, 1) + float(jitter.Get(1)) * 2.f / viewport.Height());
+            return proj;
+        }
+
+        static Math::Vector2 GetJitterUV(const Camera& camera, uint32_t frameIndex)
+        {
+            const auto jitter = GetJitterOffset(frameIndex);
+            const auto& viewport = camera.GetViewPort();
+            // 返回图像位移而非采样位置；纹理 UV 的 Y 方向与 NDC 相反。
+            return {float(jitter.Get(0)) / viewport.Width(), -float(jitter.Get(1)) / viewport.Height()};
+        }
+
     private:
         void ExecuteTaaPass(GraphicsRenderer& renderer, ICommandList* cmdList, ITexture* colorTex)
         {
@@ -195,16 +209,23 @@ namespace DSM {
                 .SetViewport(ViewportState().AddViewportAndScissorRect(viewPort)));
 
             TaaConstants constants{};
-            constants.historyWeight = blendFactor;
+            constants.historyWeight = m_ResetHistory ? 0.f : blendFactor;
             constants.varianceClip = std::max(sm_Settings.varianceClip, 0.0f);
             constants.texelSizeX = 1.f / viewPort.Width();
             constants.texelSizeY = 1.f / viewPort.Height();
+            const auto jitterUV = GetJitterUV(renderer.GetCamera(), renderer.GetFrameIndex());
+            const auto jitterDeltaUV = m_ResetHistory ? Math::Vector2{} : jitterUV - m_PreviousJitterUV;
+            constants.jitterUVX = jitterUV.Get(0);
+            constants.jitterUVY = jitterUV.Get(1);
+            constants.jitterDeltaUVX = jitterDeltaUV.Get(0);
+            constants.jitterDeltaUVY = jitterDeltaUV.Get(1);
             cmdList->SetPushConstants(&constants, sizeof(constants));
 
             cmdList->Draw(DrawArguments().SetVertexCount(3));
 
             // 拷贝历史帧
             cmdList->CopyTexture(m_HistoryColorTex, {}, colorTex, {});
+            m_PreviousJitterUV = jitterUV;
         }
 
     private:
@@ -223,6 +244,10 @@ namespace DSM {
             float varianceClip;
             float texelSizeX;
             float texelSizeY;
+            float jitterUVX;
+            float jitterUVY;
+            float jitterDeltaUVX;
+            float jitterDeltaUVY;
         };
 
         inline static TaaSettings sm_Settings{};
@@ -240,6 +265,7 @@ namespace DSM {
         TextureHandle m_CurrTex{};
 
         bool m_ResetHistory = true;
+        Math::Vector2 m_PreviousJitterUV{};
     };
 }
 

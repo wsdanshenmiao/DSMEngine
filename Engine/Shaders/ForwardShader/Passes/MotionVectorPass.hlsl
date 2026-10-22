@@ -23,6 +23,7 @@ cbuffer gMotionVectorConstants : register(b0)
 {
     float4x4 gCurrMatrix;
     float4x4 gPrevViewProj;
+    float4 gCurrentCameraPosition;
 }
 Texture2D<float> gDepthTex : register(t0);
 
@@ -48,13 +49,16 @@ float2 MotionVectorFullScreenPS(VaryingsFullScreen input) : SV_TARGET0
     float depth = gDepthTex.Sample(gPointClampSampler, input.uv);
     float clearDepth = (gObjIndexOrReverseZFlag != 0) ? 0.0f : 1.0f;
     const float eps = 1e-4f;
-    if(abs(depth - clearDepth) < eps)
-        return 0;
-
     float4 posWS = GetWorldPosition(input.uv, gCurrMatrix, depth);
+    if(abs(depth - clearDepth) < eps) {
+        // 天空仅随相机旋转和 jitter 移动，不能返回零，也不能引入相机平移。
+        posWS = float4(posWS.xyz - gCurrentCameraPosition.xyz, 0.0f);
+    }
 
     // 将当前世界位置变换到上一帧的裁剪空间
     float4 prevPosCS = mul(posWS, gPrevViewProj);
+    if(prevPosCS.w <= 0.0f)
+        return float2(2.0f, 2.0f);
     // 透视除法得到 NDC 坐标
     prevPosCS /= prevPosCS.w;
 

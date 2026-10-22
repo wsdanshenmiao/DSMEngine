@@ -2,6 +2,7 @@
 #define __MOTION_VECTOR_PASS_H__
 
 #include "RenderResource.h"
+#include "TaaPass.h"
 
 namespace DSM {
     class MotionVectorPass : public IRenderPass
@@ -76,15 +77,14 @@ namespace DSM {
 
             auto viewport = renderer.GetCamera().GetViewPort();
             auto view = renderer.GetCamera().GetViewMatrix();
-            auto proj = renderer.GetCamera().GetProjMatrix();
-            auto offset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{viewport.Width(), viewport.Height()};
-            proj.Set(2, 0, proj.Get(2, 0) + offset.Get(0) * 2.f);
-            proj.Set(2, 1, proj.Get(2, 1) + offset.Get(1) * 2.f);
+            // 光栅化、深度重建和速度使用同一抖动矩阵；resolve 再消除 jitter 差。
+            auto proj = TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex());
 
             MotionVecFullScreenConstants constants{};
             constants.prevMatrix = m_PreViewProjMatrix;
             m_PreViewProjMatrix = Math::Matrix4::Transpose(view * proj);
             constants.currMatrix = Math::Matrix4::Inverse(m_PreViewProjMatrix);
+            constants.cameraPosition = Math::Vector4{renderer.GetCamera().GetPosition(), 1.f};
             cmdList->WriteBuffer(m_Constants, &constants, sizeof(constants));
 
             MotionVecObjConstants objConstants{};
@@ -196,6 +196,7 @@ namespace DSM {
         {
             Math::Matrix4 currMatrix;
             Math::Matrix4 prevMatrix;
+            Math::Vector4 cameraPosition;
         };
 
         struct MotionVecObjConstants

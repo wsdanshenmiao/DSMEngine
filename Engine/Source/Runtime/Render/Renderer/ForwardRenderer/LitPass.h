@@ -9,6 +9,7 @@
 #include "Runtime/Render/Renderer/CommonPass/Shadows.h"
 #include "Runtime/Render/Renderer/CommonPass/SSAOPass.h"
 #include "Runtime/Render/Renderer/CommonPass/LightingPass.h"
+#include "Runtime/Render/Renderer/CommonPass/TaaPass.h"
 
 namespace DSM {
     // 绘制所有模型
@@ -101,10 +102,7 @@ namespace DSM {
 
             float cameraNear = renderer.GetCamera().GetNearZ();
             float cameraFar = renderer.GetCamera().GetFarZ();
-            auto proj = renderer.GetCamera().GetProjMatrix();
-            auto offset = TaaPass::GetJitterOffset(renderer.GetFrameIndex()) / Math::Vector2{width, height};
-            proj.Set(2, 0, proj.Get(2, 0) + offset.Get(0) * 2.f);
-            proj.Set(2, 1, proj.Get(2, 1) + offset.Get(1) * 2.f);
+            auto proj = TaaPass::GetJitteredProjection(renderer.GetCamera(), renderer.GetFrameIndex());
             ShaderResource::PassConstants passCB{};
             passCB.view = Math::Matrix4::Transpose(renderer.GetCamera().GetViewMatrix());
             passCB.viewInv = Math::Matrix4::Inverse(passCB.view);

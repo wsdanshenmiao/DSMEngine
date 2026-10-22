@@ -7,6 +7,15 @@
         add_files("VirtualFileSystem/VirtualFileSystemTests.cpp")
     target_end()
 
+    target("TemporalAATests")
+        set_kind("binary")
+        set_targetdir(path.join(os.projectdir(), "build", "verification", "temporal-aa"))
+        add_deps("DSMEngine")
+        add_includedirs(path.join(os.projectdir(), "Engine", "Source"))
+        add_includedirs(path.join(os.projectdir(), "Engine"))
+        add_files("TemporalAA/TemporalAATests.cpp")
+    target_end()
+
     target("SceneBoundsTests")
         set_kind("binary")
         set_targetdir(path.join(os.projectdir(), "build", "verification", "scene-bounds"))
