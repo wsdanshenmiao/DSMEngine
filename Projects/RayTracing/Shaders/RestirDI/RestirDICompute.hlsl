@@ -46,7 +46,8 @@ void InitialRISCS(uint3 dispatchThreadID : SV_DispatchThreadID)
 void TemporalReuseCS(uint3 dispatchThreadID : SV_DispatchThreadID)
 {
     uint2 pixel = dispatchThreadID.xy;
-    if (!PixelInBounds(pixel)) return;
+    if (!PixelInBounds(pixel))
+        return;
     uint width = g_Frame.resolutionFrame.x;
     uint height = g_Frame.resolutionFrame.y;
     uint index = pixel.y * width + pixel.x;
